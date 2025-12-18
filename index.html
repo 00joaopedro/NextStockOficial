@@ -292,66 +292,6 @@
         font-size: 16px;
       }
     }
-        /* Product grid */
-    .products {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 20px;
-    }
-
-    .product-card {
-      background: #fff;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      overflow: hidden;
-      padding: 10px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      transition: 0.3s;
-    }
-
-    .product-card:hover {
-      transform: scale(1.02);
-    }
-
-    .product-card img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-      border-radius: 6px;
-    }
-
-    .product-card h3 {
-      font-size: 16px;
-      margin: 10px 0;
-    }
-
-    .product-card p {
-      font-size: 14px;
-      color: #555;
-    }
-
-    .buttons {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 10px;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 6px;
-      padding: 6px 10px;
-      cursor: pointer;
-      color: white;
-      font-weight: bold;
-      font-size: 14px;
-    }
-
-    .btn.add { background-color: #00b4d8; }
-    .btn.remove { background-color: #e63946; }
   </style>
 </head>
 
@@ -360,7 +300,7 @@
   <aside class="sidebar">
     <h2>NextStock</h2>
     <ul class="menu">
-      <a href="home.html"><li>Home</li></a>
+      <a href="index.html"><li>Home</li></a>
       <a href="guia.html"><li>Guia</li></a>
       <a href="produtos.html"><li>Produtos</li></a>
       <a href="cadastro.html"><li>Cadastro</li></a>
@@ -400,38 +340,34 @@
         </div>
       </section>
 
-  <main class="main">
-    <div class="products" id="product-container">
-      <div class="product-card" data-name="Copo Térmico" data-price="49.90">
-        <img src="img/techstore.jpg" alt="Produto 1">
-        <h3>Copo Térmico</h3>
-        <p>R$ 49,90</p>
-        <div class="buttons">
-          <button class="btn add">+</button>
-          <button class="btn remove">-</button>
+      <h2>Atalhos</h2>
+      <section class="atalhos">
+        <div class="atalho-card">
+          <h4>Produtos</h4>
+          <p>Cadastro de produtos</p>
         </div>
-      </div>
-
-      <div class="product-card" data-name="Escorredor de Silicone" data-price="34.90">
-        <img src="img/techstore.jpg" alt="Produto 2">
-        <h3>Escorredor de Silicone</h3>
-        <p>R$ 34,90</p>
-        <div class="buttons">
-          <button class="btn add">+</button>
-          <button class="btn remove">-</button>
+        <div class="atalho-card">
+          <h4>Entradas</h4>
+          <p>Gerenciar entradas</p>
         </div>
-      </div>
-
-      <div class="product-card" data-name="Organizador de Geladeira" data-price="59.90">
-        <img src="img/techstore.jpg" alt="Produto 3">
-        <h3>Organizador de Geladeira</h3>
-        <p>R$ 59,90</p>
-        <div class="buttons">
-          <button class="btn add">+</button>
-          <button class="btn remove">-</button>
+        <div class="atalho-card">
+          <h4>Saídas</h4>
+          <p>Gerenciar saídas</p>
         </div>
-      </div>
-    </div>
-  </main>
+        <div class="atalho-card">
+          <h4>Relatórios</h4>
+          <p>Relatórios detalhados</p>
+        </div>
+        <div class="atalho-card">
+          <h4>Clientes</h4>
+          <p>Cadastro de clientes</p>
+        </div>
+        <div class="atalho-card">
+          <h4>Fornecedores</h4>
+          <p>Cadastro de fornecedores</p>
+        </div>
+      </section>
+    </main>
+  </div>
 </body>
 </html>
