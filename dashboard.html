@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard - NextStock</title>
+  <style>
+    :root {
+      --blue-900: #0d1b2a;
+      --cyan: #00cfcf;
+      --bg: #f4f7fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Inter, system-ui, Segoe UI, Roboto, Arial;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      color: #0b2545;
+    }
+
+    .app {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ==== SIDEBAR ==== */
+    .sidebar {
+      width: 20%;
+      background: var(--blue-900);
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 20px;
+      overflow-y: auto;
+      transition: all 0.3s ease;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--cyan);
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+    }
+
+    .menu {
+      list-style: none;
+      padding: 0 10px;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 20px);
+      border-radius: 6px;
+    }
+
+    .menu li:hover, .menu li.active {
+      background: var(--cyan);
+      color: var(--blue-900);
+      font-weight: bold;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: white;
+      display: block;
+    }
+
+    /* ==== MAIN AREA ==== */
+    .main {
+      margin-left: 20%;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: all 0.3s ease;
+    }
+
+    /* ==== TOPBAR ==== */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 18px 24px;
+      background: #fff;
+      border-bottom: 1px solid #eee;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .topbar .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .seg {
+      background: transparent;
+      border: 1px solid rgba(11, 37, 69, 0.08);
+      padding: 8px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .seg.active {
+      background: linear-gradient(90deg, var(--blue-900), var(--cyan));
+      color: #fff;
+      border: none;
+      font-weight: 600;
+    }
+
+    /* ==== CONTENT ==== */
+    .content {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    /* ==== CARDS ==== */
+    .cards-row {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .info-card {
+      flex: 1;
+      min-width: 180px;
+      background: #fff;
+      padding: 18px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(13, 27, 42, 0.06);
+    }
+
+    .info-card .title {
+      font-size: 13px;
+      color: #6b7b86;
+    }
+
+    .info-card .value {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--blue-900);
+      margin-top: 8px;
+    }
+
+    /* ==== CHART ==== */
+    .chart-area {
+      background: #fff;
+      padding: 18px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(13, 27, 42, 0.06);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .chart-area img {
+      width: 100%;
+      max-width: 1000px;
+      height: auto;
+      border-radius: 8px;
+    }
+
+    /* ==== ATALHOS ==== */
+    .atalhos {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 18px;
+    }
+
+    .tile {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(13, 27, 42, 0.06);
+      text-align: center;
+      font-weight: 700;
+      color: var(--blue-900);
+      transition: transform 0.3s;
+    }
+
+    .tile:hover {
+      transform: scale(1.03);
+    }
+
+    /* ==== RESPONSIVIDADE ==== */
+    @media (max-width: 900px) {
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 15px;
+      }
+
+      .sidebar h2 {
+        margin-bottom: 12px;
+        order: -1;
+      }
+
+      .menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        padding: 0;
+      }
+
+      .menu li {
+        padding: 10px 12px;
+        font-size: 1rem;
+      }
+
+      .main {
+        margin-left: 0;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 12px;
+        gap: 10px;
+      }
+
+      .content {
+        padding: 16px;
+        gap: 20px;
+      }
+
+      .cards-row {
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .atalhos {
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <h2>NextStock</h2>
+      <ul class="menu">
+        <a href="index.html"><li>Home</li></a>
+        <a href="guia.html"><li>Guia</li></a>
+        <a href="produtos.html"><li>Produtos</li></a>
+        <a href="cadastro.html"><li>Cadastro</li></a>
+        <a href="importação.html"><li>Importação</li></a>
+        <li>Saídas</li>
+        <a href="dashboard.html"><li>Relatórios</li></a>
+        <li>Fornecedores</li>
+        <a href="link-whats"><li>Suporte</li></a>
+      </ul>
+    </aside>
+
+    <!-- Main -->
+    <div class="main">
+      <header class="topbar">
+        <div class="breadcrumbs">Dashboard</div>
+        <div class="actions">
+          <button id="btn-day" class="seg active" data-range="day">Dia</button>
+          <button id="btn-week" class="seg" data-range="week">Semana</button>
+          <button id="btn-month" class="seg" data-range="month">Mês</button>
+          <button id="btn-year" class="seg" data-range="year">Ano</button>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="cards-row">
+          <div class="info-card">
+            <div class="title">Produtos com estoque baixo</div>
+            <div class="value" id="low-count">0</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Quantidade no estoque</div>
+            <div class="value" id="qty-count">0</div>
+          </div>
+          <div class="info-card">
+            <div class="title">Custo total</div>
+            <div class="value" id="cost-total">R$0</div>
+          </div>
+        </div>
+
+        <div class="chart-area">
+          <img id="chart-img" src="/chart?range=day" alt="Gráfico de barras" />
+        </div>
+
+        <div class="atalhos">
+          <div class="tile">Produtos</div>
+          <div class="tile">Entradas</div>
+          <div class="tile">Saídas</div>
+          <div class="tile">Relatórios</div>
+          <div class="tile">Clientes</div>
+          <div class="tile">Fornecedores</div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

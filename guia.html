@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FAQ - Estoque Nuvem</title>
+  <style>
+    /* ===== RESET ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 20%;
+      background: #0d1b2a;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 20px;
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #00cfcf;
+      font-size: 1.6rem;
+    }
+
+    .menu {
+      list-style: none;
+      padding: 0;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 20px, 24px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    /* ===== CONTEÚDO PRINCIPAL ===== */
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      background: linear-gradient(90deg, #0d1b2a, #00cfcf);
+      color: #222;
+      padding-left: 20%;
+    }
+
+/* centraliza o título (e não atrapalha a grid de FAQs) */
+main {
+  padding: 40px 5%;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center; /* <-- garante centralização do h1 e de elementos inline */
+}
+
+h1 {
+  display: block; /* <-- bloco padrão, fica centralizado pelo text-align do pai */
+  text-align: center;
+  font-size: clamp(1.8rem, 2.5vw, 2.4rem);
+  color: #0d1b2a;
+  background: #fff;
+  margin: 20px auto;
+  padding: 10px 25px;
+  border-radius: 8px;
+  max-width: 100%; /* evita overflow em telas pequenas */
+}
+
+    p.subtitle {
+      text-align: center;
+      color: #ffffff;
+      margin-top: 8px;
+      margin-bottom: 40px;
+      font-size: clamp(16px, 1.2vw, 22px);
+    }
+
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 30px;
+    }
+
+    .faq-item {
+      background: #fff;
+      border-left: 3px solid #00cfcf;
+      padding: 25px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+      position: relative;
+    }
+
+    .faq-item:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+    }
+
+    .faq-item::before {
+      content: "🎯";
+      font-size: 28px;
+      color: #00cfcf;
+      position: absolute;
+      left: -40px;
+      top: 20px;
+    }
+
+    .faq-item h3 {
+      font-size: 1.2rem;
+      color: #0d1b2a;
+      margin-bottom: 10px;
+    }
+
+    .faq-item p {
+      color: #444;
+      font-size: clamp(15px, 1.1vw, 20px);
+      line-height: 1.6;
+    }
+
+    .faq-item a {
+      color: #00cfcf;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-block;
+      margin-top: 10px;
+      transition: color 0.3s;
+    }
+
+    .faq-item a:hover {
+      color: #0d1b2a;
+    }
+
+    /* ===== MOBILE RESPONSIVE ===== */
+    @media (max-width: 900px) {
+      body {
+        padding-left: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        flex-direction: column; /* Empilha o nome e o menu */
+        justify-content: center;
+        align-items: center;
+        padding: 15px 0;
+      }
+
+      .sidebar h2 {
+        order: -1; /* Coloca o nome acima do menu */
+        margin-bottom: 10px;
+        text-align: center;
+        font-size: 1.5rem;
+      }
+
+      .menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+        padding: 0 10px;
+      }
+
+      .menu li {
+        padding: 10px 12px;
+        font-size: 1rem;
+      }
+
+      main {
+        padding: 30px 15px;
+        margin-top: 10px;
+        width: 100%;
+      }
+
+      .faq-grid {
+        grid-template-columns: 1fr;
+        gap: 20px;
+      }
+
+      .faq-item::before {
+        display: none;
+      }
+
+      .faq-item {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        padding: 8px 15px;
+      }
+
+      p.subtitle {
+        font-size: 1rem;
+        margin-bottom: 25px;
+      }
+    }
+
+    /* ===== TABLET AJUSTES ===== */
+    @media (min-width: 901px) and (max-width: 1200px) {
+      .sidebar {
+        width: 25%;
+      }
+      body {
+        padding-left: 25%;
+      }
+      .faq-grid {
+        gap: 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>NextStock</h2>
+    <ul class="menu">
+      <a href="home.html"><li>Home</li></a>
+      <a href="guia.html"><li>Guia</li></a>
+      <a href="produtos.html"><li>Produtos</li></a>
+      <a href="cadastro.html"><li>Cadastro</li></a>
+      <a href="importação.html"><li>Importação</li></a>
+      <li>Saídas</li>
+      <a href="public/index.html"><li>Relatórios</li></a>
+      <li>Fornecedores</li>
+      <a href="link-whats"><li>Suporte</li></a>
+    </ul>
+  </aside>
+
+  <!-- Conteúdo principal -->
+  <main>
+    <h1>FAQ</h1>
+    <p class="subtitle">Aqui estão algumas das perguntas frequentes sobre o sistema Estoque Nuvem</p>
+
+    <div class="faq-grid">
+      <div class="faq-item">
+        <h3>Como adicionar uma fonte de cadastro?</h3>
+        <p>Permite rastrear de onde veio cada cadastro de produto ou cliente, ajudando a identificar as origens mais eficientes.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Como fazer reservas para grupos existentes?</h3>
+        <p>Depois de encontrar o grupo desejado, é possível associar novos pedidos ou reservas diretamente ao mesmo cadastro.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Configuração de planos de preço</h3>
+        <p>Os planos de preço ajudam a automatizar margens de lucro e precificação. Assim, a equipe não precisa calcular manualmente cada item.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Como adicionar outra unidade ao sistema?</h3>
+        <p>Se sua empresa possui mais de uma filial, é possível adicionar propriedades adicionais pelo painel de controle.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Como mover produtos entre seções?</h3>
+        <p>Permite transferir produtos entre estoques ou prateleiras, mantendo a rastreabilidade de todas as movimentações.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Como criar um agrupamento de pedidos?</h3>
+        <p>Ideal para empresas que recebem pedidos em lote, permitindo gerenciar vários produtos sob uma única referência.</p>
+        <a href="#">Leia mais</a>
+      </div>
+
+      <div class="faq-item">
+        <h3>Como configurar seu site ou painel de vendas?</h3>
+        <p>No menu <b>Configurações &gt; Empresa</b>, adicione todas as informações necessárias para exibir seus produtos e relatórios.</p>
+        <a href="#">Leia mais</a>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

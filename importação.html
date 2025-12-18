@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contact To Excel - Web</title>
+<style>
+  :root {
+    --teal: #0f9d8a;
+    --teal-dark: #0b7b6d;
+    --gray: #f4f4f4;
+    --white: #fff;
+    --dark-blue: #0d1b2a;
+    --aqua: #00cfcf;
+  }
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Roboto, sans-serif;
+  }
+
+  body {
+    background: var(--gray);
+    display: flex;
+    min-height: 100vh;
+    flex-direction: row;
+  }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 20%;
+    background: var(--dark-blue);
+    height: 100vh;
+    position: fixed;
+    top: 0;
+    left: 0;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    padding-top: 20px;
+    overflow-y: auto;
+  }
+
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .sidebar::-webkit-scrollbar-thumb {
+    background: var(--aqua);
+    border-radius: 5px;
+  }
+
+  .sidebar h2 {
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--aqua);
+    font-size: clamp(18px, 2vw, 24px);
+  }
+
+  .menu {
+    list-style: none;
+  }
+
+  .menu li {
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: background 0.3s;
+    font-size: clamp(16px, 1.2vw, 22px);
+  }
+
+  .menu li:hover,
+  .menu li.active {
+    background: var(--aqua);
+    color: var(--dark-blue);
+    font-weight: bold;
+  }
+
+  .menu a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  /* MAIN */
+  .main {
+    margin-left: 20%;
+    width: 80%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px 15px;
+  }
+
+  .card {
+    background: var(--white);
+    padding: 30px 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .card h1 {
+    color: var(--teal);
+    font-size: clamp(1.2rem, 2vw, 1.6rem);
+    margin-bottom: 20px;
+  }
+
+  .formats {
+    display: flex;
+    justify-content: center;
+    gap: 18px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+  }
+
+  .formats label {
+    font-weight: 500;
+    color: #333;
+    font-size: clamp(0.9rem, 1vw, 1rem);
+  }
+
+  .msg {
+    margin-bottom: 25px;
+    font-size: clamp(0.85rem, 1vw, 1rem);
+    color: #666;
+  }
+
+  /* BUTTONS */
+  .btn {
+    background: var(--teal);
+    color: var(--white);
+    border: none;
+    padding: 12px 20px;
+    margin: 10px 0;
+    border-radius: 10px;
+    font-size: 1rem;
+    width: 100%;
+    cursor: pointer;
+    transition: background 0.3s ease, transform 0.15s ease;
+  }
+
+  .btn:hover {
+    background: var(--teal-dark);
+    transform: scale(1.03);
+  }
+
+  /* TABLET */
+  @media (max-width: 1024px) {
+    .sidebar {
+      width: 25%;
+    }
+    .main {
+      margin-left: 25%;
+      width: 75%;
+      padding: 30px 10px;
+    }
+  }
+
+@media (max-width: 900px) {
+  body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: column; /* ← alterado: agora empilha o título e a lista */
+    align-items: center;
+    justify-content: center;
+    padding: 15px 0;
+  }
+
+  .sidebar h2 {
+    font-size: 1.1rem;
+    text-align: center;
+    margin-bottom: 10px; /* espaço entre o título e a lista */
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .menu li {
+    padding: 10px 12px;
+    font-size: 1rem;
+  }
+
+  .main {
+    margin-left: 0;
+    width: 100%;
+    padding: 20px;
+  }
+
+  .card {
+    max-width: 100%;
+    padding: 25px 20px;
+  }
+}
+
+  /* CELULAR PEQUENO */
+  @media (max-width: 480px) {
+    .sidebar h2 {
+      font-size: 0.9rem;
+    }
+    .menu li {
+      padding: 8px 10px;
+      font-size: 0.85rem;
+    }
+    .card h1 {
+      font-size: 1.1rem;
+    }
+    .btn {
+      font-size: 0.9rem;
+      padding: 10px 16px;
+    }
+  }
+</style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+              <h2>NextStock</h2>
+    <ul class="menu">
+      <a href="home.html"><li>Home</li></a>
+      <li>Guia</li>
+      <a href="produtos.html"><li>Produtos</li></a>
+      <a href="cadastro.html"><li>Cadastro</li></a>
+      <a href="importação.html"><li>Importação</li></a>
+      <li>Saídas</li>
+      <a href="public/index.html"><li>Relatórios</li></a>
+      <li>Vendas</li>
+      <li>Fornecedores</li>
+      <a href="link-whats"><li>Suporte</li></a>
+      <li>Feedback</li>
+    </ul>
+  </aside>
+
+  <!-- Main Section -->
+  <main class="main">
+    <div class="card">
+      <h1>Contact To Excel</h1>
+
+      <div class="formats">
+        <label><input type="radio" name="format" checked> XLSX</label>
+        <label><input type="radio" name="format"> CSV</label>
+      </div>
+
+      <p class="msg">Só aceitamos importação de arquivos de 50MB de cada vez.</p>
+
+      <button class="btn" id="exportBtn">Exportar planilha</button>
+      <button class="btn" id="importBtn">Importar planilha</button>
+    </div>
+  </main>
+
+<script>
+  const exportBtn = document.getElementById('exportBtn');
+  const importBtn = document.getElementById('importBtn');
+
+  exportBtn.addEventListener('click', () => {
+    alert("Arquivo aceito. Exportação em andamento...");
+  });
+
+  importBtn.addEventListener('click', () => {
+    alert("Arquivo aceito. Importação em andamento...");
+  });
+</script>
+
+</body>
+</html>

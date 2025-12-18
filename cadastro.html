@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Produto</title>
+  <style>
+        * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 20%;
+      background: #0d1b2a; /* Azul escuro */
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 20px;
+      overflow-y: auto; /* Scroll */
+    }
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #00cfcf;
+    }
+    .menu {
+      list-style: none;
+    }
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 22px, 26px);
+    }
+    .menu li:hover {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+    .menu a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* ===== MAIN CONTENT ===== */
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #00b1b1, #0d1b2a);
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding-left: 20%; /* espaço para sidebar */
+    }
+
+    .container {
+      background: #fff;
+      width: 500px;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.2);
+      margin: 40px auto;
+    }
+
+    .header {
+      background: #3f3f3f;
+      color: white;
+      padding: 12px;
+      font-weight: bold;
+      text-align: center;
+      border-radius: 6px;
+      margin-bottom: 25px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 5px;
+      display: block;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .img-upload input {
+      border: none;
+      padding: 0;
+    }
+
+    .section-title {
+      font-weight: bold;
+      color: #00796B;
+      border-bottom: 2px solid #00796B;
+      margin-top: 10px;
+      padding-bottom: 4px;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 10px;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      text-align: center;
+      transition: opacity 0.3s ease, transform 0.15s ease;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: scale(1.03);
+    }
+
+    .btn-cadastrar { background: #4CAF50; }
+    .btn-consultar { background: #2196F3; }
+    .btn-atualizar { background: #607D8B; }
+    .btn-deletar   { background: #f44336; }
+
+@media (max-width: 900px) {
+  body {
+    flex-direction: column;
+    padding-left: 0;
+  }
+
+  .sidebar {
+    width: 100%;
+    height: auto;
+    position: relative;
+    flex-direction: column; /* <-- antes estava row */
+    justify-content: center;
+    align-items: center; /* <-- centraliza horizontalmente */
+    padding: 10px;
+  }
+
+  .sidebar h2 {
+    order: -1; /* garante que o título fique acima da lista */
+    text-align: center;
+    margin-bottom: 10px;
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .menu li {
+    padding: 10px 12px;
+    font-size: 1rem;
+  }
+
+  .container {
+    width: 90%;
+    margin: 20px auto;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>NextStock</h2>
+    <ul class="menu">
+      <a href="home.html"><li>home</li></a>
+      <li>Guia</li>
+      <a href="produtos.html"><li>Produtos</li></a>
+      <a href="cadastro.html"><li>Cadastro</li></a>
+      <a href="importação.html"><li>Importação</li></a>
+      <li>Saídas</li>
+      <a href="public/index.html"><li>Relatórios</li></a>
+      <li>Fornecedores</li>
+      <a href="link-whats"><li>Suporte</li></a>
+    </ul>
+  </aside>
+
+  <!-- Conteúdo principal -->
+  <div class="container">
+    <div class="header">Cadastro de Produto</div>
+    <form>
+      <div class="section-title">Campos Obrigatórios</div>
+
+      <div class="form-group">
+        <label for="nome">Nome do Produto</label>
+        <input type="text" id="nome" placeholder="Ex: Abacate D" required>
+      </div>
+
+      <div class="form-group">
+        <label for="marca">Marca</label>
+        <input type="text" id="marca" placeholder="Ex: Frutaria Silva" required>
+      </div>
+
+      <div class="form-group">
+        <label for="descricao">Descrição</label>
+        <input type="text" id="descricao" placeholder="Digite a descrição" required>
+      </div>
+
+      <div class="form-group">
+        <label for="categoria">Categoria</label>
+        <input type="text" id="categoria" placeholder="Ex: Frutas" required>
+      </div>
+
+      <div class="form-group">
+        <label for="quantidade">Quantidade Atual</label>
+        <input type="number" id="quantidade" placeholder="Ex: 20" required>
+      </div>
+
+      <div class="form-group">
+        <label for="preco">Preço</label>
+        <input type="text" id="preco" placeholder="R$ 0,00" required>
+      </div>
+
+      <div class="form-group img-upload">
+        <label for="img">Imagens do Produto (máx. 3)</label>
+        <input type="file" id="img" accept="image/*" multiple required>
+      </div>
+
+      <div class="section-title">Campos Opcionais</div>
+
+      <div class="form-group">
+        <label for="sku">SKU</label>
+        <input type="text" id="sku" placeholder="Ex: SKU12345">
+      </div>
+
+      <div class="form-group">
+        <label for="unidade">Unidade</label>
+        <input type="text" id="unidade" placeholder="Ex: Kg, Unidade, Caixa">
+      </div>
+
+      <div class="form-group">
+        <label for="fornecedor">Fornecedor</label>
+        <input type="text" id="fornecedor" placeholder="Ex: Hortifruti ABC">
+      </div>
+
+      <div class="actions">
+        <button type="button" class="btn btn-cadastrar">Cadastrar</button>
+        <button type="button" class="btn btn-consultar">Consultar</button>
+        <button type="button" class="btn btn-atualizar">Atualizar</button>
+        <button type="button" class="btn btn-deletar">Deletar</button>
+      </div>
+    </form>
+  </div>
+
+</body>
+</html>

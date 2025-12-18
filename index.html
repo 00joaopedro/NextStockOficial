@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>UI Kit - Sistema de Estoque</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      color: #333;
+      display: flex;
+      flex-wrap: wrap;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: 20%;
+      background: #0d1b2a;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 20px;
+      overflow-y: auto;
+      transition: all 0.3s ease;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #00cfcf;
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 20px, 26px);
+    }
+
+    .menu li:hover, .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: white;
+      display: block;
+    }
+
+    /* HEADER */
+    .header {
+      position: fixed;
+      top: 0;
+      left: 20%;
+      width: 80%;
+      background: #ffffff;
+      padding: 15px 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #ddd;
+      z-index: 10;
+      transition: all 0.3s ease;
+    }
+
+    .header .logo {
+      font-weight: bold;
+      font-size: clamp(18px, 22px, 32px);
+      color: #0d1b2a;
+    }
+
+    .header .links {
+      display: flex;
+      gap: 25px;
+      flex-wrap: wrap;
+    }
+
+    .header .links a {
+      text-decoration: none;
+      color: #333;
+      font-weight: bold;
+      font-size: clamp(16px, 20px, 28px);
+      transition: color 0.2s;
+    }
+
+    .header .links a:hover {
+      color: #00cfcf;
+    }
+
+    /* CONTEÚDO PRINCIPAL */
+    .main-container {
+      margin-left: 20%;
+      margin-top: 80px;
+      flex: 1;
+      width: 80%;
+      padding: 20px;
+      transition: all 0.3s ease;
+    }
+
+    h2 {
+      color: #0d1b2a;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+.dashboard {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  flex-wrap: wrap; /* Responsivo */
+}
+
+.card {
+  flex: 1;
+  min-width: 220px;
+  padding: 20px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  text-align: center;
+  box-sizing: border-box;
+}
+    .card:hover {
+      transform: translateY(-5px);
+    }
+
+    .card h3 {
+      color: #0d1b2a;
+      margin-bottom: 10px;
+      font-size: clamp(16px, 20px, 28px);
+    }
+
+    .card p {
+      color: #00cfcf;
+      font-weight: bold;
+      font-size: clamp(16px, 22px, 28px);
+    }
+
+    /* ATALHOS */
+    .atalhos {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .atalho-card {
+      background: #fff;
+      padding: 25px;
+      text-align: center;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      transition: transform 0.3s ease;
+    }
+
+    .atalho-card:hover {
+      transform: translateY(-5px);
+    }
+
+    .atalho-card h4 {
+      color: #0d1b2a;
+      font-size: clamp(16px, 20px, 28px);
+      margin-bottom: 5px;
+    }
+
+    .atalho-card p {
+      color: #777;
+      font-size: clamp(14px, 18px, 24px);
+    }
+
+    /* ===== RESPONSIVIDADE ===== */
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 25%;
+      }
+
+      .header {
+        left: 25%;
+        width: 75%;
+      }
+
+      .main-container {
+        margin-left: 25%;
+        width: 75%;
+      }
+    }
+
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    flex-direction: column; /* empilha o título e a lista */
+    align-items: center;
+    justify-content: center;
+    padding: 15px 0;
+  }
+
+  /* agora o nome da marca aparece centralizado acima da lista */
+  .sidebar h2 {
+    display: block;
+    font-size: 1.2rem;
+    text-align: center;
+    margin-bottom: 10px;
+    color: #00cfcf;
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .menu li {
+    padding: 10px;
+    font-size: 16px;
+  }
+
+  .header {
+    left: 0;
+    width: 100%;
+    flex-direction: column;
+    text-align: center;
+    position: relative;
+  }
+
+  .header .links {
+    justify-content: center;
+    gap: 15px;
+  }
+
+  .main-container {
+    margin: 0;
+    width: 100%;
+    padding: 15px;
+  }
+
+  .dashboard {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .card {
+    width: 100%;
+    max-width: 400px;
+  }    
+}
+
+    @media (max-width: 480px) {
+      .header .logo {
+        font-size: 18px;
+      }
+
+      .header .links a {
+        font-size: 16px;
+      }
+
+      .atalho-card, .card {
+        padding: 15px;
+      }
+
+      .atalho-card h4, .card h3 {
+        font-size: 16px;
+      }
+    }
+        /* Product grid */
+    .products {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .product-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      overflow: hidden;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: 0.3s;
+    }
+
+    .product-card:hover {
+      transform: scale(1.02);
+    }
+
+    .product-card img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .product-card h3 {
+      font-size: 16px;
+      margin: 10px 0;
+    }
+
+    .product-card p {
+      font-size: 14px;
+      color: #555;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .btn.add { background-color: #00b4d8; }
+    .btn.remove { background-color: #e63946; }
+  </style>
+</head>
+
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>NextStock</h2>
+    <ul class="menu">
+      <a href="home.html"><li>Home</li></a>
+      <a href="guia.html"><li>Guia</li></a>
+      <a href="produtos.html"><li>Produtos</li></a>
+      <a href="cadastro.html"><li>Cadastro</li></a>
+      <a href="importação.html"><li>Importação</li></a>
+      <a href="public/index.html"><li>Relatórios</li></a>
+      <a href="link-whats"><li>Suporte</li></a>
+    </ul>
+  </aside>
+
+  <!-- Layout Principal -->
+  <div class="main-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">📦 Estoque Nuvem</div>
+      <div class="links">
+        <a href="#">Início</a>
+        <a href="#">Administração</a>
+        <a href="#">Conta</a>
+      </div>
+    </header>
+
+    <!-- Conteúdo principal -->
+    <main class="main">
+      <h2>Dashboard</h2>
+      <section class="dashboard">
+        <div class="card">
+          <h3>Produtos com estoque baixo</h3>
+          <p>0</p>
+        </div>
+        <div class="card">
+          <h3>Quantidade de produtos no estoque</h3>
+          <p>5</p>
+        </div>
+        <div class="card">
+          <h3>Custo total de produtos</h3>
+          <p>R$ 180.525</p>
+        </div>
+      </section>
+
+  <main class="main">
+    <div class="products" id="product-container">
+      <div class="product-card" data-name="Copo Térmico" data-price="49.90">
+        <img src="img/techstore.jpg" alt="Produto 1">
+        <h3>Copo Térmico</h3>
+        <p>R$ 49,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+
+      <div class="product-card" data-name="Escorredor de Silicone" data-price="34.90">
+        <img src="img/techstore.jpg" alt="Produto 2">
+        <h3>Escorredor de Silicone</h3>
+        <p>R$ 34,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+
+      <div class="product-card" data-name="Organizador de Geladeira" data-price="59.90">
+        <img src="img/techstore.jpg" alt="Produto 3">
+        <h3>Organizador de Geladeira</h3>
+        <p>R$ 59,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

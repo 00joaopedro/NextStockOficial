@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estoque Nuvem - Loja</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: flex;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 20%;
+      background: #0d1b2a;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 20px;
+      overflow-y: auto;
+      transition: 0.3s ease;
+      z-index: 1000;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: #00cfcf;
+      font-size: clamp(1.2rem, 2vw, 2rem);
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover, .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
+    }
+
+    /* Main content */
+    .main {
+      margin-left: 20%;
+      flex: 1;
+      padding: 20px;
+      position: relative;
+      transition: 0.3s;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .search-bar {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+    }
+
+    .search-bar input {
+      width: 60%;
+      padding: 8px 12px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+    }
+
+    .cart-btn {
+      background-color: #0077b6;
+      border: none;
+      color: white;
+      font-size: 20px;
+      padding: 10px;
+      border-radius: 50%;
+      cursor: pointer;
+      margin-left: 15px;
+      position: relative;
+      transition: transform 0.5s ease;
+    }
+
+    .cart-btn:hover {
+      transform: translateY(-10px);
+    }
+
+    .cart-btn span {
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      background: red;
+      color: #fff;
+      font-size: 12px;
+      padding: 2px 5px;
+      border-radius: 50%;
+    }
+
+    /* Product grid */
+    .products {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+
+    .product-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      overflow: hidden;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: 0.3s;
+    }
+
+    .product-card:hover {
+      transform: scale(1.02);
+    }
+
+    .product-card img {
+      width: 100%;
+      height: 150px;
+      object-fit: cover;
+      border-radius: 6px;
+    }
+
+    .product-card h3 {
+      font-size: 16px;
+      margin: 10px 0;
+    }
+
+    .product-card p {
+      font-size: 14px;
+      color: #555;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 6px 10px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .btn.add { background-color: #00b4d8; }
+    .btn.remove { background-color: #e63946; }
+
+    /* Cart dropdown */
+    .cart-list {
+      position: absolute;
+      top: 60px;
+      right: 40px;
+      background: #fff;
+      width: 300px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      border-radius: 8px;
+      display: none;
+      flex-direction: column;
+      max-height: 400px;
+      overflow-y: auto;
+      z-index: 999;
+    }
+
+    .cart-list.active {
+      display: flex;
+    }
+
+    .cart-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+
+    .cart-item span {
+      font-size: 14px;
+    }
+
+    .cart-empty {
+      text-align: center;
+      padding: 15px;
+      color: #888;
+    }
+
+    /* Responsividade */
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 25%;
+      }
+      .main {
+        margin-left: 25%;
+      }
+    }
+
+@media (max-width: 768px) {
+  body {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    flex-direction: column; /* empilha o título e o menu */
+    align-items: center;
+    justify-content: center;
+    padding: 15px 0;
+    overflow-y: visible;
+  }
+
+  /* Mostra o nome da marca centralizado acima do menu */
+  .sidebar h2 {
+    display: block;
+    font-size: 1.4rem;
+    text-align: center;
+    margin-bottom: 10px;
+    color: #00cfcf;
+  }
+
+  .menu {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .menu li {
+    padding: 10px;
+    font-size: 14px;
+  }
+
+  .main {
+    margin-left: 0;
+  }
+
+  .cart-list {
+    right: 10px;
+    width: 90%;
+  }
+}
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <h2>Estoque Nuvem</h2>
+    <ul class="menu">
+      <a href="home.html"><li>Home</li></a>
+      <a href="guia.html"><li>Guia</li></a>
+      <a href="produtos.html"><li>Produtos</li></a>
+      <a href="cadastro.html"><li>Cadastro</li></a>
+      <a href="importação.html"><li>Importação</li></a>
+      <li>Saídas</li>
+      <a href="public/index.html"><li>Relatórios</li></a>
+      <li>Fornecedores</li>
+      <a href="link-whats"><li>Suporte</li></a>
+    </ul>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main">
+    <div class="topbar">
+      <div class="search-bar">
+        <input type="text" placeholder="Buscar produtos...">
+      </div>
+      <button class="cart-btn" id="cart-btn">🛒<span id="cart-count">0</span></button>
+    </div>
+
+    <!-- Cart dropdown -->
+    <div class="cart-list" id="cart-list">
+      <div class="cart-empty">Seu carrinho está vazio</div>
+    </div>
+
+    <div class="products" id="product-container">
+      <div class="product-card" data-name="Copo Térmico" data-price="49.90">
+        <img src="img/techstore.jpg" alt="Produto 1">
+        <h3>Copo Térmico</h3>
+        <p>R$ 49,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+
+      <div class="product-card" data-name="Escorredor de Silicone" data-price="34.90">
+        <img src="img/techstore.jpg" alt="Produto 2">
+        <h3>Escorredor de Silicone</h3>
+        <p>R$ 34,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+
+      <div class="product-card" data-name="Organizador de Geladeira" data-price="59.90">
+        <img src="img/techstore.jpg" alt="Produto 3">
+        <h3>Organizador de Geladeira</h3>
+        <p>R$ 59,90</p>
+        <div class="buttons">
+          <button class="btn add">+</button>
+          <button class="btn remove">-</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const cartBtn = document.getElementById("cart-btn");
+    const cartList = document.getElementById("cart-list");
+    const cartCount = document.getElementById("cart-count");
+    const productCards = document.querySelectorAll(".product-card");
+    let cart = {};
+
+    cartBtn.addEventListener("click", () => {
+      cartList.classList.toggle("active");
+    });
+
+    function updateCartView() {
+      cartList.innerHTML = "";
+      const items = Object.entries(cart);
+
+      if (items.length === 0) {
+        cartList.innerHTML = '<div class="cart-empty">Seu carrinho está vazio</div>';
+      } else {
+        items.forEach(([name, { price, qty }]) => {
+          const div = document.createElement("div");
+          div.classList.add("cart-item");
+          div.innerHTML = `<span>${name}</span><span>${qty}x R$ ${price.toFixed(2)}</span>`;
+          cartList.appendChild(div);
+        });
+      }
+      const totalCount = items.reduce((acc, [, item]) => acc + item.qty, 0);
+      cartCount.textContent = totalCount;
+    }
+
+    productCards.forEach(card => {
+      const name = card.dataset.name;
+      const price = parseFloat(card.dataset.price);
+      const addBtn = card.querySelector(".add");
+      const removeBtn = card.querySelector(".remove");
+
+      addBtn.addEventListener("click", () => {
+        if (!cart[name]) cart[name] = { price, qty: 0 };
+        cart[name].qty++;
+        updateCartView();
+      });
+
+      removeBtn.addEventListener("click", () => {
+        if (cart[name]) {
+          cart[name].qty--;
+          if (cart[name].qty <= 0) delete cart[name];
+          updateCartView();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
