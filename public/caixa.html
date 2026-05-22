@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Caixa - NextStock</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg-dark: #081b30;
+      --bg-primary: #123a63;
+      --cyan: #00cfcf;
+      --text-dark: #102d55;
+      --white: #ffffff;
+      --panel: #eef1f4;
+      --border: #ccd7e2;
+      --shadow: 0 14px 28px rgba(13, 27, 42, 0.18);
+      --danger: #d9534f;
+      --warning: #f0ad4e;
+      --success: #2cad43;
+      --info: #3d7fbc;
+      --muted: #607d8b;
+      --sidebar-width: 16vw;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0b2038 0%, #12c5cb 100%);
+      color: var(--text-dark);
+      overflow: hidden;
+    }
+
+    .sidebar {
+      width: var(--sidebar-width);
+      background: #071b31;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+      z-index: 30;
+      transition: transform 0.3s ease;
+    }
+
+    body.sidebar-hidden .sidebar {
+      transform: translateX(-100%);
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+    }
+
+    .menu {
+      list-style: none;
+      padding: 0;
+      padding-bottom: 20px;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #19c7cd;
+      color: #0d1b2a;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    .page {
+      width: calc(100% - var(--sidebar-width));
+      height: 100vh;
+      margin-left: var(--sidebar-width);
+      padding: 10px;
+      display: flex;
+      gap: 2%;
+      transition: width 0.3s ease, margin-left 0.3s ease;
+    }
+
+    body.sidebar-hidden .page {
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .lista,
+    .direita {
+      background: rgba(243, 245, 247, 0.95);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 12px;
+      height: 100%;
+    }
+
+    .lista {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .direita {
+      width: 300px;
+      min-width: 290px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .titulo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .titulo h1 {
+      flex: 1;
+      text-align: center;
+      color: var(--text-dark);
+      font-size: 1.65rem;
+      font-weight: 700;
+    }
+
+    .fechar,
+    .toggle-sidebar-btn,
+    .header-discount-btn {
+      padding: 13px 15px;
+      border-radius: 16px;
+      color: var(--white);
+      font-weight: bold;
+      min-height: 45px;
+      white-space: nowrap;
+    }
+
+    .fechar {
+      background-color: var(--danger);
+    }
+
+    .toggle-sidebar-btn {
+      background-color: var(--bg-primary);
+    }
+
+    .header-discount-btn {
+      background-color: var(--warning);
+      color: var(--text-dark);
+    }
+
+    .subtitulo {
+      text-align: center;
+      color: #7a8797;
+      font-size: 0.92rem;
+      margin-top: -2px;
+      font-weight: 700;
+    }
+
+    .lista-header {
+      color: var(--text-dark);
+      padding: 0 6px 10px 6px;
+      border-bottom: 2px solid #dfe7ef;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .lista-header ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: minmax(220px, 2fr) minmax(110px, 1fr) minmax(190px, 190px) minmax(120px, 120px);
+      gap: 14px;
+      align-items: center;
+    }
+
+    .product-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding-right: 6px;
+    }
+
+    .product-list::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .product-list::-webkit-scrollbar-thumb {
+      background: #b7c4d0;
+      border-radius: 8px;
+    }
+
+    .empty-state {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #6e7d8d;
+      font-size: 1rem;
+      border: 1.5px dashed #cfd9e4;
+      border-radius: 14px;
+      background: #f6f8fa;
+      padding: 24px;
+      text-align: center;
+      font-weight: 700;
+    }
+
+    .bottom-inputs {
+      margin-top: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+      padding-top: 4px;
+    }
+
+    .item {
+      display: grid;
+      grid-template-columns: minmax(220px, 2fr) minmax(110px, 1fr) minmax(190px, 190px) minmax(120px, 120px);
+      gap: 14px;
+      align-items: center;
+      background: #f8fafc;
+      border: 1px solid #dde6ee;
+      border-radius: 12px;
+      padding: 14px;
+    }
+
+    .produto-info {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .produto-nome {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-dark);
+    }
+
+    .produto-codigo {
+      font-size: 0.85rem;
+      color: #708296;
+      font-weight: 700;
+    }
+
+    .produto-tipo {
+      font-size: 0.78rem;
+      color: #0c7b80;
+      font-weight: 700;
+    }
+
+    .precoUnidade {
+      color: #17395f;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .controle-qtd {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button {
+      border: none;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.3s ease, background 0.3s ease;
+      font-weight: 400;
+    }
+
+    button:hover {
+      transform: scale(1.02);
+    }
+
+    .btnLista {
+      height: 42px;
+      width: 42px;
+      font-size: 22px;
+      border-radius: 10px;
+      background: var(--bg-primary);
+      color: white;
+      font-weight: 400;
+      flex-shrink: 0;
+    }
+
+    .btnLista:hover {
+      opacity: 0.92;
+    }
+
+    .qtdInput,
+    .totalLinha,
+    .barcode-input,
+    .search-product-input,
+    .pay-input,
+    .pay-select,
+    .machine-select,
+    .discount-input,
+    .discount-select {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      height: 48px;
+      padding: 0 12px;
+      outline: none;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-dark);
+      background: #ffffff;
+    }
+
+    .qtdInput {
+      width: 92px;
+      text-align: center;
+    }
+
+    .qtdInput.granel {
+      width: 110px;
+    }
+
+    .totalLinha {
+      width: 100%;
+      background: #eef4f8;
+      color: #16395f;
+    }
+
+    .barcode-box,
+    .search-product-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .barcode-box label,
+    .search-product-box label {
+      color: var(--text-dark);
+      font-size: 0.96rem;
+      font-weight: 700;
+    }
+
+    .barcode-input,
+    .search-product-input {
+      width: 100%;
+      font-size: 0.97rem;
+      background: #ffffff;
+    }
+
+    .barcode-input::placeholder,
+    .search-product-input::placeholder {
+      color: #8f99a6;
+      font-weight: 700;
+    }
+
+    .totais-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 100vh;
+    }
+
+    .total-box {
+      background: linear-gradient(135deg, #12365f, #1a456f);
+      color: white;
+      border-radius: 16px;
+      padding: 10px 20px;
+      text-align: center;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+      flex-shrink: 0;
+    }
+
+    .total-label {
+      font-size: 0.78rem;
+      opacity: 0.95;
+      margin-bottom: 8px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .total {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #00dbe5;
+      word-break: break-word;
+    }
+
+    .status-venda {
+      margin-top: 2px;
+      padding: 12px;
+      border-radius: 14px;
+      background: #edf7ff;
+      border: 1px solid #d2e9ff;
+      color: #17446f;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .status-venda strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .baixo {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      min-height: 38px;
+      width: 100%;
+      font-size: 0.85rem;
+      border-radius: 12px;
+      color: white;
+      letter-spacing: 1px;
+      font-weight: 700;
+    }
+
+    .btn-cancelar { background: #d9534f; }
+    .btn-nota { background: #3d7fbc; }
+    .btn-recibo { background: #58b2cf; }
+    .btn-finalizar { background: #2cad43; }
+    .btn-secundario { background: #607d8b; }
+
+    .btn:hover {
+      opacity: 0.95;
+    }
+
+    .payment-overlay,
+    .discount-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 15, 29, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .payment-overlay.open,
+    .discount-overlay.open {
+      display: flex;
+    }
+
+    .payment-modal,
+    .discount-modal {
+      width: 100%;
+      max-width: 620px;
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+      padding: 24px;
+      color: var(--text-dark);
+    }
+
+    .payment-modal-header,
+    .discount-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .payment-modal-header h2,
+    .discount-modal-header h2 {
+      font-size: 1.5rem;
+      color: #16395f;
+    }
+
+    .payment-close-x,
+    .discount-close-x {
+      background: transparent;
+      color: #16395f;
+      font-size: 1.6rem;
+      border: none;
+      line-height: 1;
+      padding: 4px 8px;
+      cursor: pointer;
+    }
+
+    .payment-panel,
+    .discount-panel {
+      background: #f6f9fc;
+      border: 1px solid #dde6ee;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .payment-panel h3,
+    .discount-panel h3 {
+      margin-bottom: 12px;
+      font-size: 1rem;
+      color: #16395f;
+    }
+
+    .payment-fields,
+    .discount-fields {
+      display: grid;
+      gap: 12px;
+    }
+
+    .payment-field,
+    .discount-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .payment-field label,
+    .discount-field label {
+      color: #16395f;
+      font-size: 0.92rem;
+      font-weight: 700;
+    }
+
+    .payment-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .payment-summary-card {
+      background: white;
+      border: 1px solid #dde6ee;
+      border-radius: 14px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .payment-summary-card span:first-child {
+      color: #5c7186;
+      font-size: 0.92rem;
+    }
+
+    .payment-summary-card span:last-child {
+      color: #16395f;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+
+    .payment-summary-card.total-highlight {
+      background: linear-gradient(135deg, #12365f, #1a456f);
+      border-color: transparent;
+    }
+
+    .payment-summary-card.total-highlight span {
+      color: white;
+    }
+
+    .payment-summary-card.total-highlight span:last-child {
+      color: #00dbe5;
+      font-size: 1.15rem;
+    }
+
+    .payment-actions,
+    .discount-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+      flex-wrap: wrap;
+    }
+
+    .payment-actions .btn,
+    .discount-actions .btn {
+      width: auto;
+      min-width: 150px;
+      padding: 0 18px;
+    }
+
+    .helper-text {
+      color: #6f8092;
+      font-size: 0.88rem;
+      margin-top: 8px;
+      line-height: 1.35;
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 1100;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      min-width: 280px;
+      max-width: 360px;
+      background: #12365f;
+      color: white;
+      padding: 14px 16px;
+      border-radius: 14px;
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+      animation: slideIn 0.25s ease;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .toast.success { background: #23913a; }
+    .toast.error { background: #c94540; }
+    .toast.info { background: #245f99; }
+    .toast.warning { background: #c98a27; }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px) translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) translateX(0);
+      }
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+
+      #printArea,
+      #printArea * {
+        visibility: visible;
+      }
+
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        padding: 20px;
+      }
+    }
+
+    #printArea {
+      display: none;
+    }
+
+    @media (max-width: 1100px) {
+      body {
+        overflow: auto;
+      }
+
+      .page {
+        height: auto;
+        min-height: 100vh;
+        flex-direction: column;
+      }
+
+      .direita {
+        width: 100%;
+        min-width: 0;
+      }
+
+      .lista {
+        min-height: 70vh;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .sidebar {
+        position: relative;
+        width: 100%;
+        height: 260px;
+        transform: none !important;
+      }
+
+      body.sidebar-hidden .sidebar {
+        display: none;
+      }
+
+      .page,
+      body.sidebar-hidden .page {
+        width: 100%;
+        margin-left: 0;
+      }
+
+      .titulo {
+        flex-wrap: wrap;
+      }
+
+      .titulo h1 {
+        order: -1;
+        width: 100%;
+        flex: auto;
+      }
+
+      .fechar,
+      .toggle-sidebar-btn,
+      .header-discount-btn {
+        flex: 1;
+      }
+
+      .item,
+      .lista-header ul {
+        grid-template-columns: 1fr;
+      }
+
+      .lista-header {
+        display: none;
+      }
+
+      .payment-actions,
+      .discount-actions {
+        flex-direction: column;
+      }
+
+      .payment-actions .btn,
+      .discount-actions .btn {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="sidebar-container"></div>
+
+  <div class="page">
+    <section class="lista">
+      <div class="titulo">
+        <button class="fechar" id="fecharCaixaBtn" type="button">FECHAR</button>
+        <button class="toggle-sidebar-btn" id="toggleSidebarBtn" type="button">ESCONDER</button>
+        <button class="header-discount-btn" id="descontoBtn" type="button">DESCONTO</button>
+        <h1>Caixa</h1>
+      </div>
+
+      <p class="subtitulo">Venda atual</p>
+
+      <div class="lista-header">
+        <ul>
+          <li>Produto</li>
+          <li>Valor unitário</li>
+          <li>Quantidade / KG</li>
+          <li>Total</li>
+        </ul>
+      </div>
+
+      <div class="product-list" id="productList">
+        <div class="empty-state" id="emptyState">
+          Nenhum produto adicionado ainda.<br>
+          Faça a leitura do código de barras ou pesquise um produto para adicionar um item.
+        </div>
+      </div>
+
+      <div class="bottom-inputs">
+        <div class="barcode-box">
+          <label for="barcodeInput">Leitura de código de barras</label>
+          <input
+            type="text"
+            id="barcodeInput"
+            class="barcode-input"
+            placeholder="Ex.: 789001, 789002 ou 789003 e pressione Enter"
+            maxlength="120"
+            autocomplete="off"
+            inputmode="text"
+          >
+        </div>
+
+        <div class="search-product-box">
+          <label for="searchProductInput">Pesquisar produto no estoque</label>
+          <input
+            type="text"
+            id="searchProductInput"
+            class="search-product-input"
+            placeholder="Digite o nome ou código do produto e pressione Enter"
+            maxlength="120"
+            autocomplete="off"
+            inputmode="text"
+          >
+        </div>
+      </div>
+    </section>
+
+    <aside class="direita">
+      <div class="totais-wrapper">
+        <div class="total-box">
+          <div class="total-label">TOTAL</div>
+          <div class="total" id="totalVenda">R$ 0,00</div>
+        </div>
+
+        <div class="total-box">
+          <div class="total-label">PAGO</div>
+          <div class="total" id="totalPago">R$ 0,00</div>
+        </div>
+
+        <div class="total-box">
+          <div class="total-label">TROCO</div>
+          <div class="total" id="trocoVenda">R$ 0,00</div>
+        </div>
+
+        <div class="status-venda" id="statusVenda">
+          <strong>Status da venda</strong>
+          Aguardando pagamento.
+        </div>
+      </div>
+
+      <div class="baixo">
+        <button class="btn btn-cancelar" id="cancelarVendaBtn" type="button">CANCELAR</button>
+        <button class="btn btn-nota" id="notaFiscalBtn" type="button">NOTA FISCAL</button>
+        <button class="btn btn-recibo" id="reciboBtn" type="button">RECIBO</button>
+        <button class="btn btn-finalizar" id="pagarBtn" type="button">PAGAR</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- MODAL PAGAMENTO -->
+  <div class="payment-overlay" id="paymentOverlay">
+    <div class="payment-modal" role="dialog" aria-modal="true" aria-labelledby="paymentModalTitle">
+      <div class="payment-modal-header">
+        <h2 id="paymentModalTitle">Finalizar pagamento</h2>
+        <button class="payment-close-x" id="closePaymentModal" type="button" aria-label="Fechar modal">&times;</button>
+      </div>
+
+      <div class="payment-panel">
+        <h3>Selecione a forma de pagamento</h3>
+
+        <div class="payment-fields">
+          <div class="payment-field">
+            <label for="paymentMethod">Forma de pagamento</label>
+            <select id="paymentMethod" class="pay-select">
+              <option value="dinheiro">Dinheiro</option>
+              <option value="pix">PIX</option>
+              <option value="debito">Cartão de débito</option>
+              <option value="credito">Cartão de crédito</option>
+            </select>
+          </div>
+
+          <div class="payment-field" id="machineField" style="display:none;">
+            <label for="cardMachine">Maquininha usada</label>
+            <select id="cardMachine" class="machine-select">
+              <option value="">Selecione a maquininha</option>
+              <option value="Stone - Caixa Principal">Stone - Caixa Principal</option>
+              <option value="PagSeguro - Balcão">PagSeguro - Balcão</option>
+              <option value="Mercado Pago - Recepção">Mercado Pago - Recepção</option>
+            </select>
+          </div>
+
+          <div class="payment-field">
+            <label for="paymentValue">Valor pago</label>
+            <input
+              type="number"
+              id="paymentValue"
+              class="pay-input"
+              min="0"
+              step="0.01"
+              placeholder="0.00"
+            >
+          </div>
+        </div>
+
+        <div class="payment-summary">
+          <div class="payment-summary-card total-highlight">
+            <span>Total da compra</span>
+            <span id="modalTotalVenda">R$ 0,00</span>
+          </div>
+
+          <div class="payment-summary-card">
+            <span>Valor pago</span>
+            <span id="modalTotalPago">R$ 0,00</span>
+          </div>
+
+          <div class="payment-summary-card">
+            <span>Troco</span>
+            <span id="modalTroco">R$ 0,00</span>
+          </div>
+
+          <div class="payment-summary-card">
+            <span>Faltante</span>
+            <span id="modalFaltante">R$ 0,00</span>
+          </div>
+        </div>
+
+        <p class="helper-text">
+          Ao clicar em Pago, o frontend registra a venda como paga e chama a impressão do recibo.
+        </p>
+      </div>
+
+      <div class="payment-actions">
+        <button class="btn btn-secundario" id="cancelarPagamentoBtn" type="button">CANCELAR</button>
+        <button class="btn btn-finalizar" id="pagoBtn" type="button">PAGO</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DESCONTO -->
+  <div class="discount-overlay" id="discountOverlay">
+    <div class="discount-modal" role="dialog" aria-modal="true" aria-labelledby="discountModalTitle">
+      <div class="discount-modal-header">
+        <h2 id="discountModalTitle">Aplicar desconto</h2>
+        <button class="discount-close-x" id="closeDiscountModal" type="button" aria-label="Fechar modal">&times;</button>
+      </div>
+
+      <div class="discount-panel">
+        <h3>Escolha o tipo de desconto</h3>
+
+        <div class="discount-fields">
+          <div class="discount-field">
+            <label for="discountType">Tipo de desconto</label>
+            <select id="discountType" class="discount-select">
+              <option value="percentual">Porcentagem (%)</option>
+              <option value="fixo">Valor fixo (R$)</option>
+            </select>
+          </div>
+
+          <div class="discount-field">
+            <label for="discountValue">Valor do desconto</label>
+            <input
+              type="number"
+              id="discountValue"
+              class="discount-input"
+              min="0"
+              step="0.01"
+              placeholder="Ex.: 10"
+            >
+          </div>
+        </div>
+
+        <p class="helper-text">
+          O desconto será subtraído diretamente do total da compra.
+        </p>
+      </div>
+
+      <div class="discount-actions">
+        <button class="btn btn-secundario" id="removeDiscountBtn" type="button">REMOVER DESCONTO</button>
+        <button class="btn btn-cancelar" id="cancelDiscountBtn" type="button">CANCELAR</button>
+        <button class="btn btn-finalizar" id="applyDiscountBtn" type="button">APLICAR</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div id="printArea"></div>
+  <script>
+    const STORAGE_KEYS = {
+      reciboPendente: "nextstockReciboPendente",
+      notaFiscalPendente: "nextstockNotaFiscalPendente",
+      ultimaVendaPaga: "nextstockUltimaVendaPaga"
+    };
+
+    const produtosCatalogo = {
+      "789001": {
+        codigoBarra: "789001",
+        nome: "Ração Premium 10kg",
+        precoUnitario: 189.90,
+        tipoVenda: "unidade"
+      },
+      "789002": {
+        codigoBarra: "789002",
+        nome: "Shampoo Pet Neutro",
+        precoUnitario: 24.50,
+        tipoVenda: "unidade"
+      },
+      "789003": {
+        codigoBarra: "789003",
+        nome: "Petisco a granel",
+        precoUnitario: 72.90,
+        tipoVenda: "granel"
+      },
+      "789004": {
+        codigoBarra: "789004",
+        nome: "Ração a granel",
+        precoUnitario: 28.90,
+        tipoVenda: "granel"
+      }
+    };
+
+    const produtosVenda = [];
+
+    const vendaAtual = {
+      paga: false,
+      formaPagamento: "",
+      maquininha: "",
+      valorPago: 0,
+      troco: 0,
+      faltante: 0,
+      dataPagamento: null,
+      descontoTipo: "percentual",
+      descontoValor: 0,
+      reciboSolicitado: false,
+      notaFiscalEnviada: false
+    };
+
+    const productList = document.getElementById("productList");
+    const emptyState = document.getElementById("emptyState");
+    const barcodeInput = document.getElementById("barcodeInput");
+    const searchProductInput = document.getElementById("searchProductInput");
+
+    const totalVendaEl = document.getElementById("totalVenda");
+    const totalPagoEl = document.getElementById("totalPago");
+    const trocoVendaEl = document.getElementById("trocoVenda");
+    const statusVendaEl = document.getElementById("statusVenda");
+
+    const pagarBtn = document.getElementById("pagarBtn");
+    const descontoBtn = document.getElementById("descontoBtn");
+    const cancelarVendaBtn = document.getElementById("cancelarVendaBtn");
+    const notaFiscalBtn = document.getElementById("notaFiscalBtn");
+    const reciboBtn = document.getElementById("reciboBtn");
+    const fecharCaixaBtn = document.getElementById("fecharCaixaBtn");
+    const toggleSidebarBtn = document.getElementById("toggleSidebarBtn");
+
+    const paymentOverlay = document.getElementById("paymentOverlay");
+    const closePaymentModal = document.getElementById("closePaymentModal");
+    const cancelarPagamentoBtn = document.getElementById("cancelarPagamentoBtn");
+    const pagoBtn = document.getElementById("pagoBtn");
+    const paymentMethod = document.getElementById("paymentMethod");
+    const paymentValue = document.getElementById("paymentValue");
+    const machineField = document.getElementById("machineField");
+    const cardMachine = document.getElementById("cardMachine");
+
+    const modalTotalVenda = document.getElementById("modalTotalVenda");
+    const modalTotalPago = document.getElementById("modalTotalPago");
+    const modalTroco = document.getElementById("modalTroco");
+    const modalFaltante = document.getElementById("modalFaltante");
+
+    const discountOverlay = document.getElementById("discountOverlay");
+    const closeDiscountModal = document.getElementById("closeDiscountModal");
+    const cancelDiscountBtn = document.getElementById("cancelDiscountBtn");
+    const applyDiscountBtn = document.getElementById("applyDiscountBtn");
+    const removeDiscountBtn = document.getElementById("removeDiscountBtn");
+    const discountType = document.getElementById("discountType");
+    const discountValue = document.getElementById("discountValue");
+
+    const toastContainer = document.getElementById("toastContainer");
+    const printArea = document.getElementById("printArea");
+
+    function sanitizarEntrada(valor) {
+      return String(valor)
+        .trim()
+        .replace(/[\0\x08\x09\x1a\n\r"'\\;%]/g, "")
+        .replace(/\s+/g, " ")
+        .slice(0, 120);
+    }
+
+    function formatarMoeda(valor) {
+      return Number(valor || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+    }
+
+    function formatarQuantidade(produto) {
+      if (produto.tipoVenda === "granel") {
+        return `${Number(produto.quantidade).toFixed(3).replace(".", ",")} kg`;
+      }
+
+      return `${Number(produto.quantidade)} un.`;
+    }
+
+    function mostrarToast(mensagem, tipo = "info") {
+      const toast = document.createElement("div");
+      toast.className = `toast ${tipo}`;
+      toast.textContent = mensagem;
+
+      toastContainer.appendChild(toast);
+
+      setTimeout(() => {
+        toast.remove();
+      }, 4200);
+    }
+
+    function calcularSubtotalVenda() {
+      return produtosVenda.reduce((acc, item) => {
+        return acc + item.quantidade * item.precoUnitario;
+      }, 0);
+    }
+
+    function calcularDesconto() {
+      const subtotal = calcularSubtotalVenda();
+      const valor = Number(vendaAtual.descontoValor || 0);
+
+      if (valor <= 0) return 0;
+
+      if (vendaAtual.descontoTipo === "percentual") {
+        return Math.min(subtotal * (valor / 100), subtotal);
+      }
+
+      return Math.min(valor, subtotal);
+    }
+
+    function calcularTotalVenda() {
+      return Math.max(calcularSubtotalVenda() - calcularDesconto(), 0);
+    }
+
+    function calcularTotaisPagamento() {
+      const totalVenda = calcularTotalVenda();
+      const totalPago = Number(paymentValue.value || 0);
+      const troco = Math.max(totalPago - totalVenda, 0);
+      const faltante = Math.max(totalVenda - totalPago, 0);
+
+      return { totalVenda, totalPago, troco, faltante };
+    }
+
+    function resetarPagamento() {
+      vendaAtual.paga = false;
+      vendaAtual.formaPagamento = "";
+      vendaAtual.maquininha = "";
+      vendaAtual.valorPago = 0;
+      vendaAtual.troco = 0;
+      vendaAtual.faltante = 0;
+      vendaAtual.dataPagamento = null;
+      vendaAtual.reciboSolicitado = false;
+      vendaAtual.notaFiscalEnviada = false;
+    }
+
+    function atualizarResumoPrincipal() {
+      const total = calcularTotalVenda();
+
+      totalVendaEl.textContent = formatarMoeda(total);
+      totalPagoEl.textContent = formatarMoeda(vendaAtual.valorPago);
+      trocoVendaEl.textContent = formatarMoeda(vendaAtual.troco);
+
+      if (produtosVenda.length === 0) {
+        statusVendaEl.innerHTML = `
+          <strong>Status da venda</strong>
+          Nenhuma compra em andamento.
+        `;
+        return;
+      }
+
+      if (vendaAtual.paga) {
+        const pagamento = vendaAtual.formaPagamento || "não informado";
+        const maquina = vendaAtual.maquininha ? `<br>Maquininha: ${vendaAtual.maquininha}` : "";
+
+        statusVendaEl.innerHTML = `
+          <strong>Status da venda</strong>
+          Venda paga com sucesso.<br>
+          Forma: ${pagamento}.${maquina}
+        `;
+        return;
+      }
+
+      statusVendaEl.innerHTML = `
+        <strong>Status da venda</strong>
+        Compra em andamento. Total pendente: ${formatarMoeda(total)}.
+      `;
+    }
+
+    function atualizarResumoModal() {
+      const { totalVenda, totalPago, troco, faltante } = calcularTotaisPagamento();
+
+      modalTotalVenda.textContent = formatarMoeda(totalVenda);
+      modalTotalPago.textContent = formatarMoeda(totalPago);
+      modalTroco.textContent = formatarMoeda(troco);
+      modalFaltante.textContent = formatarMoeda(faltante);
+    }
+
+    function atualizarTotalLinha(index) {
+      const item = produtosVenda[index];
+      item.total = item.quantidade * item.precoUnitario;
+    }
+
+    function removerProdutoSeQuantidadeZero(index) {
+      const produto = produtosVenda[index];
+
+      if (!produto) return;
+
+      if (produto.tipoVenda === "granel") {
+        if (produto.quantidade < 0.050) {
+          produtosVenda.splice(index, 1);
+        }
+      } else {
+        if (produto.quantidade <= 0) {
+          produtosVenda.splice(index, 1);
+        }
+      }
+    }
+
+    function renderizarLista() {
+      productList.innerHTML = "";
+
+      if (produtosVenda.length === 0) {
+        productList.appendChild(emptyState);
+        emptyState.style.display = "flex";
+        atualizarResumoPrincipal();
+        return;
+      }
+
+      emptyState.style.display = "none";
+
+      produtosVenda.forEach((produto, index) => {
+        atualizarTotalLinha(index);
+
+        const isGranel = produto.tipoVenda === "granel";
+        const step = isGranel ? "0.050" : "1";
+        const min = isGranel ? "0.050" : "0";
+        const max = isGranel ? "1000.000" : "9999";
+        const value = isGranel ? Number(produto.quantidade).toFixed(3) : Number(produto.quantidade);
+
+        const row = document.createElement("div");
+        row.className = "item";
+
+        row.innerHTML = `
+          <div class="produto-info">
+            <div class="produto-nome">${produto.nome}</div>
+            <div class="produto-codigo">Código: ${produto.codigoBarra}</div>
+            <div class="produto-tipo">
+              ${isGranel ? "Venda por granel - mínimo 0,050kg" : "Venda por unidade"}
+            </div>
+          </div>
+
+          <div class="precoUnidade">
+            ${formatarMoeda(produto.precoUnitario)}
+            <small>${isGranel ? "/ kg" : "/ un."}</small>
+          </div>
+
+          <div class="controle-qtd">
+            <button class="btnLista" type="button" data-action="decrement" data-index="${index}">-</button>
+            <input
+              type="number"
+              class="qtdInput ${isGranel ? "granel" : ""}"
+              min="${min}"
+              max="${max}"
+              step="${step}"
+              value="${value}"
+              data-action="manual"
+              data-index="${index}"
+            >
+            <button class="btnLista" type="button" data-action="increment" data-index="${index}">+</button>
+          </div>
+
+          <input
+            type="text"
+            class="totalLinha"
+            value="${formatarMoeda(produto.total)}"
+            readonly
+          >
+        `;
+
+        productList.appendChild(row);
+      });
+
+      atualizarResumoPrincipal();
+    }
+
+    function adicionarProdutoPorCodigo(codigoBarra) {
+      const codigo = sanitizarEntrada(codigoBarra);
+
+      if (!codigo) return;
+
+      const produtoCatalogo = produtosCatalogo[codigo];
+
+      if (!produtoCatalogo) {
+        mostrarToast("Produto não encontrado. Cadastre ou integre esse item ao estoque.", "warning");
+        return;
+      }
+
+      const existente = produtosVenda.find(item => item.codigoBarra === codigo);
+
+      if (existente) {
+        if (existente.tipoVenda === "granel") {
+          existente.quantidade = Math.min(Number(existente.quantidade) + 0.050, 1000);
+        } else {
+          existente.quantidade += 1;
+        }
+
+        resetarPagamento();
+        renderizarLista();
+        return;
+      }
+
+      produtosVenda.push({
+        codigoBarra: sanitizarEntrada(produtoCatalogo.codigoBarra),
+        nome: sanitizarEntrada(produtoCatalogo.nome),
+        precoUnitario: Number(produtoCatalogo.precoUnitario),
+        tipoVenda: produtoCatalogo.tipoVenda,
+        quantidade: produtoCatalogo.tipoVenda === "granel" ? 0.050 : 1,
+        total: Number(produtoCatalogo.precoUnitario)
+      });
+
+      resetarPagamento();
+      renderizarLista();
+    }
+
+    function pesquisarProdutoNoEstoque(termo) {
+      const valorPesquisa = sanitizarEntrada(termo).toLowerCase();
+
+      if (!valorPesquisa) return;
+
+      const produtoEncontrado = Object.values(produtosCatalogo).find(produto => {
+        return produto.nome.toLowerCase().includes(valorPesquisa) ||
+          produto.codigoBarra.toLowerCase().includes(valorPesquisa);
+      });
+
+      if (!produtoEncontrado) {
+        mostrarToast("Produto não encontrado na lista de exemplo.", "warning");
+        return;
+      }
+
+      adicionarProdutoPorCodigo(produtoEncontrado.codigoBarra);
+    }
+
+    function abrirModalPagamento() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Adicione produtos antes de iniciar o pagamento.", "warning");
+        return;
+      }
+
+      paymentValue.value = calcularTotalVenda().toFixed(2);
+      paymentMethod.value = "dinheiro";
+      cardMachine.value = "";
+      machineField.style.display = "none";
+
+      atualizarResumoModal();
+      paymentOverlay.classList.add("open");
+    }
+
+    function fecharModalPagamento() {
+      paymentOverlay.classList.remove("open");
+    }
+
+    function atualizarCampoMaquininha() {
+      const metodo = paymentMethod.value;
+
+      if (metodo === "debito" || metodo === "credito") {
+        machineField.style.display = "flex";
+      } else {
+        machineField.style.display = "none";
+        cardMachine.value = "";
+      }
+
+      atualizarResumoModal();
+    }
+
+    function gerarPayloadVenda() {
+      const subtotal = calcularSubtotalVenda();
+      const desconto = calcularDesconto();
+      const total = calcularTotalVenda();
+
+      return {
+        vendaId: `VENDA-${Date.now()}`,
+        criadaEm: new Date().toISOString(),
+        paga: vendaAtual.paga,
+        produtos: produtosVenda.map(produto => ({
+          codigoBarra: produto.codigoBarra,
+          nome: produto.nome,
+          tipoVenda: produto.tipoVenda,
+          quantidade: produto.quantidade,
+          quantidadeFormatada: formatarQuantidade(produto),
+          precoUnitario: produto.precoUnitario,
+          total: produto.total
+        })),
+        desconto: {
+          tipo: vendaAtual.descontoTipo,
+          valorInformado: vendaAtual.descontoValor,
+          valorAplicado: desconto
+        },
+        totais: {
+          subtotal,
+          desconto,
+          total,
+          valorPago: vendaAtual.valorPago,
+          troco: vendaAtual.troco,
+          faltante: vendaAtual.faltante
+        },
+        pagamento: {
+          forma: vendaAtual.formaPagamento,
+          maquininha: vendaAtual.maquininha
+        }
+      };
+    }
+
+    function concluirPagamento() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Não há itens na venda.", "warning");
+        return;
+      }
+
+      const metodo = paymentMethod.value;
+      const isCartao = metodo === "debito" || metodo === "credito";
+
+      if (isCartao && !cardMachine.value) {
+        mostrarToast("Selecione a maquininha usada no cartão.", "warning");
+        return;
+      }
+
+      const { totalVenda, totalPago, troco, faltante } = calcularTotaisPagamento();
+
+      if (totalPago <= 0) {
+        mostrarToast("Informe o valor pago.", "warning");
+        return;
+      }
+
+      if (faltante > 0) {
+        mostrarToast("O valor pago é menor que o total da compra.", "error");
+        return;
+      }
+
+      vendaAtual.formaPagamento = metodo;
+      vendaAtual.maquininha = isCartao ? cardMachine.value : "";
+      vendaAtual.valorPago = totalPago;
+      vendaAtual.troco = troco;
+      vendaAtual.faltante = faltante;
+      vendaAtual.paga = true;
+      vendaAtual.dataPagamento = new Date().toISOString();
+
+      const payload = gerarPayloadVenda();
+      sessionStorage.setItem(STORAGE_KEYS.ultimaVendaPaga, JSON.stringify(payload));
+
+      atualizarResumoPrincipal();
+      fecharModalPagamento();
+      imprimirRecibo(payload);
+
+      mostrarToast("Pagamento realizado. Recibo enviado para impressão.", "success");
+    }
+
+    function imprimirRecibo(payload) {
+      const formaPagamento = {
+        dinheiro: "Dinheiro",
+        pix: "PIX",
+        debito: "Cartão de débito",
+        credito: "Cartão de crédito"
+      }[payload.pagamento.forma] || payload.pagamento.forma;
+
+      const linhasProdutos = payload.produtos.map(produto => `
+        <tr>
+          <td>${produto.nome}</td>
+          <td>${produto.quantidadeFormatada}</td>
+          <td>${formatarMoeda(produto.precoUnitario)}</td>
+          <td>${formatarMoeda(produto.total)}</td>
+        </tr>
+      `).join("");
+
+      printArea.innerHTML = `
+        <div>
+          <h2>NextStock - Recibo de Venda</h2>
+          <p><strong>Venda:</strong> ${payload.vendaId}</p>
+          <p><strong>Data:</strong> ${new Date(payload.criadaEm).toLocaleString("pt-BR")}</p>
+          <p><strong>Pagamento:</strong> ${formaPagamento}</p>
+          ${payload.pagamento.maquininha ? `<p><strong>Maquininha:</strong> ${payload.pagamento.maquininha}</p>` : ""}
+
+          <hr>
+
+          <table style="width:100%; border-collapse:collapse;" border="1" cellpadding="8">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Qtd/KG</th>
+                <th>Unitário</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${linhasProdutos}
+            </tbody>
+          </table>
+
+          <hr>
+
+          <p><strong>Subtotal:</strong> ${formatarMoeda(payload.totais.subtotal)}</p>
+          <p><strong>Desconto:</strong> ${formatarMoeda(payload.totais.desconto)}</p>
+          <p><strong>Total:</strong> ${formatarMoeda(payload.totais.total)}</p>
+          <p><strong>Valor pago:</strong> ${formatarMoeda(payload.totais.valorPago)}</p>
+          <p><strong>Troco:</strong> ${formatarMoeda(payload.totais.troco)}</p>
+        </div>
+      `;
+
+      printArea.style.display = "block";
+      window.print();
+      printArea.style.display = "none";
+    }
+
+    function abrirModalDesconto() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Adicione produtos antes de aplicar desconto.", "warning");
+        return;
+      }
+
+      discountType.value = vendaAtual.descontoTipo;
+      discountValue.value = vendaAtual.descontoValor || "";
+      discountOverlay.classList.add("open");
+    }
+
+    function fecharModalDesconto() {
+      discountOverlay.classList.remove("open");
+    }
+
+    function aplicarDesconto() {
+      const tipo = discountType.value;
+      const valor = Number(discountValue.value || 0);
+
+      if (valor < 0) {
+        mostrarToast("Informe um desconto válido.", "warning");
+        return;
+      }
+
+      if (tipo === "percentual" && valor > 100) {
+        mostrarToast("O desconto percentual não pode passar de 100%.", "warning");
+        return;
+      }
+
+      vendaAtual.descontoTipo = tipo;
+      vendaAtual.descontoValor = valor;
+
+      resetarPagamento();
+      atualizarResumoPrincipal();
+      fecharModalDesconto();
+
+      mostrarToast("Desconto aplicado ao total da compra.", "success");
+    }
+
+    function removerDesconto() {
+      vendaAtual.descontoTipo = "percentual";
+      vendaAtual.descontoValor = 0;
+
+      resetarPagamento();
+      atualizarResumoPrincipal();
+      fecharModalDesconto();
+
+      mostrarToast("Desconto removido.", "info");
+    }
+
+    function limparCompra() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Não há compra para cancelar.", "info");
+        return;
+      }
+
+      const confirmar = window.confirm("Deseja realmente limpar a compra atual?");
+      if (!confirmar) return;
+
+      produtosVenda.splice(0, produtosVenda.length);
+
+      vendaAtual.descontoTipo = "percentual";
+      vendaAtual.descontoValor = 0;
+
+      resetarPagamento();
+
+      sessionStorage.removeItem(STORAGE_KEYS.reciboPendente);
+      sessionStorage.removeItem(STORAGE_KEYS.notaFiscalPendente);
+      sessionStorage.removeItem(STORAGE_KEYS.ultimaVendaPaga);
+
+      renderizarLista();
+      mostrarToast("Compra cancelada e limpa com sucesso.", "info");
+    }
+
+    function solicitarRecibo() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Não há venda para gerar recibo.", "warning");
+        return;
+      }
+
+      if (!vendaAtual.paga) {
+        mostrarToast("Pague a venda antes de gerar o recibo.", "warning");
+        return;
+      }
+
+      const payload = {
+        tipo: "recibo",
+        acao: "gerar-recibo",
+        ...gerarPayloadVenda()
+      };
+
+      vendaAtual.reciboSolicitado = true;
+      sessionStorage.setItem(STORAGE_KEYS.reciboPendente, JSON.stringify(payload));
+
+      imprimirRecibo(payload);
+      mostrarToast("Recibo gerado para impressão.", "success");
+      atualizarResumoPrincipal();
+    }
+
+    function enviarParaNotaFiscal() {
+      if (produtosVenda.length === 0) {
+        mostrarToast("Não há venda para enviar à nota fiscal.", "warning");
+        return;
+      }
+
+      if (!vendaAtual.paga) {
+        mostrarToast("Finalize o pagamento antes de enviar para a nota fiscal.", "warning");
+        return;
+      }
+
+      const payload = {
+        tipo: "nota-fiscal",
+        acao: "emitir-nota-fiscal",
+        ...gerarPayloadVenda()
+      };
+
+      vendaAtual.notaFiscalEnviada = true;
+      sessionStorage.setItem(STORAGE_KEYS.notaFiscalPendente, JSON.stringify(payload));
+
+      window.location.href = "ntfe.html";
+    }
+
+    function fecharCaixa() {
+      const confirmar = window.confirm("Deseja fechar o caixa?");
+      if (!confirmar) return;
+
+      mostrarToast("Caixa fechado no frontend. Backend será integrado depois.", "info");
+    }
+
+    function alternarSidebar() {
+      document.body.classList.toggle("sidebar-hidden");
+
+      const menuEscondido = document.body.classList.contains("sidebar-hidden");
+      toggleSidebarBtn.textContent = menuEscondido ? "MOSTRAR" : "ESCONDER";
+    }
+
+    barcodeInput.addEventListener("input", function () {
+      this.value = sanitizarEntrada(this.value);
+    });
+
+    searchProductInput.addEventListener("input", function () {
+      this.value = sanitizarEntrada(this.value);
+    });
+
+    barcodeInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        adicionarProdutoPorCodigo(barcodeInput.value);
+        barcodeInput.value = "";
+      }
+    });
+
+    searchProductInput.addEventListener("keydown", function (event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        pesquisarProdutoNoEstoque(searchProductInput.value);
+        searchProductInput.value = "";
+      }
+    });
+
+    productList.addEventListener("click", function (event) {
+      const target = event.target;
+
+      if (!(target instanceof HTMLElement)) return;
+
+      const action = target.dataset.action;
+      const index = Number(target.dataset.index);
+
+      if (!action || Number.isNaN(index)) return;
+
+      const produto = produtosVenda[index];
+      if (!produto) return;
+
+      const isGranel = produto.tipoVenda === "granel";
+
+      if (action === "increment") {
+        if (isGranel) {
+          produto.quantidade = Math.min(Number(produto.quantidade) + 0.050, 1000);
+        } else {
+          produto.quantidade += 1;
+        }
+      }
+
+      if (action === "decrement") {
+        if (isGranel) {
+          produto.quantidade = Number(produto.quantidade) - 0.050;
+        } else {
+          produto.quantidade -= 1;
+        }
+
+        removerProdutoSeQuantidadeZero(index);
+      }
+
+      resetarPagamento();
+      renderizarLista();
+    });
+
+    productList.addEventListener("input", function (event) {
+      const target = event.target;
+
+      if (!(target instanceof HTMLInputElement)) return;
+
+      const action = target.dataset.action;
+      const index = Number(target.dataset.index);
+
+      if (action !== "manual" || Number.isNaN(index)) return;
+
+      const produto = produtosVenda[index];
+      if (!produto) return;
+
+      const isGranel = produto.tipoVenda === "granel";
+      let quantidade = Number(target.value);
+
+      if (Number.isNaN(quantidade)) {
+        quantidade = isGranel ? 0.050 : 0;
+      }
+
+      if (isGranel) {
+        quantidade = Math.max(0.050, Math.min(quantidade, 1000));
+        produto.quantidade = Number(quantidade.toFixed(3));
+      } else {
+        quantidade = Math.max(0, Math.floor(quantidade));
+        produto.quantidade = quantidade;
+      }
+
+      removerProdutoSeQuantidadeZero(index);
+      resetarPagamento();
+      renderizarLista();
+    });
+
+    pagarBtn.addEventListener("click", abrirModalPagamento);
+    closePaymentModal.addEventListener("click", fecharModalPagamento);
+    cancelarPagamentoBtn.addEventListener("click", fecharModalPagamento);
+    pagoBtn.addEventListener("click", concluirPagamento);
+
+    paymentMethod.addEventListener("change", atualizarCampoMaquininha);
+    paymentValue.addEventListener("input", atualizarResumoModal);
+
+    paymentOverlay.addEventListener("click", function (event) {
+      if (event.target === paymentOverlay) {
+        fecharModalPagamento();
+      }
+    });
+
+    descontoBtn.addEventListener("click", abrirModalDesconto);
+    closeDiscountModal.addEventListener("click", fecharModalDesconto);
+    cancelDiscountBtn.addEventListener("click", fecharModalDesconto);
+    applyDiscountBtn.addEventListener("click", aplicarDesconto);
+    removeDiscountBtn.addEventListener("click", removerDesconto);
+
+    discountOverlay.addEventListener("click", function (event) {
+      if (event.target === discountOverlay) {
+        fecharModalDesconto();
+      }
+    });
+
+    cancelarVendaBtn.addEventListener("click", limparCompra);
+    reciboBtn.addEventListener("click", solicitarRecibo);
+    notaFiscalBtn.addEventListener("click", enviarParaNotaFiscal);
+    fecharCaixaBtn.addEventListener("click", fecharCaixa);
+    toggleSidebarBtn.addEventListener("click", alternarSidebar);
+
+    renderizarLista();
+    atualizarResumoModal();
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>

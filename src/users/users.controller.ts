@@ -1,0 +1,55 @@
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
+import type { Request } from 'express';
+import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { UsersService } from './users.service';
+
+@Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  @Roles(Role.Admin)
+  async listAll(@Req() req: Request) {
+    return this.usersService.list(req.user);
+  }
+
+  @Post()
+  @Roles(Role.Admin)
+  async create(
+    @Req() req: Request,
+    @Body()
+    body: {
+      email?: string;
+      name?: string;
+      password?: string;
+      role?: Role;
+      tenantId?: string;
+      branchId?: string;
+    },
+  ) {
+    return this.usersService.create(req.user, body);
+  }
+
+  @Patch(':userId/role')
+  @Roles(Role.Admin)
+  async updateRole(
+    @Req() req: Request,
+    @Param('userId') userId: string,
+    @Body() body: { role?: Role },
+  ) {
+    return this.usersService.updateRole(req.user, userId, body.role);
+  }
+}

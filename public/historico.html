@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Histórico de Vendas - NextStock</title>
+
+  <style>
+    :root {
+      --cyan: #00cfcf;
+      --dark: #0d1b2a;
+      --sidebar: #071b31;
+      --panel: rgba(255, 255, 255, 0.97);
+      --border: #d7e2ea;
+      --text: #23384d;
+      --muted: #647b8f;
+      --shadow: 0 9px 25px rgba(0, 0, 0, 0.16);
+      --danger: #e53935;
+      --success: #2e9d57;
+      --warning: #ffb74d;
+      --sidebar-width: 16vw;
+      --soft: #f5fbfc;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      min-height: 100vh;
+      color: #333;
+      overflow: hidden;
+      font-size: 90%;
+    }
+
+    .app {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: #071b31;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 16px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 50;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 18px;
+      color: var(--cyan);
+      font-size: 1.35rem;
+      padding: 0 11px;
+    }
+
+    .menu {
+      list-style: none;
+      padding-bottom: 18px;
+    }
+
+    .menu li {
+      padding: 13.5px 18px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
+    }
+
+    /* Main */
+    .main {
+      margin-left: var(--sidebar-width);
+      width: calc(100% - var(--sidebar-width));
+      min-height: 100vh;
+      overflow-y: auto;
+      padding: 22px;
+    }
+
+    .main::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .main::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.35);
+      border-radius: 10px;
+    }
+
+    .header {
+      color: #fff;
+      margin-bottom: 18px;
+    }
+
+    .header h1 {
+      font-size: clamp(1.62rem, 2.7vw, 2.25rem);
+      margin-bottom: 7px;
+    }
+
+    .header p {
+      font-size: 0.9rem;
+      font-weight: 400;
+      opacity: 0.95;
+    }
+
+    .tools {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 13px;
+      margin-bottom: 18px;
+    }
+
+    .tool-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .tool-card label {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 7px;
+    }
+
+    .tool-card input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      padding: 11px 13px;
+      font-size: 0.86rem;
+      outline: none;
+    }
+
+    .tool-card input:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.16);
+    }
+
+    .sales-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .sale-card {
+      background: var(--panel);
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 16px;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s, border 0.2s;
+    }
+
+    .sale-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--cyan);
+    }
+
+    .sale-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 11px;
+      margin-bottom: 13px;
+      flex-wrap: wrap;
+    }
+
+    .sale-type {
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 0.77rem;
+      font-weight: 700;
+    }
+
+    .sale-type.receipt {
+      background: rgba(255, 183, 77, 0.2);
+      color: #8a5b00;
+      border: 1px solid rgba(255, 183, 77, 0.45);
+    }
+
+    .sale-type.invoice {
+      background: rgba(46, 157, 87, 0.16);
+      color: #176638;
+      border: 1px solid rgba(46, 157, 87, 0.4);
+    }
+
+    .sale-id {
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .sale-title {
+      font-size: 1rem;
+      color: var(--text);
+      margin-bottom: 13px;
+    }
+
+    .sale-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 11px;
+    }
+
+    .info-box {
+      background: var(--soft);
+      border: 1px solid #e5eef4;
+      border-radius: 13px;
+      padding: 11px;
+    }
+
+    .info-box span {
+      display: block;
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin-bottom: 5px;
+      font-weight: 700;
+    }
+
+    .info-box strong {
+      display: block;
+      font-size: 0.86rem;
+      color: var(--text);
+      line-height: 1.4;
+    }
+
+    .empty-message {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 16px;
+      padding: 20px;
+      color: var(--muted);
+      font-weight: 600;
+      display: none;
+      margin-top: 16px;
+    }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 9px;
+      margin-top: 20px;
+      flex-wrap: wrap;
+    }
+
+    .page-btn {
+      border: none;
+      background: var(--panel);
+      color: var(--text);
+      border-radius: 11px;
+      padding: 10px 13px;
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: var(--shadow);
+      transition: 0.2s;
+    }
+
+    .page-btn:hover,
+    .page-btn.active {
+      background: var(--cyan);
+      color: var(--dark);
+    }
+
+    .page-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* Modal / box detalhes */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 27, 49, 0.62);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      z-index: 200;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .detail-box {
+      width: min(684px, 100%);
+      max-height: 95vh;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-header {
+      padding: 16px 18px;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      gap: 11px;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .detail-header h3 {
+      font-size: 1.04rem;
+    }
+
+    .close-btn {
+      border: none;
+      background: rgba(255,255,255,0.18);
+      color: #fff;
+      border-radius: 9px;
+      padding: 9px 11px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .detail-content {
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .detail-summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 11px;
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      background: var(--soft);
+      border-radius: 13px;
+      padding: 11px;
+    }
+
+    .summary-card span {
+      display: block;
+      font-size: 0.74rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+      font-weight: 700;
+    }
+
+    .summary-card strong {
+      color: var(--text);
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .products-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: 310px;
+    }
+
+    .products-title {
+      padding: 13px 14px;
+      background: #f1fbfb;
+      color: var(--text);
+      font-weight: 700;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .products-scroll {
+      overflow-y: auto;
+      max-height: 250px;
+    }
+
+    .products-scroll::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .products-scroll::-webkit-scrollbar-thumb {
+      background: var(--cyan);
+      border-radius: 8px;
+    }
+
+    .product-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 9px;
+      padding: 13px 14px;
+      border-bottom: 1px solid #eef3f6;
+      align-items: center;
+    }
+
+    .product-row:last-child {
+      border-bottom: none;
+    }
+
+    .product-row.header-row {
+      background: #fafcfe;
+      font-weight: 700;
+      color: var(--muted);
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    .detail-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 11px;
+      flex-wrap: wrap;
+    }
+
+    .print-btn,
+    .secondary-btn {
+      border: none;
+      border-radius: 11px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-size: 0.86rem;
+      font-weight: 700;
+    }
+
+    .print-btn {
+      background: var(--success);
+      color: #fff;
+      display: none;
+    }
+
+    .print-btn.show {
+      display: inline-block;
+    }
+
+    .secondary-btn {
+      background: #e9eef3;
+      color: var(--text);
+    }
+
+    @media (max-width: 900px) {
+      .tools {
+        grid-template-columns: 1fr;
+      }
+
+      .sales-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .sale-info {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-summary {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 760px) {
+      :root {
+        --sidebar-width: 198px;
+      }
+
+      .detail-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row.header-row {
+        display: none;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: relative;
+        width: 100%;
+        min-width: 100%;
+        height: 234px;
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+        padding: 14px;
+      }
+
+      .sales-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-box {
+        max-height: 95vh;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+  <div id="sidebar-container"></div>
+
+    <main class="main">
+      <div class="header">
+        <h1>Histórico de Vendas</h1>
+        <p>Acompanhe aqui os recibos 65 e notas fiscais 55 gerados a partir das vendas realizadas no caixa.</p>
+      </div>
+
+      <div class="tools">
+        <div class="tool-card">
+          <label for="searchSeller">Pesquisar por nome do vendedor</label>
+          <input type="text" id="searchSeller" placeholder="Digite o nome do vendedor do caixa" />
+        </div>
+
+        <div class="tool-card">
+          <label for="filterDate">Filtrar por data da venda</label>
+          <input type="date" id="filterDate" />
+        </div>
+
+        <div class="tool-card">
+          <label for="filterMinValue">Valor mínimo da nota</label>
+          <input type="number" id="filterMinValue" min="0" step="0.01" placeholder="Ex.: 100.00" />
+        </div>
+      </div>
+
+      <div class="sales-grid" id="salesGrid">
+        <!-- cards gerados por JS -->
+      </div>
+
+      <div class="empty-message" id="emptyMessage">
+        Nenhuma venda encontrada com os filtros informados.
+      </div>
+
+      <div class="pagination" id="pagination"></div>
+    </main>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="detail-box">
+      <div class="detail-header">
+        <h3 id="detailTitle">Detalhes da venda</h3>
+        <button class="close-btn" id="closeModal">Fechar</button>
+      </div>
+
+      <div class="detail-content">
+        <div class="detail-summary" id="detailSummary"></div>
+
+        <div class="products-box">
+          <div class="products-title">Produtos vendidos</div>
+
+          <div class="products-scroll">
+            <div class="product-row header-row">
+              <div>Produto</div>
+              <div>Qtd.</div>
+              <div>Valor unitário</div>
+              <div>Total</div>
+            </div>
+
+            <div id="productsList"></div>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="secondary-btn" id="closeModal2">Fechar</button>
+          <button class="print-btn" id="printBtn">Imprimir nota</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    const salesData = [
+      {
+        id: "REC-65-0001",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Mariana Souza",
+        pagamento: "Cartão de crédito",
+        maquina: "Stone - Caixa Principal",
+        data: "2026-04-18",
+        dataFormatada: "18/04/2026",
+        hora: "14:22:31",
+        produtos: [
+          { nome: "Ração Premium 10kg", qtd: 1, valor: 189.90 },
+          { nome: "Shampoo Pet Neutro", qtd: 2, valor: 24.50 },
+          { nome: "Brinquedo Mordedor", qtd: 1, valor: 18.90 },
+          { nome: "Coleira Ajustável", qtd: 1, valor: 29.90 },
+          { nome: "Petisco Natural", qtd: 3, valor: 12.90 },
+          { nome: "Tapete Higiênico", qtd: 1, valor: 42.00 }
+        ]
+      },
+      {
+        id: "NF-55-0001",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Lucas Almeida",
+        pagamento: "PIX",
+        maquina: "Não utilizada",
+        data: "2026-04-19",
+        dataFormatada: "19/04/2026",
+        hora: "09:11:08",
+        produtos: [
+          { nome: "Areia Higiênica 12kg", qtd: 3, valor: 34.90 },
+          { nome: "Coleira Antipulgas", qtd: 2, valor: 59.90 },
+          { nome: "Tapete Higiênico c/30", qtd: 1, valor: 42.00 }
+        ]
+      },
+      {
+        id: "REC-65-0002",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Carla Menezes",
+        pagamento: "Dinheiro",
+        maquina: "Não utilizada",
+        data: "2026-04-20",
+        dataFormatada: "20/04/2026",
+        hora: "10:42:19",
+        produtos: [
+          { nome: "Ração Filhote 3kg", qtd: 1, valor: 79.90 },
+          { nome: "Comedouro Inox", qtd: 1, valor: 22.90 }
+        ]
+      },
+      {
+        id: "NF-55-0002",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Rafael Costa",
+        pagamento: "Boleto",
+        maquina: "Não utilizada",
+        data: "2026-04-20",
+        dataFormatada: "20/04/2026",
+        hora: "11:08:44",
+        produtos: [
+          { nome: "Ração Adulto 15kg", qtd: 4, valor: 219.90 },
+          { nome: "Vermífugo Pet", qtd: 2, valor: 35.00 }
+        ]
+      },
+      {
+        id: "REC-65-0003",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Mariana Souza",
+        pagamento: "Cartão de débito",
+        maquina: "PagSeguro - Balcão",
+        data: "2026-04-21",
+        dataFormatada: "21/04/2026",
+        hora: "15:34:57",
+        produtos: [
+          { nome: "Brinquedo Bola", qtd: 2, valor: 14.90 },
+          { nome: "Osso Defumado", qtd: 5, valor: 7.50 }
+        ]
+      },
+      {
+        id: "NF-55-0003",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Lucas Almeida",
+        pagamento: "PIX",
+        maquina: "Não utilizada",
+        data: "2026-04-21",
+        dataFormatada: "21/04/2026",
+        hora: "16:12:03",
+        produtos: [
+          { nome: "Shampoo Antipulgas", qtd: 3, valor: 31.90 },
+          { nome: "Condicionador Pet", qtd: 2, valor: 27.90 }
+        ]
+      },
+      {
+        id: "REC-65-0004",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Bruna Rocha",
+        pagamento: "Cartão de crédito",
+        maquina: "Mercado Pago - Caixa 2",
+        data: "2026-04-22",
+        dataFormatada: "22/04/2026",
+        hora: "08:45:16",
+        produtos: [
+          { nome: "Guia Retrátil", qtd: 1, valor: 69.90 },
+          { nome: "Coleira Peitoral", qtd: 1, valor: 54.90 }
+        ]
+      },
+      {
+        id: "NF-55-0004",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Rafael Costa",
+        pagamento: "Transferência",
+        maquina: "Não utilizada",
+        data: "2026-04-22",
+        dataFormatada: "22/04/2026",
+        hora: "13:20:25",
+        produtos: [
+          { nome: "Areia Sílica 8kg", qtd: 6, valor: 49.90 },
+          { nome: "Pá Higiênica", qtd: 3, valor: 11.90 }
+        ]
+      },
+      {
+        id: "REC-65-0005",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Carla Menezes",
+        pagamento: "PIX",
+        maquina: "Não utilizada",
+        data: "2026-04-23",
+        dataFormatada: "23/04/2026",
+        hora: "17:01:40",
+        produtos: [
+          { nome: "Petisco Dental", qtd: 4, valor: 16.90 },
+          { nome: "Escova Dental Pet", qtd: 1, valor: 18.00 }
+        ]
+      },
+      {
+        id: "NF-55-0005",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Bruna Rocha",
+        pagamento: "Cartão de crédito",
+        maquina: "Stone - Caixa Principal",
+        data: "2026-04-23",
+        dataFormatada: "23/04/2026",
+        hora: "18:12:58",
+        produtos: [
+          { nome: "Ração Premium 20kg", qtd: 2, valor: 329.90 },
+          { nome: "Suplemento Vitamínico", qtd: 2, valor: 45.90 }
+        ]
+      },
+      {
+        id: "REC-65-0006",
+        tipo: "65",
+        titulo: "Recibo 65 - Venda no caixa",
+        vendedor: "Mariana Souza",
+        pagamento: "Cartão de débito",
+        maquina: "PagSeguro - Balcão",
+        data: "2026-04-24",
+        dataFormatada: "24/04/2026",
+        hora: "09:33:12",
+        produtos: [
+          { nome: "Bebedouro Automático", qtd: 1, valor: 119.90 },
+          { nome: "Filtro Refil", qtd: 2, valor: 19.90 }
+        ]
+      },
+      {
+        id: "NF-55-0006",
+        tipo: "55",
+        titulo: "Nota Fiscal 55 - Venda faturada",
+        vendedor: "Lucas Almeida",
+        pagamento: "Boleto",
+        maquina: "Não utilizada",
+        data: "2026-04-24",
+        dataFormatada: "24/04/2026",
+        hora: "10:15:37",
+        produtos: [
+          { nome: "Kit Banho Pet", qtd: 5, valor: 89.90 },
+          { nome: "Toalha Pet", qtd: 5, valor: 24.90 }
+        ]
+      }
+    ];
+
+    const ITEMS_PER_PAGE = 10;
+    let currentPage = 1;
+    let filteredSales = [...salesData];
+
+    const salesGrid = document.getElementById("salesGrid");
+    const searchSeller = document.getElementById("searchSeller");
+    const filterDate = document.getElementById("filterDate");
+    const filterMinValue = document.getElementById("filterMinValue");
+    const emptyMessage = document.getElementById("emptyMessage");
+    const pagination = document.getElementById("pagination");
+
+    const overlay = document.getElementById("overlay");
+    const closeModal = document.getElementById("closeModal");
+    const closeModal2 = document.getElementById("closeModal2");
+    const detailTitle = document.getElementById("detailTitle");
+    const detailSummary = document.getElementById("detailSummary");
+    const productsList = document.getElementById("productsList");
+    const printBtn = document.getElementById("printBtn");
+
+    function formatMoney(value) {
+      return Number(value).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+    }
+
+    function getSaleTotal(produtos) {
+      return produtos.reduce((acc, item) => acc + item.qtd * item.valor, 0);
+    }
+
+    function createCard(sale) {
+      const card = document.createElement("div");
+      card.className = "sale-card";
+
+      const tipoClass = sale.tipo === "65" ? "receipt" : "invoice";
+      const tipoLabel = sale.tipo === "65" ? "Recibo 65" : "Nota Fiscal 55";
+
+      card.innerHTML = `
+        <div class="sale-top">
+          <div class="sale-type ${tipoClass}">${tipoLabel}</div>
+          <div class="sale-id">${sale.id}</div>
+        </div>
+
+        <div class="sale-title">${sale.titulo}</div>
+
+        <div class="sale-info">
+          <div class="info-box">
+            <span>Nome do vendedor</span>
+            <strong>${sale.vendedor}</strong>
+          </div>
+
+          <div class="info-box">
+            <span>Formato de pagamento</span>
+            <strong>${sale.pagamento}</strong>
+          </div>
+
+          <div class="info-box">
+            <span>Máquina de cartão usada</span>
+            <strong>${sale.maquina}</strong>
+          </div>
+
+          <div class="info-box">
+            <span>Data da venda</span>
+            <strong>${sale.dataFormatada}</strong>
+          </div>
+
+          <div class="info-box">
+            <span>Hora da venda</span>
+            <strong>${sale.hora}</strong>
+          </div>
+
+          <div class="info-box">
+            <span>Total da venda</span>
+            <strong>${formatMoney(getSaleTotal(sale.produtos))}</strong>
+          </div>
+        </div>
+      `;
+
+      card.addEventListener("click", () => openDetails(sale));
+      return card;
+    }
+
+    function renderSales() {
+      salesGrid.innerHTML = "";
+
+      const start = (currentPage - 1) * ITEMS_PER_PAGE;
+      const end = start + ITEMS_PER_PAGE;
+      const pageItems = filteredSales.slice(start, end);
+
+      if (!pageItems.length) {
+        emptyMessage.style.display = "block";
+        pagination.innerHTML = "";
+        return;
+      }
+
+      emptyMessage.style.display = "none";
+      pageItems.forEach(sale => salesGrid.appendChild(createCard(sale)));
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      pagination.innerHTML = "";
+
+      const totalPages = Math.ceil(filteredSales.length / ITEMS_PER_PAGE);
+
+      if (totalPages <= 1) return;
+
+      const prevBtn = document.createElement("button");
+      prevBtn.className = "page-btn";
+      prevBtn.textContent = "Anterior";
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.addEventListener("click", () => {
+        currentPage--;
+        renderSales();
+      });
+
+      pagination.appendChild(prevBtn);
+
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement("button");
+        btn.className = `page-btn ${i === currentPage ? "active" : ""}`;
+        btn.textContent = i;
+        btn.addEventListener("click", () => {
+          currentPage = i;
+          renderSales();
+        });
+        pagination.appendChild(btn);
+      }
+
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "page-btn";
+      nextBtn.textContent = "Próxima";
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.addEventListener("click", () => {
+        currentPage++;
+        renderSales();
+      });
+
+      pagination.appendChild(nextBtn);
+    }
+
+    function filterSales() {
+      const sellerValue = searchSeller.value.trim().toLowerCase();
+      const dateValue = filterDate.value;
+      const minValue = parseFloat(filterMinValue.value) || 0;
+
+      filteredSales = salesData.filter(sale => {
+        const total = getSaleTotal(sale.produtos);
+        const matchSeller = sale.vendedor.toLowerCase().includes(sellerValue);
+        const matchDate = !dateValue || sale.data === dateValue;
+        const matchMinValue = total >= minValue;
+
+        return matchSeller && matchDate && matchMinValue;
+      });
+
+      currentPage = 1;
+      renderSales();
+    }
+
+    function openDetails(sale) {
+      detailTitle.textContent = `${sale.tipo === "65" ? "Recibo 65" : "Nota Fiscal 55"} - ${sale.id}`;
+
+      detailSummary.innerHTML = `
+        <div class="summary-card">
+          <span>Vendedor</span>
+          <strong>${sale.vendedor}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Pagamento</span>
+          <strong>${sale.pagamento}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Máquina</span>
+          <strong>${sale.maquina}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Data</span>
+          <strong>${sale.dataFormatada}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Hora</span>
+          <strong>${sale.hora}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Total</span>
+          <strong>${formatMoney(getSaleTotal(sale.produtos))}</strong>
+        </div>
+      `;
+
+      productsList.innerHTML = sale.produtos.map(produto => `
+        <div class="product-row">
+          <div><strong>${produto.nome}</strong></div>
+          <div>${produto.qtd}</div>
+          <div>${formatMoney(produto.valor)}</div>
+          <div>${formatMoney(produto.qtd * produto.valor)}</div>
+        </div>
+      `).join("");
+
+      if (sale.tipo === "65") {
+        printBtn.classList.add("show");
+        printBtn.onclick = () => window.print();
+      } else {
+        printBtn.classList.remove("show");
+        printBtn.onclick = null;
+      }
+
+      overlay.classList.add("active");
+    }
+
+    function closeDetails() {
+      overlay.classList.remove("active");
+    }
+
+    searchSeller.addEventListener("input", filterSales);
+    filterDate.addEventListener("input", filterSales);
+    filterMinValue.addEventListener("input", filterSales);
+
+    closeModal.addEventListener("click", closeDetails);
+    closeModal2.addEventListener("click", closeDetails);
+
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeDetails();
+    });
+
+    renderSales();
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>

@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NF-e 55 | NextStock</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    :root {
+      --bg-dark: #0d1b2a;
+      --bg-cyan: #00cfcf;
+      --sidebar: #071b31;
+      --sidebar-hover: #00cfcf;
+      --panel: rgba(255, 255, 255, 0.97);
+      --panel-2: #f6fbfc;
+      --text: #22313f;
+      --muted: #5d7285;
+      --border: #d9e3ea;
+      --success: #2e9d57;
+      --danger: #e53935;
+      --warning: #ffb74d;
+      --info: #1976d2;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+      --radius: 18px;
+      --sidebar-width: 16vw;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      background: linear-gradient(135deg, var(--bg-dark), var(--bg-cyan));
+      min-height: 100vh;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: var(--sidebar);
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 1000;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 8px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 22px;
+      color: #00cfcf;
+      font-size: 1.5rem;
+      padding: 0 10px;
+    }
+
+    .menu {
+      list-style: none;
+      padding-bottom: 22px;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
+    }
+
+    .menu li {
+      padding: 13.5px 18px;
+      cursor: pointer;
+      transition: background 0.25s, color 0.25s;
+      font-size: clamp(18px, 2.2vw, 28px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: var(--sidebar-hover);
+      color: #0d1b2a;
+    }
+
+    /* Main */
+    .main {
+      margin-left: var(--sidebar-width);
+      width: calc(100% - var(--sidebar-width));
+      min-height: 100vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .main::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .main::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.35);
+      border-radius: 8px;
+    }
+
+    .page-header {
+      color: #fff;
+      margin-bottom: 18px;
+    }
+
+    .page-header h1 {
+      font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+      margin-bottom: 6px;
+    }
+
+    .page-header p {
+      font-weight: 400;
+      opacity: 0.95;
+    }
+
+    .top-tools {
+      display: grid;
+      grid-template-columns: 1.4fr auto auto;
+      gap: 12px;
+      margin-bottom: 18px;
+      align-items: center;
+    }
+
+    .search-area {
+      position: relative;
+      background: var(--panel);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+    .search-area label {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      font-weight: 700;
+    }
+
+    .search-area input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.96rem;
+      outline: none;
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      top: calc(100% - 6px);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: 0 12px 24px rgba(0,0,0,0.12);
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 20;
+      display: none;
+    }
+
+    .autocomplete-item {
+      padding: 12px 14px;
+      border-bottom: 1px solid #eef3f6;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .autocomplete-item:hover {
+      background: #f1fcfc;
+    }
+
+    .autocomplete-item strong {
+      display: block;
+      font-size: 0.95rem;
+      color: var(--text);
+    }
+
+    .autocomplete-item span {
+      display: block;
+      font-size: 0.86rem;
+      color: var(--muted);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
+    .toolbar-btn {
+      border: none;
+      border-radius: 14px;
+      padding: 16px 18px;
+      min-height: 76px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 0.98rem;
+      font-weight: 700;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s, opacity 0.2s;
+    }
+
+    .toolbar-btn:hover {
+      transform: translateY(-2px);
+      opacity: 0.95;
+    }
+
+    .btn-new {
+      background: var(--warning);
+      color: #1f2a35;
+    }
+
+    .btn-send {
+      background: var(--success);
+    }
+
+    .note-wrapper {
+      background: var(--panel);
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      padding: 22px;
+    }
+
+    .note-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #e9f0f4;
+    }
+
+    .note-title h2 {
+      font-size: 1.45rem;
+      color: var(--text);
+    }
+
+    .note-title .status {
+      background: #eaf8f8;
+      color: #0d6d6d;
+      border: 1px solid #bcecec;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+    }
+
+    .section {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+    }
+
+    .section h3 {
+      font-size: 1.05rem;
+      margin-bottom: 14px;
+      color: #10283f;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .field label {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: #385064;
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      padding: 11px 12px;
+      font-size: 0.93rem;
+      outline: none;
+      color: var(--text);
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      border-color: var(--bg-cyan);
+      box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 96px;
+    }
+
+    .span-1  { grid-column: span 1; }
+    .span-2  { grid-column: span 2; }
+    .span-3  { grid-column: span 3; }
+    .span-4  { grid-column: span 4; }
+    .span-5  { grid-column: span 5; }
+    .span-6  { grid-column: span 6; }
+    .span-7  { grid-column: span 7; }
+    .span-8  { grid-column: span 8; }
+    .span-9  { grid-column: span 9; }
+    .span-10 { grid-column: span 10; }
+    .span-12 { grid-column: span 12; }
+
+    .hint {
+      font-size: 0.84rem;
+      color: var(--muted);
+      font-weight: 400;
+      margin-top: 2px;
+    }
+
+    .items-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-add-item {
+      border: none;
+      background: var(--info);
+      color: #fff;
+      padding: 11px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .items-list {
+      display: grid;
+      gap: 14px;
+    }
+
+    .item-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .item-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 12px;
+    }
+
+    .item-top h4 {
+      font-size: 1rem;
+      color: #12314a;
+    }
+
+    .btn-remove-item {
+      border: none;
+      background: var(--danger);
+      color: #fff;
+      padding: 9px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .totals-box {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .total-card {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .total-card span {
+      display: block;
+      font-size: 0.84rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .total-card strong {
+      font-size: 1.12rem;
+      color: #0f2840;
+    }
+
+    .footer-note {
+      margin-top: 16px;
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 400;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 1200px) {
+      .top-tools {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar-btn {
+        min-height: auto;
+      }
+
+      .totals-box {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 980px) {
+      :root {
+        --sidebar-width: 220px;
+      }
+
+      .fields {
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .span-1, .span-2, .span-3, .span-4, .span-5, .span-6,
+      .span-7, .span-8, .span-9, .span-10, .span-12 {
+        grid-column: span 6;
+      }
+    }
+
+    @media (max-width: 680px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: relative;
+        width: 100%;
+        min-width: 100%;
+        height: 280px;
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+        padding: 16px;
+      }
+
+      .fields {
+        grid-template-columns: 1fr;
+      }
+
+      .span-1, .span-2, .span-3, .span-4, .span-5, .span-6,
+      .span-7, .span-8, .span-9, .span-10, .span-12 {
+        grid-column: span 1;
+      }
+
+      .totals-box {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+  <div id="sidebar-container"></div>
+
+    <main class="main">
+      <div class="page-header">
+        <h1>Criação de Nota Fiscal Eletrônica - Modelo 55</h1>
+        <p>Preencha manualmente os dados da nota ou pesquise um cliente cadastrado para completar o destinatário automaticamente.</p>
+      </div>
+
+      <div class="top-tools">
+        <div class="search-area">
+          <label for="searchClient">Pesquisar cliente cadastrado</label>
+          <input
+            type="text"
+            id="searchClient"
+            placeholder="Digite nome, CPF/CNPJ, e-mail ou telefone"
+            autocomplete="off"
+          />
+          <div class="autocomplete-list" id="autocompleteList"></div>
+        </div>
+
+        <button class="toolbar-btn btn-new" id="btnNovo">Novo</button>
+        <button class="toolbar-btn btn-send" id="btnEnviar">Enviar para SEFAZ</button>
+      </div>
+
+      <section class="note-wrapper">
+        <div class="note-title">
+          <h2>NF-e 55</h2>
+          <div class="status">Rascunho pronto para envio</div>
+        </div>
+
+        <div class="grid">
+          <!-- Identificação da nota -->
+          <div class="section">
+            <h3>Identificação da Nota</h3>
+            <div class="fields">
+              <div class="field span-3">
+                <label>Número da Nota</label>
+                <input type="text" id="numeroNota" placeholder="Ex.: 000001" />
+              </div>
+
+              <div class="field span-2">
+                <label>Série</label>
+                <input type="text" id="serieNota" placeholder="001" />
+              </div>
+
+              <div class="field span-3">
+                <label>Data de emissão</label>
+                <input type="datetime-local" id="dataEmissao" />
+              </div>
+
+              <div class="field span-2">
+                <label>Tipo de operação</label>
+                <select id="tipoOperacao">
+                  <option value="saida">Saída</option>
+                  <option value="entrada">Entrada</option>
+                </select>
+              </div>
+
+              <div class="field span-2">
+                <label>Finalidade</label>
+                <select id="finalidade">
+                  <option value="normal">Normal</option>
+                  <option value="complementar">Complementar</option>
+                  <option value="ajuste">Ajuste</option>
+                  <option value="devolucao">Devolução</option>
+                </select>
+              </div>
+
+              <div class="field span-4">
+                <label>Natureza da operação</label>
+                <input type="text" id="naturezaOperacao" placeholder="Ex.: Venda de mercadoria" />
+              </div>
+
+              <div class="field span-2">
+                <label>Modelo</label>
+                <input type="text" value="55" readonly />
+              </div>
+
+              <div class="field span-2">
+                <label>Forma de emissão</label>
+                <select id="formaEmissao">
+                  <option value="normal">Normal</option>
+                  <option value="contingencia">Contingência</option>
+                </select>
+              </div>
+
+              <div class="field span-2">
+                <label>Presença do comprador</label>
+                <select id="indPres">
+                  <option value="0">Não se aplica</option>
+                  <option value="1">Operação presencial</option>
+                  <option value="2">Internet</option>
+                  <option value="3">Teleatendimento</option>
+                  <option value="4">Entrega em domicílio</option>
+                  <option value="9">Outros</option>
+                </select>
+              </div>
+
+              <div class="field span-2">
+                <label>Consumidor final</label>
+                <select id="indFinal">
+                  <option value="0">Não</option>
+                  <option value="1">Sim</option>
+                </select>
+              </div>
+
+              <div class="field span-2">
+                <label>Ambiente</label>
+                <select id="ambiente">
+                  <option value="homologacao">Homologação</option>
+                  <option value="producao">Produção</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Emitente -->
+          <div class="section">
+            <h3>Dados do Emitente</h3>
+            <div class="fields">
+              <div class="field span-6">
+                <label>Razão social</label>
+                <input type="text" id="emitRazao" placeholder="Razão social do emitente" />
+              </div>
+
+              <div class="field span-3">
+                <label>Nome fantasia</label>
+                <input type="text" id="emitFantasia" placeholder="Nome fantasia" />
+              </div>
+
+              <div class="field span-3">
+                <label>CNPJ</label>
+                <input type="text" id="emitCnpj" placeholder="00.000.000/0000-00" />
+              </div>
+
+              <div class="field span-3">
+                <label>Inscrição Estadual</label>
+                <input type="text" id="emitIe" placeholder="IE do emitente" />
+              </div>
+
+              <div class="field span-3">
+                <label>CRT</label>
+                <select id="emitCrt">
+                  <option value="1">1 - Simples Nacional</option>
+                  <option value="2">2 - Simples Nacional excesso sublimite</option>
+                  <option value="3">3 - Regime Normal</option>
+                </select>
+              </div>
+
+              <div class="field span-6">
+                <label>Endereço</label>
+                <input type="text" id="emitEndereco" placeholder="Rua, avenida, número" />
+              </div>
+
+              <div class="field span-3">
+                <label>Bairro</label>
+                <input type="text" id="emitBairro" placeholder="Bairro" />
+              </div>
+
+              <div class="field span-3">
+                <label>Município</label>
+                <input type="text" id="emitMunicipio" placeholder="Município" />
+              </div>
+
+              <div class="field span-2">
+                <label>UF</label>
+                <input type="text" id="emitUf" maxlength="2" placeholder="UF" />
+              </div>
+
+              <div class="field span-2">
+                <label>CEP</label>
+                <input type="text" id="emitCep" placeholder="00000-000" />
+              </div>
+
+              <div class="field span-2">
+                <label>Telefone</label>
+                <input type="text" id="emitTelefone" placeholder="(00) 00000-0000" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Destinatário -->
+          <div class="section">
+            <h3>Destinatário / Cliente</h3>
+            <div class="fields">
+              <div class="field span-6">
+                <label>Nome / Razão social</label>
+                <input type="text" id="destNome" placeholder="Nome do cliente" />
+              </div>
+
+              <div class="field span-3">
+                <label>Tipo de documento</label>
+                <select id="destTipoDoc">
+                  <option value="cpf">CPF</option>
+                  <option value="cnpj">CNPJ</option>
+                  <option value="estrangeiro">Estrangeiro</option>
+                </select>
+              </div>
+
+              <div class="field span-3">
+                <label>CPF / CNPJ</label>
+                <input type="text" id="destDoc" placeholder="Documento do cliente" />
+              </div>
+
+              <div class="field span-3">
+                <label>Inscrição Estadual</label>
+                <input type="text" id="destIe" placeholder="Informe IE ou ISENTO" />
+              </div>
+
+              <div class="field span-3">
+                <label>Indicador IE</label>
+                <select id="destIndIe">
+                  <option value="1">1 - Contribuinte ICMS</option>
+                  <option value="2">2 - Isento</option>
+                  <option value="9">9 - Não contribuinte</option>
+                </select>
+              </div>
+
+              <div class="field span-3">
+                <label>E-mail</label>
+                <input type="email" id="destEmail" placeholder="cliente@email.com" />
+              </div>
+
+              <div class="field span-3">
+                <label>Telefone</label>
+                <input type="text" id="destTelefone" placeholder="(00) 00000-0000" />
+              </div>
+
+              <div class="field span-6">
+                <label>Endereço</label>
+                <input type="text" id="destEndereco" placeholder="Rua, avenida, número" />
+              </div>
+
+              <div class="field span-3">
+                <label>Bairro</label>
+                <input type="text" id="destBairro" placeholder="Bairro" />
+              </div>
+
+              <div class="field span-3">
+                <label>Município</label>
+                <input type="text" id="destMunicipio" placeholder="Município" />
+              </div>
+
+              <div class="field span-2">
+                <label>UF</label>
+                <input type="text" id="destUf" maxlength="2" placeholder="UF" />
+              </div>
+
+              <div class="field span-2">
+                <label>CEP</label>
+                <input type="text" id="destCep" placeholder="00000-000" />
+              </div>
+
+              <div class="field span-2">
+                <label>País</label>
+                <input type="text" id="destPais" value="Brasil" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Produtos -->
+          <div class="section">
+            <div class="items-header">
+              <h3>Produtos / Serviços da Nota</h3>
+              <button type="button" class="btn-add-item" id="btnAddItem">+ Adicionar item</button>
+            </div>
+
+            <div class="items-list" id="itemsList"></div>
+          </div>
+
+          <!-- Totais -->
+          <div class="section">
+            <h3>Totais da NF-e</h3>
+            <div class="totals-box">
+              <div class="total-card">
+                <span>Valor dos produtos</span>
+                <strong id="totalProdutos">R$ 0,00</strong>
+              </div>
+
+              <div class="total-card">
+                <span>Desconto total</span>
+                <strong id="totalDesconto">R$ 0,00</strong>
+              </div>
+
+              <div class="total-card">
+                <span>Frete</span>
+                <strong id="totalFrete">R$ 0,00</strong>
+              </div>
+
+              <div class="total-card">
+                <span>Valor total da nota</span>
+                <strong id="valorNota">R$ 0,00</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transporte e pagamento -->
+          <div class="section">
+            <h3>Transporte e Pagamento</h3>
+            <div class="fields">
+              <div class="field span-3">
+                <label>Modalidade do frete</label>
+                <select id="modFrete">
+                  <option value="0">0 - Por conta do emitente</option>
+                  <option value="1">1 - Por conta do destinatário</option>
+                  <option value="2">2 - Terceiros</option>
+                  <option value="9">9 - Sem frete</option>
+                </select>
+              </div>
+
+              <div class="field span-3">
+                <label>Valor do frete</label>
+                <input type="number" id="frete" min="0" step="0.01" placeholder="0.00" />
+              </div>
+
+              <div class="field span-3">
+                <label>Forma de pagamento</label>
+                <select id="formaPagamento">
+                  <option value="01">01 - Dinheiro</option>
+                  <option value="03">03 - Cartão de crédito</option>
+                  <option value="04">04 - Cartão de débito</option>
+                  <option value="15">15 - Boleto</option>
+                  <option value="17">17 - PIX</option>
+                  <option value="90">90 - Sem pagamento</option>
+                  <option value="99">99 - Outros</option>
+                </select>
+              </div>
+
+              <div class="field span-3">
+                <label>Valor pago</label>
+                <input type="number" id="valorPago" min="0" step="0.01" placeholder="0.00" />
+              </div>
+
+              <div class="field span-4">
+                <label>Transportadora</label>
+                <input type="text" id="transportadora" placeholder="Nome da transportadora" />
+              </div>
+
+              <div class="field span-4">
+                <label>CNPJ transportadora</label>
+                <input type="text" id="transpCnpj" placeholder="00.000.000/0000-00" />
+              </div>
+
+              <div class="field span-4">
+                <label>Placa do veículo</label>
+                <input type="text" id="placaVeiculo" placeholder="ABC1D23" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Informações adicionais -->
+          <div class="section">
+            <h3>Informações adicionais</h3>
+            <div class="fields">
+              <div class="field span-12">
+                <label>Informações complementares para a nota</label>
+                <textarea id="infoAdicionais" placeholder="Observações fiscais, dados complementares, mensagens ao Fisco ou ao destinatário"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p class="footer-note">
+          Este frontend está preparado para digitação manual completa da NF-e e também para preenchimento do destinatário por busca de cliente. O envio para a SEFAZ foi deixado apenas como simulação visual, sem backend.
+        </p>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const clientsMock = [
+      {
+        nome: "Ana Paula Ribeiro",
+        tipoDoc: "cpf",
+        doc: "123.456.789-00",
+        ie: "ISENTO",
+        indIe: "9",
+        email: "ana.ribeiro@email.com",
+        telefone: "(11) 98888-1111",
+        endereco: "Rua das Flores, 120",
+        bairro: "Centro",
+        municipio: "São Paulo",
+        uf: "SP",
+        cep: "01000-000",
+        pais: "Brasil"
+      },
+      {
+        nome: "Pet Shop Amigo Fiel LTDA",
+        tipoDoc: "cnpj",
+        doc: "12.345.678/0001-99",
+        ie: "123456789",
+        indIe: "1",
+        email: "financeiro@amigofiel.com.br",
+        telefone: "(21) 3777-2222",
+        endereco: "Av. Brasil, 450",
+        bairro: "Jardim Pet",
+        municipio: "Rio de Janeiro",
+        uf: "RJ",
+        cep: "20000-000",
+        pais: "Brasil"
+      },
+      {
+        nome: "Carlos Henrique Souza",
+        tipoDoc: "cpf",
+        doc: "987.654.321-00",
+        ie: "ISENTO",
+        indIe: "9",
+        email: "carlos.souza@email.com",
+        telefone: "(31) 97777-3333",
+        endereco: "Rua Bela Vista, 55",
+        bairro: "Savassi",
+        municipio: "Belo Horizonte",
+        uf: "MG",
+        cep: "30000-000",
+        pais: "Brasil"
+      }
+    ];
+
+    const searchInput = document.getElementById("searchClient");
+    const autocompleteList = document.getElementById("autocompleteList");
+    const itemsList = document.getElementById("itemsList");
+    const btnAddItem = document.getElementById("btnAddItem");
+    const btnNovo = document.getElementById("btnNovo");
+    const btnEnviar = document.getElementById("btnEnviar");
+
+    const moneyFields = {
+      totalProdutos: document.getElementById("totalProdutos"),
+      totalDesconto: document.getElementById("totalDesconto"),
+      totalFrete: document.getElementById("totalFrete"),
+      valorNota: document.getElementById("valorNota")
+    };
+
+    function formatBRL(value) {
+      return Number(value || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+    }
+
+    function fillClientData(client) {
+      document.getElementById("destNome").value = client.nome || "";
+      document.getElementById("destTipoDoc").value = client.tipoDoc || "cpf";
+      document.getElementById("destDoc").value = client.doc || "";
+      document.getElementById("destIe").value = client.ie || "";
+      document.getElementById("destIndIe").value = client.indIe || "9";
+      document.getElementById("destEmail").value = client.email || "";
+      document.getElementById("destTelefone").value = client.telefone || "";
+      document.getElementById("destEndereco").value = client.endereco || "";
+      document.getElementById("destBairro").value = client.bairro || "";
+      document.getElementById("destMunicipio").value = client.municipio || "";
+      document.getElementById("destUf").value = client.uf || "";
+      document.getElementById("destCep").value = client.cep || "";
+      document.getElementById("destPais").value = client.pais || "Brasil";
+    }
+
+    function renderAutocomplete(filteredClients) {
+      if (!filteredClients.length) {
+        autocompleteList.style.display = "none";
+        autocompleteList.innerHTML = "";
+        return;
+      }
+
+      autocompleteList.innerHTML = filteredClients.map((client, index) => `
+        <div class="autocomplete-item" data-index="${index}">
+          <strong>${client.nome}</strong>
+          <span>${client.doc} • ${client.email} • ${client.telefone}</span>
+        </div>
+      `).join("");
+
+      autocompleteList.style.display = "block";
+
+      const items = autocompleteList.querySelectorAll(".autocomplete-item");
+      items.forEach((item) => {
+        item.addEventListener("click", () => {
+          const selectedName = item.querySelector("strong").textContent;
+          const client = filteredClients.find(c => c.nome === selectedName);
+          if (client) {
+            fillClientData(client);
+            searchInput.value = client.nome;
+            autocompleteList.style.display = "none";
+          }
+        });
+      });
+    }
+
+    searchInput.addEventListener("input", () => {
+      const term = searchInput.value.trim().toLowerCase();
+
+      if (!term) {
+        autocompleteList.style.display = "none";
+        autocompleteList.innerHTML = "";
+        return;
+      }
+
+      const filtered = clientsMock.filter(client =>
+        client.nome.toLowerCase().includes(term) ||
+        client.doc.toLowerCase().includes(term) ||
+        client.email.toLowerCase().includes(term) ||
+        client.telefone.toLowerCase().includes(term)
+      );
+
+      renderAutocomplete(filtered);
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".search-area")) {
+        autocompleteList.style.display = "none";
+      }
+    });
+
+    function createItemCard(data = {}) {
+      const item = document.createElement("div");
+      item.className = "item-card";
+
+      item.innerHTML = `
+        <div class="item-top">
+          <h4>Item da nota</h4>
+          <button type="button" class="btn-remove-item">Remover</button>
+        </div>
+
+        <div class="fields">
+          <div class="field span-4">
+            <label>Descrição do produto</label>
+            <input type="text" class="item-descricao" placeholder="Nome do produto" value="${data.descricao || ""}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Código interno</label>
+            <input type="text" class="item-codigo" placeholder="SKU" value="${data.codigo || ""}" />
+          </div>
+
+          <div class="field span-2">
+            <label>NCM</label>
+            <input type="text" class="item-ncm" placeholder="00000000" value="${data.ncm || ""}" />
+          </div>
+
+          <div class="field span-2">
+            <label>CFOP</label>
+            <input type="text" class="item-cfop" placeholder="5102" value="${data.cfop || ""}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Unidade</label>
+            <input type="text" class="item-unidade" placeholder="UN" value="${data.unidade || "UN"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Quantidade</label>
+            <input type="number" class="item-quantidade" min="0" step="0.001" placeholder="1" value="${data.quantidade || "1"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Valor unitário</label>
+            <input type="number" class="item-unitario" min="0" step="0.01" placeholder="0.00" value="${data.unitario || "0"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Desconto</label>
+            <input type="number" class="item-desconto" min="0" step="0.01" placeholder="0.00" value="${data.desconto || "0"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Alíquota ICMS (%)</label>
+            <input type="number" class="item-icms" min="0" step="0.01" placeholder="0.00" value="${data.icms || "0"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Alíquota IPI (%)</label>
+            <input type="number" class="item-ipi" min="0" step="0.01" placeholder="0.00" value="${data.ipi || "0"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Alíquota PIS (%)</label>
+            <input type="number" class="item-pis" min="0" step="0.01" placeholder="0.00" value="${data.pis || "0"}" />
+          </div>
+
+          <div class="field span-2">
+            <label>Alíquota COFINS (%)</label>
+            <input type="number" class="item-cofins" min="0" step="0.01" placeholder="0.00" value="${data.cofins || "0"}" />
+          </div>
+        </div>
+      `;
+
+      const removeBtn = item.querySelector(".btn-remove-item");
+      removeBtn.addEventListener("click", () => {
+        item.remove();
+        updateTotals();
+      });
+
+      const inputs = item.querySelectorAll("input");
+      inputs.forEach(input => input.addEventListener("input", updateTotals));
+
+      itemsList.appendChild(item);
+      updateTotals();
+    }
+
+    function updateTotals() {
+      const itemCards = document.querySelectorAll(".item-card");
+      let totalProdutos = 0;
+      let totalDesconto = 0;
+
+      itemCards.forEach(card => {
+        const qtd = parseFloat(card.querySelector(".item-quantidade").value) || 0;
+        const unit = parseFloat(card.querySelector(".item-unitario").value) || 0;
+        const desc = parseFloat(card.querySelector(".item-desconto").value) || 0;
+
+        totalProdutos += qtd * unit;
+        totalDesconto += desc;
+      });
+
+      const frete = parseFloat(document.getElementById("frete").value) || 0;
+      const totalNota = totalProdutos - totalDesconto + frete;
+
+      moneyFields.totalProdutos.textContent = formatBRL(totalProdutos);
+      moneyFields.totalDesconto.textContent = formatBRL(totalDesconto);
+      moneyFields.totalFrete.textContent = formatBRL(frete);
+      moneyFields.valorNota.textContent = formatBRL(totalNota);
+
+      document.getElementById("valorPago").value = totalNota > 0 ? totalNota.toFixed(2) : "";
+    }
+
+    btnAddItem.addEventListener("click", () => createItemCard());
+
+    document.getElementById("frete").addEventListener("input", updateTotals);
+
+    function resetForm() {
+      document.querySelectorAll("input, textarea").forEach(el => {
+        if (!el.hasAttribute("readonly")) el.value = "";
+      });
+
+      document.querySelectorAll("select").forEach(select => {
+        select.selectedIndex = 0;
+      });
+
+      itemsList.innerHTML = "";
+      autocompleteList.style.display = "none";
+      document.getElementById("destPais").value = "Brasil";
+      document.getElementById("dataEmissao").value = new Date().toISOString().slice(0,16);
+      createItemCard();
+      updateTotals();
+    }
+
+    btnNovo.addEventListener("click", resetForm);
+
+    btnEnviar.addEventListener("click", () => {
+      alert("Frontend pronto: aqui futuramente será integrada a API/rotina de envio para a SEFAZ e depois o redirecionamento para a página de notas.");
+    });
+
+    document.getElementById("dataEmissao").value = new Date().toISOString().slice(0,16);
+    createItemCard({
+      descricao: "Ração Premium 10kg",
+      codigo: "RAC001",
+      ncm: "23091000",
+      cfop: "5102",
+      unidade: "UN",
+      quantidade: "1",
+      unitario: "189.90",
+      desconto: "0",
+      icms: "18",
+      ipi: "0",
+      pis: "1.65",
+      cofins: "7.60"
+    });
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>

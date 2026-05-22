@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NextStock - Login / Cadastro</title>
+
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #333;
+      padding: 20px;
+    }
+
+    .container {
+      text-align: center;
+      background: linear-gradient(135deg, #1c7d35, #3bed6d);
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      max-width: 460px;
+      width: 100%;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+      font-size: 24px;
+      color: white;
+    }
+
+    .subtitle {
+      color: #f4f4f4;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+
+    .btn {
+      display: block;
+      margin: 14px auto;
+      padding: 15px;
+      width: 100%;
+      background: #1a456f;
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.3s;
+    }
+
+    .btn:hover {
+      background: #0bb5b5;
+    }
+
+    .btn.secondary {
+      background: #ffffff;
+      color: #1a456f;
+    }
+
+    .btn.secondary:hover {
+      background: #e9f7f7;
+    }
+
+    .btn.option {
+      background: #0d1b2a;
+    }
+
+    .status-box {
+      margin-top: 20px;
+      background: rgba(255,255,255,0.18);
+      color: white;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      text-align: left;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 48px;
+    }
+
+    .inline-panel {
+      display: none;
+      margin-top: 16px;
+      padding: 18px;
+      background: rgba(255,255,255,0.95);
+      border-radius: 12px;
+      text-align: left;
+      animation: slideDown 0.3s ease;
+    }
+
+    .inline-panel.active {
+      display: block;
+    }
+
+    .inline-panel h2 {
+      color: #0d1b2a;
+      font-size: 18px;
+      margin-bottom: 14px;
+      text-align: center;
+    }
+
+    .inline-panel p {
+      font-size: 14px;
+      line-height: 1.5;
+      color: #455;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+
+    .inline-panel ul {
+      padding-left: 20px;
+      color: #455;
+      font-size: 14px;
+      line-height: 1.7;
+      font-weight: 600;
+    }
+
+    .options-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .popup {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10;
+      padding: 20px;
+    }
+
+    .popup:target {
+      display: flex;
+    }
+
+    .popup-content {
+      background: #fff;
+      padding: 40px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      animation: slideDown 0.4s ease;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .popup-content h2 {
+      margin-bottom: 25px;
+      color: #0d1b2a;
+    }
+
+    .popup-content input,
+    .popup-content select {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      margin: 15px 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    .popup-content input:focus,
+    .popup-content select:focus {
+      border-color: #00cfcf;
+      box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
+    }
+
+    .popup-content .btn {
+      margin-top: 16px;
+      width: 100%;
+    }
+
+    .close {
+      display: inline-block;
+      margin-top: 20px;
+      color: #555;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .helper-links {
+      margin-top: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .helper-links a {
+      color: #1a456f;
+      font-size: 14px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    .helper-links a:hover {
+      text-decoration: underline;
+    }
+
+    .small-info {
+      font-size: 12px;
+      color: #666;
+      text-align: left;
+      line-height: 1.4;
+      margin-top: -8px;
+      margin-bottom: 10px;
+    }
+
+    @media (max-width: 500px) {
+      .container {
+        padding: 30px 20px;
+      }
+
+      .popup-content {
+        padding: 30px 20px;
+      }
+
+      .options-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Bem-vindo ao NextStock</h1>
+    <p class="subtitle">Sistema web integrado ao backend NestJS</p>
+
+    <button class="btn" id="previewBtn" type="button">Visualizar sistema</button>
+
+    <div class="inline-panel" id="previewOptions">
+      <h2>Escolha uma visualização</h2>
+
+      <div class="options-grid">
+        <button class="btn option" id="standardPreviewBtn" type="button">Sistema padrão</button>
+        <button class="btn option" id="petPreviewBtn" type="button">Pet shop</button>
+      </div>
+
+      <div class="inline-panel" id="standardPreviewFields">
+        <h2>Sistema padrão</h2>
+        <p>Visualização estática do sistema padrão com os módulos principais:</p>
+        <ul>
+          <li>Caixa</li>
+          <li>Produtos</li>
+          <li>Cadastro</li>
+          <li>Pedidos</li>
+          <li>Histórico</li>
+          <li>Dashboard</li>
+          <li>Pagamentos</li>
+          <li>Funcionários</li>
+        </ul>
+        <a href="produtos.html" class="btn">Visualizar padrão</a>
+      </div>
+
+      <div class="inline-panel" id="petPreviewFields">
+        <h2>Pet shop</h2>
+        <p>Visualização estática do sistema Pet shop com os módulos principais:</p>
+        <ul>
+          <li>Caixa PetShop</li>
+          <li>Clientes e pets</li>
+          <li>Agenda</li>
+          <li>Guia</li>
+          <li>Produtos</li>
+          <li>Histórico</li>
+          <li>Dashboard</li>
+          <li>Pagamentos</li>
+        </ul>
+        <a href="clientePet.html" class="btn">Visualizar Pet shop</a>
+      </div>
+    </div>
+
+    <a href="#login" class="btn">Login</a>
+    <a href="#cadastro" class="btn">Cadastro</a>
+
+    <a href="#trocar-senha" class="btn secondary">Trocar senha</a>
+
+    <button id="profileBtn" class="btn secondary" type="button">Ver sessão atual</button>
+    <button id="logoutBtn" class="btn secondary" type="button">Logout</button>
+
+    <div id="statusBox" class="status-box">Pronto para autenticação.</div>
+  </div>
+
+  <!-- Login -->
+  <div id="login" class="popup">
+    <div class="popup-content">
+      <h2>Login</h2>
+
+      <form id="loginForm">
+        <input id="loginEmail" type="email" placeholder="E-mail" required />
+        <input id="loginName" type="text" placeholder="Nome de acesso" required />
+        <input id="loginPassword" type="password" placeholder="Senha de acesso" required />
+
+        <select id="loginBranch">
+          <option value="">Selecione a filial (opcional para superAdmin)</option>
+          <option value="matriz">Matriz</option>
+          <option value="filial-centro">Filial Centro</option>
+          <option value="filial-norte">Filial Norte</option>
+          <option value="filial-sul">Filial Sul</option>
+          <option value="petshop-principal">PetShop Principal</option>
+        </select>
+
+        <button class="btn" type="submit">Entrar</button>
+      </form>
+
+      <div class="helper-links">
+        <a href="#trocar-senha">Esqueci minha senha</a>
+      </div>
+
+      <a href="#" class="close">Fechar</a>
+    </div>
+  </div>
+
+  <!-- Cadastro -->
+  <div id="cadastro" class="popup">
+    <div class="popup-content">
+      <h2>Cadastro</h2>
+
+      <form id="registerForm">
+        <input id="registerEmail" type="email" placeholder="E-mail principal" required />
+        <input id="registerName" type="text" placeholder="Nome" required />
+
+        <input
+          id="registerPassword"
+          type="password"
+          placeholder="Criar senha"
+          minlength="8"
+          pattern="[A-Za-z0-9]{8,}"
+          required
+        />
+
+        <p class="small-info">
+          A senha deve ter no mínimo 8 dígitos e aceitar apenas letras maiúsculas, letras minúsculas e números. Não use símbolos.
+        </p>
+
+        <select id="registerSystemType" required>
+          <option value="">Tipo de sistema</option>
+          <option value="padrao">Sistema padrão</option>
+          <option value="petshop">Pet shop</option>
+        </select>
+
+        <button class="btn" type="submit">Registrar</button>
+      </form>
+
+      <a href="#" class="close">Fechar</a>
+    </div>
+  </div>
+
+  <!-- Trocar senha -->
+  <div id="trocar-senha" class="popup">
+    <div class="popup-content">
+      <h2>Trocar senha</h2>
+
+      <form id="resetForm">
+        <input id="resetEmail" type="email" placeholder="Seu e-mail" required />
+        <button class="btn" type="submit">Enviar solicitação</button>
+      </form>
+
+      <p style="margin-top: 12px; font-size: 13px; color: #666;">
+        Esse botão depende de uma rota existente no backend.
+      </p>
+
+      <a href="#" class="close">Fechar</a>
+    </div>
+  </div>
+
+  <script>
+    const API = '';
+
+    const previewBtn = document.getElementById('previewBtn');
+    const previewOptions = document.getElementById('previewOptions');
+    const standardPreviewBtn = document.getElementById('standardPreviewBtn');
+    const petPreviewBtn = document.getElementById('petPreviewBtn');
+    const standardPreviewFields = document.getElementById('standardPreviewFields');
+    const petPreviewFields = document.getElementById('petPreviewFields');
+
+    previewBtn.addEventListener('click', () => {
+      previewOptions.classList.toggle('active');
+    });
+
+    standardPreviewBtn.addEventListener('click', () => {
+      standardPreviewFields.classList.add('active');
+      petPreviewFields.classList.remove('active');
+    });
+
+    petPreviewBtn.addEventListener('click', () => {
+      petPreviewFields.classList.add('active');
+      standardPreviewFields.classList.remove('active');
+    });
+
+    function setStatus(message, isError = false) {
+      const box = document.getElementById('statusBox');
+      box.textContent = message;
+      box.style.background = isError
+        ? 'rgba(180, 30, 30, 0.35)'
+        : 'rgba(255,255,255,0.18)';
+    }
+
+    async function safeJson(res) {
+      const text = await res.text();
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        return text;
+      }
+    }
+
+    function extractMessage(data) {
+      if (!data) return 'Sem resposta.';
+      if (typeof data === 'string') return data;
+
+      if (data.message) {
+        return Array.isArray(data.message)
+          ? data.message.join('\n')
+          : data.message;
+      }
+
+      if (data.error) return data.error;
+
+      return JSON.stringify(data, null, 2);
+    }
+
+    async function apiRequest(url, options = {}) {
+      const res = await fetch(API + url, {
+        credentials: 'include',
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        throw new Error(extractMessage(data));
+      }
+
+      return { res, data };
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('registerEmail').value.trim();
+      const name = document.getElementById('registerName').value.trim();
+      const password = document.getElementById('registerPassword').value;
+      const systemType = document.getElementById('registerSystemType').value;
+
+      const passwordRegex = /^[A-Za-z0-9]{8,}$/;
+
+      if (!passwordRegex.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter no mínimo 8 dígitos e não pode conter símbolos.', true);
+        return;
+      }
+
+      try {
+        setStatus('Realizando cadastro...');
+
+        const { data } = await apiRequest('/auth/register', {
+          method: 'POST',
+          body: JSON.stringify({
+            email,
+            name,
+            password,
+            systemType
+          })
+        });
+
+        setStatus('Cadastro realizado com sucesso.\n\n' + extractMessage(data));
+        window.location.hash = '';
+      } catch (error) {
+        setStatus('Erro no cadastro:\n\n' + error.message, true);
+      }
+    });
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const branch = document.getElementById('loginBranch').value;
+      const email = document.getElementById('loginEmail').value.trim();
+      const accessName = document.getElementById('loginName').value.trim();
+      const password = document.getElementById('loginPassword').value;
+
+      try {
+        setStatus('Realizando login...');
+
+        const { data } = await apiRequest('/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({
+            email,
+            accessName,
+            branch,
+            password
+          })
+        });
+
+        setStatus('Login realizado com sucesso.\n\n' + extractMessage(data));
+        window.location.href = 'produtos.html';
+      } catch (error) {
+        setStatus('Erro no login:\n\n' + error.message, true);
+      }
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      try {
+        setStatus('Encerrando sessão...');
+
+        const { data } = await apiRequest('/auth/logout', {
+          method: 'POST'
+        });
+
+        setStatus('Logout realizado.\n\n' + extractMessage(data));
+      } catch (error) {
+        setStatus('Erro no logout:\n\n' + error.message, true);
+      }
+    });
+
+    document.getElementById('profileBtn').addEventListener('click', async () => {
+      try {
+        setStatus('Consultando sessão atual...');
+
+        const { data } = await apiRequest('/auth/profile', {
+          method: 'GET'
+        });
+
+        setStatus('Sessão ativa:\n\n' + JSON.stringify(data, null, 2));
+      } catch (error) {
+        setStatus('Sessão não encontrada ou usuário não autenticado.\n\n' + error.message, true);
+      }
+    });
+
+    document.getElementById('resetForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = document.getElementById('resetEmail').value.trim();
+
+      try {
+        setStatus('Enviando solicitação de troca de senha...');
+
+        const { data } = await apiRequest('/auth/forgot-password', {
+          method: 'POST',
+          body: JSON.stringify({ email })
+        });
+
+        setStatus('Solicitação enviada.\n\n' + extractMessage(data));
+        window.location.hash = '';
+      } catch (error) {
+        setStatus(
+          'Erro ao solicitar troca de senha.\n\n' +
+          error.message +
+          '\n\nSe essa rota ainda não existe no backend, crie o endpoint correspondente.',
+          true
+        );
+      }
+    });
+
+    window.addEventListener('load', async () => {
+      try {
+        const res = await fetch(API + '/health', {
+          method: 'GET',
+          credentials: 'include'
+        });
+
+        if (res.ok) {
+          setStatus('Aplicação online. Backend NestJS respondendo normalmente.');
+        } else {
+          setStatus('Frontend carregado, mas o backend respondeu com status ' + res.status + '.', true);
+        }
+      } catch (error) {
+        setStatus('Frontend carregado, mas não foi possível alcançar o backend.\n\n' + error.message, true);
+      }
+    });
+  </script>
+</body>
+</html>

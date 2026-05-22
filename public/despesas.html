@@ -1,0 +1,1559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Despesas - NextStock</title>
+
+  <style>
+    :root {
+      --cyan: #00cfcf;
+      --dark: #0d1b2a;
+      --sidebar: #071b31;
+      --panel: rgba(255, 255, 255, 0.97);
+      --border: #d7e2ea;
+      --text: #23384d;
+      --muted: #647b8f;
+      --shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+      --danger: #e53935;
+      --success: #2e9d57;
+      --warning: #ffb74d;
+      --info: #1976d2;
+      --soft: #f5fbfc;
+      --sidebar-width: 16vw;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      min-height: 100vh;
+      color: #333;
+      overflow: hidden;
+    }
+
+    .app {
+      display: flex;
+      width: 100%;
+      min-height: 100vh;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: var(--sidebar-width);
+      background: #071b31;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 50;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+      padding: 0 12px;
+    }
+
+    .menu {
+      list-style: none;
+      padding-bottom: 20px;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
+    }
+
+    /* Main */
+    .main {
+      margin-left: var(--sidebar-width);
+      width: calc(100% - var(--sidebar-width));
+      min-height: 100vh;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .main::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .main::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.35);
+      border-radius: 10px;
+    }
+
+    .header {
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: clamp(1.8rem, 3vw, 2.5rem);
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 1rem;
+      font-weight: 400;
+      opacity: 0.95;
+    }
+
+    .top-area {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 14px;
+      margin-bottom: 22px;
+      align-items: stretch;
+    }
+
+    .tool-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .tool-card label {
+      display: block;
+      font-size: 0.9rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .tool-card input,
+    .tool-card select,
+    .form-field input,
+    .form-field select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 0.95rem;
+      outline: none;
+      background: #fff;
+      color: var(--text);
+    }
+
+    .tool-card input:focus,
+    .form-field input:focus,
+    .form-field select:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.16);
+    }
+
+    .create-wrapper {
+      position: relative;
+    }
+
+    .btn-create {
+      height: 100%;
+      width: 100%;
+      min-width: 180px;
+      border: none;
+      border-radius: 18px;
+      background: var(--success);
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+      transition: 0.2s;
+      padding: 16px;
+    }
+
+    .btn-create:hover {
+      transform: translateY(-2px);
+      opacity: 0.95;
+    }
+
+    .create-options {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 8px);
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 220px;
+      display: none;
+      z-index: 30;
+    }
+
+    .create-options.active {
+      display: block;
+    }
+
+    .create-options button {
+      width: 100%;
+      border: none;
+      background: #fff;
+      padding: 14px 16px;
+      text-align: left;
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--text);
+      transition: 0.2s;
+    }
+
+    .create-options button:hover {
+      background: #eefafa;
+    }
+
+    .expenses-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+    }
+
+    .expense-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .expense-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--cyan);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .type-badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 800;
+    }
+
+    .type-badge.written {
+      background: rgba(46, 157, 87, 0.16);
+      color: #176638;
+      border: 1px solid rgba(46, 157, 87, 0.35);
+    }
+
+    .type-badge.upload {
+      background: rgba(25, 118, 210, 0.14);
+      color: #0c579e;
+      border: 1px solid rgba(25, 118, 210, 0.35);
+    }
+
+    .expense-id {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .expense-title {
+      font-size: 1.1rem;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .expense-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .info-box {
+      background: var(--soft);
+      border: 1px solid #e5eef4;
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .info-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 800;
+      margin-bottom: 5px;
+    }
+
+    .info-box strong {
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 0.92rem;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    .btn-edit {
+      background: var(--warning);
+      color: #1d2b36;
+    }
+
+    .btn-delete {
+      background: var(--danger);
+      color: #fff;
+    }
+
+    .btn-save {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .btn-cancel {
+      background: #e9eef3;
+      color: var(--text);
+    }
+
+    .btn-ok {
+      background: var(--info);
+      color: #fff;
+    }
+
+    .empty-message {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: 18px;
+      padding: 22px;
+      color: var(--muted);
+      font-weight: 700;
+      display: none;
+    }
+
+    /* Modal base */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 27, 49, 0.64);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 200;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      width: min(920px, 100%);
+      max-height: 95vh;
+      background: #fff;
+      border-radius: 22px;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 18px 20px;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .modal-header h3 {
+      font-size: 1.2rem;
+    }
+
+    .modal-close {
+      border: none;
+      background: rgba(255,255,255,0.18);
+      color: #fff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .modal-actions {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: #fbfdfe;
+      flex-shrink: 0;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 14px;
+    }
+
+    .form-field {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-field label {
+      font-size: 0.88rem;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-12 { grid-column: span 12; }
+
+    .section-box {
+      background: var(--soft);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .section-box h4 {
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+
+    .product-add-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .products-list {
+      margin-top: 16px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .product-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr auto;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 1px solid #edf2f6;
+      align-items: center;
+    }
+
+    .product-row:last-child {
+      border-bottom: none;
+    }
+
+    .product-row.header-row {
+      background: #f7fbfd;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .btn-remove-product {
+      border: none;
+      background: var(--danger);
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .upload-area {
+      border: 2px dashed #b8ceda;
+      border-radius: 18px;
+      padding: 20px;
+      background: #f8fcfd;
+      text-align: center;
+    }
+
+    .upload-area input {
+      display: none;
+    }
+
+    .upload-label {
+      display: inline-block;
+      background: var(--info);
+      color: #fff;
+      padding: 13px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .upload-help {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .file-preview-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .file-preview {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-preview span {
+      color: var(--text);
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    .file-preview button {
+      border: none;
+      background: var(--danger);
+      color: #fff;
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    /* Detalhes */
+    .detail-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .summary-card {
+      background: var(--soft);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .summary-card span {
+      display: block;
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 800;
+      margin-bottom: 5px;
+    }
+
+    .summary-card strong {
+      display: block;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .detail-products {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      max-height: 320px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .detail-products-title {
+      padding: 14px 16px;
+      background: #f1fbfb;
+      color: var(--text);
+      font-weight: 800;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .detail-products-scroll {
+      overflow-y: auto;
+    }
+
+    .detail-products-scroll::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .detail-products-scroll::-webkit-scrollbar-thumb {
+      background: var(--cyan);
+      border-radius: 8px;
+    }
+
+    .carousel {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      overflow: hidden;
+      background: var(--soft);
+    }
+
+    .carousel-view {
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: #fff;
+      text-align: center;
+    }
+
+    .carousel-view img {
+      max-width: 100%;
+      max-height: 360px;
+      border-radius: 14px;
+      object-fit: contain;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+    }
+
+    .file-box {
+      background: #f7fbfd;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      color: var(--text);
+      font-weight: 800;
+      max-width: 420px;
+      width: 100%;
+    }
+
+    .file-box small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .carousel-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: #f8fcfd;
+      border-top: 1px solid var(--border);
+    }
+
+    .carousel-controls button {
+      border: none;
+      background: var(--cyan);
+      color: var(--dark);
+      border-radius: 10px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 900;
+    }
+
+    .carousel-counter {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    @media (max-width: 1200px) {
+      .top-area {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .create-wrapper {
+        grid-column: span 2;
+      }
+
+      .btn-create {
+        min-height: 60px;
+      }
+
+      .detail-summary {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 980px) {
+      :root {
+        --sidebar-width: 220px;
+      }
+
+      .expenses-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .span-3,
+      .span-4,
+      .span-6,
+      .span-12 {
+        grid-column: span 6;
+      }
+
+      .product-add-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row.header-row {
+        display: none;
+      }
+    }
+
+    @media (max-width: 680px) {
+      body {
+        overflow: auto;
+      }
+
+      .app {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: relative;
+        width: 100%;
+        min-width: 100%;
+        height: 280px;
+      }
+
+      .main {
+        margin-left: 0;
+        width: 100%;
+        padding: 16px;
+      }
+
+      .top-area {
+        grid-template-columns: 1fr;
+      }
+
+      .create-wrapper {
+        grid-column: span 1;
+      }
+
+      .expense-info {
+        grid-template-columns: 1fr;
+      }
+
+      .detail-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .modal {
+        max-height: 95vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+  <div id="sidebar-container"></div>
+
+    <main class="main">
+      <div class="header">
+        <h1>Despesas</h1>
+        <p>Gerencie notas de despesas por upload de recibos/notas ou criação manual com produtos.</p>
+      </div>
+
+      <div class="top-area">
+        <div class="tool-card">
+          <label for="searchExpense">Pesquisar por loja/empresa ou emissor</label>
+          <input type="text" id="searchExpense" placeholder="Digite o nome da loja, empresa ou empregado emissor" />
+        </div>
+
+        <div class="tool-card">
+          <label for="filterDate">Filtrar pelo dia da nota</label>
+          <input type="date" id="filterDate" />
+        </div>
+
+        <div class="tool-card">
+          <label for="filterMinValue">Valor mínimo da nota</label>
+          <input type="number" id="filterMinValue" min="0" step="0.01" placeholder="Ex.: 100.00" />
+        </div>
+
+        <div class="create-wrapper">
+          <button class="btn-create" id="btnCreateExpense">Criar nota</button>
+
+          <div class="create-options" id="createOptions">
+            <button id="btnCreateWritten">Nota escrita</button>
+            <button id="btnCreateUpload">Nota com imagens / arquivos</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="expenses-grid" id="expensesGrid"></div>
+
+      <div class="empty-message" id="emptyMessage">
+        Nenhuma nota de despesa encontrada com os filtros informados.
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal de criação/edição -->
+  <div class="overlay" id="formOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="formTitle">Criar nota de despesa</h3>
+        <button class="modal-close" id="closeFormModal">Fechar</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="form-field span-3">
+            <label>Valor total da nota</label>
+            <input type="number" id="expenseTotal" min="0" step="0.01" placeholder="0.00" />
+          </div>
+
+          <div class="form-field span-3">
+            <label>Dia, mês e ano da nota</label>
+            <input type="date" id="expenseDate" />
+          </div>
+
+          <div class="form-field span-3">
+            <label>Empregado emissor</label>
+            <input type="text" id="expenseEmployee" placeholder="Nome do empregado" />
+          </div>
+
+          <div class="form-field span-3">
+            <label>Loja / empresa emissora</label>
+            <input type="text" id="expenseStore" placeholder="Nome da loja emissora" />
+          </div>
+        </div>
+
+        <div class="section-box" id="writtenSection">
+          <h4>Adicionar produtos na nota</h4>
+
+          <div class="product-add-grid">
+            <div class="form-field">
+              <label>Nome do produto</label>
+              <input type="text" id="productName" placeholder="Ex.: Papel A4" />
+            </div>
+
+            <div class="form-field">
+              <label>Unidades</label>
+              <input type="number" id="productUnits" min="1" step="1" placeholder="Ex.: 2" />
+            </div>
+
+            <div class="form-field">
+              <label>Custo total do produto</label>
+              <input type="number" id="productCost" min="0" step="0.01" placeholder="0.00" />
+            </div>
+
+            <button class="btn btn-ok" id="btnAddProduct">OK</button>
+          </div>
+
+          <div class="products-list" id="formProductsList">
+            <div class="product-row header-row">
+              <div>Produto</div>
+              <div>Unidades</div>
+              <div>Custo total</div>
+              <div>Ação</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-box" id="uploadSection">
+          <h4>Upload de imagens ou arquivos da nota</h4>
+
+          <div class="upload-area">
+            <label for="expenseFiles" class="upload-label">Adicionar imagens / PDF / Word</label>
+            <input
+              type="file"
+              id="expenseFiles"
+              accept="image/*,.pdf,.doc,.docx"
+              multiple
+            />
+            <div class="upload-help">
+              Máximo de 5 arquivos por nota. Aceita imagens, PDF, Word (.doc e .docx).
+            </div>
+          </div>
+
+          <div class="file-preview-list" id="filePreviewList"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="btnCancelForm">Apagar / Cancelar</button>
+        <button class="btn btn-save" id="btnSaveExpense">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de detalhes -->
+  <div class="overlay" id="detailOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="detailTitle">Detalhes da nota</h3>
+        <button class="modal-close" id="closeDetailModal">Fechar</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="detail-summary" id="detailSummary"></div>
+
+        <div id="detailWrittenArea"></div>
+
+        <div id="detailUploadArea"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-cancel" id="closeDetailModal2">Fechar</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    const expensesGrid = document.getElementById("expensesGrid");
+    const emptyMessage = document.getElementById("emptyMessage");
+
+    const searchExpense = document.getElementById("searchExpense");
+    const filterDate = document.getElementById("filterDate");
+    const filterMinValue = document.getElementById("filterMinValue");
+
+    const btnCreateExpense = document.getElementById("btnCreateExpense");
+    const createOptions = document.getElementById("createOptions");
+    const btnCreateWritten = document.getElementById("btnCreateWritten");
+    const btnCreateUpload = document.getElementById("btnCreateUpload");
+
+    const formOverlay = document.getElementById("formOverlay");
+    const formTitle = document.getElementById("formTitle");
+    const closeFormModal = document.getElementById("closeFormModal");
+    const btnCancelForm = document.getElementById("btnCancelForm");
+    const btnSaveExpense = document.getElementById("btnSaveExpense");
+
+    const expenseTotal = document.getElementById("expenseTotal");
+    const expenseDate = document.getElementById("expenseDate");
+    const expenseEmployee = document.getElementById("expenseEmployee");
+    const expenseStore = document.getElementById("expenseStore");
+
+    const writtenSection = document.getElementById("writtenSection");
+    const uploadSection = document.getElementById("uploadSection");
+
+    const productName = document.getElementById("productName");
+    const productUnits = document.getElementById("productUnits");
+    const productCost = document.getElementById("productCost");
+    const btnAddProduct = document.getElementById("btnAddProduct");
+    const formProductsList = document.getElementById("formProductsList");
+
+    const expenseFiles = document.getElementById("expenseFiles");
+    const filePreviewList = document.getElementById("filePreviewList");
+
+    const detailOverlay = document.getElementById("detailOverlay");
+    const detailTitle = document.getElementById("detailTitle");
+    const detailSummary = document.getElementById("detailSummary");
+    const detailWrittenArea = document.getElementById("detailWrittenArea");
+    const detailUploadArea = document.getElementById("detailUploadArea");
+    const closeDetailModal = document.getElementById("closeDetailModal");
+    const closeDetailModal2 = document.getElementById("closeDetailModal2");
+
+    let currentMode = "written";
+    let editingId = null;
+    let formProducts = [];
+    let formFiles = [];
+    let carouselIndex = 0;
+
+    let expenses = [
+      {
+        id: 1,
+        type: "written",
+        total: 245.90,
+        date: "2026-04-20",
+        employee: "Mariana Souza",
+        store: "Mercado Pet Central",
+        products: [
+          { name: "Papel A4", units: 2, cost: 59.90 },
+          { name: "Canetas", units: 10, cost: 36.00 },
+          { name: "Material de limpeza", units: 3, cost: 150.00 }
+        ],
+        files: []
+      },
+      {
+        id: 2,
+        type: "upload",
+        total: 420.00,
+        date: "2026-04-22",
+        employee: "Lucas Almeida",
+        store: "Distribuidora Norte",
+        products: [],
+        files: [
+          {
+            name: "recibo-despesa-01.jpg",
+            type: "image",
+            url: "https://via.placeholder.com/900x600.png?text=Recibo+01"
+          },
+          {
+            name: "recibo-despesa-02.jpg",
+            type: "image",
+            url: "https://via.placeholder.com/900x600.png?text=Recibo+02"
+          }
+        ]
+      }
+    ];
+
+    function formatMoney(value) {
+      return Number(value || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return "-";
+      const [year, month, day] = dateString.split("-");
+      return `${day}/${month}/${year}`;
+    }
+
+    function getTypeLabel(type) {
+      return type === "written" ? "Nota escrita" : "Nota por upload";
+    }
+
+    function getFilteredExpenses() {
+      const search = searchExpense.value.trim().toLowerCase();
+      const date = filterDate.value;
+      const minValue = parseFloat(filterMinValue.value) || 0;
+
+      return expenses.filter(expense => {
+        const matchSearch =
+          expense.employee.toLowerCase().includes(search) ||
+          expense.store.toLowerCase().includes(search);
+
+        const matchDate = !date || expense.date === date;
+        const matchValue = expense.total >= minValue;
+
+        return matchSearch && matchDate && matchValue;
+      });
+    }
+
+    function renderExpenses() {
+      const filtered = getFilteredExpenses();
+
+      expensesGrid.innerHTML = "";
+
+      if (!filtered.length) {
+        emptyMessage.style.display = "block";
+        return;
+      }
+
+      emptyMessage.style.display = "none";
+
+      filtered.forEach(expense => {
+        const card = document.createElement("div");
+        card.className = "expense-card";
+
+        card.innerHTML = `
+          <div class="card-top">
+            <div class="type-badge ${expense.type}">
+              ${getTypeLabel(expense.type)}
+            </div>
+            <div class="expense-id">#DESP-${String(expense.id).padStart(4, "0")}</div>
+          </div>
+
+          <div class="expense-title">${expense.store}</div>
+
+          <div class="expense-info">
+            <div class="info-box">
+              <span>Valor total da nota</span>
+              <strong>${formatMoney(expense.total)}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Data da nota</span>
+              <strong>${formatDate(expense.date)}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Empregado emissor</span>
+              <strong>${expense.employee}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Loja emissora</span>
+              <strong>${expense.store}</strong>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn btn-edit" data-action="edit">Alterar</button>
+            <button class="btn btn-delete" data-action="delete">Apagar</button>
+          </div>
+        `;
+
+        card.addEventListener("click", () => openDetails(expense.id));
+
+        card.querySelector('[data-action="edit"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          openEditForm(expense.id);
+        });
+
+        card.querySelector('[data-action="delete"]').addEventListener("click", (e) => {
+          e.stopPropagation();
+          deleteExpense(expense.id);
+        });
+
+        expensesGrid.appendChild(card);
+      });
+    }
+
+    function resetForm() {
+      editingId = null;
+      expenseTotal.value = "";
+      expenseDate.value = "";
+      expenseEmployee.value = "";
+      expenseStore.value = "";
+      productName.value = "";
+      productUnits.value = "";
+      productCost.value = "";
+      expenseFiles.value = "";
+      formProducts = [];
+      formFiles = [];
+      renderFormProducts();
+      renderFilePreview();
+    }
+
+    function openCreateForm(mode) {
+      resetForm();
+      currentMode = mode;
+      formTitle.textContent = mode === "written" ? "Criar nota escrita de despesa" : "Criar nota por upload";
+      writtenSection.style.display = mode === "written" ? "block" : "none";
+      uploadSection.style.display = mode === "upload" ? "block" : "none";
+      formOverlay.classList.add("active");
+      createOptions.classList.remove("active");
+    }
+
+    function openEditForm(id) {
+      const expense = expenses.find(item => item.id === id);
+      if (!expense) return;
+
+      resetForm();
+
+      editingId = id;
+      currentMode = expense.type;
+
+      formTitle.textContent = expense.type === "written" ? "Alterar nota escrita" : "Alterar nota por upload";
+
+      expenseTotal.value = expense.total;
+      expenseDate.value = expense.date;
+      expenseEmployee.value = expense.employee;
+      expenseStore.value = expense.store;
+
+      formProducts = JSON.parse(JSON.stringify(expense.products || []));
+      formFiles = JSON.parse(JSON.stringify(expense.files || []));
+
+      writtenSection.style.display = expense.type === "written" ? "block" : "none";
+      uploadSection.style.display = expense.type === "upload" ? "block" : "none";
+
+      renderFormProducts();
+      renderFilePreview();
+
+      formOverlay.classList.add("active");
+    }
+
+    function closeForm() {
+      formOverlay.classList.remove("active");
+      resetForm();
+    }
+
+    function addProductToForm() {
+      const name = productName.value.trim();
+      const units = parseInt(productUnits.value);
+      const cost = parseFloat(productCost.value);
+
+      if (!name || !units || !cost) {
+        alert("Preencha nome do produto, unidades e custo total.");
+        return;
+      }
+
+      formProducts.push({ name, units, cost });
+
+      productName.value = "";
+      productUnits.value = "";
+      productCost.value = "";
+
+      renderFormProducts();
+      updateTotalFromProducts();
+    }
+
+    function renderFormProducts() {
+      const rows = formProducts.map((product, index) => `
+        <div class="product-row">
+          <div><strong>${product.name}</strong></div>
+          <div>${product.units}</div>
+          <div>${formatMoney(product.cost)}</div>
+          <div>
+            <button class="btn-remove-product" data-index="${index}">Remover</button>
+          </div>
+        </div>
+      `).join("");
+
+      formProductsList.innerHTML = `
+        <div class="product-row header-row">
+          <div>Produto</div>
+          <div>Unidades</div>
+          <div>Custo total</div>
+          <div>Ação</div>
+        </div>
+        ${rows}
+      `;
+
+      formProductsList.querySelectorAll(".btn-remove-product").forEach(button => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.index);
+          formProducts.splice(index, 1);
+          renderFormProducts();
+          updateTotalFromProducts();
+        });
+      });
+    }
+
+    function updateTotalFromProducts() {
+      if (currentMode !== "written") return;
+
+      const total = formProducts.reduce((acc, product) => acc + Number(product.cost || 0), 0);
+      expenseTotal.value = total.toFixed(2);
+    }
+
+    function renderFilePreview() {
+      if (!formFiles.length) {
+        filePreviewList.innerHTML = "";
+        return;
+      }
+
+      filePreviewList.innerHTML = formFiles.map((file, index) => `
+        <div class="file-preview">
+          <span>${file.name}</span>
+          <button data-index="${index}">Remover</button>
+        </div>
+      `).join("");
+
+      filePreviewList.querySelectorAll("button").forEach(button => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.index);
+          formFiles.splice(index, 1);
+          renderFilePreview();
+        });
+      });
+    }
+
+    function handleFileUpload(e) {
+      const files = Array.from(e.target.files);
+
+      if (formFiles.length + files.length > 5) {
+        alert("Cada nota pode ter no máximo 5 arquivos.");
+        expenseFiles.value = "";
+        return;
+      }
+
+      files.forEach(file => {
+        const isImage = file.type.startsWith("image/");
+        const isPdf = file.type === "application/pdf";
+        const isWord =
+          file.type === "application/msword" ||
+          file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+          file.name.endsWith(".doc") ||
+          file.name.endsWith(".docx");
+
+        if (!isImage && !isPdf && !isWord) {
+          alert(`Arquivo não aceito: ${file.name}`);
+          return;
+        }
+
+        formFiles.push({
+          name: file.name,
+          type: isImage ? "image" : isPdf ? "pdf" : "word",
+          url: isImage ? URL.createObjectURL(file) : ""
+        });
+      });
+
+      expenseFiles.value = "";
+      renderFilePreview();
+    }
+
+    function saveExpense() {
+      const total = parseFloat(expenseTotal.value);
+      const date = expenseDate.value;
+      const employee = expenseEmployee.value.trim();
+      const store = expenseStore.value.trim();
+
+      if (!total || !date || !employee || !store) {
+        alert("Preencha valor total, data, empregado emissor e loja emissora.");
+        return;
+      }
+
+      if (currentMode === "written" && formProducts.length === 0) {
+        alert("Adicione pelo menos um produto na nota escrita.");
+        return;
+      }
+
+      if (currentMode === "upload" && formFiles.length === 0) {
+        alert("Adicione pelo menos um arquivo na nota por upload.");
+        return;
+      }
+
+      const payload = {
+        id: editingId || Date.now(),
+        type: currentMode,
+        total,
+        date,
+        employee,
+        store,
+        products: currentMode === "written" ? formProducts : [],
+        files: currentMode === "upload" ? formFiles : []
+      };
+
+      if (editingId) {
+        expenses = expenses.map(item => item.id === editingId ? payload : item);
+      } else {
+        expenses.unshift(payload);
+      }
+
+      closeForm();
+      renderExpenses();
+    }
+
+    function deleteExpense(id) {
+      const confirmDelete = confirm("Deseja apagar esta nota de despesa?");
+      if (!confirmDelete) return;
+
+      expenses = expenses.filter(item => item.id !== id);
+      renderExpenses();
+    }
+
+    function openDetails(id) {
+      const expense = expenses.find(item => item.id === id);
+      if (!expense) return;
+
+      carouselIndex = 0;
+
+      detailTitle.textContent = `${getTypeLabel(expense.type)} - #DESP-${String(expense.id).padStart(4, "0")}`;
+
+      detailSummary.innerHTML = `
+        <div class="summary-card">
+          <span>Valor total</span>
+          <strong>${formatMoney(expense.total)}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Data</span>
+          <strong>${formatDate(expense.date)}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Empregado emissor</span>
+          <strong>${expense.employee}</strong>
+        </div>
+
+        <div class="summary-card">
+          <span>Loja emissora</span>
+          <strong>${expense.store}</strong>
+        </div>
+      `;
+
+      detailWrittenArea.innerHTML = "";
+      detailUploadArea.innerHTML = "";
+
+      if (expense.type === "written") {
+        detailWrittenArea.innerHTML = `
+          <div class="detail-products">
+            <div class="detail-products-title">Produtos da nota</div>
+
+            <div class="detail-products-scroll">
+              <div class="product-row header-row">
+                <div>Produto</div>
+                <div>Unidades</div>
+                <div>Custo total</div>
+                <div></div>
+              </div>
+
+              ${expense.products.map(product => `
+                <div class="product-row">
+                  <div><strong>${product.name}</strong></div>
+                  <div>${product.units}</div>
+                  <div>${formatMoney(product.cost)}</div>
+                  <div></div>
+                </div>
+              `).join("")}
+            </div>
+          </div>
+        `;
+      }
+
+      if (expense.type === "upload") {
+        renderCarousel(expense);
+      }
+
+      detailOverlay.classList.add("active");
+    }
+
+    function renderCarousel(expense) {
+      const files = expense.files || [];
+      const currentFile = files[carouselIndex];
+
+      if (!currentFile) {
+        detailUploadArea.innerHTML = "";
+        return;
+      }
+
+      const visual =
+        currentFile.type === "image"
+          ? `<img src="${currentFile.url}" alt="${currentFile.name}" />`
+          : `
+            <div class="file-box">
+              ${currentFile.type === "pdf" ? "Arquivo PDF" : "Arquivo Word"}
+              <small>${currentFile.name}</small>
+            </div>
+          `;
+
+      detailUploadArea.innerHTML = `
+        <div class="carousel">
+          <div class="carousel-view">
+            ${visual}
+          </div>
+
+          <div class="carousel-controls">
+            <button id="btnPrevFile">← Back</button>
+            <div class="carousel-counter">
+              ${carouselIndex + 1} de ${files.length}
+            </div>
+            <button id="btnNextFile">Next →</button>
+          </div>
+        </div>
+      `;
+
+      document.getElementById("btnPrevFile").addEventListener("click", () => {
+        carouselIndex = carouselIndex === 0 ? files.length - 1 : carouselIndex - 1;
+        renderCarousel(expense);
+      });
+
+      document.getElementById("btnNextFile").addEventListener("click", () => {
+        carouselIndex = carouselIndex === files.length - 1 ? 0 : carouselIndex + 1;
+        renderCarousel(expense);
+      });
+    }
+
+    function closeDetails() {
+      detailOverlay.classList.remove("active");
+    }
+
+    btnCreateExpense.addEventListener("click", () => {
+      createOptions.classList.toggle("active");
+    });
+
+    btnCreateWritten.addEventListener("click", () => openCreateForm("written"));
+    btnCreateUpload.addEventListener("click", () => openCreateForm("upload"));
+
+    closeFormModal.addEventListener("click", closeForm);
+    btnCancelForm.addEventListener("click", closeForm);
+    btnSaveExpense.addEventListener("click", saveExpense);
+
+    btnAddProduct.addEventListener("click", addProductToForm);
+    expenseFiles.addEventListener("change", handleFileUpload);
+
+    closeDetailModal.addEventListener("click", closeDetails);
+    closeDetailModal2.addEventListener("click", closeDetails);
+
+    formOverlay.addEventListener("click", (e) => {
+      if (e.target === formOverlay) closeForm();
+    });
+
+    detailOverlay.addEventListener("click", (e) => {
+      if (e.target === detailOverlay) closeDetails();
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".create-wrapper")) {
+        createOptions.classList.remove("active");
+      }
+    });
+
+    searchExpense.addEventListener("input", renderExpenses);
+    filterDate.addEventListener("input", renderExpenses);
+    filterMinValue.addEventListener("input", renderExpenses);
+
+    renderExpenses();
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>

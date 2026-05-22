@@ -1,0 +1,218 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UserProfile {
+  id                   String         @id @db.Uuid
+  supabaseUserId       String?        @unique @map("supabase_user_id") @db.Uuid
+  tenantId             String?        @map("tenant_id") @db.Uuid
+  tenant               Tenant?        @relation("TenantProfiles", fields: [tenantId], references: [id], onDelete: SetNull)
+  email                String         @unique
+  name                 String
+  fullName             String?        @map("full_name")
+  accessNameNormalized String         @unique @map("access_name_normalized")
+  role                 Role           @default(Comprador)
+  systemType           SystemType?    @map("system_type")
+  allowedSystemTypes   SystemType[]   @default([]) @map("allowed_system_types")
+  isSuperAdmin         Boolean        @default(false) @map("is_super_admin")
+  primaryTenantId      String?        @map("primary_tenant_id") @db.Uuid
+  primaryTenant        Tenant?        @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
+  memberships          TenantMember[]
+  createdAt            DateTime       @default(now()) @map("created_at")
+  updatedAt            DateTime       @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@index([primaryTenantId])
+  @@map("profiles")
+}
+
+model Tenant {
+  id              String         @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String         @unique
+  cnpj            String?
+  contactEmail    String?        @map("contact_email")
+  contactPhone    String?        @map("contact_phone")
+  systemType      SystemType     @default(padrao) @map("system_type")
+  mode            SystemMode     @default(visualizacao)
+  currentPlanId   String?        @map("current_plan_id") @db.Uuid
+  currentPlan     Plan?          @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
+  branches        Branch[]
+  members         TenantMember[]
+  primaryProfiles UserProfile[]  @relation("PrimaryTenantProfiles")
+  profiles        UserProfile[]  @relation("TenantProfiles")
+  agendaPets      AgendaPet[]
+  products        Product[]
+  paymentMachines PaymentMachine[]
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([currentPlanId])
+  @@map("tenants")
+}
+
+model Plan {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  priceCents  Int      @map("price_cents")
+  description String?
+  isActive    Boolean  @default(true) @map("is_active")
+  tenants     Tenant[] @relation("CurrentPlanTenants")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("plans")
+}
+
+model PaymentMachine {
+  id                String          @id @default(uuid()) @db.Uuid
+  tenantId          String          @map("tenant_id") @db.Uuid
+  tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String
+  provider          PaymentProvider
+  model             String
+  feePercent        Decimal         @map("fee_percent") @db.Decimal(5, 2)
+  status            MachineStatus   @default(ativa)
+  externalProvider  String?         @map("external_provider")
+  externalReference String?         @map("external_reference")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([tenantId])
+  @@map("payment_machines")
+}
+
+model Branch {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @map("tenant_id") @db.Uuid
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name      String
+  slug      String
+  isDefault Boolean        @default(false) @map("is_default")
+  members   TenantMember[]
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@map("branches")
+}
+
+model TenantMember {
+  id            String      @id @default(uuid()) @db.Uuid
+  tenantId      String      @map("tenant_id") @db.Uuid
+  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userProfileId String      @map("user_profile_id") @db.Uuid
+  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  branchId      String?     @map("branch_id") @db.Uuid
+  branch        Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  role          Role        @default(Comprador)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  @@unique([tenantId, userProfileId])
+  @@index([userProfileId])
+  @@index([branchId])
+  @@map("tenant_members")
+}
+
+model AgendaPet {
+  id        String   @id @default(uuid()) @db.Uuid
+  cliente   String
+  animal    String
+  atendente String
+  servico   String
+  data      DateTime
+  hora      String
+  preco     Float
+  descricao String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenantId  String   @db.Uuid
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("agenda_pets")
+}
+
+model Product {
+  id               String         @id @default(uuid()) @db.Uuid
+  tenantId         String         @map("tenant_id") @db.Uuid
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String
+  costPriceCents   Int            @map("cost_price_cents")
+  profitPercent    Decimal        @map("profit_percent") @db.Decimal(7, 2)
+  salePriceCents   Int            @map("sale_price_cents")
+  quantity         Int
+  brand            String?
+  category         String?
+  supplier         String?
+  sku              String?
+  barcode          String?
+  description      String?
+  weight           String?
+  height           String?
+  width            String?
+  externalLink     String?        @map("external_link")
+  clothingSize     String?        @map("clothing_size")
+  apparelSize      String?        @map("apparel_size")
+  images           ProductImage[]
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  @@unique([tenantId, sku])
+  @@unique([tenantId, barcode])
+  @@index([tenantId])
+  @@index([tenantId, category])
+  @@map("products")
+}
+
+model ProductImage {
+  id          String   @id @default(uuid()) @db.Uuid
+  productId   String   @map("product_id") @db.Uuid
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileName    String   @map("file_name")
+  fileUrl     String?  @map("file_url")
+  storagePath String?  @map("storage_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+enum Role {
+  superAdmin
+  Admin
+  Vendedor
+  Comprador
+}
+
+enum SystemType {
+  padrao
+  petshop
+}
+
+enum SystemMode {
+  visualizacao
+  padrao
+  petshop
+}
+
+enum MachineStatus {
+  ativa
+  inativa
+  manutencao
+}
+
+enum PaymentProvider {
+  stone
+  pagseguro
+  mercado_pago
+  outro
+}

@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cadastro de Fornecedores</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --cyan: #00cfcf;
+      --sidebar-width: 260px;
+      --page-padding: 10px;
+      --shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+      --panel-bg: #f3f3f3;
+      --text-dark: #0d1b2a;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #00a7ad, #0d1b2a);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== SIDEBAR ===== */
+    .sidebar {
+      width: 16vw;
+      background: #071b31;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu li {
+      padding: 13px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 22px, 26px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #19c7cd;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      text-decoration: none;
+      color: inherit;
+      display: block;
+    }
+
+    /* ===== MAIN ===== */
+    .page-content {
+      height: 100vh;
+      display: flex;
+      gap: 16px;
+      padding: var(--page-padding);
+      align-items: stretch;
+      justify-content: center;
+      overflow: hidden;
+      margin-left: 16%;
+    }
+
+    .container,
+    .employee-list-panel {
+      background: var(--panel-bg);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .container {
+      width: min(760px, 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 22px 24px;
+    }
+
+    .employee-list-panel {
+      width: min(360px, 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 18px 18px 16px;
+    }
+
+    .header,
+    .list-header {
+      background: #434343;
+      color: white;
+      padding: 12px;
+      font-weight: bold;
+      text-align: center;
+      border-radius: 6px;
+      margin-bottom: 18px;
+      font-size: 0.95rem;
+      flex-shrink: 0;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .form-scroll {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      overflow-y: auto;
+      min-height: 0;
+      padding-right: 4px;
+    }
+
+    .form-scroll::-webkit-scrollbar,
+    .list-scroll::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    .form-scroll::-webkit-scrollbar-thumb,
+    .list-scroll::-webkit-scrollbar-thumb {
+      background: #b8c6d3;
+      border-radius: 8px;
+    }
+
+    .section-title {
+      font-weight: bold;
+      color: #00796B;
+      border-bottom: 2px solid #00796B;
+      margin-top: 2px;
+      padding-bottom: 4px;
+      font-size: 0.95rem;
+    }
+
+    label {
+      font-size: 0.88rem;
+      font-weight: bold;
+      margin-bottom: 4px;
+      display: block;
+      color: #111;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid #bbb;
+      border-radius: 4px;
+      box-sizing: border-box;
+      font-size: 0.9rem;
+      background: #f2f2f2;
+      font-family: Arial, sans-serif;
+    }
+
+    textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    .helper-text {
+      font-size: 0.78rem;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .two-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .three-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      flex: 1;
+      height: 36px;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-weight: bold;
+      text-align: center;
+      transition: opacity 0.3s ease, transform 0.15s ease;
+      font-size: 0.9rem;
+    }
+
+    .btn:hover {
+      opacity: 0.9;
+      transform: scale(1.03);
+    }
+
+    .btn-cadastrar { background: #4CAF50; }
+    .btn-atualizar { background: #607D8B; }
+    .btn-deletar   { background: #f44336; }
+    .btn-limpar    { background: #2196F3; }
+
+    .search-box {
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+
+    .search-box input {
+      background: #f5f5f5;
+      height: 36px;
+    }
+
+    .list-scroll {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 4px;
+    }
+
+    .employee-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .employee-list li {
+      background: #f4f6f8;
+      border: 1px solid #d9e1e7;
+      border-radius: 6px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: 0.2s;
+      font-weight: bold;
+      font-size: 0.92rem;
+    }
+
+    .employee-list li:hover {
+      background: #dff7f7;
+      border-color: #00b1b1;
+    }
+
+    .employee-list li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      border-color: #00cfcf;
+    }
+
+    .supplier-item-name {
+      font-size: 0.94rem;
+      font-weight: 700;
+    }
+
+    .supplier-item-sub {
+      font-size: 0.78rem;
+      margin-top: 4px;
+      opacity: 0.85;
+      line-height: 1.35;
+    }
+
+    .empty-message {
+      color: #666;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 10px;
+      padding: 8px 0;
+    }
+
+    @media (max-width: 1400px) {
+      .container {
+        width: min(690px, 100%);
+      }
+
+      .employee-list-panel {
+        width: min(320px, 100%);
+      }
+    }
+
+    @media (max-width: 1100px) {
+      html,
+      body {
+        height: auto;
+      }
+
+      body {
+        overflow: auto;
+      }
+
+      .page-content {
+        flex-direction: column;
+        align-items: center;
+        height: auto;
+        overflow: visible;
+      }
+
+      .container,
+      .employee-list-panel {
+        width: min(92%, 900px);
+      }
+
+      .container,
+      .employee-list-panel,
+      .form-scroll,
+      .list-scroll {
+        overflow: visible;
+      }
+    }
+
+    @media (max-width: 900px) {
+      body {
+        padding-left: 0;
+      }
+
+      .sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 10px;
+      }
+
+      .sidebar h2 {
+        order: -1;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+
+      .menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .menu li {
+        padding: 10px 12px;
+        font-size: 1rem;
+      }
+
+      .page-content {
+        padding: 14px;
+      }
+
+      .two-columns,
+      .three-columns {
+        grid-template-columns: 1fr;
+      }
+
+      .actions {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar-container"></div>
+
+  <div class="page-content">
+    <div class="container">
+      <div class="header">Cadastro de Fornecedores</div>
+
+      <form id="supplierForm">
+        <div class="form-scroll">
+          <div class="section-title">Dados Principais</div>
+
+          <div class="form-group">
+            <label for="razaoSocial">Razão Social / Nome do Fornecedor</label>
+            <input type="text" id="razaoSocial" placeholder="Ex: Distribuidora Pet Norte LTDA" required>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="nomeFantasia">Nome Fantasia</label>
+              <input type="text" id="nomeFantasia" placeholder="Ex: Pet Norte">
+            </div>
+
+            <div class="form-group">
+              <label for="tipoPessoa">Tipo</label>
+              <select id="tipoPessoa" required>
+                <option value="">Selecione</option>
+                <option value="Pessoa Jurídica">Pessoa Jurídica</option>
+                <option value="Pessoa Física">Pessoa Física</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="cnpjCpf">CNPJ / CPF</label>
+              <input type="text" id="cnpjCpf" placeholder="Ex: 00.000.000/0001-00" required>
+            </div>
+
+            <div class="form-group">
+              <label for="inscricaoEstadual">Inscrição Estadual</label>
+              <input type="text" id="inscricaoEstadual" placeholder="Ex: 123456789">
+            </div>
+          </div>
+
+          <div class="section-title">Contato</div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="contatoPrincipal">Contato Principal</label>
+              <input type="text" id="contatoPrincipal" placeholder="Ex: Maria Souza">
+            </div>
+
+            <div class="form-group">
+              <label for="telefone">Telefone</label>
+              <input type="text" id="telefone" placeholder="Ex: (91) 99999-9999" required>
+            </div>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="whatsapp">WhatsApp</label>
+              <input type="text" id="whatsapp" placeholder="Ex: (91) 99999-9999">
+            </div>
+
+            <div class="form-group">
+              <label for="email">E-mail</label>
+              <input type="email" id="email" placeholder="Ex: contato@fornecedor.com">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="site">Site</label>
+            <input type="text" id="site" placeholder="Ex: www.fornecedor.com.br">
+          </div>
+
+          <div class="section-title">Endereço</div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="cep">CEP</label>
+              <input type="text" id="cep" placeholder="Ex: 66000-000">
+            </div>
+
+            <div class="form-group">
+              <label for="cidade">Cidade</label>
+              <input type="text" id="cidade" placeholder="Ex: Belém">
+            </div>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="estado">Estado</label>
+              <input type="text" id="estado" placeholder="Ex: PA">
+            </div>
+
+            <div class="form-group">
+              <label for="bairro">Bairro</label>
+              <input type="text" id="bairro" placeholder="Ex: Marco">
+            </div>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="rua">Rua / Avenida</label>
+              <input type="text" id="rua" placeholder="Ex: Av. Principal">
+            </div>
+
+            <div class="form-group">
+              <label for="numero">Número</label>
+              <input type="text" id="numero" placeholder="Ex: 123">
+            </div>
+          </div>
+
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="complemento">Complemento</label>
+              <input type="text" id="complemento" placeholder="Ex: Sala 02">
+            </div>
+
+            <div class="form-group">
+              <label for="prazoEntrega">Prazo Médio de Entrega</label>
+              <input type="text" id="prazoEntrega" placeholder="Ex: 3 dias úteis">
+            </div>
+          </div>
+
+          <div class="section-title">Informações Comerciais</div>
+
+          <div class="three-columns">
+            <div class="form-group">
+              <label for="categoriaProdutos">Categoria de Produtos</label>
+              <input type="text" id="categoriaProdutos" placeholder="Ex: Rações, acessórios">
+            </div>
+
+            <div class="form-group">
+              <label for="formaPagamento">Forma de Pagamento</label>
+              <input type="text" id="formaPagamento" placeholder="Ex: Boleto, PIX">
+            </div>
+
+            <div class="form-group">
+              <label for="statusFornecedor">Status</label>
+              <select id="statusFornecedor">
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+                <option value="Bloqueado">Bloqueado</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="observacoes">Observações</label>
+            <textarea id="observacoes" placeholder="Digite observações importantes sobre o fornecedor"></textarea>
+            <div class="helper-text">Ex.: dias de entrega, condições especiais, responsável comercial.</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn btn-limpar" id="btnNovo">Novo</button>
+          <button type="button" class="btn btn-deletar" id="btnApagar">Apagar</button>
+          <button type="button" class="btn btn-cadastrar" id="btnSalvar">Salvar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="employee-list-panel">
+      <div class="list-header">Fornecedores Cadastrados</div>
+
+      <div class="search-box">
+        <input
+          type="text"
+          id="searchSupplierInput"
+          placeholder="Pesquisar por nome, CNPJ/CPF ou contato"
+        >
+      </div>
+
+      <div class="list-scroll">
+        <ul class="employee-list" id="supplierList"></ul>
+        <p class="empty-message" id="emptyMessage">Nenhum fornecedor cadastrado.</p>
+      </div>
+    </div>
+  </div>
+  <script>
+    const supplierForm = document.getElementById("supplierForm");
+    const supplierList = document.getElementById("supplierList");
+    const emptyMessage = document.getElementById("emptyMessage");
+    const searchSupplierInput = document.getElementById("searchSupplierInput");
+
+    const btnNovo = document.getElementById("btnNovo");
+    const btnApagar = document.getElementById("btnApagar");
+    const btnSalvar = document.getElementById("btnSalvar");
+
+    const fields = {
+      razaoSocial: document.getElementById("razaoSocial"),
+      nomeFantasia: document.getElementById("nomeFantasia"),
+      tipoPessoa: document.getElementById("tipoPessoa"),
+      cnpjCpf: document.getElementById("cnpjCpf"),
+      inscricaoEstadual: document.getElementById("inscricaoEstadual"),
+      contatoPrincipal: document.getElementById("contatoPrincipal"),
+      telefone: document.getElementById("telefone"),
+      whatsapp: document.getElementById("whatsapp"),
+      email: document.getElementById("email"),
+      site: document.getElementById("site"),
+      cep: document.getElementById("cep"),
+      cidade: document.getElementById("cidade"),
+      estado: document.getElementById("estado"),
+      bairro: document.getElementById("bairro"),
+      rua: document.getElementById("rua"),
+      numero: document.getElementById("numero"),
+      complemento: document.getElementById("complemento"),
+      prazoEntrega: document.getElementById("prazoEntrega"),
+      categoriaProdutos: document.getElementById("categoriaProdutos"),
+      formaPagamento: document.getElementById("formaPagamento"),
+      statusFornecedor: document.getElementById("statusFornecedor"),
+      observacoes: document.getElementById("observacoes")
+    };
+
+    let fornecedorSelecionadoId = null;
+
+    let fornecedores = [
+      {
+        id: 1,
+        razaoSocial: "Distribuidora Pet Norte LTDA",
+        nomeFantasia: "Pet Norte",
+        tipoPessoa: "Pessoa Jurídica",
+        cnpjCpf: "12.345.678/0001-90",
+        inscricaoEstadual: "123456789",
+        contatoPrincipal: "Mariana Souza",
+        telefone: "(91) 3333-1111",
+        whatsapp: "(91) 99999-1111",
+        email: "contato@petnorte.com.br",
+        site: "www.petnorte.com.br",
+        cep: "66000-000",
+        cidade: "Belém",
+        estado: "PA",
+        bairro: "Marco",
+        rua: "Av. José Bonifácio",
+        numero: "1200",
+        complemento: "Galpão A",
+        prazoEntrega: "2 dias úteis",
+        categoriaProdutos: "Rações e medicamentos",
+        formaPagamento: "PIX, boleto",
+        statusFornecedor: "Ativo",
+        observacoes: "Fornecedor com entregas frequentes e bom prazo."
+      },
+      {
+        id: 2,
+        razaoSocial: "Carlos Henrique Almeida",
+        nomeFantasia: "Carlos Acessórios Pet",
+        tipoPessoa: "Pessoa Física",
+        cnpjCpf: "123.456.789-10",
+        inscricaoEstadual: "",
+        contatoPrincipal: "Carlos Henrique",
+        telefone: "(91) 3222-2222",
+        whatsapp: "(91) 98888-2222",
+        email: "carlos@acessoriospet.com",
+        site: "",
+        cep: "67000-000",
+        cidade: "Ananindeua",
+        estado: "PA",
+        bairro: "Centro",
+        rua: "Rua das Acácias",
+        numero: "88",
+        complemento: "",
+        prazoEntrega: "5 dias úteis",
+        categoriaProdutos: "Acessórios",
+        formaPagamento: "Dinheiro, transferência",
+        statusFornecedor: "Ativo",
+        observacoes: "Atende sob encomenda para alguns produtos."
+      }
+    ];
+
+    function sanitizarTexto(valor) {
+      return String(valor)
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    function obterDadosFormulario() {
+      return {
+        razaoSocial: sanitizarTexto(fields.razaoSocial.value),
+        nomeFantasia: sanitizarTexto(fields.nomeFantasia.value),
+        tipoPessoa: fields.tipoPessoa.value,
+        cnpjCpf: sanitizarTexto(fields.cnpjCpf.value),
+        inscricaoEstadual: sanitizarTexto(fields.inscricaoEstadual.value),
+        contatoPrincipal: sanitizarTexto(fields.contatoPrincipal.value),
+        telefone: sanitizarTexto(fields.telefone.value),
+        whatsapp: sanitizarTexto(fields.whatsapp.value),
+        email: sanitizarTexto(fields.email.value),
+        site: sanitizarTexto(fields.site.value),
+        cep: sanitizarTexto(fields.cep.value),
+        cidade: sanitizarTexto(fields.cidade.value),
+        estado: sanitizarTexto(fields.estado.value),
+        bairro: sanitizarTexto(fields.bairro.value),
+        rua: sanitizarTexto(fields.rua.value),
+        numero: sanitizarTexto(fields.numero.value),
+        complemento: sanitizarTexto(fields.complemento.value),
+        prazoEntrega: sanitizarTexto(fields.prazoEntrega.value),
+        categoriaProdutos: sanitizarTexto(fields.categoriaProdutos.value),
+        formaPagamento: sanitizarTexto(fields.formaPagamento.value),
+        statusFornecedor: fields.statusFornecedor.value,
+        observacoes: sanitizarTexto(fields.observacoes.value)
+      };
+    }
+
+    function validarFornecedor(dados) {
+      if (!dados.razaoSocial) {
+        alert("Preencha a Razão Social / Nome do Fornecedor.");
+        fields.razaoSocial.focus();
+        return false;
+      }
+
+      if (!dados.tipoPessoa) {
+        alert("Selecione o tipo do fornecedor.");
+        fields.tipoPessoa.focus();
+        return false;
+      }
+
+      if (!dados.cnpjCpf) {
+        alert("Preencha o CNPJ ou CPF.");
+        fields.cnpjCpf.focus();
+        return false;
+      }
+
+      if (!dados.telefone) {
+        alert("Preencha o telefone do fornecedor.");
+        fields.telefone.focus();
+        return false;
+      }
+
+      return true;
+    }
+
+    function preencherFormulario(fornecedor) {
+      fields.razaoSocial.value = fornecedor.razaoSocial || "";
+      fields.nomeFantasia.value = fornecedor.nomeFantasia || "";
+      fields.tipoPessoa.value = fornecedor.tipoPessoa || "";
+      fields.cnpjCpf.value = fornecedor.cnpjCpf || "";
+      fields.inscricaoEstadual.value = fornecedor.inscricaoEstadual || "";
+      fields.contatoPrincipal.value = fornecedor.contatoPrincipal || "";
+      fields.telefone.value = fornecedor.telefone || "";
+      fields.whatsapp.value = fornecedor.whatsapp || "";
+      fields.email.value = fornecedor.email || "";
+      fields.site.value = fornecedor.site || "";
+      fields.cep.value = fornecedor.cep || "";
+      fields.cidade.value = fornecedor.cidade || "";
+      fields.estado.value = fornecedor.estado || "";
+      fields.bairro.value = fornecedor.bairro || "";
+      fields.rua.value = fornecedor.rua || "";
+      fields.numero.value = fornecedor.numero || "";
+      fields.complemento.value = fornecedor.complemento || "";
+      fields.prazoEntrega.value = fornecedor.prazoEntrega || "";
+      fields.categoriaProdutos.value = fornecedor.categoriaProdutos || "";
+      fields.formaPagamento.value = fornecedor.formaPagamento || "";
+      fields.statusFornecedor.value = fornecedor.statusFornecedor || "Ativo";
+      fields.observacoes.value = fornecedor.observacoes || "";
+    }
+
+    function limparFormulario() {
+      supplierForm.reset();
+      fields.statusFornecedor.value = "Ativo";
+      fornecedorSelecionadoId = null;
+      renderizarListaFornecedores();
+      fields.razaoSocial.focus();
+    }
+
+    function salvarFornecedor() {
+      const dados = obterDadosFormulario();
+
+      if (!validarFornecedor(dados)) return;
+
+      if (fornecedorSelecionadoId === null) {
+        const novoFornecedor = {
+          id: Date.now(),
+          ...dados
+        };
+
+        fornecedores.unshift(novoFornecedor);
+        fornecedorSelecionadoId = novoFornecedor.id;
+        alert("Fornecedor cadastrado com sucesso.");
+      } else {
+        const index = fornecedores.findIndex(item => item.id === fornecedorSelecionadoId);
+
+        if (index === -1) {
+          alert("Fornecedor não encontrado para atualização.");
+          return;
+        }
+
+        fornecedores[index] = {
+          ...fornecedores[index],
+          ...dados
+        };
+
+        alert("Alterações salvas com sucesso.");
+      }
+
+      renderizarListaFornecedores();
+    }
+
+    function apagarFornecedor() {
+      if (fornecedorSelecionadoId === null) {
+        alert("Selecione um fornecedor para apagar.");
+        return;
+      }
+
+      const fornecedor = fornecedores.find(item => item.id === fornecedorSelecionadoId);
+      if (!fornecedor) return;
+
+      const confirmar = confirm(`Deseja realmente apagar o fornecedor "${fornecedor.razaoSocial}"?`);
+      if (!confirmar) return;
+
+      fornecedores = fornecedores.filter(item => item.id !== fornecedorSelecionadoId);
+      limparFormulario();
+      alert("Fornecedor apagado com sucesso.");
+    }
+
+    function selecionarFornecedor(id) {
+      const fornecedor = fornecedores.find(item => item.id === id);
+      if (!fornecedor) return;
+
+      fornecedorSelecionadoId = id;
+      preencherFormulario(fornecedor);
+      renderizarListaFornecedores();
+    }
+
+    function obterFornecedoresFiltrados() {
+      const termo = sanitizarTexto(searchSupplierInput.value).toLowerCase();
+
+      if (!termo) return fornecedores;
+
+      return fornecedores.filter((fornecedor) => {
+        return (
+          fornecedor.razaoSocial.toLowerCase().includes(termo) ||
+          fornecedor.nomeFantasia.toLowerCase().includes(termo) ||
+          fornecedor.cnpjCpf.toLowerCase().includes(termo) ||
+          fornecedor.contatoPrincipal.toLowerCase().includes(termo)
+        );
+      });
+    }
+
+    function renderizarListaFornecedores() {
+      const filtrados = obterFornecedoresFiltrados();
+      supplierList.innerHTML = "";
+
+      emptyMessage.style.display = filtrados.length ? "none" : "block";
+
+      filtrados.forEach((fornecedor) => {
+        const li = document.createElement("li");
+        if (fornecedor.id === fornecedorSelecionadoId) {
+          li.classList.add("active");
+        }
+
+        li.innerHTML = `
+          <div class="supplier-item-name">${fornecedor.razaoSocial}</div>
+          <div class="supplier-item-sub">
+            ${fornecedor.cnpjCpf || "Sem documento"}<br>
+            ${fornecedor.contatoPrincipal || "Sem contato"} • ${fornecedor.telefone || "Sem telefone"}
+          </div>
+        `;
+
+        li.addEventListener("click", () => selecionarFornecedor(fornecedor.id));
+        supplierList.appendChild(li);
+      });
+    }
+
+    btnNovo.addEventListener("click", limparFormulario);
+    btnApagar.addEventListener("click", apagarFornecedor);
+    btnSalvar.addEventListener("click", salvarFornecedor);
+    searchSupplierInput.addEventListener("input", renderizarListaFornecedores);
+
+    fields.tipoPessoa.addEventListener("change", () => {
+      if (fields.tipoPessoa.value === "Pessoa Física") {
+        fields.inscricaoEstadual.value = "";
+      }
+    });
+
+    renderizarListaFornecedores();
+    if (fornecedores.length) {
+      selecionarFornecedor(fornecedores[0].id);
+    } else {
+      limparFormulario();
+    }
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>

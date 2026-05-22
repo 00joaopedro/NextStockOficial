@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pedidos - NextStock</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: "Segoe UI", sans-serif;
+    }
+
+    body {
+      display: flex;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      min-height: 100vh;
+      color: #333;
+    }
+
+    :root {
+      --cyan: #00cfcf;
+      --dark: #0d1b2a;
+      --sidebar: #071b31;
+      --panel: rgba(255,255,255,0.97);
+      --border: #d7e2ea;
+      --text: #23384d;
+      --muted: #647b8f;
+      --danger: #e63946;
+      --success: #2cad43;
+      --info: #0077b6;
+      --warning: #ffb546;
+      --shadow: 0 8px 22px rgba(0,0,0,0.16);
+    }
+
+    .sidebar {
+      width: 16vw;
+      background: #071b31;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
+    }
+
+    .main {
+      margin-left: 20%;
+      flex: 1;
+      padding: 20px;
+      position: relative;
+      transition: 0.3s;
+      min-height: 100vh;
+    }
+
+    .page-header {
+      color: #fff;
+      margin-bottom: 20px;
+    }
+
+    .page-header h1 {
+      font-size: clamp(1.8rem, 3vw, 2.5rem);
+      margin-bottom: 8px;
+    }
+
+    .page-header p {
+      font-size: 1rem;
+      font-weight: 400;
+      opacity: 0.95;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      gap: 14px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .search-bar,
+    .price-filter,
+    .status-filter {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .search-bar label,
+    .price-filter label,
+    .status-filter label {
+      color: #fff;
+      font-size: 0.9rem;
+      font-weight: 700;
+    }
+
+    .search-bar input,
+    .price-filter input,
+    .status-filter select {
+      width: 100%;
+      padding: 10px 14px;
+      border-radius: 20px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    .orders-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .order-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .order-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--cyan);
+    }
+
+    .order-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .info-box {
+      background: #f6fbfc;
+      border: 1px solid #e5eef4;
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .info-box span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+
+    .info-box strong {
+      display: block;
+      color: var(--text);
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .status-entregue {
+      color: var(--success) !important;
+    }
+
+    .status-pendente {
+      color: var(--warning) !important;
+    }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      transition: 0.2s;
+    }
+
+    .btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn.cancel { background-color: var(--danger); }
+    .btn.success { background-color: var(--success); }
+    .btn.info { background-color: var(--info); }
+
+    .pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+
+    .pagination button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 13px;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 700;
+      box-shadow: var(--shadow);
+    }
+
+    .pagination button.active,
+    .pagination button:hover {
+      background: var(--cyan);
+      color: var(--dark);
+    }
+
+    .pagination button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .empty-orders {
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      font-weight: 700;
+      color: var(--muted);
+      box-shadow: var(--shadow);
+      display: none;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(7, 27, 49, 0.65);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      z-index: 2000;
+    }
+
+    .overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #fff;
+      width: min(760px, 100%);
+      max-height: 95vh;
+      border-radius: 18px;
+      box-shadow: 0 20px 45px rgba(0,0,0,0.25);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header {
+      padding: 16px 18px;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf);
+      color: #fff;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .modal-header h2 {
+      font-size: 1.2rem;
+    }
+
+    .modal-close {
+      border: none;
+      background: rgba(255,255,255,0.2);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 11px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .modal-body {
+      padding: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .products-list-box {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      max-height: 65vh;
+    }
+
+    .product-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 10px;
+      padding: 14px;
+      border-bottom: 1px solid #edf2f6;
+      align-items: center;
+    }
+
+    .product-row:last-child {
+      border-bottom: none;
+    }
+
+    .product-row.header-row {
+      background: #f6fbfc;
+      color: var(--muted);
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .products-scroll {
+      overflow-y: auto;
+    }
+
+    .products-scroll::-webkit-scrollbar {
+      width: 7px;
+    }
+
+    .products-scroll::-webkit-scrollbar-thumb {
+      background: var(--cyan);
+      border-radius: 8px;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+
+      #printArea,
+      #printArea * {
+        visibility: visible;
+      }
+
+      #printArea {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white;
+        color: black;
+        padding: 20px;
+      }
+    }
+
+    #printArea {
+      display: none;
+    }
+
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 25%;
+      }
+
+      .main {
+        margin-left: 25%;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .status-filter {
+        grid-column: span 2;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 15px 0;
+        overflow-y: visible;
+      }
+
+      .sidebar h2 {
+        display: block;
+        font-size: 1.4rem;
+        text-align: center;
+        margin-bottom: 10px;
+        color: #00cfcf;
+      }
+
+      .menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .menu li {
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      .main {
+        margin-left: 0;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr;
+      }
+
+      .status-filter {
+        grid-column: auto;
+      }
+
+      .orders-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .order-info {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row {
+        grid-template-columns: 1fr;
+      }
+
+      .product-row.header-row {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="sidebar-container"></div>
+
+  <main class="main">
+    <div class="page-header">
+      <h1>Pedidos</h1>
+      <p>Todos os pedidos feitos pelos clientes na página de produtos.</p>
+    </div>
+
+    <div class="topbar">
+      <div class="search-bar">
+        <label for="searchInput">Pesquisar pelo nome do cliente</label>
+        <input type="text" id="searchInput" placeholder="Digite o nome do cliente...">
+      </div>
+
+      <div class="price-filter">
+        <label for="minPriceInput">Valor mínimo do pedido</label>
+        <input type="number" id="minPriceInput" min="0" step="0.01" placeholder="Ex.: 50.00">
+      </div>
+
+      <div class="status-filter">
+        <label for="statusFilter">Filtrar por status</label>
+        <select id="statusFilter">
+          <option value="todos">Todos os pedidos</option>
+          <option value="entregue">Pedidos entregues</option>
+          <option value="pendente">Pedidos não entregues</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="orders-grid" id="ordersContainer"></div>
+
+    <div class="empty-orders" id="emptyOrders">
+      Nenhum pedido encontrado com os filtros informados.
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </main>
+
+  <div class="overlay" id="orderDetailOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="detailTitle">Produtos do pedido</h2>
+        <button class="modal-close" id="closeDetailModal">Fechar</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="products-list-box">
+          <div class="product-row header-row">
+            <div>Nome</div>
+            <div>Quantidade</div>
+            <div>Preço total</div>
+          </div>
+
+          <div class="products-scroll" id="productsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="printArea"></div>
+
+  <script>
+    const orders = [
+      {
+        id: 1,
+        buyer: "Ana Paula Ribeiro",
+        payment: "PIX",
+        date: "2026-04-21",
+        dateFormatted: "21/04/2026",
+        time: "09:15:22",
+        delivered: false,
+        products: [
+          { name: "Copo Térmico", qty: 2, total: 99.80 },
+          { name: "Escorredor de Silicone", qty: 1, total: 34.90 },
+          { name: "Organizador de Geladeira", qty: 1, total: 59.90 }
+        ]
+      },
+      {
+        id: 2,
+        buyer: "Carlos Henrique Souza",
+        payment: "Cartão de crédito",
+        date: "2026-04-21",
+        dateFormatted: "21/04/2026",
+        time: "10:34:08",
+        delivered: false,
+        products: [
+          { name: "Garrafa Inox", qty: 1, total: 79.90 },
+          { name: "Kit Talheres", qty: 1, total: 89.90 }
+        ]
+      },
+      {
+        id: 3,
+        buyer: "Mariana Costa",
+        payment: "Dinheiro",
+        date: "2026-04-22",
+        dateFormatted: "22/04/2026",
+        time: "13:20:41",
+        delivered: false,
+        products: [
+          { name: "Pote Hermético", qty: 4, total: 119.60 },
+          { name: "Suporte Multiuso", qty: 2, total: 45.80 }
+        ]
+      },
+      {
+        id: 4,
+        buyer: "Roberto Lima",
+        payment: "Cartão de débito",
+        date: "2026-04-22",
+        dateFormatted: "22/04/2026",
+        time: "15:02:10",
+        delivered: false,
+        products: [
+          { name: "Lixeira Automática", qty: 1, total: 149.90 },
+          { name: "Tapete Antiderrapante", qty: 2, total: 79.80 }
+        ]
+      },
+      {
+        id: 5,
+        buyer: "Juliana Mendes",
+        payment: "PIX",
+        date: "2026-04-23",
+        dateFormatted: "23/04/2026",
+        time: "08:48:55",
+        delivered: false,
+        products: [
+          { name: "Caixa Organizadora", qty: 3, total: 194.70 },
+          { name: "Organizador de Cabos", qty: 5, total: 99.50 }
+        ]
+      },
+      {
+        id: 6,
+        buyer: "Lucas Almeida",
+        payment: "Cartão de crédito",
+        date: "2026-04-23",
+        dateFormatted: "23/04/2026",
+        time: "11:12:36",
+        delivered: false,
+        products: [
+          { name: "Filtro de Água", qty: 1, total: 119.90 },
+          { name: "Balança Digital", qty: 2, total: 109.80 }
+        ]
+      },
+      {
+        id: 7,
+        buyer: "Fernanda Rocha",
+        payment: "PIX",
+        date: "2026-04-24",
+        dateFormatted: "24/04/2026",
+        time: "14:09:19",
+        delivered: false,
+        products: [
+          { name: "Panela Antiaderente", qty: 1, total: 99.90 },
+          { name: "Copo Térmico", qty: 1, total: 49.90 }
+        ]
+      },
+      {
+        id: 8,
+        buyer: "Patrícia Gomes",
+        payment: "Dinheiro",
+        date: "2026-04-24",
+        dateFormatted: "24/04/2026",
+        time: "16:45:03",
+        delivered: false,
+        products: [
+          { name: "Escorredor de Silicone", qty: 2, total: 69.80 },
+          { name: "Organizador de Geladeira", qty: 2, total: 119.80 }
+        ]
+      },
+      {
+        id: 9,
+        buyer: "Rafael Martins",
+        payment: "Cartão de débito",
+        date: "2026-04-25",
+        dateFormatted: "25/04/2026",
+        time: "09:03:17",
+        delivered: false,
+        products: [
+          { name: "Garrafa Inox", qty: 2, total: 159.80 },
+          { name: "Suporte Multiuso", qty: 3, total: 68.70 }
+        ]
+      },
+      {
+        id: 10,
+        buyer: "Beatriz Nunes",
+        payment: "PIX",
+        date: "2026-04-25",
+        dateFormatted: "25/04/2026",
+        time: "12:30:59",
+        delivered: false,
+        products: [
+          { name: "Kit Talheres", qty: 1, total: 89.90 },
+          { name: "Pote Hermético", qty: 2, total: 59.80 }
+        ]
+      },
+      {
+        id: 11,
+        buyer: "Eduardo Silva",
+        payment: "Cartão de crédito",
+        date: "2026-04-26",
+        dateFormatted: "26/04/2026",
+        time: "17:25:44",
+        delivered: false,
+        products: [
+          { name: "Lixeira Automática", qty: 1, total: 149.90 },
+          { name: "Filtro de Água", qty: 1, total: 119.90 }
+        ]
+      }
+    ];
+
+    const itemsPerPage = 10;
+    let currentPage = 1;
+    let filteredOrders = [...orders];
+
+    const ordersContainer = document.getElementById("ordersContainer");
+    const pagination = document.getElementById("pagination");
+    const emptyOrders = document.getElementById("emptyOrders");
+    const searchInput = document.getElementById("searchInput");
+    const minPriceInput = document.getElementById("minPriceInput");
+    const statusFilter = document.getElementById("statusFilter");
+
+    const orderDetailOverlay = document.getElementById("orderDetailOverlay");
+    const closeDetailModal = document.getElementById("closeDetailModal");
+    const detailTitle = document.getElementById("detailTitle");
+    const productsList = document.getElementById("productsList");
+    const printArea = document.getElementById("printArea");
+
+    function formatMoney(value) {
+      return Number(value || 0).toLocaleString("pt-BR", {
+        style: "currency",
+        currency: "BRL"
+      });
+    }
+
+    function getOrderTotal(order) {
+      return order.products.reduce((acc, product) => acc + product.total, 0);
+    }
+
+    function filterOrders() {
+      const search = searchInput.value.trim().toLowerCase();
+      const minValue = parseFloat(minPriceInput.value) || 0;
+      const status = statusFilter.value;
+
+      filteredOrders = orders.filter(order => {
+        const matchName = order.buyer.toLowerCase().includes(search);
+        const matchValue = getOrderTotal(order) >= minValue;
+        const matchStatus =
+          status === "todos" ||
+          (status === "entregue" && order.delivered) ||
+          (status === "pendente" && !order.delivered);
+
+        return matchName && matchValue && matchStatus;
+      });
+
+      currentPage = 1;
+      renderOrders();
+    }
+
+    function renderOrders() {
+      ordersContainer.innerHTML = "";
+
+      if (!filteredOrders.length) {
+        emptyOrders.style.display = "block";
+        pagination.innerHTML = "";
+        return;
+      }
+
+      emptyOrders.style.display = "none";
+
+      const start = (currentPage - 1) * itemsPerPage;
+      const end = start + itemsPerPage;
+      const pageItems = filteredOrders.slice(start, end);
+
+      pageItems.forEach(order => {
+        const card = document.createElement("div");
+        card.className = "order-card";
+
+        card.innerHTML = `
+          <div class="order-info">
+            <div class="info-box">
+              <span>Nome do comprador</span>
+              <strong>${order.buyer}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Formato de pagamento</span>
+              <strong>${order.payment}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Data do pedido</span>
+              <strong>${order.dateFormatted}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Hora que o pedido foi feito</span>
+              <strong>${order.time}</strong>
+            </div>
+
+            <div class="info-box">
+              <span>Status</span>
+              <strong class="${order.delivered ? "status-entregue" : "status-pendente"}">
+                ${order.delivered ? "Entregue" : "Não entregue"}
+              </strong>
+            </div>
+          </div>
+
+          <div class="card-actions">
+            <button class="btn success" data-action="delivered" ${order.delivered ? "disabled" : ""}>
+              ${order.delivered ? "Pedido entregue" : "Marcar como entregue"}
+            </button>
+            <button class="btn cancel" data-action="cancel">Cancelar pedido</button>
+            <button class="btn success" data-action="print">Imprimir recibo</button>
+            <button class="btn info" data-action="nfe">NF-e</button>
+          </div>
+        `;
+
+        card.addEventListener("click", () => openOrderDetails(order.id));
+
+        card.querySelector('[data-action="delivered"]').addEventListener("click", event => {
+          event.stopPropagation();
+          markAsDelivered(order.id);
+        });
+
+        card.querySelector('[data-action="cancel"]').addEventListener("click", event => {
+          event.stopPropagation();
+          cancelOrder(order.id);
+        });
+
+        card.querySelector('[data-action="print"]').addEventListener("click", event => {
+          event.stopPropagation();
+          printReceipt(order.id);
+        });
+
+        card.querySelector('[data-action="nfe"]').addEventListener("click", event => {
+          event.stopPropagation();
+          sendToNfe(order.id);
+        });
+
+        ordersContainer.appendChild(card);
+      });
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+      pagination.innerHTML = "";
+
+      if (totalPages <= 1) return;
+
+      const prevBtn = document.createElement("button");
+      prevBtn.textContent = "Anterior";
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.addEventListener("click", () => {
+        if (currentPage > 1) {
+          currentPage--;
+          renderOrders();
+        }
+      });
+
+      pagination.appendChild(prevBtn);
+
+      for (let page = 1; page <= totalPages; page++) {
+        const btn = document.createElement("button");
+        btn.textContent = page;
+        btn.classList.toggle("active", page === currentPage);
+
+        btn.addEventListener("click", () => {
+          currentPage = page;
+          renderOrders();
+        });
+
+        pagination.appendChild(btn);
+      }
+
+      const nextBtn = document.createElement("button");
+      nextBtn.textContent = "Próxima";
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.addEventListener("click", () => {
+        if (currentPage < totalPages) {
+          currentPage++;
+          renderOrders();
+        }
+      });
+
+      pagination.appendChild(nextBtn);
+    }
+
+    function openOrderDetails(orderId) {
+      const order = orders.find(item => item.id === orderId);
+      if (!order) return;
+
+      detailTitle.textContent = `Produtos do pedido - ${order.buyer}`;
+
+      productsList.innerHTML = order.products.map(product => `
+        <div class="product-row">
+          <div><strong>${product.name}</strong></div>
+          <div>${product.qty}</div>
+          <div>${formatMoney(product.total)}</div>
+        </div>
+      `).join("");
+
+      orderDetailOverlay.classList.add("active");
+    }
+
+    function closeOrderDetails() {
+      orderDetailOverlay.classList.remove("active");
+    }
+
+    function markAsDelivered(orderId) {
+      const order = orders.find(item => item.id === orderId);
+      if (!order) return;
+
+      order.delivered = true;
+      filterOrders();
+    }
+
+    function cancelOrder(orderId) {
+      const confirmCancel = confirm("Deseja cancelar este pedido?");
+      if (!confirmCancel) return;
+
+      const index = orders.findIndex(item => item.id === orderId);
+      if (index !== -1) {
+        orders.splice(index, 1);
+      }
+
+      filterOrders();
+    }
+
+    function printReceipt(orderId) {
+      const order = orders.find(item => item.id === orderId);
+      if (!order) return;
+
+      const rows = order.products.map(product => `
+        <tr>
+          <td>${product.name}</td>
+          <td>${product.qty}</td>
+          <td>${formatMoney(product.total)}</td>
+        </tr>
+      `).join("");
+
+      printArea.innerHTML = `
+        <div>
+          <h2>NextStock - Recibo do Pedido</h2>
+          <p><strong>Comprador:</strong> ${order.buyer}</p>
+          <p><strong>Pagamento:</strong> ${order.payment}</p>
+          <p><strong>Data:</strong> ${order.dateFormatted}</p>
+          <p><strong>Hora:</strong> ${order.time}</p>
+          <p><strong>Status:</strong> ${order.delivered ? "Entregue" : "Não entregue"}</p>
+
+          <hr>
+
+          <table style="width:100%; border-collapse:collapse;" border="1" cellpadding="8">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Quantidade</th>
+                <th>Preço total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+
+          <hr>
+
+          <p><strong>Total:</strong> ${formatMoney(getOrderTotal(order))}</p>
+        </div>
+      `;
+
+      printArea.style.display = "block";
+      window.print();
+      printArea.style.display = "none";
+    }
+
+    function sendToNfe(orderId) {
+      const order = orders.find(item => item.id === orderId);
+      if (!order) return;
+
+      sessionStorage.setItem("nextstockPedidoParaNfe", JSON.stringify(order));
+      window.location.href = "ntfe.html";
+    }
+
+    searchInput.addEventListener("input", filterOrders);
+    minPriceInput.addEventListener("input", filterOrders);
+    statusFilter.addEventListener("change", filterOrders);
+
+    closeDetailModal.addEventListener("click", closeOrderDetails);
+
+    orderDetailOverlay.addEventListener("click", event => {
+      if (event.target === orderDetailOverlay) {
+        closeOrderDetails();
+      }
+    });
+
+    renderOrders();
+  </script>
+  <script type="module" src="./dist/sidebar.js"></script>
+</body>
+</html>
