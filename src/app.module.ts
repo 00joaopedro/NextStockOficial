@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { existsSync } from 'fs';
 import { join } from 'path';
 
 import { AppController } from './app.controller';
@@ -16,23 +17,15 @@ import { ProfileModule } from './profile/profile.module';
 import { PaymentMachinesModule } from './payment-machines/payment-machines.module';
 import { ProductsModule } from './products/products.module';
 
+const publicPath = join(__dirname, '..', 'public');
+
 @Module({
   imports: [
     ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public'),
-      serveRoot: '/',
-      exclude: [
-        '/auth/*authPath',
-        '/health',
-        '/users/*usersPath',
-        '/tenants/*tenantsPath',
-        '/profile/*profilePath',
-        '/payment-machines/*paymentMachinesPath',
-        '/products/*productsPath',
-        '/system/*systemPath',
-        '/api/*apiPath',
-        '/agenda-pet/*agendaPetPath',
-      ],
+      rootPath: existsSync(publicPath)
+        ? publicPath
+        : join(__dirname, '..', '..', 'public'),
+      exclude: ['/api*'],
     }),
     PrismaModule,
     TenancyModule,

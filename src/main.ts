@@ -16,11 +16,13 @@ async function bootstrap() {
     credentials: true,
   });
 
+  app.setGlobalPrefix('api');
+
   const port = Number(process.env.PORT || 3000);
   await app.listen(port, '0.0.0.0');
 
   console.log(`Listening on ${port}`);
-  console.log(`Health: /health`);
+  console.log(`Health: /api`);
   console.log(`Public: /`);
 }
 bootstrap();

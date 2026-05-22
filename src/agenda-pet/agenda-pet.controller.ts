@@ -23,7 +23,7 @@ import { AgendaPetService } from './agenda-pet.service';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
-@Controller('api/agenda-pet')
+@Controller('agenda-pet')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AgendaPetController {
   constructor(private readonly service: AgendaPetService) {}

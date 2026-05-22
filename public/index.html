@@ -391,7 +391,7 @@
   </div>
 
   <script>
-    const API = '';
+    const API = '/api';
 
     const previewBtn = document.getElementById('previewBtn');
     const previewOptions = document.getElementById('previewOptions');
@@ -584,7 +584,7 @@
 
     window.addEventListener('load', async () => {
       try {
-        const res = await fetch(API + '/health', {
+        const res = await fetch(API, {
           method: 'GET',
           credentials: 'include'
         });

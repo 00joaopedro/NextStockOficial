@@ -3,7 +3,7 @@ import { Request } from 'express';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
 import { SystemService } from './system.service';
 
-@Controller('api/system')
+@Controller('system')
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 

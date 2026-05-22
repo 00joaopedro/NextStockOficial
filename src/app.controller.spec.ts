@@ -15,6 +15,10 @@ describe('AppController', () => {
   });
 
   it('health should return ok', () => {
-    expect(controller.health()).toEqual({ ok: true });
+    expect(controller.health()).toEqual({
+      status: 'ok',
+      app: 'NextStock',
+      message: 'API online',
+    });
   });
 });
