@@ -232,6 +232,19 @@
       margin-bottom: 10px;
     }
 
+    .branch-panel {
+      margin-top: 16px;
+    }
+
+    .branch-panel select {
+      width: 100%;
+      padding: 14px;
+      margin: 10px 0 0;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 15px;
+    }
+
     @media (max-width: 500px) {
       .container {
         padding: 30px 20px;
@@ -305,6 +318,13 @@
     <button id="logoutBtn" class="btn secondary" type="button">Logout</button>
 
     <div id="statusBox" class="status-box">Pronto para autenticação.</div>
+
+    <div class="inline-panel branch-panel" id="branchSelectionPanel">
+      <h2>Selecionar filial</h2>
+      <p>Escolha a filial para continuar.</p>
+      <select id="branchSelection"></select>
+      <button id="confirmBranchBtn" class="btn" type="button">Continuar</button>
+    </div>
   </div>
 
   <!-- Login -->
@@ -447,6 +467,55 @@
       return JSON.stringify(data, null, 2);
     }
 
+    function isSuperAdminUser(user) {
+      return user?.role === 'superAdmin' ||
+        user?.roles?.includes?.('superAdmin') === true ||
+        user?.isSuperAdmin === true ||
+        user?.is_super_admin === true;
+    }
+
+    function persistLoginContext({ user, selectedBranch }) {
+      sessionStorage.removeItem('nextstockSelectedBranch');
+      sessionStorage.removeItem('nextstockSystemType');
+      sessionStorage.removeItem('nextstockIsSuperAdmin');
+
+      if (selectedBranch) {
+        sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
+        sessionStorage.setItem('nextstockSystemType', selectedBranch.systemType || selectedBranch.tenant?.systemType || '');
+      }
+
+      if (isSuperAdminUser(user)) {
+        sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+        sessionStorage.setItem('nextstockSystemType', 'developer');
+      }
+    }
+
+    function openBranchSelection(data) {
+      const panel = document.getElementById('branchSelectionPanel');
+      const select = document.getElementById('branchSelection');
+      const branches = Array.isArray(data.branches) ? data.branches : [];
+
+      select.innerHTML = branches
+        .map((branch, index) => {
+          const tenantName = branch.tenant?.name ? ` - ${branch.tenant.name}` : '';
+          return `<option value="${index}">${branch.name || branch.slug}${tenantName}</option>`;
+        })
+        .join('');
+
+      panel.classList.add('active');
+      document.getElementById('confirmBranchBtn').onclick = () => {
+        const selectedBranch = branches[Number(select.value)];
+
+        if (!selectedBranch) {
+          setStatus('Selecione uma filial para continuar.', true);
+          return;
+        }
+
+        persistLoginContext({ user: data.user, selectedBranch });
+        window.location.href = data.redirectTo || 'produtos.html';
+      };
+    }
+
     async function apiRequest(url, options = {}) {
       const res = await fetch(API + url, {
         credentials: 'include',
@@ -522,8 +591,28 @@
           })
         });
 
+        alert('Sucesso de login, agora selecione a sua filial.');
         setStatus('Login realizado com sucesso.\n\n' + extractMessage(data));
-        window.location.href = 'produtos.html';
+
+        if (isSuperAdminUser(data.user)) {
+          persistLoginContext({ user: data.user });
+          window.location.href = data.redirectTo || 'dev.html';
+          return;
+        }
+
+        if (data.requiresBranchSelection) {
+          openBranchSelection(data);
+          window.location.hash = '';
+          return;
+        }
+
+        if (data.selectedBranch) {
+          persistLoginContext({ user: data.user, selectedBranch: data.selectedBranch });
+          window.location.href = data.redirectTo || 'produtos.html';
+          return;
+        }
+
+        setStatus('Login aceito, mas nenhuma filial foi encontrada para este usuario.', true);
       } catch (error) {
         setStatus('Erro no login:\n\n' + error.message, true);
       }
@@ -538,6 +627,9 @@
         });
 
         setStatus('Logout realizado.\n\n' + extractMessage(data));
+        sessionStorage.removeItem('nextstockSelectedBranch');
+        sessionStorage.removeItem('nextstockSystemType');
+        sessionStorage.removeItem('nextstockIsSuperAdmin');
       } catch (error) {
         setStatus('Erro no logout:\n\n' + error.message, true);
       }

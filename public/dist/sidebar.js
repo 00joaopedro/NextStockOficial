@@ -8,6 +8,7 @@ const TENANT_MODULES = {
     PETSHOP: ["core", "petshop"],
 };
 const SIDEBAR_ITEMS = [
+    { label: "Dev", href: "dev.html", key: "dev", module: "core" },
     { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
     { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
     { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },

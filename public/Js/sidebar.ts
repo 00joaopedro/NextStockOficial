@@ -31,6 +31,7 @@ const TENANT_MODULES: Record<TenantType, ModuleKey[]> = {
 };
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
+  { label: "Dev", href: "dev.html", key: "dev", module: "core" },
   { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
   { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
   { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },

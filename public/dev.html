@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NextStock - Desenvolvedor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      background: #f3f7fb;
+      color: #102033;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: #071b31;
+      color: #fff;
+      padding: 24px 18px;
+      overflow-y: auto;
+    }
+
+    .sidebar h1 {
+      font-size: 20px;
+      margin-bottom: 6px;
+    }
+
+    .sidebar p {
+      color: #b9d3e8;
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 18px;
+    }
+
+    .page-list {
+      display: grid;
+      gap: 8px;
+      list-style: none;
+    }
+
+    .page-list a {
+      display: block;
+      padding: 10px 12px;
+      border-radius: 8px;
+      color: inherit;
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 700;
+    }
+
+    .page-list a:hover,
+    .page-list a.active {
+      background: #00cfcf;
+      color: #071b31;
+    }
+
+    .content {
+      padding: 28px;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .toolbar h2 {
+      font-size: 24px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .actions a,
+    .actions button {
+      padding: 10px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #1a456f;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .status {
+      margin-bottom: 18px;
+      padding: 14px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      color: #334;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+      gap: 12px;
+    }
+
+    .page-card {
+      display: block;
+      min-height: 84px;
+      padding: 16px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      color: #102033;
+      text-decoration: none;
+      font-weight: 800;
+      box-shadow: 0 8px 20px rgba(16, 32, 51, 0.06);
+    }
+
+    .page-card span {
+      display: block;
+      margin-top: 8px;
+      color: #637083;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    @media (max-width: 760px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <h1>NextStock Dev</h1>
+      <p>Acesso total de desenvolvimento para superAdmin.</p>
+      <ul class="page-list" id="sidebarPages"></ul>
+    </aside>
+
+    <main class="content">
+      <div class="toolbar">
+        <h2>Modo Desenvolvedor</h2>
+        <div class="actions">
+          <a href="produtos.html">Abrir sistema</a>
+          <button id="logoutBtn" type="button">Logout</button>
+        </div>
+      </div>
+
+      <div class="status" id="statusBox">Carregando páginas disponíveis...</div>
+      <section class="grid" id="pageGrid"></section>
+    </main>
+  </div>
+
+  <script>
+    const API = '/api';
+
+    function isSuperAdminUser(user) {
+      return user?.role === 'superAdmin' ||
+        user?.roles?.includes?.('superAdmin') === true ||
+        user?.isSuperAdmin === true ||
+        user?.is_super_admin === true;
+    }
+
+    function setStatus(message, isError = false) {
+      const status = document.getElementById('statusBox');
+      status.textContent = message;
+      status.style.borderColor = isError ? '#c0392b' : '#dbe5ef';
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function requestJson(url, options = {}) {
+      const response = await fetch(API + url, {
+        credentials: 'include',
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Requisicao recusada.');
+      }
+
+      return data;
+    }
+
+    function renderPages(pages) {
+      const sidebar = document.getElementById('sidebarPages');
+      const grid = document.getElementById('pageGrid');
+
+      const visiblePages = pages.filter((page) => page.file !== 'dev.html');
+
+      sidebar.innerHTML = visiblePages.map((page) => `
+        <li><a href="${escapeHtml(page.href)}">${escapeHtml(page.label)}</a></li>
+      `).join('');
+
+      grid.innerHTML = visiblePages.map((page) => `
+        <a class="page-card" href="${escapeHtml(page.href)}">
+          ${escapeHtml(page.label)}
+          <span>${escapeHtml(page.file)}</span>
+        </a>
+      `).join('');
+    }
+
+    async function loadDevMode() {
+      try {
+        const profile = await requestJson('/auth/profile');
+
+        if (!isSuperAdminUser(profile.user)) {
+          setStatus('Acesso restrito ao superAdmin.', true);
+          return;
+        }
+
+        sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+        sessionStorage.setItem('nextstockSystemType', 'developer');
+
+        const data = await requestJson('/system/pages');
+        renderPages(data.pages || []);
+        setStatus(`SuperAdmin ativo. ${data.pages?.length || 0} paginas HTML disponiveis.`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+      await requestJson('/auth/logout', { method: 'POST' }).catch(() => undefined);
+      sessionStorage.removeItem('nextstockSelectedBranch');
+      sessionStorage.removeItem('nextstockSystemType');
+      sessionStorage.removeItem('nextstockIsSuperAdmin');
+      window.location.href = 'index.html';
+    });
+
+    void loadDevMode();
+  </script>
+</body>
+</html>

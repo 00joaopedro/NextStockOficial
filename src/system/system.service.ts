@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { existsSync, readdirSync } from 'fs';
+import { join } from 'path';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
 import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from '../auth/super-admin.util';
 import { SystemMode } from './enums/system-mode.enum';
@@ -7,6 +9,23 @@ import { SystemContext, TenantSystemSettings } from './interfaces/system-context
 
 @Injectable()
 export class SystemService {
+  listPublicHtmlPages() {
+    const publicPath = this.resolvePublicPath();
+    const pages = readdirSync(publicPath, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.html'))
+      .map((entry) => ({
+        file: entry.name,
+        href: entry.name,
+        label: this.formatPageLabel(entry.name),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label, 'pt-BR'));
+
+    return {
+      ok: true,
+      pages,
+    };
+  }
+
   getContext(currentUser?: Express.AuthenticatedUser): SystemContextResponseDto {
     if (isSuperAdmin(currentUser)) {
       return {
@@ -62,5 +81,29 @@ export class SystemService {
     }
 
     return TenantType.Standard;
+  }
+
+  private resolvePublicPath() {
+    const candidates = [
+      join(__dirname, '..', 'public'),
+      join(__dirname, '..', '..', 'public'),
+      join(process.cwd(), 'public'),
+    ];
+
+    const publicPath = candidates.find((candidate) => existsSync(candidate));
+
+    if (!publicPath) {
+      return candidates[candidates.length - 1];
+    }
+
+    return publicPath;
+  }
+
+  private formatPageLabel(fileName: string) {
+    return fileName
+      .replace(/\.html$/i, '')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 }

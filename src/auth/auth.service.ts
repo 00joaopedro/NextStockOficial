@@ -274,6 +274,7 @@ export class AuthService {
       payload: {
         message: 'Login realizado com sucesso',
         user,
+        ...this.buildPostLoginFlow(user),
       },
     };
   }
@@ -373,8 +374,9 @@ export class AuthService {
                 },
               }
             : undefined,
-          take: 1,
           select: {
+            tenantId: true,
+            branchId: true,
             role: true,
             tenant: {
               select: {
@@ -410,6 +412,17 @@ export class AuthService {
   ) {
     const hasFullAccess = isSuperAdmin(profile);
     const membership = profile.memberships[0];
+    const branches = profile.memberships
+      .filter((item) => item.branch)
+      .map((item) => ({
+        id: item.branch!.id,
+        name: item.branch!.name,
+        slug: item.branch!.slug,
+        tenantId: item.tenantId,
+        tenant: toTenantSummary(item.tenant),
+        role: item.role,
+        systemType: item.tenant.systemType,
+      }));
 
     if (!membership && !hasFullAccess) {
       throw new UnauthorizedException('User is not linked to this branch.');
@@ -424,7 +437,43 @@ export class AuthService {
       role: hasFullAccess ? Role.superAdmin : membership!.role,
       tenant: hasFullAccess ? null : membership!.tenant,
       branch: hasFullAccess ? null : membership!.branch,
+      branches,
     });
+  }
+
+  private buildPostLoginFlow(user: ReturnType<AuthService['formatAuthUser']>) {
+    if (isSuperAdmin(user)) {
+      return {
+        requiresBranchSelection: false,
+        branches: [],
+        selectedBranch: null,
+        redirectTo: 'dev.html',
+      };
+    }
+
+    const branches = user.branches ?? [];
+
+    if (branches.length === 0) {
+      throw new UnauthorizedException(
+        'Usuario sem filial vinculada. Solicite acesso a uma filial antes de entrar.',
+      );
+    }
+
+    if (branches.length === 1) {
+      return {
+        requiresBranchSelection: false,
+        branches,
+        selectedBranch: branches[0],
+        redirectTo: 'produtos.html',
+      };
+    }
+
+    return {
+      requiresBranchSelection: true,
+      branches,
+      selectedBranch: null,
+      redirectTo: null,
+    };
   }
 
   private formatAuthUser(profile: {
@@ -451,6 +500,15 @@ export class AuthService {
       name: string;
       slug: string;
     } | null;
+    branches?: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      tenantId: string;
+      tenant: Express.TenantSummary | null;
+      role: Role;
+      systemType: SystemType;
+    }>;
     createdAt?: Date;
   }) {
     const hasFullAccess = isSuperAdmin(profile);
@@ -479,6 +537,7 @@ export class AuthService {
       tenant: toTenantSummary(profile.tenant),
       branchId: profile.branch?.id ?? null,
       branch: profile.branch,
+      branches: profile.branches ?? [],
       mode: profile.tenant?.mode ?? null,
       createdAt: profile.createdAt,
     };
