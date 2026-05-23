@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
+import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from '../auth/super-admin.util';
 import { SystemMode } from './enums/system-mode.enum';
 import { TenantType } from './enums/tenant-type.enum';
 import { SystemContext, TenantSystemSettings } from './interfaces/system-context.interface';
@@ -7,6 +8,15 @@ import { SystemContext, TenantSystemSettings } from './interfaces/system-context
 @Injectable()
 export class SystemService {
   getContext(currentUser?: Express.AuthenticatedUser): SystemContextResponseDto {
+    if (isSuperAdmin(currentUser)) {
+      return {
+        systemMode: SystemMode.Production,
+        tenantType: TenantType.Petshop,
+        isSuperAdmin: true,
+        allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
+      };
+    }
+
     const tenantSettings = this.resolveTenantSettings(currentUser);
 
     return {

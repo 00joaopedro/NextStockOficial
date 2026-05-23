@@ -5,6 +5,9 @@ type ModuleKey = "core" | "petshop";
 interface SystemContextResponse {
   systemMode: SystemMode;
   tenantType: TenantType;
+  isSuperAdmin?: boolean;
+  is_super_admin?: boolean;
+  allowedSystemTypes?: string[];
 }
 
 interface SidebarItem {
@@ -47,6 +50,39 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   { label: "NTF-e", href: "ntfe.html", key: "ntfe", module: "core" },
   { label: "Suporte", href: "#", key: "suporte", module: "core" },
 ];
+
+declare global {
+  interface Window {
+    NextStockAccess?: {
+      isSuperAdminUser: (user?: unknown) => boolean;
+      canAccessEverything: (user?: unknown) => boolean;
+    };
+  }
+}
+
+function isSuperAdminUser(user?: unknown): boolean {
+  const candidate = user as
+    | {
+        role?: string;
+        roles?: string[];
+        isSuperAdmin?: boolean;
+        is_super_admin?: boolean;
+      }
+    | null
+    | undefined;
+
+  return (
+    candidate?.role === "superAdmin" ||
+    candidate?.roles?.includes("superAdmin") === true ||
+    candidate?.isSuperAdmin === true ||
+    candidate?.is_super_admin === true
+  );
+}
+
+window.NextStockAccess = {
+  isSuperAdminUser,
+  canAccessEverything: isSuperAdminUser,
+};
 
 function injectSidebarStyles(): void {
   if (document.getElementById("nextstock-sidebar-runtime-styles")) {
@@ -130,6 +166,11 @@ function normalizeContext(value: unknown): SystemContextResponse {
     tenantType: isTenantType(candidate?.tenantType)
       ? candidate.tenantType
       : FALLBACK_CONTEXT.tenantType,
+    isSuperAdmin: isSuperAdminUser(candidate),
+    is_super_admin: isSuperAdminUser(candidate),
+    allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
+      ? candidate.allowedSystemTypes
+      : [],
   };
 }
 
@@ -151,6 +192,14 @@ function getMenuByTenantType(tenantType: TenantType): SidebarItem[] {
   const enabledModules = new Set(TENANT_MODULES[tenantType]);
 
   return SIDEBAR_ITEMS.filter((item) => enabledModules.has(item.module));
+}
+
+function getMenuByContext(context: SystemContextResponse): SidebarItem[] {
+  if (isSuperAdminUser(context)) {
+    return SIDEBAR_ITEMS;
+  }
+
+  return getMenuByTenantType(context.tenantType);
 }
 
 function escapeHtml(value: string): string {
@@ -231,7 +280,7 @@ function renderSidebar(
 ): void {
   injectSidebarStyles();
 
-  const menu = getMenuByTenantType(context.tenantType);
+  const menu = getMenuByContext(context);
   container.innerHTML = buildSidebarHtml(menu, context);
   document.documentElement.dataset.systemMode = context.systemMode;
   document.documentElement.dataset.tenantType = context.tenantType;
@@ -257,3 +306,5 @@ if (document.readyState === "loading") {
 } else {
   void loadSidebar();
 }
+
+export {};

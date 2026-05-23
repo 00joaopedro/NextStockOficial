@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
@@ -48,21 +49,23 @@ export class UsersService {
 
   async list(currentUser?: Express.AuthenticatedUser) {
     const user = this.tenantAccess.requireUser(currentUser);
-    const tenantId = this.tenantAccess.requireTenantId(user);
+    const tenantId = isSuperAdmin(user) ? null : this.tenantAccess.requireTenantId(user);
 
     const users = await this.prisma.userProfile.findMany({
-      where: {
-        memberships: {
-          some: { tenantId },
-        },
-      },
+      where: tenantId
+        ? {
+            memberships: {
+              some: { tenantId },
+            },
+          }
+        : undefined,
       select: {
         id: true,
         email: true,
         name: true,
         createdAt: true,
         memberships: {
-          where: { tenantId },
+          where: tenantId ? { tenantId } : undefined,
           take: 1,
           select: {
             role: true,
@@ -122,6 +125,10 @@ export class UsersService {
       user,
       input.tenantId,
     );
+
+    if (!tenant) {
+      throw new BadRequestException('tenantId is required to create a tenant user.');
+    }
     const branch = await this.resolveBranch(tenant.id, input.branchId);
     const accessNameNormalized = this.normalizeAccessName(name);
 

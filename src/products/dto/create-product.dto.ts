@@ -12,6 +12,10 @@ import {
 } from 'class-validator';
 
 export class CreateProductDto {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
   @IsString()
   @MaxLength(120)
   nome!: string;

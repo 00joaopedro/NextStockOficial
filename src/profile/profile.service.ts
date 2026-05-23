@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, SystemMode, SystemType } from '@prisma/client';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
@@ -22,6 +23,22 @@ export class ProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
   async getCompany(user?: Express.AuthenticatedUser) {
+    if (isSuperAdmin(user) && !user?.tenantId) {
+      return {
+        ok: true,
+        mode: SystemMode.padrao,
+        isSuperAdmin: true,
+        company: {
+          nomeCompleto: user?.fullName ?? user?.name ?? 'Super Admin',
+          empresa: 'NextStock',
+          cnpj: null,
+          email: user?.email ?? null,
+          contato: null,
+        },
+        currentPlan: null,
+      };
+    }
+
     if (!user?.tenantId) {
       return {
         ok: true,
@@ -117,6 +134,16 @@ export class ProfileService {
   }
 
   async getMode(user?: Express.AuthenticatedUser) {
+    if (isSuperAdmin(user)) {
+      return {
+        ok: true,
+        mode: SystemMode.padrao,
+        systemType: SystemType.petshop,
+        isSuperAdmin: true,
+        allowedSystemTypes: [SystemType.padrao, SystemType.petshop],
+      };
+    }
+
     if (!user?.tenantId) {
       return {
         ok: true,
@@ -151,6 +178,16 @@ export class ProfileService {
   }
 
   private async requireWritableTenant(user?: Express.AuthenticatedUser) {
+    if (isSuperAdmin(user)) {
+      const tenantId = user?.tenantId ?? user?.primaryTenantId;
+
+      if (!tenantId) {
+        throw new ForbiddenException('tenantId is required for superAdmin writes.');
+      }
+
+      return this.findTenant(tenantId);
+    }
+
     if (!user?.tenantId) {
       throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
     }

@@ -4,6 +4,8 @@ import { TenantType } from '../enums/tenant-type.enum';
 export interface SystemContext {
   systemMode: SystemMode;
   tenantType: TenantType;
+  isSuperAdmin?: boolean;
+  allowedSystemTypes?: string[];
 }
 
 export interface TenantSystemSettings {

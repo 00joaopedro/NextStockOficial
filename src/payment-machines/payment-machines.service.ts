@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { MachineStatus, PaymentProvider, Prisma, SystemMode } from '@prisma/client';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePaymentMachineDto } from './dto/create-payment-machine.dto';
 import { UpdatePaymentMachineDto } from './dto/update-payment-machine.dto';
@@ -49,6 +50,19 @@ export class PaymentMachinesService {
   async list(user?: Express.AuthenticatedUser) {
     const tenant = await this.getTenantOrDemo(user);
 
+    if (isSuperAdmin(user) && !tenant) {
+      const machines = await this.prisma.paymentMachine.findMany({
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        ok: true,
+        mode: SystemMode.padrao,
+        isSuperAdmin: true,
+        machines: machines.map(this.formatMachine),
+      };
+    }
+
     if (!tenant) {
       return { ok: true, mode: SystemMode.visualizacao, machines: DEMO_MACHINES };
     }
@@ -66,7 +80,7 @@ export class PaymentMachinesService {
   }
 
   async create(user: Express.AuthenticatedUser | undefined, dto: CreatePaymentMachineDto) {
-    const tenant = await this.requireWritableTenant(user);
+    const tenant = await this.requireWritableTenant(user, dto.tenantId);
 
     const machine = await this.prisma.paymentMachine.create({
       data: {
@@ -90,7 +104,7 @@ export class PaymentMachinesService {
     dto: UpdatePaymentMachineDto,
   ) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantMachine(tenant.id, id);
+    await this.assertTenantMachine(tenant.id, id, isSuperAdmin(user));
 
     const data: Prisma.PaymentMachineUpdateInput = {};
 
@@ -116,7 +130,7 @@ export class PaymentMachinesService {
 
   async remove(user: Express.AuthenticatedUser | undefined, id: string) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantMachine(tenant.id, id);
+    await this.assertTenantMachine(tenant.id, id, isSuperAdmin(user));
 
     await this.prisma.paymentMachine.delete({ where: { id } });
 
@@ -124,6 +138,10 @@ export class PaymentMachinesService {
   }
 
   private async getTenantOrDemo(user?: Express.AuthenticatedUser) {
+    if (isSuperAdmin(user) && !user?.tenantId) {
+      return null;
+    }
+
     if (!user?.tenantId) {
       return null;
     }
@@ -134,7 +152,29 @@ export class PaymentMachinesService {
     });
   }
 
-  private async requireWritableTenant(user?: Express.AuthenticatedUser) {
+  private async requireWritableTenant(
+    user?: Express.AuthenticatedUser,
+    requestedTenantId?: string | null,
+  ) {
+    if (isSuperAdmin(user)) {
+      const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
+
+      if (!tenantId) {
+        throw new ForbiddenException('tenantId is required for superAdmin writes.');
+      }
+
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, mode: true },
+      });
+
+      if (!tenant) {
+        throw new UnauthorizedException('Tenant not found.');
+      }
+
+      return tenant;
+    }
+
     if (!user?.tenantId) {
       throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
     }
@@ -152,9 +192,9 @@ export class PaymentMachinesService {
     return tenant;
   }
 
-  private async assertTenantMachine(tenantId: string, id: string) {
+  private async assertTenantMachine(tenantId: string, id: string, bypassTenant = false) {
     const machine = await this.prisma.paymentMachine.findFirst({
-      where: { id, tenantId },
+      where: bypassTenant ? { id } : { id, tenantId },
       select: { id: true },
     });
 

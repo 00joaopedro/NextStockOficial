@@ -4,4 +4,6 @@ import { TenantType } from '../enums/tenant-type.enum';
 export class SystemContextResponseDto {
   systemMode!: SystemMode;
   tenantType!: TenantType;
+  isSuperAdmin?: boolean;
+  allowedSystemTypes?: string[];
 }

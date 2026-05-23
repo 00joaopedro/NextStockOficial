@@ -2,6 +2,7 @@ import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from '@prisma/client';
 import { ROLES_KEY } from './roles.decorator';
+import { isSuperAdmin } from './super-admin.util';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -18,15 +19,13 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user as
-      | { role?: Role; roles?: Role[] }
-      | undefined;
+    const user = request.user as Express.AuthenticatedUser | undefined;
 
-    const roles = user?.roles ?? (user?.role ? [user.role] : []);
-    if (roles.includes(Role.superAdmin)) {
+    if (isSuperAdmin(user)) {
       return true;
     }
 
+    const roles = user?.roles ?? (user?.role ? [user.role] : []);
     return requiredRoles.some((role) => roles.includes(role));
   }
 }

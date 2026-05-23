@@ -37,20 +37,27 @@ export class AgendaPetController {
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
     @Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit = 12,
   ) {
-    const tenantId = req.user?.tenantId ?? undefined;
-    return this.service.findAll({ page, limit, atendente, dateFilterType, dateValue, tenantId });
+    return this.service.findAll({
+      page,
+      limit,
+      atendente,
+      dateFilterType,
+      dateValue,
+      tenantId: req.user?.tenantId ?? undefined,
+      user: req.user,
+    });
   }
 
   @Get(':id')
   findOne(@Req() req: Request, @Param('id') id: string) {
-    return this.service.findOne(id, req.user?.tenantId);
+    return this.service.findOne(id, req.user);
   }
 
   @Post()
   @Roles(Role.Admin, Role.Vendedor)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }))
   create(@Req() req: Request, @Body() createDto: CreateAgendaPetDto) {
-    return this.service.create(createDto, req.user?.tenantId);
+    return this.service.create(createDto, req.user);
   }
 
   @Patch(':id')
@@ -61,12 +68,12 @@ export class AgendaPetController {
     @Param('id') id: string,
     @Body() updateDto: UpdateAgendaPetDto,
   ) {
-    return this.service.update(id, updateDto, req.user?.tenantId);
+    return this.service.update(id, updateDto, req.user);
   }
 
   @Delete(':id')
   @Roles(Role.Admin)
   remove(@Req() req: Request, @Param('id') id: string) {
-    return this.service.remove(id, req.user?.tenantId);
+    return this.service.remove(id, req.user);
   }
 }

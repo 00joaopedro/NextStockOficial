@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { isSuperAdmin } from '../../auth/super-admin.util';
 import { SystemService } from '../system.service';
 
 const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -18,6 +19,10 @@ export class PreviewMutationGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     const method = request.method.toUpperCase();
     const path = request.path ?? request.url;
+
+    if (isSuperAdmin(request.user)) {
+      return true;
+    }
 
     if (
       path.startsWith(API_ROUTE_PREFIX) &&

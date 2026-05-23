@@ -1,4 +1,3 @@
-"use strict";
 const SYSTEM_CONTEXT_ENDPOINT = "/api/system/context";
 const FALLBACK_CONTEXT = {
     systemMode: "PREVIEW",
@@ -28,6 +27,17 @@ const SIDEBAR_ITEMS = [
     { label: "NTF-e", href: "ntfe.html", key: "ntfe", module: "core" },
     { label: "Suporte", href: "#", key: "suporte", module: "core" },
 ];
+function isSuperAdminUser(user) {
+    const candidate = user;
+    return (candidate?.role === "superAdmin" ||
+        candidate?.roles?.includes("superAdmin") === true ||
+        candidate?.isSuperAdmin === true ||
+        candidate?.is_super_admin === true);
+}
+window.NextStockAccess = {
+    isSuperAdminUser,
+    canAccessEverything: isSuperAdminUser,
+};
 function injectSidebarStyles() {
     if (document.getElementById("nextstock-sidebar-runtime-styles")) {
         return;
@@ -104,6 +114,11 @@ function normalizeContext(value) {
         tenantType: isTenantType(candidate?.tenantType)
             ? candidate.tenantType
             : FALLBACK_CONTEXT.tenantType,
+        isSuperAdmin: isSuperAdminUser(candidate),
+        is_super_admin: isSuperAdminUser(candidate),
+        allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
+            ? candidate.allowedSystemTypes
+            : [],
     };
 }
 function getCurrentPageFileName() {
@@ -119,6 +134,12 @@ function getActiveKey(menu) {
 function getMenuByTenantType(tenantType) {
     const enabledModules = new Set(TENANT_MODULES[tenantType]);
     return SIDEBAR_ITEMS.filter((item) => enabledModules.has(item.module));
+}
+function getMenuByContext(context) {
+    if (isSuperAdminUser(context)) {
+        return SIDEBAR_ITEMS;
+    }
+    return getMenuByTenantType(context.tenantType);
 }
 function escapeHtml(value) {
     return value
@@ -181,7 +202,7 @@ async function fetchSystemContext() {
 }
 function renderSidebar(container, context) {
     injectSidebarStyles();
-    const menu = getMenuByTenantType(context.tenantType);
+    const menu = getMenuByContext(context);
     container.innerHTML = buildSidebarHtml(menu, context);
     document.documentElement.dataset.systemMode = context.systemMode;
     document.documentElement.dataset.tenantType = context.tenantType;
@@ -205,3 +226,4 @@ if (document.readyState === "loading") {
 else {
     void loadSidebar();
 }
+export {};

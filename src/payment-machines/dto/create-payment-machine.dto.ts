@@ -11,6 +11,10 @@ import {
 import { MachineStatus, PaymentProvider } from '@prisma/client';
 
 export class CreatePaymentMachineDto {
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+
   @IsString()
   @MaxLength(120)
   name!: string;

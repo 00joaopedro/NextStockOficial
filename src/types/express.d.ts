@@ -30,6 +30,7 @@ declare global {
       systemType: string | null;
       allowedSystemTypes?: string[];
       isSuperAdmin?: boolean;
+      is_super_admin?: boolean;
       mode?: string | null;
     }
 

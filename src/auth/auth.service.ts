@@ -16,6 +16,7 @@ import {
   slugify,
   toTenantSummary,
 } from '../tenancy/tenant.utils';
+import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
 
 type RegisterInput = {
   email?: string;
@@ -407,23 +408,22 @@ export class AuthService {
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
     branchSlug?: string,
   ) {
-    const isSuperAdmin =
-      profile.isSuperAdmin || profile.role === Role.superAdmin;
+    const hasFullAccess = isSuperAdmin(profile);
     const membership = profile.memberships[0];
 
-    if (!membership && !isSuperAdmin) {
+    if (!membership && !hasFullAccess) {
       throw new UnauthorizedException('User is not linked to this branch.');
     }
 
-    if (branchSlug && !membership && !isSuperAdmin) {
+    if (branchSlug && !membership && !hasFullAccess) {
       throw new UnauthorizedException('User is not linked to this branch.');
     }
 
     return this.formatAuthUser({
       ...profile,
-      role: isSuperAdmin ? Role.superAdmin : membership!.role,
-      tenant: isSuperAdmin ? null : membership!.tenant,
-      branch: isSuperAdmin ? null : membership!.branch,
+      role: hasFullAccess ? Role.superAdmin : membership!.role,
+      tenant: hasFullAccess ? null : membership!.tenant,
+      branch: hasFullAccess ? null : membership!.branch,
     });
   }
 
@@ -453,11 +453,10 @@ export class AuthService {
     } | null;
     createdAt?: Date;
   }) {
-    const isSuperAdmin =
-      Boolean(profile.isSuperAdmin) || profile.role === Role.superAdmin;
+    const hasFullAccess = isSuperAdmin(profile);
     const tenantSystemType = profile.tenant?.systemType;
-    const allowedSystemTypes = isSuperAdmin
-      ? [SystemType.padrao, SystemType.petshop]
+    const allowedSystemTypes = hasFullAccess
+      ? SUPER_ADMIN_SYSTEM_TYPES
       : profile.allowedSystemTypes?.length
         ? profile.allowedSystemTypes
         : [profile.systemType ?? tenantSystemType ?? SystemType.padrao];
@@ -469,13 +468,14 @@ export class AuthService {
       email: profile.email,
       name: profile.name,
       fullName: profile.fullName ?? profile.name,
-      role: profile.role,
-      roles: [profile.role],
+      role: hasFullAccess ? Role.superAdmin : profile.role,
+      roles: [hasFullAccess ? Role.superAdmin : profile.role],
       systemType,
       allowedSystemTypes,
-      isSuperAdmin,
-      tenantId: isSuperAdmin ? null : profile.tenant?.id ?? profile.tenantId ?? null,
-      primaryTenantId: isSuperAdmin ? null : profile.primaryTenantId ?? null,
+      isSuperAdmin: hasFullAccess,
+      is_super_admin: hasFullAccess,
+      tenantId: hasFullAccess ? profile.tenantId ?? null : profile.tenant?.id ?? profile.tenantId ?? null,
+      primaryTenantId: profile.primaryTenantId ?? null,
       tenant: toTenantSummary(profile.tenant),
       branchId: profile.branch?.id ?? null,
       branch: profile.branch,

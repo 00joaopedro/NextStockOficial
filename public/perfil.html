@@ -646,6 +646,7 @@
     let selectedMachineId = null;
     let machines = [];
     let currentMode = 'visualizacao';
+    let currentUserIsSuperAdmin = false;
 
     const planImages = {
       ouro: 'img/trofeu-ouro.png',
@@ -699,7 +700,15 @@
       return data;
     }
 
+    function isSuperAdminUser(user) {
+      return user?.role === 'superAdmin' ||
+        user?.roles?.includes?.('superAdmin') === true ||
+        user?.isSuperAdmin === true ||
+        user?.is_super_admin === true;
+    }
+
     function blockPreview() {
+      if (currentUserIsSuperAdmin) return false;
       if (currentMode !== 'visualizacao') return false;
       showMessage('Modo visualização: alteração bloqueada.', true);
       return true;
@@ -739,11 +748,13 @@
 
     async function loadMode() {
       const data = await apiRequest('/profile/mode');
+      currentUserIsSuperAdmin = isSuperAdminUser(data) || currentUserIsSuperAdmin;
       currentMode = data.mode || 'visualizacao';
     }
 
     async function loadCompany() {
       const data = await apiRequest('/profile/company');
+      currentUserIsSuperAdmin = isSuperAdminUser(data) || currentUserIsSuperAdmin;
       const company = data.company || {};
       currentMode = data.mode || currentMode;
       document.getElementById('nomeCompleto').value = company.nomeCompleto || '';
@@ -809,6 +820,7 @@
 
     async function loadMachines() {
       const data = await apiRequest('/payment-machines');
+      currentUserIsSuperAdmin = isSuperAdminUser(data) || currentUserIsSuperAdmin;
       currentMode = data.mode || currentMode;
       machines = data.machines || [];
       renderMachines();

@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
 import { generateUniqueTenantSlug } from '../tenancy/tenant.utils';
 
@@ -22,6 +23,20 @@ export class TenantsService {
   async list(currentUser?: Express.AuthenticatedUser) {
     const user = this.tenantAccess.requireUser(currentUser);
 
+    if (isSuperAdmin(user)) {
+      const tenants = await this.prisma.tenant.findMany({
+        select: { id: true },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        ok: true,
+        tenants: await Promise.all(
+          tenants.map((tenant) => this.formatTenantWithMemberCount(tenant.id)),
+        ),
+      };
+    }
+
     return {
       ok: true,
       tenants: [await this.formatTenantWithMemberCount(user.tenantId)],
@@ -30,6 +45,14 @@ export class TenantsService {
 
   async getCurrent(currentUser?: Express.AuthenticatedUser) {
     const user = this.tenantAccess.requireUser(currentUser);
+
+    if (isSuperAdmin(user) && !user.tenantId && !user.primaryTenantId) {
+      return {
+        ok: true,
+        tenant: null,
+        isSuperAdmin: true,
+      };
+    }
 
     return {
       ok: true,

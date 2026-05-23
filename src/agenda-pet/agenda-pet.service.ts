@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
@@ -64,6 +65,7 @@ export class AgendaPetService {
     dateFilterType?: DateFilterType;
     dateValue?: string;
     tenantId?: string;
+    user?: Express.AuthenticatedUser;
   }) {
     const page = options.page && options.page > 0 ? options.page : 1;
     const limit = options.limit && options.limit > 0 ? options.limit : 12;
@@ -71,6 +73,7 @@ export class AgendaPetService {
 
     const where: any = {};
     if (options.tenantId) where.tenantId = options.tenantId;
+    if (isSuperAdmin(options.user) && !options.tenantId) delete where.tenantId;
     if (options.atendente) where.atendente = { contains: options.atendente, mode: 'insensitive' };
     if (options.dateFilterType && options.dateValue) {
       where.data = getRange(options.dateValue, options.dateFilterType);
@@ -92,9 +95,11 @@ export class AgendaPetService {
     };
   }
 
-  async findOne(id: string, tenantId?: string | null) {
+  async findOne(id: string, user?: Express.AuthenticatedUser) {
     const agenda = await this.prisma.agendaPet.findFirst({
-      where: { id, tenantId: this.requireTenantId(tenantId) },
+      where: isSuperAdmin(user)
+        ? { id }
+        : { id, tenantId: this.requireTenantId(user?.tenantId) },
     });
 
     if (!agenda) {
@@ -104,18 +109,18 @@ export class AgendaPetService {
     return agenda;
   }
 
-  create(dto: CreateAgendaPetDto, tenantId?: string | null) {
+  create(dto: CreateAgendaPetDto, user?: Express.AuthenticatedUser) {
     const payload = {
       ...dto,
       data: new Date(dto.data),
       preco: dto.preco,
-      tenantId: this.requireTenantId(tenantId),
+      tenantId: this.resolveWritableTenantId(user, dto.tenantId),
     } as any;
     return this.prisma.agendaPet.create({ data: payload });
   }
 
-  async update(id: string, dto: UpdateAgendaPetDto, tenantId?: string | null) {
-    await this.assertTenantOwnership(id, tenantId);
+  async update(id: string, dto: UpdateAgendaPetDto, user?: Express.AuthenticatedUser) {
+    await this.assertTenantOwnership(id, user);
 
     const data: any = { ...dto };
     delete data.tenantId;
@@ -123,8 +128,8 @@ export class AgendaPetService {
     return this.prisma.agendaPet.update({ where: { id }, data });
   }
 
-  async remove(id: string, tenantId?: string | null) {
-    await this.assertTenantOwnership(id, tenantId);
+  async remove(id: string, user?: Express.AuthenticatedUser) {
+    await this.assertTenantOwnership(id, user);
 
     return this.prisma.agendaPet.delete({ where: { id } });
   }
@@ -139,7 +144,23 @@ export class AgendaPetService {
     return tenantId;
   }
 
-  private async assertTenantOwnership(id: string, tenantId?: string | null) {
+  private resolveWritableTenantId(user?: Express.AuthenticatedUser, requestedTenantId?: string | null) {
+    if (isSuperAdmin(user)) {
+      const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
+
+      if (!tenantId) {
+        throw new UnauthorizedException(
+          'tenantId is required for superAdmin writes.',
+        );
+      }
+
+      return tenantId;
+    }
+
+    return this.requireTenantId(user?.tenantId);
+  }
+
+  private async assertTenantOwnership(id: string, user?: Express.AuthenticatedUser) {
     const agenda = await this.prisma.agendaPet.findUnique({
       where: { id },
       select: { tenantId: true },
@@ -149,7 +170,11 @@ export class AgendaPetService {
       throw new NotFoundException('Agenda pet not found.');
     }
 
-    if (agenda.tenantId !== this.requireTenantId(tenantId)) {
+    if (isSuperAdmin(user)) {
+      return;
+    }
+
+    if (agenda.tenantId !== this.requireTenantId(user?.tenantId)) {
       throw new ForbiddenException(
         'You can only access data from your own tenant.',
       );

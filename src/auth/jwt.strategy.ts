@@ -5,6 +5,7 @@ import * as jwksRsa from 'jwks-rsa';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
+import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
 
 function cookieExtractor(req: Request): string | null {
   return req?.cookies?.jwt ?? null;
@@ -102,16 +103,15 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User profile not found.');
     }
 
-    const isSuperAdmin =
-      profile.isSuperAdmin || profile.role === 'superAdmin';
+    const hasFullAccess = isSuperAdmin(profile);
     const membership = profile.memberships[0];
 
-    if (!membership && !isSuperAdmin) {
+    if (!membership && !hasFullAccess) {
       throw new UnauthorizedException('User is not linked to a tenant.');
     }
 
-    const allowedSystemTypes = isSuperAdmin
-      ? ['padrao', 'petshop']
+    const allowedSystemTypes = hasFullAccess
+      ? SUPER_ADMIN_SYSTEM_TYPES
       : profile.allowedSystemTypes.length > 0
         ? profile.allowedSystemTypes
         : [
@@ -127,17 +127,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       email: profile.email,
       name: profile.name,
       fullName: profile.fullName ?? profile.name,
-      role: isSuperAdmin ? profile.role : membership!.role,
-      roles: [isSuperAdmin ? profile.role : membership!.role],
-      tenantId: isSuperAdmin ? null : membership!.tenant.id,
-      primaryTenantId: isSuperAdmin ? null : profile.primaryTenantId,
-      tenant: isSuperAdmin ? null : toTenantSummary(membership!.tenant),
-      branchId: isSuperAdmin ? null : membership!.branch?.id ?? null,
-      branch: isSuperAdmin ? null : membership!.branch,
+      role: hasFullAccess ? 'superAdmin' : membership!.role,
+      roles: [hasFullAccess ? 'superAdmin' : membership!.role],
+      tenantId: hasFullAccess
+        ? profile.tenantId
+        : membership!.tenant.id,
+      primaryTenantId: profile.primaryTenantId,
+      tenant: hasFullAccess ? null : toTenantSummary(membership!.tenant),
+      branchId: hasFullAccess ? null : membership!.branch?.id ?? null,
+      branch: hasFullAccess ? null : membership!.branch,
       systemType,
       allowedSystemTypes,
-      isSuperAdmin,
-      mode: isSuperAdmin ? null : membership!.tenant.mode,
+      isSuperAdmin: hasFullAccess,
+      is_super_admin: hasFullAccess,
+      mode: hasFullAccess ? null : membership!.tenant.mode,
     };
   }
 }

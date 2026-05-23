@@ -664,6 +664,7 @@
     let produtoEmEdicaoId = null;
     let produtosConsulta = [];
     let modoSistema = "visualizacao";
+    let usuarioSuperAdmin = false;
     const mensagemModoVisualizacao = "Modo visualiza\u00e7\u00e3o: altera\u00e7\u00e3o bloqueada.";
 
     /*
@@ -850,12 +851,20 @@
       });
 
       const data = await response.json().catch(() => ({}));
+      usuarioSuperAdmin = isSuperAdminUser(data) || usuarioSuperAdmin;
 
       if (!response.ok) {
         throw new Error(data.message || "Nao foi possivel concluir a operacao.");
       }
 
       return data;
+    }
+
+    function isSuperAdminUser(user) {
+      return user?.role === "superAdmin" ||
+        user?.roles?.includes?.("superAdmin") === true ||
+        user?.isSuperAdmin === true ||
+        user?.is_super_admin === true;
     }
 
     async function buscarProdutos(termo = "") {
@@ -871,6 +880,7 @@
     }
 
     function alteracaoBloqueadaEmVisualizacao() {
+      if (usuarioSuperAdmin) return false;
       if (modoSistema !== "visualizacao") return false;
       alert(mensagemModoVisualizacao);
       return true;

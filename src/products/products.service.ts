@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, Product, ProductImage, SystemMode } from '@prisma/client';
+import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
@@ -68,6 +69,20 @@ export class ProductsService {
   async findAll(user: Express.AuthenticatedUser | undefined, query: ProductQueryDto) {
     const tenant = await this.getReadableTenant(user);
 
+    if (isSuperAdmin(user) && !tenant) {
+      const products = await this.prisma.product.findMany({
+        include: { images: { orderBy: { createdAt: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return {
+        ok: true,
+        mode: SystemMode.padrao,
+        isSuperAdmin: true,
+        products: products.map((product) => this.formatProduct(product)),
+      };
+    }
+
     if (!tenant || tenant.mode === SystemMode.visualizacao) {
       return {
         ok: true,
@@ -112,6 +127,19 @@ export class ProductsService {
   async findOne(user: Express.AuthenticatedUser | undefined, id: string) {
     const tenant = await this.getReadableTenant(user);
 
+    if (isSuperAdmin(user) && !tenant) {
+      const product = await this.prisma.product.findUnique({
+        where: { id },
+        include: { images: { orderBy: { createdAt: 'asc' } } },
+      });
+
+      if (!product) {
+        throw new NotFoundException('Product not found.');
+      }
+
+      return { ok: true, mode: SystemMode.padrao, isSuperAdmin: true, product: this.formatProduct(product) };
+    }
+
     if (!tenant || tenant.mode === SystemMode.visualizacao) {
       const product = DEMO_PRODUCTS.find((item) => item.id === id);
 
@@ -135,7 +163,7 @@ export class ProductsService {
   }
 
   async create(user: Express.AuthenticatedUser | undefined, dto: CreateProductDto) {
-    const tenant = await this.requireWritableTenant(user);
+    const tenant = await this.requireWritableTenant(user, dto.tenantId);
 
     try {
       const product = await this.prisma.product.create({
@@ -158,7 +186,7 @@ export class ProductsService {
     dto: UpdateProductDto,
   ) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, id, isSuperAdmin(user));
 
     try {
       const product = await this.prisma.product.update({
@@ -175,7 +203,7 @@ export class ProductsService {
 
   async remove(user: Express.AuthenticatedUser | undefined, id: string) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, id, isSuperAdmin(user));
 
     await this.prisma.product.delete({ where: { id } });
 
@@ -188,7 +216,7 @@ export class ProductsService {
     dto: CreateProductImagesDto,
   ) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, id, isSuperAdmin(user));
 
     const existingCount = await this.prisma.productImage.count({
       where: { productId: id },
@@ -208,7 +236,7 @@ export class ProductsService {
     });
 
     const product = await this.prisma.product.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: isSuperAdmin(user) ? { id } : { id, tenantId: tenant.id },
       include: { images: { orderBy: { createdAt: 'asc' } } },
     });
 
@@ -221,7 +249,7 @@ export class ProductsService {
     imageId: string,
   ) {
     const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, id, isSuperAdmin(user));
 
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId: id },
@@ -238,6 +266,10 @@ export class ProductsService {
   }
 
   private async getReadableTenant(user?: Express.AuthenticatedUser) {
+    if (isSuperAdmin(user) && !user?.tenantId) {
+      return null;
+    }
+
     if (!user?.tenantId) {
       return null;
     }
@@ -248,7 +280,29 @@ export class ProductsService {
     });
   }
 
-  private async requireWritableTenant(user?: Express.AuthenticatedUser) {
+  private async requireWritableTenant(
+    user?: Express.AuthenticatedUser,
+    requestedTenantId?: string | null,
+  ) {
+    if (isSuperAdmin(user)) {
+      const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
+
+      if (!tenantId) {
+        throw new BadRequestException('tenantId is required for superAdmin writes.');
+      }
+
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { id: true, mode: true },
+      });
+
+      if (!tenant) {
+        throw new UnauthorizedException('Tenant not found.');
+      }
+
+      return tenant;
+    }
+
     if (!user?.tenantId) {
       throw new ForbiddenException(PREVIEW_BLOCKED_MESSAGE);
     }
@@ -266,9 +320,9 @@ export class ProductsService {
     return tenant;
   }
 
-  private async assertTenantProduct(tenantId: string, id: string) {
+  private async assertTenantProduct(tenantId: string, id: string, bypassTenant = false) {
     const product = await this.prisma.product.findFirst({
-      where: { id, tenantId },
+      where: bypassTenant ? { id } : { id, tenantId },
       select: { id: true },
     });
 
