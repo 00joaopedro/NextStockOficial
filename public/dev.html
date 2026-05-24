@@ -4,12 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>NextStock - Desenvolvedor</title>
+
   <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       min-height: 100vh;
@@ -31,10 +28,7 @@
       overflow-y: auto;
     }
 
-    .sidebar h1 {
-      font-size: 20px;
-      margin-bottom: 6px;
-    }
+    .sidebar h1 { font-size: 20px; margin-bottom: 6px; }
 
     .sidebar p {
       color: #b9d3e8;
@@ -65,9 +59,7 @@
       color: #071b31;
     }
 
-    .content {
-      padding: 28px;
-    }
+    .content { padding: 28px; }
 
     .toolbar {
       display: flex;
@@ -78,17 +70,28 @@
       margin-bottom: 20px;
     }
 
-    .toolbar h2 {
-      font-size: 24px;
-    }
+    .toolbar h2 { font-size: 24px; }
 
     .actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
+      align-items: center;
     }
 
-    .actions a,
-    .actions button {
+    .actions select,
+    .filters input,
+    .filters select {
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #c8d6e5;
+      background: #fff;
+      color: #102033;
+      font-weight: 700;
+    }
+
+    .actions button,
+    .actions a {
       padding: 10px 14px;
       border: 0;
       border-radius: 8px;
@@ -99,6 +102,43 @@
       text-decoration: none;
     }
 
+    .actions button:hover { filter: brightness(1.08); }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric-card {
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      border-radius: 8px;
+      padding: 14px;
+      min-height: 104px;
+      box-shadow: 0 8px 20px rgba(16, 32, 51, 0.05);
+    }
+
+    .metric-card strong {
+      display: block;
+      color: #1a456f;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+
+    .metric-card span {
+      display: block;
+      font-size: 22px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .metric-card small {
+      color: #637083;
+      line-height: 1.35;
+    }
+
     .status {
       margin-bottom: 18px;
       padding: 14px;
@@ -106,6 +146,67 @@
       background: #fff;
       border: 1px solid #dbe5ef;
       color: #334;
+    }
+
+    .filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 18px;
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      padding: 14px;
+      border-radius: 8px;
+    }
+
+    .filters input {
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .usage-box {
+      background: #fff;
+      border: 1px solid #dbe5ef;
+      border-radius: 8px;
+      margin-bottom: 22px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(16, 32, 51, 0.05);
+    }
+
+    .usage-box h3 {
+      padding: 16px;
+      border-bottom: 1px solid #dbe5ef;
+      font-size: 18px;
+    }
+
+    .table-wrap {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #e8eef5;
+      text-align: left;
+      font-size: 14px;
+    }
+
+    th {
+      background: #f7fbff;
+      color: #1a456f;
+      font-weight: 800;
+    }
+
+    .empty {
+      padding: 18px;
+      color: #637083;
+      font-weight: 700;
     }
 
     .grid {
@@ -136,16 +237,13 @@
     }
 
     @media (max-width: 760px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .sidebar {
-        position: static;
-      }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .content { padding: 18px; }
     }
   </style>
 </head>
+
 <body>
   <div class="layout">
     <aside class="sidebar">
@@ -157,35 +255,159 @@
     <main class="content">
       <div class="toolbar">
         <h2>Modo Desenvolvedor</h2>
+
         <div class="actions">
-          <a href="produtos.html">Abrir sistema</a>
+          <select id="systemTypeSelect">
+            <option value="padrao">Sistema padr&atilde;o</option>
+            <option value="petshop">Sistema Pet Shop</option>
+          </select>
+
+          <button id="openSystemBtn" type="button">Abrir sistema</button>
+          <button id="refreshBtn" type="button">Atualizar dados</button>
           <button id="logoutBtn" type="button">Logout</button>
         </div>
       </div>
 
-      <div class="status" id="statusBox">Carregando páginas disponíveis...</div>
+      <section class="cards" aria-label="Resumo do modo desenvolvedor">
+        <article class="metric-card">
+          <strong>Status Railway</strong>
+          <span id="railwayStatus">Indisponivel</span>
+          <small id="railwayMessage">Aguardando backend.</small>
+        </article>
+
+        <article class="metric-card">
+          <strong>CPU/RAM/uso do servi&ccedil;o</strong>
+          <span id="railwayUsage">Indisponivel</span>
+          <small id="railwayDeployments">Deployments: 0</small>
+        </article>
+
+        <article class="metric-card">
+          <strong>Status Supabase</strong>
+          <span id="supabaseStatus">Indisponivel</span>
+          <small id="supabaseMessage">Aguardando backend.</small>
+        </article>
+
+        <article class="metric-card">
+          <strong>Uso/conex&otilde;es/tamanho do database</strong>
+          <span id="databaseUsage">Indisponivel</span>
+          <small id="databaseConnections">Conex&otilde;es: Indisponivel</small>
+        </article>
+
+        <article class="metric-card">
+          <strong>Usu&aacute;rios ativos no per&iacute;odo</strong>
+          <span id="activeUsers">0</span>
+          <small id="totalAccesses">Acessos: 0</small>
+        </article>
+
+        <article class="metric-card">
+          <strong>&Uacute;ltima atualiza&ccedil;&atilde;o</strong>
+          <span id="updatedAt">-</span>
+          <small id="selectedPeriodLabel">Hoje at&eacute; agora</small>
+        </article>
+      </section>
+
+      <div class="filters">
+        <input
+          id="userSearchInput"
+          type="search"
+          placeholder="Pesquisar user pelo nome..."
+          autocomplete="off"
+        />
+
+        <select id="periodFilter">
+          <option value="today">Hoje at&eacute; agora</option>
+          <option value="weekly">Semanal</option>
+          <option value="monthly">Mensal</option>
+        </select>
+      </div>
+
+      <div class="status" id="statusBox">Carregando dados do backend...</div>
+
+      <section class="usage-box">
+        <h3>Uso dos usu&aacute;rios</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Tipo do sistema</th>
+                <th>Filial</th>
+                <th>Acessos</th>
+                <th>&Uacute;ltimo acesso</th>
+                <th>Uso servidor</th>
+                <th>Uso database</th>
+                <th>Per&iacute;odo</th>
+              </tr>
+            </thead>
+
+            <tbody id="usersUsageList"></tbody>
+          </table>
+        </div>
+
+        <div class="empty" id="usersUsageEmpty">
+          Nenhum dado carregado. A lista ser&aacute; preenchida pelo backend/database.
+        </div>
+      </section>
+
       <section class="grid" id="pageGrid"></section>
     </main>
   </div>
 
   <script>
     const API = '/api';
+    const DEV_UNAUTHORIZED_MESSAGE = 'Sess\u00e3o n\u00e3o autorizada para acessar o modo desenvolvedor.';
+    const PUBLIC_PAGES = [
+      { label: 'Dashboard', file: 'dashboard.html', href: 'dashboard.html' },
+      { label: 'Produtos', file: 'produtos.html', href: 'produtos.html' },
+      { label: 'Pedidos', file: 'pedido.html', href: 'pedido.html' },
+      { label: 'Clientes Pet', file: 'clientePet.html', href: 'clientePet.html' },
+      { label: 'Agenda Pet', file: 'agendaPet.html', href: 'agendaPet.html' },
+      { label: 'Funcionarios', file: 'funcionario.html', href: 'funcionario.html' },
+      { label: 'Fornecedores', file: 'fornecedor.html', href: 'fornecedor.html' },
+      { label: 'Despesas', file: 'despesas.html', href: 'despesas.html' },
+      { label: 'Caixa', file: 'caixa.html', href: 'caixa.html' },
+      { label: 'Perfil', file: 'perfil.html', href: 'perfil.html' }
+    ];
 
-    function isSuperAdminUser(user) {
-      return user?.role === 'superAdmin' ||
-        user?.roles?.includes?.('superAdmin') === true ||
-        user?.isSuperAdmin === true ||
-        user?.is_super_admin === true;
-    }
+    const els = {
+      statusBox: document.getElementById('statusBox'),
+      sidebarPages: document.getElementById('sidebarPages'),
+      pageGrid: document.getElementById('pageGrid'),
+      logoutBtn: document.getElementById('logoutBtn'),
+      openSystemBtn: document.getElementById('openSystemBtn'),
+      refreshBtn: document.getElementById('refreshBtn'),
+      systemTypeSelect: document.getElementById('systemTypeSelect'),
+      userSearchInput: document.getElementById('userSearchInput'),
+      periodFilter: document.getElementById('periodFilter'),
+      usersUsageList: document.getElementById('usersUsageList'),
+      usersUsageEmpty: document.getElementById('usersUsageEmpty'),
+      railwayStatus: document.getElementById('railwayStatus'),
+      railwayMessage: document.getElementById('railwayMessage'),
+      railwayUsage: document.getElementById('railwayUsage'),
+      railwayDeployments: document.getElementById('railwayDeployments'),
+      supabaseStatus: document.getElementById('supabaseStatus'),
+      supabaseMessage: document.getElementById('supabaseMessage'),
+      databaseUsage: document.getElementById('databaseUsage'),
+      databaseConnections: document.getElementById('databaseConnections'),
+      activeUsers: document.getElementById('activeUsers'),
+      totalAccesses: document.getElementById('totalAccesses'),
+      updatedAt: document.getElementById('updatedAt'),
+      selectedPeriodLabel: document.getElementById('selectedPeriodLabel')
+    };
 
-    function setStatus(message, isError = false) {
-      const status = document.getElementById('statusBox');
-      status.textContent = message;
-      status.style.borderColor = isError ? '#c0392b' : '#dbe5ef';
+    let searchTimer = null;
+
+    function setStatus(message) {
+      els.statusBox.textContent = message;
+      els.statusBox.style.borderColor = '#dbe5ef';
+      els.statusBox.style.color = '#334';
+      els.statusBox.style.background = '#fff';
     }
 
     function escapeHtml(value) {
-      return String(value)
+      return String(value ?? '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -202,9 +424,14 @@
           ...(options.headers || {})
         }
       });
+
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          throw new Error(DEV_UNAUTHORIZED_MESSAGE);
+        }
+
         throw new Error(data.message || 'Requisicao recusada.');
       }
 
@@ -212,16 +439,15 @@
     }
 
     function renderPages(pages) {
-      const sidebar = document.getElementById('sidebarPages');
-      const grid = document.getElementById('pageGrid');
-
-      const visiblePages = pages.filter((page) => page.file !== 'dev.html');
-
-      sidebar.innerHTML = visiblePages.map((page) => `
-        <li><a href="${escapeHtml(page.href)}">${escapeHtml(page.label)}</a></li>
+      els.sidebarPages.innerHTML = pages.map((page) => `
+        <li>
+          <a href="${escapeHtml(page.href)}">
+            ${escapeHtml(page.label)}
+          </a>
+        </li>
       `).join('');
 
-      grid.innerHTML = visiblePages.map((page) => `
+      els.pageGrid.innerHTML = pages.map((page) => `
         <a class="page-card" href="${escapeHtml(page.href)}">
           ${escapeHtml(page.label)}
           <span>${escapeHtml(page.file)}</span>
@@ -229,31 +455,166 @@
       `).join('');
     }
 
+    function formatBytes(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return 'Indisponivel';
+      }
+
+      const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+      let size = Number(value);
+      let unitIndex = 0;
+
+      while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex += 1;
+      }
+
+      return `${size.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+    }
+
+    function formatDate(value) {
+      if (!value) {
+        return '-';
+      }
+
+      return new Date(value).toLocaleString('pt-BR');
+    }
+
+    function formatMetric(value) {
+      return value === null || value === undefined || value === '' ? 'Indisponivel' : String(value);
+    }
+
+    function getPeriodLabel(period) {
+      const labels = {
+        today: 'Hoje ate agora',
+        weekly: 'Semanal',
+        monthly: 'Mensal'
+      };
+
+      return labels[period] || 'Hoje ate agora';
+    }
+
+    function renderOverview(data) {
+      const railway = data.railway || {};
+      const supabase = data.supabase || {};
+      const summary = data.usersSummary || {};
+
+      els.railwayStatus.textContent = formatMetric(railway.status);
+      els.railwayMessage.textContent = railway.message || 'Sem mensagem.';
+      els.railwayUsage.textContent = `CPU ${formatMetric(railway.cpu)} / RAM ${formatMetric(railway.memory)}`;
+      els.railwayDeployments.textContent = `Rede: ${formatMetric(railway.network)} | Deployments: ${(railway.deployments || []).length}`;
+
+      els.supabaseStatus.textContent = formatMetric(supabase.status);
+      els.supabaseMessage.textContent = supabase.message || 'Sem mensagem.';
+      els.databaseUsage.textContent = formatBytes(supabase.databaseSize);
+      els.databaseConnections.textContent = `Conexoes: ${formatMetric(supabase.activeConnections)} | Storage: ${formatBytes(supabase.storageUsed)}`;
+
+      els.activeUsers.textContent = String(summary.activeUsers || 0);
+      els.totalAccesses.textContent = `Total usuarios: ${summary.totalUsers || 0} | Acessos: ${summary.totalAccesses || 0}`;
+      els.updatedAt.textContent = formatDate(data.updatedAt);
+      els.selectedPeriodLabel.textContent = getPeriodLabel(data.period || els.periodFilter.value);
+    }
+
+    function renderUsersUsage(users, periodLabel) {
+      if (!Array.isArray(users) || users.length === 0) {
+        els.usersUsageList.innerHTML = '';
+        els.usersUsageEmpty.style.display = 'block';
+        return;
+      }
+
+      els.usersUsageEmpty.style.display = 'none';
+
+      els.usersUsageList.innerHTML = users.map((user) => `
+        <tr>
+          <td>${escapeHtml(user.name || '-')}</td>
+          <td>${escapeHtml(user.email || '-')}</td>
+          <td>${escapeHtml(user.systemType || '-')}</td>
+          <td>${escapeHtml(user.branchName || '-')}</td>
+          <td>${escapeHtml(user.accessCount || 0)}</td>
+          <td>${escapeHtml(formatDate(user.lastAccessAt))}</td>
+          <td>${escapeHtml(formatMetric(user.serverUsage))}</td>
+          <td>${escapeHtml(formatMetric(user.databaseUsage))}</td>
+          <td>${escapeHtml(periodLabel)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function loadDevOverview() {
+      const period = els.periodFilter.value;
+      const params = new URLSearchParams({ period });
+      const data = await requestJson(`/dev/overview?${params.toString()}`);
+
+      renderOverview(data);
+      sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+      sessionStorage.setItem('nextstockSystemType', 'developer');
+      setStatus('SuperAdmin ativo. Dados reais carregados do backend.');
+    }
+
+    async function loadUsersUsage() {
+      const search = els.userSearchInput.value.trim();
+      const period = els.periodFilter.value;
+      const params = new URLSearchParams({ period, search });
+      const data = await requestJson(`/dev/users-usage?${params.toString()}`);
+
+      renderUsersUsage(data.users || [], getPeriodLabel(period));
+    }
+
     async function loadDevMode() {
+      renderPages(PUBLIC_PAGES);
+
       try {
-        const profile = await requestJson('/auth/profile');
-
-        if (!isSuperAdminUser(profile.user)) {
-          setStatus('Acesso restrito ao superAdmin.', true);
-          return;
-        }
-
-        sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
-        sessionStorage.setItem('nextstockSystemType', 'developer');
-
-        const data = await requestJson('/system/pages');
-        renderPages(data.pages || []);
-        setStatus(`SuperAdmin ativo. ${data.pages?.length || 0} paginas HTML disponiveis.`);
+        await Promise.all([loadDevOverview(), loadUsersUsage()]);
       } catch (error) {
-        setStatus(error.message, true);
+        renderUsersUsage([], getPeriodLabel(els.periodFilter.value));
+        setStatus(error.message);
       }
     }
 
-    document.getElementById('logoutBtn').addEventListener('click', async () => {
+    async function refreshDevData() {
+      try {
+        await Promise.all([loadDevOverview(), loadUsersUsage()]);
+      } catch (error) {
+        setStatus(error.message);
+      }
+    }
+
+    els.openSystemBtn.addEventListener('click', () => {
+      const selectedType = els.systemTypeSelect.value;
+
+      sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
+      sessionStorage.setItem('nextstockSystemType', selectedType);
+
+      const targetPage = selectedType === 'petshop'
+        ? 'produtos.html?systemType=petshop'
+        : 'produtos.html?systemType=padrao';
+
+      window.location.href = targetPage;
+    });
+
+    els.refreshBtn.addEventListener('click', () => {
+      void refreshDevData();
+    });
+
+    els.periodFilter.addEventListener('change', () => {
+      void refreshDevData();
+    });
+
+    els.userSearchInput.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+
+      searchTimer = setTimeout(() => {
+        void loadUsersUsage().catch((error) => setStatus(error.message));
+      }, 400);
+    });
+
+    els.logoutBtn.addEventListener('click', async () => {
       await requestJson('/auth/logout', { method: 'POST' }).catch(() => undefined);
+
       sessionStorage.removeItem('nextstockSelectedBranch');
       sessionStorage.removeItem('nextstockSystemType');
+      sessionStorage.removeItem('nextstockSelectedSystemType');
       sessionStorage.removeItem('nextstockIsSuperAdmin');
+
       window.location.href = 'index.html';
     });
 

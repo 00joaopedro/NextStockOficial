@@ -16,6 +16,7 @@ import { AgendaPetModule } from './agenda-pet/agenda-pet.module';
 import { ProfileModule } from './profile/profile.module';
 import { PaymentMachinesModule } from './payment-machines/payment-machines.module';
 import { ProductsModule } from './products/products.module';
+import { DevModule } from './dev/dev.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -38,6 +39,7 @@ const publicPath = join(__dirname, '..', 'public');
     ProfileModule,
     PaymentMachinesModule,
     ProductsModule,
+    DevModule,
   ],
   controllers: [AppController],
   providers: [AppService],
