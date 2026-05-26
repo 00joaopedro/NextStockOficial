@@ -1,4 +1,4 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsString, MaxLength } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -10,11 +10,15 @@ export class RegisterDto {
   name!: string;
 
   @IsString()
+  @MaxLength(120)
+  companyName!: string;
+
+  @IsString()
   @MaxLength(200)
   password!: string;
 
-  @IsOptional()
   @IsString()
+  @IsIn(['padrao', 'petshop'])
   @MaxLength(20)
-  systemType?: string;
+  systemType!: string;
 }

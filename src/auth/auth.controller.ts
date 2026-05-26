@@ -22,8 +22,15 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() body: RegisterDto) {
-    return this.authService.register(body);
+  async register(
+    @Body() body: RegisterDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { accessToken, payload } = await this.authService.register(body);
+
+    this.setJwtCookie(res, accessToken);
+
+    return payload;
   }
 
   @Post('login')
@@ -33,14 +40,7 @@ export class AuthController {
   ) {
     const { accessToken, payload } = await this.authService.login(body);
 
-    const isProd = process.env.NODE_ENV === 'production';
-
-    res.cookie('jwt', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      path: '/',
-    });
+    this.setJwtCookie(res, accessToken);
 
     return payload;
   }
@@ -60,5 +60,16 @@ export class AuthController {
   @Get('profile')
   profile(@Req() req: Request) {
     return this.authService.getProfile(req.user);
+  }
+
+  private setJwtCookie(res: Response, accessToken: string) {
+    const isProd = process.env.NODE_ENV === 'production';
+
+    res.cookie('jwt', accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      path: '/',
+    });
   }
 }

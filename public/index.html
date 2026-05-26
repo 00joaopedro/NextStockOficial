@@ -6,127 +6,108 @@
   <title>NextStock - Login / Cadastro</title>
 
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #0d1b2a, #00cfcf);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
       color: #333;
-      padding: 20px;
     }
 
     .container {
+      width: 100%;
+      max-width: 460px;
+      padding: 40px;
       text-align: center;
       background: linear-gradient(135deg, #1c7d35, #3bed6d);
-      padding: 40px;
       border-radius: 12px;
       box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-      max-width: 460px;
-      width: 100%;
     }
 
     h1 {
       margin-bottom: 30px;
+      color: #fff;
       font-size: 24px;
-      color: white;
     }
 
     .subtitle {
-      color: #f4f4f4;
       margin-bottom: 20px;
+      color: #f4f4f4;
       font-size: 14px;
     }
 
     .btn {
       display: block;
+      width: 100%;
       margin: 14px auto;
       padding: 15px;
-      width: 100%;
+      border: 0;
+      border-radius: 8px;
       background: #1a456f;
       color: #fff;
       font-size: 16px;
-      font-weight: bold;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
+      font-weight: 700;
       text-decoration: none;
+      cursor: pointer;
       transition: background 0.3s;
     }
 
-    .btn:hover {
-      background: #0bb5b5;
-    }
+    .btn:hover { background: #0bb5b5; }
 
     .btn.secondary {
-      background: #ffffff;
+      background: #fff;
       color: #1a456f;
     }
 
-    .btn.secondary:hover {
-      background: #e9f7f7;
-    }
+    .btn.secondary:hover { background: #e9f7f7; }
 
-    .btn.option {
-      background: #0d1b2a;
-    }
+    .btn.option { background: #0d1b2a; }
 
     .status-box {
+      min-height: 48px;
       margin-top: 20px;
-      background: rgba(255,255,255,0.18);
-      color: white;
       padding: 12px;
       border-radius: 8px;
+      background: rgba(255,255,255,0.18);
+      color: #fff;
       font-size: 14px;
       text-align: left;
       white-space: pre-wrap;
       word-break: break-word;
-      min-height: 48px;
     }
 
     .inline-panel {
       display: none;
       margin-top: 16px;
       padding: 18px;
-      background: rgba(255,255,255,0.95);
       border-radius: 12px;
+      background: rgba(255,255,255,0.95);
       text-align: left;
-      animation: slideDown 0.3s ease;
     }
 
-    .inline-panel.active {
-      display: block;
-    }
+    .inline-panel.active { display: block; }
 
     .inline-panel h2 {
+      margin-bottom: 14px;
       color: #0d1b2a;
       font-size: 18px;
-      margin-bottom: 14px;
       text-align: center;
     }
 
-    .inline-panel p {
-      font-size: 14px;
-      line-height: 1.5;
+    .inline-panel p,
+    .inline-panel ul {
       color: #455;
-      margin-bottom: 10px;
+      font-size: 14px;
       font-weight: 600;
+      line-height: 1.6;
     }
 
-    .inline-panel ul {
-      padding-left: 20px;
-      color: #455;
-      font-size: 14px;
-      line-height: 1.7;
-      font-weight: 600;
-    }
+    .inline-panel ul { padding-left: 20px; }
 
     .options-grid {
       display: grid;
@@ -138,34 +119,24 @@
     .popup {
       position: fixed;
       inset: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.6);
-      display: none;
-      justify-content: center;
-      align-items: center;
       z-index: 10;
+      display: none;
+      align-items: center;
+      justify-content: center;
       padding: 20px;
+      background: rgba(0,0,0,0.6);
     }
 
-    .popup:target {
-      display: flex;
-    }
+    .popup:target { display: flex; }
 
     .popup-content {
-      background: #fff;
-      padding: 40px;
-      border-radius: 12px;
       width: 100%;
       max-width: 420px;
+      padding: 40px;
+      border-radius: 12px;
+      background: #fff;
       text-align: center;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-      animation: slideDown 0.4s ease;
-    }
-
-    @keyframes slideDown {
-      from { transform: translateY(-30px); opacity: 0; }
-      to { transform: translateY(0); opacity: 1; }
     }
 
     .popup-content h2 {
@@ -177,8 +148,8 @@
     .popup-content select {
       display: block;
       width: 100%;
-      padding: 14px;
       margin: 15px 0;
+      padding: 14px;
       border: 1px solid #ccc;
       border-radius: 8px;
       font-size: 15px;
@@ -191,72 +162,42 @@
       box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
     }
 
-    .popup-content .btn {
-      margin-top: 16px;
-      width: 100%;
-    }
-
     .close {
       display: inline-block;
       margin-top: 20px;
       color: #555;
-      text-decoration: none;
-      font-weight: bold;
       font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
     }
 
     .helper-links {
-      margin-top: 14px;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      margin-top: 14px;
     }
 
     .helper-links a {
       color: #1a456f;
       font-size: 14px;
+      font-weight: 700;
       text-decoration: none;
-      font-weight: bold;
-    }
-
-    .helper-links a:hover {
-      text-decoration: underline;
     }
 
     .small-info {
-      font-size: 12px;
-      color: #666;
-      text-align: left;
-      line-height: 1.4;
       margin-top: -8px;
       margin-bottom: 10px;
-    }
-
-    .branch-panel {
-      margin-top: 16px;
-    }
-
-    .branch-panel select {
-      width: 100%;
-      padding: 14px;
-      margin: 10px 0 0;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      font-size: 15px;
+      color: #666;
+      font-size: 12px;
+      line-height: 1.4;
+      text-align: left;
     }
 
     @media (max-width: 500px) {
-      .container {
-        padding: 30px 20px;
-      }
-
-      .popup-content {
-        padding: 30px 20px;
-      }
-
-      .options-grid {
-        grid-template-columns: 1fr;
-      }
+      .container,
+      .popup-content { padding: 30px 20px; }
+      .options-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -269,83 +210,57 @@
     <button class="btn" id="previewBtn" type="button">Visualizar sistema</button>
 
     <div class="inline-panel" id="previewOptions">
-      <h2>Escolha uma visualização</h2>
+      <h2>Escolha uma visualiza&ccedil;&atilde;o</h2>
 
       <div class="options-grid">
-        <button class="btn option" id="standardPreviewBtn" type="button">Sistema padrão</button>
+        <button class="btn option" id="standardPreviewBtn" type="button">Sistema padr&atilde;o</button>
         <button class="btn option" id="petPreviewBtn" type="button">Pet shop</button>
       </div>
 
       <div class="inline-panel" id="standardPreviewFields">
-        <h2>Sistema padrão</h2>
-        <p>Visualização estática do sistema padrão com os módulos principais:</p>
+        <h2>Sistema padr&atilde;o</h2>
+        <p>Visualiza&ccedil;&atilde;o est&aacute;tica do sistema padr&atilde;o com os m&oacute;dulos principais.</p>
         <ul>
           <li>Caixa</li>
           <li>Produtos</li>
           <li>Cadastro</li>
           <li>Pedidos</li>
-          <li>Histórico</li>
           <li>Dashboard</li>
-          <li>Pagamentos</li>
-          <li>Funcionários</li>
         </ul>
-        <a href="produtos.html" class="btn">Visualizar padrão</a>
+        <a href="produtos.html?systemType=padrao&mode=preview" class="btn" id="standardPreviewLink">Visualizar padr&atilde;o</a>
       </div>
 
       <div class="inline-panel" id="petPreviewFields">
         <h2>Pet shop</h2>
-        <p>Visualização estática do sistema Pet shop com os módulos principais:</p>
+        <p>Visualiza&ccedil;&atilde;o est&aacute;tica do sistema Pet shop com os m&oacute;dulos principais.</p>
         <ul>
           <li>Caixa PetShop</li>
           <li>Clientes e pets</li>
           <li>Agenda</li>
-          <li>Guia</li>
           <li>Produtos</li>
-          <li>Histórico</li>
           <li>Dashboard</li>
-          <li>Pagamentos</li>
         </ul>
-        <a href="clientePet.html" class="btn">Visualizar Pet shop</a>
+        <a href="clientePet.html?systemType=petshop&mode=preview" class="btn" id="petPreviewLink">Visualizar Pet shop</a>
       </div>
     </div>
 
     <a href="#login" class="btn">Login</a>
     <a href="#cadastro" class="btn">Cadastro</a>
-
     <a href="#trocar-senha" class="btn secondary">Trocar senha</a>
 
-    <button id="profileBtn" class="btn secondary" type="button">Ver sessão atual</button>
+    <button id="profileBtn" class="btn secondary" type="button">Ver sess&atilde;o atual</button>
     <button id="logoutBtn" class="btn secondary" type="button">Logout</button>
 
-    <div id="statusBox" class="status-box">Pronto para autenticação.</div>
-
-    <div class="inline-panel branch-panel" id="branchSelectionPanel">
-      <h2>Selecionar filial</h2>
-      <p>Escolha a filial para continuar.</p>
-      <select id="branchSelection"></select>
-      <button id="confirmBranchBtn" class="btn" type="button">Continuar</button>
-    </div>
+    <div id="statusBox" class="status-box">Pronto para autentica&ccedil;&atilde;o.</div>
   </div>
 
-  <!-- Login -->
   <div id="login" class="popup">
     <div class="popup-content">
       <h2>Login</h2>
 
       <form id="loginForm">
         <input id="loginEmail" type="email" placeholder="E-mail" required />
-        <input id="loginName" type="text" placeholder="Nome de acesso" required />
-        <input id="loginPassword" type="password" placeholder="Senha de acesso" required />
-
-        <select id="loginBranch">
-          <option value="">Selecione a filial (opcional para superAdmin)</option>
-          <option value="matriz">Matriz</option>
-          <option value="filial-centro">Filial Centro</option>
-          <option value="filial-norte">Filial Norte</option>
-          <option value="filial-sul">Filial Sul</option>
-          <option value="petshop-principal">PetShop Principal</option>
-        </select>
-
+        <input id="loginPassword" type="password" placeholder="Senha" required />
         <button class="btn" type="submit">Entrar</button>
       </form>
 
@@ -357,7 +272,6 @@
     </div>
   </div>
 
-  <!-- Cadastro -->
   <div id="cadastro" class="popup">
     <div class="popup-content">
       <h2>Cadastro</h2>
@@ -365,6 +279,7 @@
       <form id="registerForm">
         <input id="registerEmail" type="email" placeholder="E-mail principal" required />
         <input id="registerName" type="text" placeholder="Nome" required />
+        <input id="registerCompanyName" type="text" placeholder="Nome da empresa" required />
 
         <input
           id="registerPassword"
@@ -376,12 +291,12 @@
         />
 
         <p class="small-info">
-          A senha deve ter no mínimo 8 dígitos e aceitar apenas letras maiúsculas, letras minúsculas e números. Não use símbolos.
+          A senha deve ter no m&iacute;nimo 8 d&iacute;gitos e aceitar apenas letras e n&uacute;meros.
         </p>
 
         <select id="registerSystemType" required>
           <option value="">Tipo de sistema</option>
-          <option value="padrao">Sistema padrão</option>
+          <option value="padrao">Sistema padr&atilde;o</option>
           <option value="petshop">Pet shop</option>
         </select>
 
@@ -392,19 +307,14 @@
     </div>
   </div>
 
-  <!-- Trocar senha -->
   <div id="trocar-senha" class="popup">
     <div class="popup-content">
       <h2>Trocar senha</h2>
 
       <form id="resetForm">
         <input id="resetEmail" type="email" placeholder="Seu e-mail" required />
-        <button class="btn" type="submit">Enviar solicitação</button>
+        <button class="btn" type="submit">Enviar solicita&ccedil;&atilde;o</button>
       </form>
-
-      <p style="margin-top: 12px; font-size: 13px; color: #666;">
-        Esse botão depende de uma rota existente no backend.
-      </p>
 
       <a href="#" class="close">Fechar</a>
     </div>
@@ -455,15 +365,8 @@
     function extractMessage(data) {
       if (!data) return 'Sem resposta.';
       if (typeof data === 'string') return data;
-
-      if (data.message) {
-        return Array.isArray(data.message)
-          ? data.message.join('\n')
-          : data.message;
-      }
-
+      if (data.message) return Array.isArray(data.message) ? data.message.join('\n') : data.message;
       if (data.error) return data.error;
-
       return JSON.stringify(data, null, 2);
     }
 
@@ -474,46 +377,41 @@
         user?.is_super_admin === true;
     }
 
-    function persistLoginContext({ user, selectedBranch }) {
+    function clearRuntimeContext() {
+      sessionStorage.removeItem('nextstockPreviewMode');
+      sessionStorage.removeItem('nextstockIsPreview');
       sessionStorage.removeItem('nextstockSelectedBranch');
       sessionStorage.removeItem('nextstockSystemType');
+      sessionStorage.removeItem('nextstockSelectedSystemType');
       sessionStorage.removeItem('nextstockIsSuperAdmin');
+    }
 
-      if (selectedBranch) {
-        sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
-        sessionStorage.setItem('nextstockSystemType', selectedBranch.systemType || selectedBranch.tenant?.systemType || '');
+    function persistLoginContext(data) {
+      clearRuntimeContext();
+
+      if (data.selectedBranch) {
+        const systemType = data.selectedBranch.systemType || 'padrao';
+        sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(data.selectedBranch));
+        sessionStorage.setItem('nextstockSystemType', systemType);
+        sessionStorage.setItem('nextstockSelectedSystemType', systemType);
       }
 
-      if (isSuperAdminUser(user)) {
+      sessionStorage.setItem('nextstockBackendMode', 'production');
+
+      if (isSuperAdminUser(data.user)) {
         sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
-        sessionStorage.setItem('nextstockSystemType', 'developer');
+        sessionStorage.setItem('nextstockSystemType', 'padrao');
+        sessionStorage.setItem('nextstockSelectedSystemType', 'padrao');
       }
     }
 
-    function openBranchSelection(data) {
-      const panel = document.getElementById('branchSelectionPanel');
-      const select = document.getElementById('branchSelection');
-      const branches = Array.isArray(data.branches) ? data.branches : [];
-
-      select.innerHTML = branches
-        .map((branch, index) => {
-          const tenantName = branch.tenant?.name ? ` - ${branch.tenant.name}` : '';
-          return `<option value="${index}">${branch.name || branch.slug}${tenantName}</option>`;
-        })
-        .join('');
-
-      panel.classList.add('active');
-      document.getElementById('confirmBranchBtn').onclick = () => {
-        const selectedBranch = branches[Number(select.value)];
-
-        if (!selectedBranch) {
-          setStatus('Selecione uma filial para continuar.', true);
-          return;
-        }
-
-        persistLoginContext({ user: data.user, selectedBranch });
-        window.location.href = data.redirectTo || 'produtos.html';
-      };
+    function persistPreviewContext(systemType) {
+      clearRuntimeContext();
+      sessionStorage.setItem('nextstockPreviewMode', 'true');
+      sessionStorage.setItem('nextstockIsPreview', 'true');
+      sessionStorage.setItem('nextstockBackendMode', 'preview');
+      sessionStorage.setItem('nextstockSystemType', systemType);
+      sessionStorage.setItem('nextstockSelectedSystemType', systemType);
     }
 
     async function apiRequest(url, options = {}) {
@@ -525,7 +423,6 @@
           ...(options.headers || {})
         }
       });
-
       const data = await safeJson(res);
 
       if (!res.ok) {
@@ -535,36 +432,38 @@
       return { res, data };
     }
 
+    document.getElementById('standardPreviewLink').addEventListener('click', () => {
+      persistPreviewContext('padrao');
+    });
+
+    document.getElementById('petPreviewLink').addEventListener('click', () => {
+      persistPreviewContext('petshop');
+    });
+
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const email = document.getElementById('registerEmail').value.trim();
       const name = document.getElementById('registerName').value.trim();
+      const companyName = document.getElementById('registerCompanyName').value.trim();
       const password = document.getElementById('registerPassword').value;
       const systemType = document.getElementById('registerSystemType').value;
 
-      const passwordRegex = /^[A-Za-z0-9]{8,}$/;
-
-      if (!passwordRegex.test(password)) {
-        setStatus('Erro no cadastro:\n\nA senha deve ter no mínimo 8 dígitos e não pode conter símbolos.', true);
+      if (!/^[A-Za-z0-9]{8,}$/.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 8 digitos e nao pode conter simbolos.', true);
         return;
       }
 
       try {
         setStatus('Realizando cadastro...');
-
         const { data } = await apiRequest('/auth/register', {
           method: 'POST',
-          body: JSON.stringify({
-            email,
-            name,
-            password,
-            systemType
-          })
+          body: JSON.stringify({ email, name, companyName, password, systemType })
         });
 
-        setStatus('Cadastro realizado com sucesso.\n\n' + extractMessage(data));
-        window.location.hash = '';
+        persistLoginContext(data);
+        setStatus('Cadastro realizado com sucesso.');
+        window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
         setStatus('Erro no cadastro:\n\n' + error.message, true);
       }
@@ -573,46 +472,19 @@
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const branch = document.getElementById('loginBranch').value;
       const email = document.getElementById('loginEmail').value.trim();
-      const accessName = document.getElementById('loginName').value.trim();
       const password = document.getElementById('loginPassword').value;
 
       try {
         setStatus('Realizando login...');
-
         const { data } = await apiRequest('/auth/login', {
           method: 'POST',
-          body: JSON.stringify({
-            email,
-            accessName,
-            branch,
-            password
-          })
+          body: JSON.stringify({ email, password })
         });
 
-        alert('Sucesso de login, agora selecione a sua filial.');
-        setStatus('Login realizado com sucesso.\n\n' + extractMessage(data));
-
-        if (isSuperAdminUser(data.user)) {
-          persistLoginContext({ user: data.user });
-          window.location.href = data.redirectTo || 'dev.html';
-          return;
-        }
-
-        if (data.requiresBranchSelection) {
-          openBranchSelection(data);
-          window.location.hash = '';
-          return;
-        }
-
-        if (data.selectedBranch) {
-          persistLoginContext({ user: data.user, selectedBranch: data.selectedBranch });
-          window.location.href = data.redirectTo || 'produtos.html';
-          return;
-        }
-
-        setStatus('Login aceito, mas nenhuma filial foi encontrada para este usuario.', true);
+        persistLoginContext(data);
+        setStatus('Login realizado com sucesso.');
+        window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
         setStatus('Erro no login:\n\n' + error.message, true);
       }
@@ -620,16 +492,11 @@
 
     document.getElementById('logoutBtn').addEventListener('click', async () => {
       try {
-        setStatus('Encerrando sessão...');
-
-        const { data } = await apiRequest('/auth/logout', {
-          method: 'POST'
-        });
-
+        setStatus('Encerrando sessao...');
+        const { data } = await apiRequest('/auth/logout', { method: 'POST' });
+        clearRuntimeContext();
+        sessionStorage.removeItem('nextstockBackendMode');
         setStatus('Logout realizado.\n\n' + extractMessage(data));
-        sessionStorage.removeItem('nextstockSelectedBranch');
-        sessionStorage.removeItem('nextstockSystemType');
-        sessionStorage.removeItem('nextstockIsSuperAdmin');
       } catch (error) {
         setStatus('Erro no logout:\n\n' + error.message, true);
       }
@@ -637,15 +504,11 @@
 
     document.getElementById('profileBtn').addEventListener('click', async () => {
       try {
-        setStatus('Consultando sessão atual...');
-
-        const { data } = await apiRequest('/auth/profile', {
-          method: 'GET'
-        });
-
-        setStatus('Sessão ativa:\n\n' + JSON.stringify(data, null, 2));
+        setStatus('Consultando sessao atual...');
+        const { data } = await apiRequest('/auth/profile', { method: 'GET' });
+        setStatus('Sessao ativa:\n\n' + JSON.stringify(data, null, 2));
       } catch (error) {
-        setStatus('Sessão não encontrada ou usuário não autenticado.\n\n' + error.message, true);
+        setStatus('Sessao nao encontrada ou usuario nao autenticado.\n\n' + error.message, true);
       }
     });
 
@@ -655,22 +518,16 @@
       const email = document.getElementById('resetEmail').value.trim();
 
       try {
-        setStatus('Enviando solicitação de troca de senha...');
-
+        setStatus('Enviando solicitacao de troca de senha...');
         const { data } = await apiRequest('/auth/forgot-password', {
           method: 'POST',
           body: JSON.stringify({ email })
         });
 
-        setStatus('Solicitação enviada.\n\n' + extractMessage(data));
+        setStatus('Solicitacao enviada.\n\n' + extractMessage(data));
         window.location.hash = '';
       } catch (error) {
-        setStatus(
-          'Erro ao solicitar troca de senha.\n\n' +
-          error.message +
-          '\n\nSe essa rota ainda não existe no backend, crie o endpoint correspondente.',
-          true
-        );
+        setStatus('Erro ao solicitar troca de senha.\n\n' + error.message, true);
       }
     });
 
@@ -681,13 +538,13 @@
           credentials: 'include'
         });
 
-        if (res.ok) {
-          setStatus('Aplicação online. Backend NestJS respondendo normalmente.');
-        } else {
-          setStatus('Frontend carregado, mas o backend respondeu com status ' + res.status + '.', true);
-        }
+        setStatus(res.ok
+          ? 'Aplicacao online. Backend NestJS respondendo normalmente.'
+          : 'Frontend carregado, mas o backend respondeu com status ' + res.status + '.',
+          !res.ok
+        );
       } catch (error) {
-        setStatus('Frontend carregado, mas não foi possível alcançar o backend.\n\n' + error.message, true);
+        setStatus('Frontend carregado, mas nao foi possivel alcancar o backend.\n\n' + error.message, true);
       }
     });
   </script>

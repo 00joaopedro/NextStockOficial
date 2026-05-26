@@ -130,17 +130,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role: hasFullAccess ? 'superAdmin' : membership!.role,
       roles: [hasFullAccess ? 'superAdmin' : membership!.role],
       tenantId: hasFullAccess
-        ? profile.tenantId
+        ? profile.tenantId ?? membership?.tenant.id ?? null
         : membership!.tenant.id,
       primaryTenantId: profile.primaryTenantId,
-      tenant: hasFullAccess ? null : toTenantSummary(membership!.tenant),
-      branchId: hasFullAccess ? null : membership!.branch?.id ?? null,
-      branch: hasFullAccess ? null : membership!.branch,
+      tenant: membership?.tenant ? toTenantSummary(membership.tenant) : null,
+      branchId: membership?.branch?.id ?? null,
+      branch: membership?.branch ?? null,
       systemType,
       allowedSystemTypes,
       isSuperAdmin: hasFullAccess,
       is_super_admin: hasFullAccess,
-      mode: hasFullAccess ? null : membership!.tenant.mode,
+      mode: membership?.tenant.mode ?? null,
     };
   }
 }

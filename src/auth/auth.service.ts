@@ -11,9 +11,7 @@ import { Role, SystemMode, SystemType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
-  buildTenantNameFromEmail,
   generateUniqueTenantSlug,
-  slugify,
   toTenantSummary,
 } from '../tenancy/tenant.utils';
 import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
@@ -21,15 +19,13 @@ import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
 type RegisterInput = {
   email?: string;
   name?: string;
+  companyName?: string;
   password?: string;
   systemType?: string;
 };
 
 type LoginInput = {
   email?: string;
-  accessName?: string;
-  branch?: string;
-  name?: string;
   password?: string;
 };
 
@@ -39,6 +35,10 @@ type ForgotPasswordInput = {
 
 const DEFAULT_BRANCH_NAME = 'Matriz';
 const DEFAULT_BRANCH_SLUG = 'matriz';
+const DEV_TENANT_NAME = 'NextStock Dev';
+const DEV_TENANT_SLUG = 'nextstock-dev';
+const DEV_BRANCH_NAME = 'Matriz Dev';
+const DEV_BRANCH_SLUG = 'matriz-dev';
 const SUPABASE_AUTH_TIMEOUT_MS = 15000;
 
 function normalizeAccessName(value: string): string {
@@ -89,9 +89,10 @@ export class AuthService {
   async register(input: RegisterInput) {
     const email = this.normalizeEmail(input.email);
     const name = this.normalizeName(input.name);
+    const companyName = this.normalizeCompanyName(input.companyName);
     const password = this.normalizePassword(input.password);
     const systemType = this.normalizeSystemType(input.systemType);
-    const tenantName = buildTenantNameFromEmail(email);
+    const tenantName = companyName;
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName);
     const accessNameNormalized = normalizeAccessName(name);
 
@@ -201,14 +202,34 @@ export class AuthService {
         return { tenant, branch, profile };
       });
 
-      return {
-        ok: true,
-        user: this.formatAuthUser({
+      const user = this.formatAuthUser({
           ...result.profile,
           role: Role.Admin,
           tenant: result.tenant,
           branch: result.branch,
-        }),
+        });
+      const selectedBranch = this.formatSelectedBranch(
+        result.branch,
+        result.tenant.id,
+        result.tenant.systemType,
+      );
+      const accessToken =
+        data.session?.access_token ??
+        (await this.signInAfterRegister(email, password));
+
+      return {
+        accessToken,
+        payload: {
+          message: 'Cadastro realizado com sucesso.',
+          user,
+          tenant: {
+            id: result.tenant.id,
+            name: result.tenant.name,
+            systemType: result.tenant.systemType,
+          },
+          selectedBranch,
+          redirectTo: 'produtos.html',
+        },
       };
     } catch {
       await this.supabase.admin.auth.admin
@@ -224,10 +245,6 @@ export class AuthService {
   async login(input: LoginInput) {
     const email = this.normalizeEmail(input.email);
     const password = this.normalizePassword(input.password);
-    const accessName = this.normalizeAccessNameInput(
-      input.accessName ?? input.name,
-    );
-    const branchSlug = input.branch?.trim() ? slugify(input.branch.trim()) : undefined;
 
     const { data, error } = await withTimeout(
       this.supabase.anon.auth.signInWithPassword({
@@ -262,19 +279,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Supabase session.');
     }
 
-    const user = await this.findProfileForLoginOrThrow({
+    const profile = await this.findProfileRecord({
       supabaseUserId: data.user.id,
       email,
-      accessName,
-      branchSlug,
     });
+    const { user, selectedBranch } = await this.prepareLoginContext(profile);
 
     return {
       accessToken,
       payload: {
-        message: 'Login realizado com sucesso',
+        message: 'Login realizado com sucesso.',
         user,
-        ...this.buildPostLoginFlow(user),
+        selectedBranch,
+        redirectTo: isSuperAdmin(user) ? 'dev.html' : 'produtos.html',
       },
     };
   }
@@ -307,25 +324,6 @@ export class AuthService {
       ok: true,
       message: 'Password recovery email requested.',
     };
-  }
-
-  private async findProfileForLoginOrThrow(input: {
-    supabaseUserId: string;
-    email: string;
-    accessName: string;
-    branchSlug?: string;
-  }) {
-    const profile = await this.findProfileRecord({
-      supabaseUserId: input.supabaseUserId,
-      email: input.email,
-      branchSlug: input.branchSlug,
-    });
-
-    if (profile.accessNameNormalized !== input.accessName) {
-      throw new UnauthorizedException('Invalid access name.');
-    }
-
-    return this.formatProfileWithMembership(profile, input.branchSlug);
   }
 
   private async findProfileOrThrow(profileId: string, branchSlug?: string) {
@@ -435,44 +433,187 @@ export class AuthService {
     return this.formatAuthUser({
       ...profile,
       role: hasFullAccess ? Role.superAdmin : membership!.role,
-      tenant: hasFullAccess ? null : membership!.tenant,
-      branch: hasFullAccess ? null : membership!.branch,
+      tenant: membership?.tenant ?? null,
+      branch: membership?.branch ?? null,
       branches,
     });
   }
 
-  private buildPostLoginFlow(user: ReturnType<AuthService['formatAuthUser']>) {
-    if (isSuperAdmin(user)) {
-      return {
-        requiresBranchSelection: false,
-        branches: [],
-        selectedBranch: null,
-        redirectTo: 'dev.html',
-      };
+  private async prepareLoginContext(
+    profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
+  ) {
+    if (isSuperAdmin(profile)) {
+      return this.prepareSuperAdminLoginContext(profile);
     }
 
-    const branches = user.branches ?? [];
+    const tenantId = profile.primaryTenantId ?? profile.tenantId ?? profile.memberships[0]?.tenantId;
 
-    if (branches.length === 0) {
-      throw new UnauthorizedException(
-        'Usuario sem filial vinculada. Solicite acesso a uma filial antes de entrar.',
-      );
+    if (!tenantId) {
+      throw new UnauthorizedException('Usuario sem empresa vinculada.');
     }
 
-    if (branches.length === 1) {
-      return {
-        requiresBranchSelection: false,
-        branches,
-        selectedBranch: branches[0],
-        redirectTo: 'produtos.html',
-      };
-    }
+    const context = await this.ensureTenantBranchAndMembership({
+      profileId: profile.id,
+      tenantId,
+      branchName: DEFAULT_BRANCH_NAME,
+      branchSlug: DEFAULT_BRANCH_SLUG,
+      role: profile.memberships[0]?.role ?? Role.Admin,
+      setAsProfileTenant: false,
+    });
+    const refreshed = await this.findProfileRecord({
+      profileId: profile.id,
+      branchSlug: context.branch.slug,
+    });
+    const user = this.formatProfileWithMembership(refreshed, context.branch.slug);
 
     return {
-      requiresBranchSelection: true,
-      branches,
-      selectedBranch: null,
-      redirectTo: null,
+      user,
+      selectedBranch: this.formatSelectedBranch(
+        context.branch,
+        context.tenant.id,
+        context.tenant.systemType,
+      ),
+    };
+  }
+
+  private async prepareSuperAdminLoginContext(
+    profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
+  ) {
+    const tenant = await this.prisma.tenant.upsert({
+      where: { slug: DEV_TENANT_SLUG },
+      update: {
+        name: DEV_TENANT_NAME,
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
+      },
+      create: {
+        name: DEV_TENANT_NAME,
+        slug: DEV_TENANT_SLUG,
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        systemType: true,
+        mode: true,
+      },
+    });
+    const context = await this.ensureTenantBranchAndMembership({
+      profileId: profile.id,
+      tenantId: tenant.id,
+      branchName: DEV_BRANCH_NAME,
+      branchSlug: DEV_BRANCH_SLUG,
+      role: Role.Admin,
+      setAsProfileTenant: true,
+    });
+    const refreshed = await this.findProfileRecord({
+      profileId: profile.id,
+      branchSlug: context.branch.slug,
+    });
+    const user = this.formatProfileWithMembership(refreshed, context.branch.slug);
+
+    return {
+      user,
+      selectedBranch: this.formatSelectedBranch(
+        context.branch,
+        context.tenant.id,
+        context.tenant.systemType,
+      ),
+    };
+  }
+
+  private async ensureTenantBranchAndMembership(input: {
+    profileId: string;
+    tenantId: string;
+    branchName: string;
+    branchSlug: string;
+    role: Role;
+    setAsProfileTenant: boolean;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const tenant = await tx.tenant.update({
+        where: { id: input.tenantId },
+        data: input.setAsProfileTenant
+          ? { mode: SystemMode.padrao, systemType: SystemType.padrao }
+          : {},
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          systemType: true,
+          mode: true,
+        },
+      });
+      const branch =
+        (await tx.branch.findFirst({
+          where: { tenantId: tenant.id },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        })) ??
+        (await tx.branch.create({
+          data: {
+            tenantId: tenant.id,
+            name: input.branchName,
+            slug: input.branchSlug,
+            isDefault: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        }));
+
+      await tx.tenantMember.upsert({
+        where: {
+          tenantId_userProfileId: {
+            tenantId: tenant.id,
+            userProfileId: input.profileId,
+          },
+        },
+        update: {
+          branchId: branch.id,
+          role: input.role,
+        },
+        create: {
+          tenantId: tenant.id,
+          userProfileId: input.profileId,
+          branchId: branch.id,
+          role: input.role,
+        },
+      });
+
+      if (input.setAsProfileTenant) {
+        await tx.userProfile.update({
+          where: { id: input.profileId },
+          data: {
+            tenantId: tenant.id,
+            primaryTenantId: tenant.id,
+            systemType: SystemType.padrao,
+          },
+        });
+      }
+
+      return { tenant, branch };
+    });
+  }
+
+  private formatSelectedBranch(
+    branch: { id: string; name: string; slug?: string },
+    tenantId: string,
+    systemType: SystemType,
+  ) {
+    return {
+      id: branch.id,
+      name: branch.name,
+      tenantId,
+      systemType,
     };
   }
 
@@ -554,6 +695,30 @@ export class AuthService {
     });
   }
 
+  private async signInAfterRegister(email: string, password: string) {
+    const { data, error } = await withTimeout(
+      this.supabase.anon.auth.signInWithPassword({ email, password }),
+      SUPABASE_AUTH_TIMEOUT_MS,
+      'Supabase Auth did not respond in time.',
+    ).catch((error) => {
+      if (error instanceof RequestTimeoutException) {
+        throw error;
+      }
+
+      throw new ServiceUnavailableException(
+        'Supabase Auth is temporarily unavailable.',
+      );
+    });
+
+    if (error || !data.session?.access_token) {
+      throw new BadRequestException(
+        'Cadastro criado, mas login automatico nao foi concluido.',
+      );
+    }
+
+    return data.session.access_token;
+  }
+
   private normalizeEmail(email?: string) {
     const normalizedEmail = email?.trim().toLowerCase();
 
@@ -574,16 +739,14 @@ export class AuthService {
     return normalizedName;
   }
 
-  private normalizeAccessNameInput(accessName?: string) {
-    const normalizedAccessName = accessName
-      ? normalizeAccessName(accessName)
-      : '';
+  private normalizeCompanyName(companyName?: string) {
+    const normalizedCompanyName = companyName?.trim().replace(/\s+/g, ' ');
 
-    if (!normalizedAccessName) {
-      throw new BadRequestException('accessName is required');
+    if (!normalizedCompanyName) {
+      throw new BadRequestException('companyName is required');
     }
 
-    return normalizedAccessName;
+    return normalizedCompanyName;
   }
 
   private normalizePassword(password?: string) {
