@@ -56,6 +56,13 @@ function isConflictError(message: string): boolean {
   );
 }
 
+type SupabaseAuthError = {
+  message?: string;
+  name?: string;
+  status?: number;
+  code?: string;
+};
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -113,7 +120,14 @@ export class AuthService {
       email_confirm: true,
       user_metadata: {
         name,
+        full_name: name,
+        companyName,
         systemType,
+        role: Role.Admin,
+        access_name_normalized: accessNameNormalized,
+        allowed_system_types: [systemType],
+        is_super_admin: false,
+        isSuperAdmin: false,
       },
     });
 
@@ -122,7 +136,7 @@ export class AuthService {
         throw new ConflictException(error.message);
       }
 
-      throw new BadRequestException(error.message);
+      throw this.buildSupabaseAuthException(error);
     }
 
     const authUser = data.user;
@@ -170,8 +184,9 @@ export class AuthService {
           },
         });
 
-        const profile = await tx.userProfile.create({
-          data: {
+        const profile = await tx.userProfile.upsert({
+          where: { id: authUser.id },
+          create: {
             id: authUser.id,
             supabaseUserId: authUser.id,
             email: authUser.email ?? email,
@@ -184,19 +199,44 @@ export class AuthService {
             isSuperAdmin: false,
             accessNameNormalized,
             primaryTenantId: tenant.id,
-            memberships: {
-              create: {
-                tenantId: tenant.id,
-                branchId: branch.id,
-                role: Role.Admin,
-              },
-            },
+          },
+          update: {
+            supabaseUserId: authUser.id,
+            email: authUser.email ?? email,
+            name,
+            fullName: name,
+            tenantId: tenant.id,
+            role: Role.Admin,
+            systemType,
+            allowedSystemTypes: [systemType],
+            isSuperAdmin: false,
+            accessNameNormalized,
+            primaryTenantId: tenant.id,
           },
           select: {
             id: true,
             email: true,
             name: true,
             createdAt: true,
+          },
+        });
+
+        await tx.tenantMember.upsert({
+          where: {
+            tenantId_userProfileId: {
+              tenantId: tenant.id,
+              userProfileId: profile.id,
+            },
+          },
+          update: {
+            branchId: branch.id,
+            role: Role.Admin,
+          },
+          create: {
+            tenantId: tenant.id,
+            userProfileId: profile.id,
+            branchId: branch.id,
+            role: Role.Admin,
           },
         });
 
@@ -228,13 +268,15 @@ export class AuthService {
           redirectTo: 'produtos.html',
         },
       };
-    } catch {
+    } catch (error) {
       await this.supabase.admin.auth.admin
         .deleteUser(authUser.id)
         .catch(() => undefined);
 
       throw new InternalServerErrorException(
-        'User registration failed while creating the tenant/profile. The authentication user was rolled back.',
+        error instanceof Error
+          ? `User registration failed while creating tenant/profile: ${error.message}`
+          : 'User registration failed while creating the tenant/profile. The authentication user was rolled back.',
       );
     }
   }
@@ -752,6 +794,25 @@ export class AuthService {
       });
 
       return Boolean(existingTenant);
+    });
+  }
+
+  private buildSupabaseAuthException(error: SupabaseAuthError) {
+    const details = [
+      error.message,
+      error.name ? `name=${error.name}` : null,
+      error.status ? `status=${error.status}` : null,
+      error.code ? `code=${error.code}` : null,
+    ].filter(Boolean);
+
+    return new BadRequestException({
+      message: details.length
+        ? `Supabase Auth createUser failed: ${details.join(' | ')}`
+        : 'Supabase Auth createUser failed.',
+      supabaseMessage: error.message ?? null,
+      supabaseError: error.name ?? null,
+      supabaseStatus: error.status ?? null,
+      supabaseCode: error.code ?? null,
     });
   }
 

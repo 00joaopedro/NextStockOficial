@@ -52,7 +52,7 @@ describe('AuthService', () => {
         findFirst: jest.fn().mockResolvedValue(branch),
       },
       userProfile: {
-        create: jest.fn().mockResolvedValue({
+        upsert: jest.fn().mockResolvedValue({
           id: profile.id,
           email: profile.email,
           name: profile.name,
@@ -133,7 +133,14 @@ describe('AuthService', () => {
       email_confirm: true,
       user_metadata: {
         name: profile.name,
+        full_name: profile.name,
+        companyName: tenant.name,
         systemType: SystemType.padrao,
+        role: Role.Admin,
+        access_name_normalized: profile.accessNameNormalized,
+        allowed_system_types: [SystemType.padrao],
+        is_super_admin: false,
+        isSuperAdmin: false,
       },
     });
     expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
@@ -144,6 +151,16 @@ describe('AuthService', () => {
     expect(prisma.tx.branch.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ name: 'Matriz' }),
+      }),
+    );
+    expect(prisma.tx.tenantMember.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          tenantId: tenant.id,
+          userProfileId: profile.id,
+          branchId: branch.id,
+          role: Role.Admin,
+        }),
       }),
     );
     expect(result.payload.selectedBranch).toMatchObject({
