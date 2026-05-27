@@ -107,14 +107,13 @@ export class AuthService {
       throw new ConflictException('email or name is already registered');
     }
 
-    const { data, error } = await this.supabase.anon.auth.signUp({
+    const { data, error } = await this.supabase.admin.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          name,
-          systemType,
-        },
+      email_confirm: true,
+      user_metadata: {
+        name,
+        systemType,
       },
     });
 
@@ -135,6 +134,7 @@ export class AuthService {
     }
 
     try {
+      const accessToken = await this.signInAfterRegister(email, password);
       const result = await this.prisma.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
           data: {
@@ -161,6 +161,7 @@ export class AuthService {
             name: DEFAULT_BRANCH_NAME,
             slug: DEFAULT_BRANCH_SLUG,
             isDefault: true,
+            isActive: true,
           },
           select: {
             id: true,
@@ -213,10 +214,6 @@ export class AuthService {
         result.tenant.id,
         result.tenant.systemType,
       );
-      const accessToken =
-        data.session?.access_token ??
-        (await this.signInAfterRegister(email, password));
-
       return {
         accessToken,
         payload: {
@@ -279,9 +276,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid Supabase session.');
     }
 
-    const profile = await this.findProfileRecord({
+    const profile = await this.findOrCreateProfileForLogin({
       supabaseUserId: data.user.id,
       email,
+      metadata: data.user.user_metadata,
     });
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
 
@@ -336,13 +334,77 @@ export class AuthService {
     return this.formatProfileWithMembership(profile, branchSlug);
   }
 
+  private async findOrCreateProfileForLogin(input: {
+    supabaseUserId: string;
+    email: string;
+    metadata?: Record<string, any> | null;
+  }) {
+    const profile = await this.findProfileRecordOrNull({
+      supabaseUserId: input.supabaseUserId,
+      email: input.email,
+    });
+
+    if (profile) {
+      return profile;
+    }
+
+    const name = this.normalizeName(
+      input.metadata?.name ||
+        input.metadata?.full_name ||
+        input.email.split('@')[0],
+    );
+    const role =
+      input.metadata?.role === Role.superAdmin ||
+      input.metadata?.isSuperAdmin === true ||
+      input.metadata?.is_super_admin === true
+        ? Role.superAdmin
+        : Role.Admin;
+    const systemType = this.normalizeSystemType(
+      input.metadata?.systemType || SystemType.padrao,
+    );
+    const createdProfile = await this.prisma.userProfile.create({
+      data: {
+        id: input.supabaseUserId,
+        supabaseUserId: input.supabaseUserId,
+        email: input.email,
+        name,
+        fullName: name,
+        role,
+        systemType,
+        allowedSystemTypes: role === Role.superAdmin ? SUPER_ADMIN_SYSTEM_TYPES : [systemType],
+        isSuperAdmin: role === Role.superAdmin,
+        accessNameNormalized: normalizeAccessName(name),
+      },
+      select: { id: true },
+    });
+
+    return this.findProfileRecord({
+      profileId: createdProfile.id,
+    });
+  }
+
   private async findProfileRecord(input: {
     supabaseUserId?: string;
     profileId?: string;
     email?: string;
     branchSlug?: string;
   }) {
-    const profile = await this.prisma.userProfile.findFirst({
+    const profile = await this.findProfileRecordOrNull(input);
+
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found.');
+    }
+
+    return profile;
+  }
+
+  private async findProfileRecordOrNull(input: {
+    supabaseUserId?: string;
+    profileId?: string;
+    email?: string;
+    branchSlug?: string;
+  }) {
+    return this.prisma.userProfile.findFirst({
       where: {
         OR: [
           input.supabaseUserId ? { supabaseUserId: input.supabaseUserId } : undefined,
@@ -390,18 +452,13 @@ export class AuthService {
                 id: true,
                 name: true,
                 slug: true,
+                isActive: true,
               },
             },
           },
         },
       },
     });
-
-    if (!profile) {
-      throw new UnauthorizedException('User profile not found.');
-    }
-
-    return profile;
   }
 
   private formatProfileWithMembership(
@@ -411,7 +468,7 @@ export class AuthService {
     const hasFullAccess = isSuperAdmin(profile);
     const membership = profile.memberships[0];
     const branches = profile.memberships
-      .filter((item) => item.branch)
+      .filter((item) => item.branch?.isActive !== false)
       .map((item) => ({
         id: item.branch!.id,
         name: item.branch!.name,
@@ -548,12 +605,13 @@ export class AuthService {
       });
       const branch =
         (await tx.branch.findFirst({
-          where: { tenantId: tenant.id },
+          where: { tenantId: tenant.id, isActive: true },
           orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
           select: {
             id: true,
             name: true,
             slug: true,
+            isActive: true,
           },
         })) ??
         (await tx.branch.create({
@@ -562,11 +620,13 @@ export class AuthService {
             name: input.branchName,
             slug: input.branchSlug,
             isDefault: true,
+            isActive: true,
           },
           select: {
             id: true,
             name: true,
             slug: true,
+            isActive: true,
           },
         }));
 

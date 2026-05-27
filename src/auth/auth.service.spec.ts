@@ -14,6 +14,7 @@ describe('AuthService', () => {
     id: 'branch-1',
     name: 'Matriz',
     slug: 'matriz',
+    isActive: true,
   };
   const profile = {
     id: 'user-1',
@@ -67,6 +68,7 @@ describe('AuthService', () => {
       tx,
       userProfile: {
         findFirst: jest.fn(),
+        create: jest.fn().mockResolvedValue({ id: profile.id }),
       },
       tenant: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -87,13 +89,6 @@ describe('AuthService', () => {
     ({
       anon: {
         auth: {
-          signUp: jest.fn().mockResolvedValue({
-            data: {
-              user: { id: profile.id, email: profile.email },
-              session: { access_token: 'register-token' },
-            },
-            error: null,
-          }),
           signInWithPassword: jest.fn().mockResolvedValue({
             data: {
               user: { id: profile.id },
@@ -106,6 +101,12 @@ describe('AuthService', () => {
       admin: {
         auth: {
           admin: {
+            createUser: jest.fn().mockResolvedValue({
+              data: {
+                user: { id: profile.id, email: profile.email },
+              },
+              error: null,
+            }),
             deleteUser: jest.fn(),
           },
         },
@@ -126,7 +127,15 @@ describe('AuthService', () => {
       systemType: 'padrao',
     });
 
-    expect(supabase.anon.auth.signUp).toHaveBeenCalled();
+    expect(supabase.admin.auth.admin.createUser).toHaveBeenCalledWith({
+      email: profile.email,
+      password: 'Senha123',
+      email_confirm: true,
+      user_metadata: {
+        name: profile.name,
+        systemType: SystemType.padrao,
+      },
+    });
     expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ name: tenant.name, systemType: SystemType.padrao }),
@@ -176,7 +185,12 @@ describe('AuthService', () => {
   it('login superAdmin retorna filial dev padrao e redireciona para dev.html', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
-    const devBranch = { id: 'dev-branch', name: 'Matriz Dev', slug: 'matriz-dev' };
+    const devBranch = {
+      id: 'dev-branch',
+      name: 'Matriz Dev',
+      slug: 'matriz-dev',
+      isActive: true,
+    };
     const devTenant = {
       ...tenant,
       id: 'dev-tenant',

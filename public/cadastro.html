@@ -663,8 +663,10 @@
     let produtoSelecionadoConsulta = null;
     let produtoEmEdicaoId = null;
     let produtosConsulta = [];
-    let modoSistema = "visualizacao";
-    let usuarioSuperAdmin = false;
+    let modoSistema = sessionStorage.getItem("nextstockBackendMode") === "production"
+      ? "padrao"
+      : "visualizacao";
+    let usuarioSuperAdmin = sessionStorage.getItem("nextstockIsSuperAdmin") === "true";
     const mensagemModoVisualizacao = "Modo visualiza\u00e7\u00e3o: altera\u00e7\u00e3o bloqueada.";
 
     /*

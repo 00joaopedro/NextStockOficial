@@ -386,7 +386,7 @@
       sessionStorage.removeItem('nextstockIsSuperAdmin');
     }
 
-    function persistLoginContext(data) {
+    function persistAuthContext(data) {
       clearRuntimeContext();
 
       if (data.selectedBranch) {
@@ -461,7 +461,7 @@
           body: JSON.stringify({ email, name, companyName, password, systemType })
         });
 
-        persistLoginContext(data);
+        persistAuthContext(data);
         setStatus('Cadastro realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
@@ -482,7 +482,7 @@
           body: JSON.stringify({ email, password })
         });
 
-        persistLoginContext(data);
+        persistAuthContext(data);
         setStatus('Login realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {

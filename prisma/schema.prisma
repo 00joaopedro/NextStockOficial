@@ -96,6 +96,7 @@ model Branch {
   name      String
   slug      String
   isDefault Boolean        @default(false) @map("is_default")
+  isActive  Boolean        @default(true) @map("is_active")
   members   TenantMember[]
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
