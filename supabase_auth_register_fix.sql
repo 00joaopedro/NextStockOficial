@@ -1,6 +1,55 @@
--- Keep Supabase Auth createUser resilient even when an old auth.users trigger
--- exists. The backend remains authoritative and upserts the full tenant/profile
--- graph after Auth succeeds.
+-- NextStock - fix for Supabase Auth "Database error creating new user"
+-- Run this whole file in Supabase SQL Editor.
+--
+-- Strategy:
+-- 1. Make public.profiles defaults compatible with Auth user creation.
+-- 2. Replace any legacy auth.users trigger with a safe trigger.
+-- 3. The trigger creates/updates only a minimal profile and never raises.
+-- 4. The NestJS backend remains authoritative and upserts the full profile,
+--    tenant, branch and tenant_members after Supabase Auth succeeds.
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+ALTER TABLE public.profiles
+  ALTER COLUMN role SET DEFAULT 'Comprador'::public."Role",
+  ALTER COLUMN allowed_system_types SET DEFAULT ARRAY[]::public."SystemType"[],
+  ALTER COLUMN is_super_admin SET DEFAULT false,
+  ALTER COLUMN updated_at SET DEFAULT now();
+
+ALTER TABLE public.profiles
+  ALTER COLUMN system_type SET DEFAULT 'padrao'::public."SystemType";
+
+UPDATE public.profiles
+SET
+  email = COALESCE(NULLIF(email, ''), id::text || '@auth.local'),
+  name = COALESCE(NULLIF(name, ''), split_part(COALESCE(NULLIF(email, ''), id::text), '@', 1), 'Usuario'),
+  full_name = COALESCE(NULLIF(full_name, ''), NULLIF(name, ''), split_part(COALESCE(NULLIF(email, ''), id::text), '@', 1), 'Usuario'),
+  access_name_normalized = COALESCE(
+    NULLIF(access_name_normalized, ''),
+    lower(split_part(COALESCE(NULLIF(email, ''), id::text), '@', 1)) || '-' || left(id::text, 8)
+  ),
+  role = COALESCE(role, 'Comprador'::public."Role"),
+  system_type = COALESCE(system_type, 'padrao'::public."SystemType"),
+  allowed_system_types = CASE
+    WHEN COALESCE(array_length(allowed_system_types, 1), 0) = 0
+      THEN ARRAY[COALESCE(system_type, 'padrao'::public."SystemType")]
+    ELSE allowed_system_types
+  END,
+  is_super_admin = COALESCE(is_super_admin, false),
+  supabase_user_id = COALESCE(supabase_user_id, id),
+  updated_at = now()
+WHERE email IS NULL
+   OR email = ''
+   OR name IS NULL
+   OR name = ''
+   OR full_name IS NULL
+   OR access_name_normalized IS NULL
+   OR access_name_normalized = ''
+   OR role IS NULL
+   OR system_type IS NULL
+   OR COALESCE(array_length(allowed_system_types, 1), 0) = 0
+   OR is_super_admin IS NULL
+   OR supabase_user_id IS NULL;
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger
@@ -95,3 +144,24 @@ CREATE TRIGGER "on_auth_user_created"
 AFTER INSERT ON auth.users
 FOR EACH ROW
 EXECUTE FUNCTION public.handle_new_user();
+
+SELECT
+  trigger_name,
+  event_object_schema,
+  event_object_table,
+  action_statement
+FROM information_schema.triggers
+WHERE event_object_schema = 'auth'
+  AND event_object_table = 'users'
+ORDER BY trigger_name;
+
+SELECT
+  column_name,
+  is_nullable,
+  data_type,
+  column_default,
+  udt_name
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'profiles'
+ORDER BY ordinal_position;
