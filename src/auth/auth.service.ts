@@ -147,9 +147,29 @@ export class AuthService {
       );
     }
 
+    let result!: {
+      tenant: {
+        id: string;
+        name: string;
+        slug: string;
+        systemType: SystemType;
+        createdAt: Date;
+      };
+      branch: {
+        id: string;
+        name: string;
+        slug: string;
+      };
+      profile: {
+        id: string;
+        email: string;
+        name: string;
+        createdAt: Date;
+      };
+    };
+
     try {
-      const accessToken = await this.signInAfterRegister(email, password);
-      const result = await this.prisma.$transaction(async (tx) => {
+      result = await this.prisma.$transaction(async (tx) => {
         const tenant = await tx.tenant.create({
           data: {
             name: tenantName,
@@ -242,32 +262,6 @@ export class AuthService {
 
         return { tenant, branch, profile };
       });
-
-      const user = this.formatAuthUser({
-          ...result.profile,
-          role: Role.Admin,
-          tenant: result.tenant,
-          branch: result.branch,
-        });
-      const selectedBranch = this.formatSelectedBranch(
-        result.branch,
-        result.tenant.id,
-        result.tenant.systemType,
-      );
-      return {
-        accessToken,
-        payload: {
-          message: 'Cadastro realizado com sucesso.',
-          user,
-          tenant: {
-            id: result.tenant.id,
-            name: result.tenant.name,
-            systemType: result.tenant.systemType,
-          },
-          selectedBranch,
-          redirectTo: 'produtos.html',
-        },
-      };
     } catch (error) {
       await this.supabase.admin.auth.admin
         .deleteUser(authUser.id)
@@ -279,6 +273,34 @@ export class AuthService {
           : 'User registration failed while creating the tenant/profile. The authentication user was rolled back.',
       );
     }
+
+    const accessToken = await this.signInAfterRegister(email, password);
+    const user = this.formatAuthUser({
+      ...result.profile,
+      role: Role.Admin,
+      tenant: result.tenant,
+      branch: result.branch,
+    });
+    const selectedBranch = this.formatSelectedBranch(
+      result.branch,
+      result.tenant.id,
+      result.tenant.systemType,
+    );
+
+    return {
+      accessToken,
+      payload: {
+        message: 'Cadastro realizado com sucesso.',
+        user,
+        tenant: {
+          id: result.tenant.id,
+          name: result.tenant.name,
+          systemType: result.tenant.systemType,
+        },
+        selectedBranch,
+        redirectTo: 'produtos.html',
+      },
+    };
   }
 
   async login(input: LoginInput) {
