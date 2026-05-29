@@ -122,6 +122,27 @@ function normalizeContext(value) {
             : [],
     };
 }
+function getRuntimeFallbackContext() {
+    const params = new URLSearchParams(window.location.search);
+    const productionMode = sessionStorage.getItem("nextstockBackendMode") === "production" ||
+        params.get("mode") === "production";
+    const selectedSystemType = sessionStorage.getItem("nextstockSelectedSystemType") ||
+        sessionStorage.getItem("nextstockSystemType");
+    if (!productionMode) {
+        return FALLBACK_CONTEXT;
+    }
+    return {
+        systemMode: "PRODUCTION",
+        tenantType: selectedSystemType === "petshop" ? "PETSHOP" : "STANDARD",
+        isSuperAdmin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
+        is_super_admin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
+        allowedSystemTypes: sessionStorage.getItem("nextstockIsSuperAdmin") === "true"
+            ? ["padrao", "petshop"]
+            : selectedSystemType
+                ? [selectedSystemType]
+                : [],
+    };
+}
 function getCurrentPageFileName() {
     const currentPath = window.location.pathname;
     const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
@@ -218,7 +239,7 @@ async function loadSidebar() {
     }
     catch (error) {
         console.warn("Using fallback sidebar context.", error);
-        renderSidebar(container, FALLBACK_CONTEXT);
+        renderSidebar(container, getRuntimeFallbackContext());
     }
 }
 if (document.readyState === "loading") {

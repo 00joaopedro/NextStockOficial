@@ -438,6 +438,31 @@
       return data;
     }
 
+    function getSelectedBranchFromProfile(profile, selectedType) {
+      const user = profile.user || profile;
+      const branch = profile.selectedBranch ||
+        (user.branch && user.tenantId
+          ? {
+              id: user.branch.id,
+              name: user.branch.name,
+              tenantId: user.tenantId,
+              systemType: user.systemType || selectedType
+            }
+          : null) ||
+        (Array.isArray(user.branches) ? user.branches[0] : null);
+
+      if (!branch?.id || !branch?.tenantId) {
+        return null;
+      }
+
+      return {
+        id: branch.id,
+        name: branch.name,
+        tenantId: branch.tenantId,
+        systemType: selectedType || branch.systemType || 'padrao'
+      };
+    }
+
     function renderPages(pages) {
       els.sidebarPages.innerHTML = pages.map((page) => `
         <li>
@@ -578,14 +603,31 @@
       }
     }
 
-    els.openSystemBtn.addEventListener('click', () => {
+    els.openSystemBtn.addEventListener('click', async () => {
       const selectedType = els.systemTypeSelect.value;
 
-      sessionStorage.removeItem('nextstockPreviewMode');
-      sessionStorage.removeItem('nextstockIsPreview');
-      sessionStorage.setItem('nextstockBackendMode', 'production');
-      sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
-      sessionStorage.setItem('nextstockSystemType', selectedType);
+      try {
+        const profile = await requestJson('/auth/profile');
+        const selectedBranch = getSelectedBranchFromProfile(profile, selectedType);
+
+        if (!selectedBranch) {
+          setStatus('Nao foi possivel abrir o sistema: tenant/filial nao encontrado para o superAdmin.');
+          return;
+        }
+
+        sessionStorage.removeItem('nextstockPreviewMode');
+        sessionStorage.removeItem('nextstockIsPreview');
+        sessionStorage.setItem('nextstockBackendMode', 'production');
+        sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
+        sessionStorage.setItem('nextstockTenantId', selectedBranch.tenantId);
+        sessionStorage.setItem('nextstockBranchId', selectedBranch.id);
+        sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
+        sessionStorage.setItem('nextstockSystemType', selectedType);
+        sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+      } catch (error) {
+        setStatus(error.message);
+        return;
+      }
 
       const targetPage = selectedType === 'petshop'
         ? 'clientePet.html?systemType=petshop&mode=production'

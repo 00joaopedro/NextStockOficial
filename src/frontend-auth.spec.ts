@@ -18,6 +18,7 @@ describe('frontend auth pages', () => {
     const html = publicFile('dev.html');
 
     expect(html).toContain("sessionStorage.setItem('nextstockBackendMode', 'production')");
+    expect(html).toContain("sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedSystemType', selectedType)");
     expect(html).toContain('clientePet.html?systemType=petshop&mode=production');
     expect(html).toContain('produtos.html?systemType=padrao&mode=production');
@@ -30,6 +31,8 @@ describe('frontend auth pages', () => {
 
     expect(html).toContain('/auth/profile');
     expect(html).toContain('/system/context');
+    expect(html).toContain('detectarPreviewExplicito');
+    expect(html).toContain('Sess\\u00e3o expirada ou inv\\u00e1lida');
     expect(html).toContain('montarPayloadProduto');
     expect(html).toContain('branchId');
     expect(html).toContain('tenantId');

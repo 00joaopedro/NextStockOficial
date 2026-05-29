@@ -27,6 +27,13 @@ export class SystemService {
   }
 
   getContext(currentUser?: Express.AuthenticatedUser): SystemContextResponseDto {
+    if (!currentUser) {
+      return {
+        systemMode: SystemMode.Preview,
+        tenantType: TenantType.Standard,
+      };
+    }
+
     if (isSuperAdmin(currentUser)) {
       return {
         systemMode: SystemMode.Production,

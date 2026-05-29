@@ -199,6 +199,29 @@ describe('AuthService', () => {
     });
   });
 
+  it('profile retorna user e selectedBranch explicito', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(profile);
+    const service = new AuthService(supabase, prisma);
+
+    await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
+      ok: true,
+      user: {
+        id: profile.id,
+        tenantId: tenant.id,
+        branchId: branch.id,
+        systemType: SystemType.padrao,
+      },
+      selectedBranch: {
+        id: branch.id,
+        name: branch.name,
+        tenantId: tenant.id,
+        systemType: SystemType.padrao,
+      },
+    });
+  });
+
   it('login superAdmin retorna filial dev padrao e redireciona para dev.html', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();

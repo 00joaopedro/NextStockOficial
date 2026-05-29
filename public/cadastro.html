@@ -663,9 +663,7 @@
     let produtoSelecionadoConsulta = null;
     let produtoEmEdicaoId = null;
     let produtosConsulta = [];
-    let modoSistema = sessionStorage.getItem("nextstockBackendMode") === "production"
-      ? "padrao"
-      : "visualizacao";
+    let modoSistema = detectarPreviewExplicito() ? "visualizacao" : "pendente";
     let usuarioSuperAdmin = sessionStorage.getItem("nextstockIsSuperAdmin") === "true";
     let sessaoAutenticada = false;
     let selectedBranch = lerSelectedBranch();
@@ -674,6 +672,15 @@
       selectedBranch?.systemType ||
       "padrao";
     const mensagemModoVisualizacao = "Modo visualiza\u00e7\u00e3o: altera\u00e7\u00e3o bloqueada.";
+    const mensagemSessaoInvalida = "Sess\u00e3o expirada ou inv\u00e1lida. Fa\u00e7a login novamente.";
+
+    function detectarPreviewExplicito() {
+      const params = new URLSearchParams(window.location.search);
+      return sessionStorage.getItem("nextstockIsPreview") === "true" ||
+        sessionStorage.getItem("nextstockPreviewMode") === "true" ||
+        sessionStorage.getItem("nextstockBackendMode") === "preview" ||
+        params.get("mode") === "preview";
+    }
 
     function lerSelectedBranch() {
       try {
@@ -693,12 +700,14 @@
       sessionStorage.setItem("nextstockSystemType", systemTypeAtual);
       sessionStorage.setItem("nextstockSelectedSystemType", systemTypeAtual);
       sessionStorage.setItem("nextstockBackendMode", "production");
+      sessionStorage.setItem("nextstockTenantId", branch.tenantId || "");
+      sessionStorage.setItem("nextstockBranchId", branch.id || "");
       sessionStorage.removeItem("nextstockPreviewMode");
       sessionStorage.removeItem("nextstockIsPreview");
     }
 
     function obterMensagemErro(response, data) {
-      if (response.status === 401) return "Sessao expirada. Faca login novamente.";
+      if (response.status === 401) return mensagemSessaoInvalida;
       if (response.status === 403) return data.message || "Usuario sem permissao para cadastrar produtos.";
       if (Array.isArray(data.message)) return data.message.join(" ");
       return data.message || data.error || "Nao foi possivel concluir a operacao.";
@@ -729,22 +738,30 @@
     }
 
     async function validarSessaoReal() {
-      const params = new URLSearchParams(window.location.search);
-      const previewAtivo = sessionStorage.getItem("nextstockIsPreview") === "true" ||
-        sessionStorage.getItem("nextstockPreviewMode") === "true" ||
-        params.get("mode") === "preview";
-      const backendProduction = sessionStorage.getItem("nextstockBackendMode") === "production";
-
-      if (previewAtivo || (!backendProduction && modoSistema === "visualizacao")) {
+      if (detectarPreviewExplicito()) {
+        modoSistema = "visualizacao";
         throw new Error(mensagemModoVisualizacao);
       }
 
-      const profile = await apiFetch("/auth/profile");
+      let profile;
+
+      try {
+        profile = await apiFetch("/auth/profile");
+      } catch {
+        sessaoAutenticada = false;
+        throw new Error(mensagemSessaoInvalida);
+      }
+
       const user = profile.user || profile;
       usuarioSuperAdmin = isSuperAdminUser(user) || usuarioSuperAdmin;
       sessaoAutenticada = true;
+      sessionStorage.setItem("nextstockAuthenticatedUser", JSON.stringify(user));
 
-      const branch = selectedBranch || obterBranchDoPerfil(user);
+      if (usuarioSuperAdmin) {
+        sessionStorage.setItem("nextstockIsSuperAdmin", "true");
+      }
+
+      const branch = profile.selectedBranch || selectedBranch || obterBranchDoPerfil(user);
       if (!branch?.tenantId) {
         throw new Error("Usuario sem tenant/empresa vinculado.");
       }
@@ -753,7 +770,7 @@
       }
 
       salvarContextoProducao(branch);
-      await carregarContextoSistema().catch(() => {});
+      await carregarContextoSistema();
       if (modoSistema === "visualizacao") {
         throw new Error(mensagemModoVisualizacao);
       }
@@ -781,7 +798,7 @@
     }
 
     async function inicializarContextoAutenticado() {
-      if (sessionStorage.getItem("nextstockBackendMode") !== "production") {
+      if (detectarPreviewExplicito()) {
         modoSistema = "visualizacao";
         return;
       }
@@ -790,9 +807,8 @@
         await validarSessaoReal();
       } catch (error) {
         sessaoAutenticada = false;
-        if (sessionStorage.getItem("nextstockBackendMode") === "production") {
-          console.warn(error.message);
-        }
+        modoSistema = "pendente";
+        console.warn(error.message);
       }
     }
 
@@ -1013,14 +1029,17 @@
       if (pesquisa) params.set("search", pesquisa);
 
       const data = await apiFetch(`/products${params.toString() ? `?${params}` : ""}`);
-      modoSistema = normalizarModoApi(data.mode);
+      const modoApi = normalizarModoApi(data.mode);
+      if (modoApi !== "visualizacao" || !sessaoAutenticada || detectarPreviewExplicito()) {
+        modoSistema = modoApi;
+      }
       if (data.isSuperAdmin) usuarioSuperAdmin = true;
       produtosConsulta = data.products || [];
       return produtosConsulta;
     }
 
     function alteracaoBloqueadaEmVisualizacao() {
-      if (modoSistema !== "visualizacao") return false;
+      if (!detectarPreviewExplicito() && modoSistema !== "visualizacao") return false;
       alert(mensagemModoVisualizacao);
       return true;
     }
@@ -1109,8 +1128,6 @@
     }
 
     async function cadastrarProduto() {
-      if (alteracaoBloqueadaEmVisualizacao()) return;
-
       const dados = obterDadosFormulario();
 
       if (!validarObrigatorios(dados)) {
@@ -1120,6 +1137,8 @@
 
       try {
         await validarSessaoReal();
+        if (alteracaoBloqueadaEmVisualizacao()) return;
+
         const data = await apiFetch("/products", {
           method: "POST",
           body: JSON.stringify(montarPayloadProduto(dados))
@@ -1137,8 +1156,6 @@
     }
 
     async function atualizarProduto() {
-      if (alteracaoBloqueadaEmVisualizacao()) return;
-
       if (!produtoEmEdicaoId) {
         alert("Consulte e selecione um produto para atualizar.");
         return;
@@ -1153,6 +1170,8 @@
 
       try {
         await validarSessaoReal();
+        if (alteracaoBloqueadaEmVisualizacao()) return;
+
         await apiFetch(`/products/${produtoEmEdicaoId}`, {
           method: "PATCH",
           body: JSON.stringify(montarPayloadProduto(dados))
@@ -1167,8 +1186,6 @@
     }
 
     async function deletarProduto() {
-      if (alteracaoBloqueadaEmVisualizacao()) return;
-
       if (!produtoEmEdicaoId) {
         alert("Consulte e selecione um produto para deletar.");
         return;
@@ -1179,6 +1196,8 @@
 
       try {
         await validarSessaoReal();
+        if (alteracaoBloqueadaEmVisualizacao()) return;
+
         await apiFetch(`/products/${produtoEmEdicaoId}`, {
           method: "DELETE"
         });
@@ -1225,10 +1244,15 @@
 
       const imagem = imagensSelecionadas[index];
 
-      if (imagem?.id && produtoEmEdicaoId && !alteracaoBloqueadaEmVisualizacao()) {
-        await apiFetch(`/products/${produtoEmEdicaoId}/images/${imagem.id}`, {
-          method: "DELETE"
-        }).catch((error) => alert(error.message));
+      if (imagem?.id && produtoEmEdicaoId) {
+        await validarSessaoReal()
+          .then(() => {
+            if (alteracaoBloqueadaEmVisualizacao()) return undefined;
+            return apiFetch(`/products/${produtoEmEdicaoId}/images/${imagem.id}`, {
+              method: "DELETE"
+            });
+          })
+          .catch((error) => alert(error.message));
       }
 
       imagensSelecionadas.splice(index, 1);

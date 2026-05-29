@@ -363,9 +363,13 @@ export class AuthService {
       throw new UnauthorizedException('Authenticated user not found.');
     }
 
+    const profileUser = await this.findProfileOrThrow(user.id);
+    const selectedBranch = this.resolveSelectedBranchFromUser(profileUser);
+
     return {
       ok: true,
-      user: await this.findProfileOrThrow(user.id),
+      user: profileUser,
+      selectedBranch,
     };
   }
 
@@ -739,6 +743,30 @@ export class AuthService {
       tenantId,
       systemType,
     };
+  }
+
+  private resolveSelectedBranchFromUser(user: ReturnType<AuthService['formatAuthUser']>) {
+    const firstBranch = user.branches?.[0];
+
+    if (user.branch?.id && user.tenantId) {
+      return {
+        id: user.branch.id,
+        name: user.branch.name,
+        tenantId: user.tenantId,
+        systemType: user.systemType ?? firstBranch?.systemType ?? SystemType.padrao,
+      };
+    }
+
+    if (firstBranch?.id && firstBranch.tenantId) {
+      return {
+        id: firstBranch.id,
+        name: firstBranch.name,
+        tenantId: firstBranch.tenantId,
+        systemType: firstBranch.systemType ?? user.systemType ?? SystemType.padrao,
+      };
+    }
+
+    return null;
   }
 
   private formatAuthUser(profile: {
