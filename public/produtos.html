@@ -1159,7 +1159,7 @@
   </div>
 
   <script>
-    const products = [
+    let products = [
       {
         id: 1,
         name: "Copo Térmico",
@@ -1330,6 +1330,7 @@
     let selectedProduct = null;
     let carouselIndex = 0;
     let clientOrders = [];
+    let productsLoadError = "";
 
     const sidebarToggle = document.getElementById("sidebarToggle");
     const sidebar = document.getElementById("sidebar");
@@ -1382,6 +1383,58 @@
     const orderDetailTotal = document.getElementById("orderDetailTotal");
     const orderDetailDate = document.getElementById("orderDetailDate");
     const orderDetailProducts = document.getElementById("orderDetailProducts");
+
+    function shouldUseProductionBackend() {
+      const params = new URLSearchParams(window.location.search);
+      return sessionStorage.getItem("nextstockBackendMode") === "production" ||
+        params.get("mode") === "production";
+    }
+
+    function mapApiProduct(product) {
+      const imageMetadata = product.imageMetadata || [];
+      const apiImages = imageMetadata
+        .map((image) => image.fileUrl || image.storagePath || image.fileName)
+        .filter(Boolean);
+      const fallbackImages = (product.imagens || []).filter(Boolean);
+
+      return {
+        id: product.id,
+        name: product.nome || product.name || "Produto",
+        price: Number(product.precoVenda || product.price || 0),
+        code: product.sku || product.codigoBarra || product.code || "-",
+        category: product.categoria || product.category || "Sem categoria",
+        stock: Number(product.quantidade || product.stock || 0),
+        description: product.descricao || product.description || "",
+        images: apiImages.length > 0
+          ? apiImages
+          : fallbackImages.length > 0
+            ? fallbackImages
+            : ["img/techstore.jpg"]
+      };
+    }
+
+    async function loadProductsFromBackend() {
+      if (!shouldUseProductionBackend()) return;
+
+      try {
+        const response = await fetch("/api/products", {
+          credentials: "include"
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.message || "Nao foi possivel carregar produtos.");
+        }
+
+        if (data.mode !== "visualizacao") {
+          products = (data.products || []).map(mapApiProduct);
+          productsLoadError = "";
+        }
+      } catch (error) {
+        products = [];
+        productsLoadError = error.message || "Nao foi possivel carregar produtos.";
+      }
+    }
 
     function formatMoney(value) {
       return Number(value || 0).toLocaleString("pt-BR", {
@@ -1450,6 +1503,16 @@
     function renderProducts() {
       const filtered = getFilteredProducts();
       productContainer.innerHTML = "";
+
+      if (productsLoadError) {
+        productContainer.innerHTML = `
+          <div class="empty-products">
+            ${productsLoadError}
+          </div>
+        `;
+        pagination.innerHTML = "";
+        return;
+      }
 
       if (!filtered.length) {
         productContainer.innerHTML = `
@@ -2066,9 +2129,14 @@
       renderProducts();
     });
 
-    renderProducts();
-    updateCartView();
-    syncOrderControls();
+    async function initProductsPage() {
+      await loadProductsFromBackend();
+      renderProducts();
+      updateCartView();
+      syncOrderControls();
+    }
+
+    initProductsPage();
   </script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>

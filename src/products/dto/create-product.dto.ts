@@ -16,6 +16,10 @@ export class CreateProductDto {
   @IsString()
   tenantId?: string;
 
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
   @IsString()
   @MaxLength(120)
   nome!: string;

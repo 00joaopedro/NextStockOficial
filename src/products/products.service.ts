@@ -13,7 +13,12 @@ import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
-const PREVIEW_BLOCKED_MESSAGE = 'Modo visualização: alteração bloqueada.';
+const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
+const SESSION_EXPIRED_MESSAGE = 'Sessao expirada. Faca login novamente.';
+const MISSING_TENANT_MESSAGE = 'Usuario sem tenant/empresa vinculado.';
+const MISSING_BRANCH_MESSAGE = 'Usuario sem filial selecionada.';
+const TENANT_NOT_FOUND_MESSAGE = 'Tenant/empresa nao encontrado.';
+const BRANCH_NOT_FOUND_MESSAGE = 'Filial nao encontrada para o tenant selecionado.';
 
 const DEMO_PRODUCTS = [
   {
@@ -163,7 +168,7 @@ export class ProductsService {
   }
 
   async create(user: Express.AuthenticatedUser | undefined, dto: CreateProductDto) {
-    const tenant = await this.requireWritableTenant(user, dto.tenantId);
+    const tenant = await this.requireWritableTenant(user, dto.tenantId, dto.branchId);
 
     try {
       const product = await this.prisma.product.create({
@@ -283,12 +288,17 @@ export class ProductsService {
   private async requireWritableTenant(
     user?: Express.AuthenticatedUser,
     requestedTenantId?: string | null,
+    requestedBranchId?: string | null,
   ) {
+    if (!user) {
+      throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
+    }
+
     if (isSuperAdmin(user)) {
       const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
 
       if (!tenantId) {
-        throw new BadRequestException('tenantId is required for superAdmin writes.');
+        throw new BadRequestException(MISSING_TENANT_MESSAGE);
       }
 
       const tenant = await this.prisma.tenant.findUnique({
@@ -297,27 +307,56 @@ export class ProductsService {
       });
 
       if (!tenant) {
-        throw new UnauthorizedException('Tenant not found.');
+        throw new UnauthorizedException(TENANT_NOT_FOUND_MESSAGE);
       }
 
+      if (tenant.mode === SystemMode.visualizacao) {
+        throw new ForbiddenException(PREVIEW_BLOCKED_MESSAGE);
+      }
+
+      await this.assertWritableBranch(tenant.id, requestedBranchId ?? user.branchId);
       return tenant;
     }
 
     if (!user?.tenantId) {
-      throw new ForbiddenException(PREVIEW_BLOCKED_MESSAGE);
+      throw new UnauthorizedException(MISSING_TENANT_MESSAGE);
+    }
+
+    if (requestedTenantId && requestedTenantId !== user.tenantId) {
+      throw new ForbiddenException('Usuario sem permissao para escrever neste tenant.');
     }
 
     const tenant = await this.getReadableTenant(user);
 
     if (!tenant) {
-      throw new UnauthorizedException('Tenant not found.');
+      throw new UnauthorizedException(TENANT_NOT_FOUND_MESSAGE);
     }
 
     if (tenant.mode === SystemMode.visualizacao) {
       throw new ForbiddenException(PREVIEW_BLOCKED_MESSAGE);
     }
 
+    await this.assertWritableBranch(tenant.id, requestedBranchId ?? user.branchId);
     return tenant;
+  }
+
+  private async assertWritableBranch(tenantId: string, branchId?: string | null) {
+    if (!branchId) {
+      throw new BadRequestException(MISSING_BRANCH_MESSAGE);
+    }
+
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        tenantId,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+
+    if (!branch) {
+      throw new ForbiddenException(BRANCH_NOT_FOUND_MESSAGE);
+    }
   }
 
   private async assertTenantProduct(tenantId: string, id: string, bypassTenant = false) {

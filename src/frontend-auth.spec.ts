@@ -24,4 +24,25 @@ describe('frontend auth pages', () => {
     expect(html).not.toContain("sessionStorage.setItem('nextstockPreviewMode'");
     expect(html).not.toContain("sessionStorage.setItem('nextstockIsPreview'");
   });
+
+  it('cadastro.html exige sessao real e bloqueia escrita em visualizacao', () => {
+    const html = publicFile('cadastro.html');
+
+    expect(html).toContain('/auth/profile');
+    expect(html).toContain('/system/context');
+    expect(html).toContain('montarPayloadProduto');
+    expect(html).toContain('branchId');
+    expect(html).toContain('tenantId');
+    expect(html).toContain('Modo visualiza');
+    expect(html).not.toContain('if (usuarioSuperAdmin) return false');
+  });
+
+  it('produtos.html consome produtos reais quando backend esta em production', () => {
+    const html = publicFile('produtos.html');
+
+    expect(html).toContain('loadProductsFromBackend');
+    expect(html).toContain('/api/products');
+    expect(html).toContain('nextstockBackendMode');
+    expect(html).toContain('mode") === "production"');
+  });
 });

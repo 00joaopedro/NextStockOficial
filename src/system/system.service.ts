@@ -30,7 +30,7 @@ export class SystemService {
     if (isSuperAdmin(currentUser)) {
       return {
         systemMode: SystemMode.Production,
-        tenantType: TenantType.Petshop,
+        tenantType: this.resolveTenantType(currentUser?.systemType),
         isSuperAdmin: true,
         allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
       };
@@ -51,13 +51,22 @@ export class SystemService {
   private resolveTenantSettings(
     currentUser?: Express.AuthenticatedUser,
   ): TenantSystemSettings {
-    // Future expansion point:
-    // 1. Resolve tenant from currentUser.tenantId.
-    // 2. Read tenant type, plan, modules and flags from Prisma/Supabase.
-    // 3. Merge tenant settings with plan defaults and global flags.
+    if (!currentUser?.tenantId) {
+      return {};
+    }
+
     return {
       tenantId: currentUser?.tenantId ?? undefined,
+      systemMode:
+        currentUser.mode === 'visualizacao'
+          ? SystemMode.Preview
+          : SystemMode.Production,
+      tenantType: this.resolveTenantType(currentUser.systemType),
     };
+  }
+
+  private resolveTenantType(systemType?: string | null): TenantType {
+    return systemType === 'petshop' ? TenantType.Petshop : TenantType.Standard;
   }
 
   private readSystemModeFromEnv(): SystemMode {
