@@ -64,12 +64,43 @@ export class AuthController {
 
   private setJwtCookie(res: Response, accessToken: string) {
     const isProd = process.env.NODE_ENV === 'production';
+    const maxAge = this.getJwtMaxAgeMs(accessToken);
 
     res.cookie('jwt', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
       path: '/',
+      ...(maxAge ? { maxAge } : {}),
     });
+  }
+
+  private getJwtMaxAgeMs(accessToken: string) {
+    try {
+      const [, payload] = accessToken.split('.');
+
+      if (!payload) {
+        return undefined;
+      }
+
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(
+        normalized.length + ((4 - (normalized.length % 4)) % 4),
+        '=',
+      );
+      const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
+        exp?: number;
+      };
+
+      if (!decoded.exp) {
+        return undefined;
+      }
+
+      const maxAge = decoded.exp * 1000 - Date.now();
+
+      return maxAge > 0 ? maxAge : undefined;
+    } catch {
+      return undefined;
+    }
   }
 }

@@ -363,7 +363,25 @@ export class AuthService {
       throw new UnauthorizedException('Authenticated user not found.');
     }
 
-    const profileUser = await this.findProfileOrThrow(user.id);
+    const profile = await this.findProfileRecord({
+      supabaseUserId: user.id,
+      profileId: user.id,
+      email: user.email ?? undefined,
+    });
+    const formattedUser = this.formatProfileWithMembership(profile);
+    const currentSelectedBranch = this.resolveSelectedBranchFromUser(formattedUser);
+
+    if (isSuperAdmin(profile) && !currentSelectedBranch) {
+      const context = await this.prepareSuperAdminLoginContext(profile);
+
+      return {
+        ok: true,
+        user: context.user,
+        selectedBranch: context.selectedBranch,
+      };
+    }
+
+    const profileUser = formattedUser;
     const selectedBranch = this.resolveSelectedBranchFromUser(profileUser);
 
     return {
