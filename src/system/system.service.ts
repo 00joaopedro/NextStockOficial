@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
-import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from '../auth/super-admin.util';
+import {
+  canAccessDev,
+  isSuperAdmin,
+  SUPER_ADMIN_SYSTEM_TYPES,
+} from '../auth/super-admin.util';
 import { SystemMode } from './enums/system-mode.enum';
 import { TenantType } from './enums/tenant-type.enum';
 import { SystemContext, TenantSystemSettings } from './interfaces/system-context.interface';
@@ -39,6 +43,7 @@ export class SystemService {
         systemMode: SystemMode.Production,
         tenantType: this.resolveTenantType(currentUser?.systemType),
         isSuperAdmin: true,
+        isDevSuperAdmin: canAccessDev(currentUser),
         allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
       };
     }

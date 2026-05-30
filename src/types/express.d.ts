@@ -17,6 +17,7 @@ declare global {
 
     interface AuthenticatedUser {
       id: string;
+      supabaseUserId?: string | null;
       email: string | null;
       name: string;
       fullName?: string | null;
@@ -31,6 +32,7 @@ declare global {
       allowedSystemTypes?: string[];
       isSuperAdmin?: boolean;
       is_super_admin?: boolean;
+      isDevSuperAdmin?: boolean;
       mode?: string | null;
     }
 

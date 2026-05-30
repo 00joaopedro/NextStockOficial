@@ -12,6 +12,8 @@ describe('DevController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+    process.env.DEV_SUPER_ADMIN_USER_IDS = '';
     controller = new DevController(devService);
   });
 
@@ -23,7 +25,21 @@ describe('DevController', () => {
     ).toThrow(ForbiddenException);
   });
 
-  it('permite superAdmin', async () => {
+  it('bloqueia superAdmin nao listado na allowlist Dev', () => {
+    expect(() =>
+      controller.getHealth({
+        user: {
+          id: 'super-id',
+          email: 'super@example.com',
+          role: 'superAdmin',
+          isSuperAdmin: true,
+        },
+      } as any),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('permite Dev SuperAdmin listado por email', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@example.com';
     devService.getHealth.mockResolvedValue({
       ok: true,
       railwayConfigured: true,
@@ -33,7 +49,12 @@ describe('DevController', () => {
 
     await expect(
       controller.getHealth({
-        user: { role: 'superAdmin', isSuperAdmin: true },
+        user: {
+          id: 'super-id',
+          email: 'dev@example.com',
+          role: 'superAdmin',
+          isSuperAdmin: true,
+        },
       } as any),
     ).resolves.toEqual({
       ok: true,
@@ -41,5 +62,21 @@ describe('DevController', () => {
       supabaseConfigured: true,
       databaseConnected: true,
     });
+  });
+
+  it('permite Dev SuperAdmin listado por id', async () => {
+    process.env.DEV_SUPER_ADMIN_USER_IDS = 'super-id';
+    devService.getHealth.mockResolvedValue({ ok: true });
+
+    await expect(
+      controller.getHealth({
+        user: {
+          id: 'super-id',
+          email: 'super@example.com',
+          role: 'superAdmin',
+          isSuperAdmin: true,
+        },
+      } as any),
+    ).resolves.toEqual({ ok: true });
   });
 });

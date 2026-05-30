@@ -17,9 +17,12 @@ describe('frontend auth pages', () => {
   it('dev.html abre sistema em production sem definir preview', () => {
     const html = publicFile('dev.html');
 
+    expect(html).toContain("await requestJson('/dev/health')");
+    expect(html).toContain('Acesso restrito ao Dev SuperAdmin.');
     expect(html).toContain("sessionStorage.setItem('nextstockBackendMode', 'production')");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedSystemType', selectedType)");
+    expect(html).toContain("sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true')");
     expect(html).toContain('clientePet.html?systemType=petshop&mode=production');
     expect(html).toContain('produtos.html?systemType=padrao&mode=production');
     expect(html).not.toContain("sessionStorage.setItem('nextstockPreviewMode'");
@@ -47,5 +50,19 @@ describe('frontend auth pages', () => {
     expect(html).toContain('/api/products');
     expect(html).toContain('nextstockBackendMode');
     expect(html).toContain('mode") === "production"');
+  });
+
+  it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {
+    const source = publicFile('Js/sidebar.ts');
+    const dist = publicFile('dist/sidebar.js');
+
+    expect(source).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
+    expect(source).toContain('function isDevSuperAdminUser');
+    expect(source).toContain('if (isDevSuperAdminUser(context))');
+    expect(source).toContain('sessionStorage.getItem("nextstockIsDevSuperAdmin") === "true"');
+
+    expect(dist).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
+    expect(dist).toContain('function isDevSuperAdminUser');
+    expect(dist).toContain('if (isDevSuperAdminUser(context))');
   });
 });

@@ -1,6 +1,10 @@
 import { Role, SystemType } from '@prisma/client';
 
 type SuperAdminCandidate = {
+  id?: string | null;
+  email?: string | null;
+  supabaseUserId?: string | null;
+  supabase_user_id?: string | null;
   role?: Role | string | null;
   roles?: Array<Role | string> | null;
   isSuperAdmin?: boolean | null;
@@ -24,4 +28,34 @@ export function isSuperAdmin(user?: SuperAdminCandidate | null): boolean {
   );
 }
 
-export const hasFullDevAccess = isSuperAdmin;
+export function parseAllowlistEnv(value?: string | null): string[] {
+  return (value ?? '')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isDevSuperAdmin(user?: SuperAdminCandidate | null): boolean {
+  if (!isSuperAdmin(user)) {
+    return false;
+  }
+
+  const allowedEmails = parseAllowlistEnv(process.env.DEV_SUPER_ADMIN_EMAILS);
+  const allowedIds = parseAllowlistEnv(process.env.DEV_SUPER_ADMIN_USER_IDS);
+  const email = user?.email?.trim().toLowerCase();
+  const ids = [user?.id, user?.supabaseUserId, user?.supabase_user_id].reduce<
+    string[]
+  >((items, value) => {
+    const normalized = value?.trim().toLowerCase();
+
+    return normalized ? [...items, normalized] : items;
+  }, []);
+
+  return (
+    (Boolean(email) && allowedEmails.includes(email as string)) ||
+    ids.some((id) => allowedIds.includes(id))
+  );
+}
+
+export const canAccessDev = isDevSuperAdmin;
+export const hasFullDevAccess = isDevSuperAdmin;

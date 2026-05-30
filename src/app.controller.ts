@@ -1,6 +1,11 @@
 // src/app.controller.ts
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Res, UseGuards } from '@nestjs/common';
+import type { Response } from 'express';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { AppService } from './app.service';
+import { DevSuperAdminGuard } from './auth/dev-super-admin.guard';
+import { JwtAuthGuard } from './auth/jwt-auth.guard';
 
 @Controller()
 export class AppController {
@@ -16,4 +21,19 @@ export class AppController {
     };
   }
 
+  @Get('dev.html')
+  @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
+  devHtml(@Res() res: Response) {
+    return res.sendFile(join(this.resolvePublicPath(), 'dev.html'));
+  }
+
+  private resolvePublicPath() {
+    const candidates = [
+      join(__dirname, '..', 'public'),
+      join(__dirname, '..', '..', 'public'),
+      join(process.cwd(), 'public'),
+    ];
+
+    return candidates.find((candidate) => existsSync(candidate)) ?? candidates[2];
+  }
 }

@@ -5,6 +5,7 @@ export interface SystemContext {
   systemMode: SystemMode;
   tenantType: TenantType;
   isSuperAdmin?: boolean;
+  isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
 }
 

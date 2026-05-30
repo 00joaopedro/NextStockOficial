@@ -8,7 +8,7 @@ const TENANT_MODULES = {
     PETSHOP: ["core", "petshop"],
 };
 const SIDEBAR_ITEMS = [
-    { label: "Dev", href: "dev.html", key: "dev", module: "core" },
+    { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
     { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
     { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
     { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },
@@ -35,9 +35,15 @@ function isSuperAdminUser(user) {
         candidate?.isSuperAdmin === true ||
         candidate?.is_super_admin === true);
 }
+function isDevSuperAdminUser(user) {
+    const candidate = user;
+    return candidate?.isDevSuperAdmin === true;
+}
 window.NextStockAccess = {
     isSuperAdminUser,
+    isDevSuperAdminUser,
     canAccessEverything: isSuperAdminUser,
+    canAccessDev: isDevSuperAdminUser,
 };
 function injectSidebarStyles() {
     if (document.getElementById("nextstock-sidebar-runtime-styles")) {
@@ -117,6 +123,7 @@ function normalizeContext(value) {
             : FALLBACK_CONTEXT.tenantType,
         isSuperAdmin: isSuperAdminUser(candidate),
         is_super_admin: isSuperAdminUser(candidate),
+        isDevSuperAdmin: isDevSuperAdminUser(candidate),
         allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
             ? candidate.allowedSystemTypes
             : [],
@@ -136,6 +143,7 @@ function getRuntimeFallbackContext() {
         tenantType: selectedSystemType === "petshop" ? "PETSHOP" : "STANDARD",
         isSuperAdmin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
         is_super_admin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
+        isDevSuperAdmin: sessionStorage.getItem("nextstockIsDevSuperAdmin") === "true",
         allowedSystemTypes: sessionStorage.getItem("nextstockIsSuperAdmin") === "true"
             ? ["padrao", "petshop"]
             : selectedSystemType
@@ -158,7 +166,7 @@ function getMenuByTenantType(tenantType) {
     return SIDEBAR_ITEMS.filter((item) => enabledModules.has(item.module));
 }
 function getMenuByContext(context) {
-    if (isSuperAdminUser(context)) {
+    if (isDevSuperAdminUser(context)) {
         return SIDEBAR_ITEMS;
     }
     return getMenuByTenantType(context.tenantType);

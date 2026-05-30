@@ -41,6 +41,8 @@ describe('JwtStrategy', () => {
 
   beforeEach(() => {
     process.env.SUPABASE_JWT_SECRET = 'test-secret';
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+    process.env.DEV_SUPER_ADMIN_USER_IDS = '';
   });
 
   it('cookieExtractor extrai req.cookies.jwt', () => {
@@ -121,7 +123,35 @@ describe('JwtStrategy', () => {
     ).resolves.toMatchObject({
       role: Role.superAdmin,
       isSuperAdmin: true,
+      isDevSuperAdmin: false,
       tenantId: null,
+    });
+  });
+
+  it('validate marca isDevSuperAdmin apenas quando superAdmin esta na allowlist', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@test.com';
+    const prisma = {
+      userProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...profile,
+          role: Role.superAdmin,
+          isSuperAdmin: true,
+          email: 'dev@test.com',
+          tenantId: null,
+          primaryTenantId: null,
+          memberships: [],
+        }),
+        update: jest.fn(),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any);
+
+    await expect(
+      strategy.validate({ sub: 'super-auth-id', email: 'dev@test.com' }),
+    ).resolves.toMatchObject({
+      role: Role.superAdmin,
+      isSuperAdmin: true,
+      isDevSuperAdmin: true,
     });
   });
 });

@@ -113,6 +113,11 @@ describe('AuthService', () => {
       },
     }) as any;
 
+  beforeEach(() => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+    process.env.DEV_SUPER_ADMIN_USER_IDS = '';
+  });
+
   it('cadastro cria auth, profile, tenant, branch Matriz e nao retorna senha', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
@@ -223,6 +228,7 @@ describe('AuthService', () => {
   });
 
   it('login superAdmin retorna filial dev padrao e redireciona para dev.html', async () => {
+    process.env.DEV_SUPER_ADMIN_USER_IDS = 'super-1';
     const prisma = createPrisma();
     const supabase = createSupabase();
     const devBranch = {

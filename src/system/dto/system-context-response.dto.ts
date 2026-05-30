@@ -5,5 +5,6 @@ export class SystemContextResponseDto {
   systemMode!: SystemMode;
   tenantType!: TenantType;
   isSuperAdmin?: boolean;
+  isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
 }

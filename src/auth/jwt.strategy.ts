@@ -6,7 +6,11 @@ import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
-import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
+import {
+  canAccessDev,
+  isSuperAdmin,
+  SUPER_ADMIN_SYSTEM_TYPES,
+} from './super-admin.util';
 
 const jwtLogger = new Logger('JwtStrategy');
 
@@ -190,6 +194,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     const hasFullAccess = isSuperAdmin(profile);
+    const hasDevAccess = canAccessDev(profile);
     const membership = profile.memberships[0];
 
     this.logger.log(
@@ -221,6 +226,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       id: profile.id,
+      supabaseUserId: profile.supabaseUserId,
       email: profile.email,
       name: profile.name,
       fullName: profile.fullName ?? profile.name,
@@ -237,6 +243,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       allowedSystemTypes,
       isSuperAdmin: hasFullAccess,
       is_super_admin: hasFullAccess,
+      isDevSuperAdmin: hasDevAccess,
       mode: membership?.tenant.mode ?? null,
     };
   }

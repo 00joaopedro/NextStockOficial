@@ -14,7 +14,11 @@ import {
   generateUniqueTenantSlug,
   toTenantSummary,
 } from '../tenancy/tenant.utils';
-import { isSuperAdmin, SUPER_ADMIN_SYSTEM_TYPES } from './super-admin.util';
+import {
+  canAccessDev,
+  isSuperAdmin,
+  SUPER_ADMIN_SYSTEM_TYPES,
+} from './super-admin.util';
 
 type RegisterInput = {
   email?: string;
@@ -353,7 +357,7 @@ export class AuthService {
         message: 'Login realizado com sucesso.',
         user,
         selectedBranch,
-        redirectTo: isSuperAdmin(user) ? 'dev.html' : 'produtos.html',
+        redirectTo: canAccessDev(user) ? 'dev.html' : 'produtos.html',
       },
     };
   }
@@ -823,6 +827,7 @@ export class AuthService {
     createdAt?: Date;
   }) {
     const hasFullAccess = isSuperAdmin(profile);
+    const hasDevAccess = canAccessDev(profile);
     const tenantSystemType = profile.tenant?.systemType;
     const allowedSystemTypes = hasFullAccess
       ? SUPER_ADMIN_SYSTEM_TYPES
@@ -834,6 +839,7 @@ export class AuthService {
 
     return {
       id: profile.id,
+      supabaseUserId: profile.supabaseUserId ?? null,
       email: profile.email,
       name: profile.name,
       fullName: profile.fullName ?? profile.name,
@@ -843,6 +849,7 @@ export class AuthService {
       allowedSystemTypes,
       isSuperAdmin: hasFullAccess,
       is_super_admin: hasFullAccess,
+      isDevSuperAdmin: hasDevAccess,
       tenantId: hasFullAccess ? profile.tenantId ?? null : profile.tenant?.id ?? profile.tenantId ?? null,
       primaryTenantId: profile.primaryTenantId ?? null,
       tenant: toTenantSummary(profile.tenant),

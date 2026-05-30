@@ -61,6 +61,19 @@
 
     .content { padding: 28px; }
 
+    body.dev-access-pending .actions,
+    body.dev-access-pending .cards,
+    body.dev-access-pending .filters,
+    body.dev-access-pending .usage-box,
+    body.dev-access-pending .grid,
+    body.dev-access-denied .actions,
+    body.dev-access-denied .cards,
+    body.dev-access-denied .filters,
+    body.dev-access-denied .usage-box,
+    body.dev-access-denied .grid {
+      display: none;
+    }
+
     .toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -244,7 +257,7 @@
   </style>
 </head>
 
-<body>
+<body class="dev-access-pending">
   <div class="layout">
     <aside class="sidebar">
       <h1>NextStock Dev</h1>
@@ -357,7 +370,7 @@
 
   <script>
     const API = '/api';
-    const DEV_UNAUTHORIZED_MESSAGE = 'Sess\u00e3o n\u00e3o autorizada para acessar o modo desenvolvedor.';
+    const DEV_UNAUTHORIZED_MESSAGE = 'Acesso restrito ao Dev SuperAdmin.';
     const PUBLIC_PAGES = [
       { label: 'Dashboard', file: 'dashboard.html', href: 'dashboard.html' },
       { label: 'Produtos', file: 'produtos.html', href: 'produtos.html' },
@@ -571,8 +584,9 @@
 
       renderOverview(data);
       sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
-      sessionStorage.setItem('nextstockSystemType', 'developer');
-      setStatus('SuperAdmin ativo. Dados reais carregados do backend.');
+      sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true');
+      sessionStorage.setItem('nextstockSystemType', 'padrao');
+      setStatus('Dev SuperAdmin ativo. Dados reais carregados do backend.');
     }
 
     async function loadUsersUsage() {
@@ -585,11 +599,14 @@
     }
 
     async function loadDevMode() {
-      renderPages(PUBLIC_PAGES);
-
       try {
+        await requestJson('/dev/health');
+        document.body.classList.remove('dev-access-pending', 'dev-access-denied');
+        renderPages(PUBLIC_PAGES);
         await Promise.all([loadDevOverview(), loadUsersUsage()]);
       } catch (error) {
+        document.body.classList.remove('dev-access-pending');
+        document.body.classList.add('dev-access-denied');
         renderUsersUsage([], getPeriodLabel(els.periodFilter.value));
         setStatus(error.message);
       }
@@ -624,6 +641,7 @@
         sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
         sessionStorage.setItem('nextstockSystemType', selectedType);
         sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+        sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true');
       } catch (error) {
         setStatus(error.message);
         return;
@@ -659,6 +677,7 @@
       sessionStorage.removeItem('nextstockSystemType');
       sessionStorage.removeItem('nextstockSelectedSystemType');
       sessionStorage.removeItem('nextstockIsSuperAdmin');
+      sessionStorage.removeItem('nextstockIsDevSuperAdmin');
 
       window.location.href = 'index.html';
     });

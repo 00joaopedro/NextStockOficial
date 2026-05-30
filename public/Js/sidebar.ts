@@ -1,12 +1,13 @@
 type SystemMode = "PRODUCTION" | "PREVIEW";
 type TenantType = "STANDARD" | "PETSHOP";
-type ModuleKey = "core" | "petshop";
+type ModuleKey = "core" | "petshop" | "dev";
 
 interface SystemContextResponse {
   systemMode: SystemMode;
   tenantType: TenantType;
   isSuperAdmin?: boolean;
   is_super_admin?: boolean;
+  isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
 }
 
@@ -31,7 +32,7 @@ const TENANT_MODULES: Record<TenantType, ModuleKey[]> = {
 };
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { label: "Dev", href: "dev.html", key: "dev", module: "core" },
+  { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
   { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
   { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
   { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },
@@ -56,7 +57,9 @@ declare global {
   interface Window {
     NextStockAccess?: {
       isSuperAdminUser: (user?: unknown) => boolean;
+      isDevSuperAdminUser: (user?: unknown) => boolean;
       canAccessEverything: (user?: unknown) => boolean;
+      canAccessDev: (user?: unknown) => boolean;
     };
   }
 }
@@ -80,9 +83,22 @@ function isSuperAdminUser(user?: unknown): boolean {
   );
 }
 
+function isDevSuperAdminUser(user?: unknown): boolean {
+  const candidate = user as
+    | {
+        isDevSuperAdmin?: boolean;
+      }
+    | null
+    | undefined;
+
+  return candidate?.isDevSuperAdmin === true;
+}
+
 window.NextStockAccess = {
   isSuperAdminUser,
+  isDevSuperAdminUser,
   canAccessEverything: isSuperAdminUser,
+  canAccessDev: isDevSuperAdminUser,
 };
 
 function injectSidebarStyles(): void {
@@ -169,6 +185,7 @@ function normalizeContext(value: unknown): SystemContextResponse {
       : FALLBACK_CONTEXT.tenantType,
     isSuperAdmin: isSuperAdminUser(candidate),
     is_super_admin: isSuperAdminUser(candidate),
+    isDevSuperAdmin: isDevSuperAdminUser(candidate),
     allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
       ? candidate.allowedSystemTypes
       : [],
@@ -193,6 +210,8 @@ function getRuntimeFallbackContext(): SystemContextResponse {
     tenantType: selectedSystemType === "petshop" ? "PETSHOP" : "STANDARD",
     isSuperAdmin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
     is_super_admin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
+    isDevSuperAdmin:
+      sessionStorage.getItem("nextstockIsDevSuperAdmin") === "true",
     allowedSystemTypes:
       sessionStorage.getItem("nextstockIsSuperAdmin") === "true"
         ? ["padrao", "petshop"]
@@ -223,7 +242,7 @@ function getMenuByTenantType(tenantType: TenantType): SidebarItem[] {
 }
 
 function getMenuByContext(context: SystemContextResponse): SidebarItem[] {
-  if (isSuperAdminUser(context)) {
+  if (isDevSuperAdminUser(context)) {
     return SIDEBAR_ITEMS;
   }
 

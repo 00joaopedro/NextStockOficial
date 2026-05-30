@@ -1,8 +1,9 @@
-import { Controller, ForbiddenException, Get, Req } from '@nestjs/common';
+import { Controller, Get, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common';
 import { Request } from 'express';
+import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
-import { isSuperAdmin } from '../auth/super-admin.util';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
 import { SystemService } from './system.service';
 
@@ -17,11 +18,8 @@ export class SystemController {
   }
 
   @Get('pages')
-  getPages(@Req() request: Request) {
-    if (!isSuperAdmin(request.user)) {
-      throw new ForbiddenException('Developer pages are restricted to superAdmin users.');
-    }
-
+  @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
+  getPages() {
     return this.systemService.listPublicHtmlPages();
   }
 }

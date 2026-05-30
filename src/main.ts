@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { RequestMethod } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
 import { json } from 'express';
 import { AppModule } from './app.module';
@@ -16,7 +17,9 @@ async function bootstrap() {
     credentials: true,
   });
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: [{ path: 'dev.html', method: RequestMethod.GET }],
+  });
 
   const port = Number(process.env.PORT || 3000);
   await app.listen(port, '0.0.0.0');
