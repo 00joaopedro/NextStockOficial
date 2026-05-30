@@ -1,11 +1,11 @@
 import { IsIn, IsOptional, IsString } from 'class-validator';
 
-export type DevPeriod = 'today' | 'weekly' | 'monthly';
+export type DevPeriod = 'day' | 'today' | 'week' | 'weekly' | 'month' | 'monthly';
 
 export class DevQueryDto {
   @IsOptional()
-  @IsIn(['today', 'weekly', 'monthly'])
-  period?: DevPeriod = 'today';
+  @IsIn(['day', 'today', 'week', 'weekly', 'month', 'monthly'])
+  period?: DevPeriod = 'day';
 
   @IsOptional()
   @IsString()

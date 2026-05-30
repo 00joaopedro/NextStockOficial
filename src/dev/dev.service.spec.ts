@@ -4,8 +4,10 @@ describe('DevService', () => {
   const prisma = {
     userProfile: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     userUsageEvent: {
+      aggregate: jest.fn(),
       count: jest.fn(),
       create: jest.fn(),
       groupBy: jest.fn(),
@@ -50,9 +52,10 @@ describe('DevService', () => {
     prisma.userProfile.count.mockResolvedValue(2);
     prisma.userUsageEvent.count.mockResolvedValue(3);
     prisma.userUsageEvent.groupBy.mockResolvedValue([{ userId: 'user-1' }]);
+    prisma.userUsageEvent.aggregate.mockResolvedValue({ _sum: { weight: 3 } });
 
     await expect(service.getOverview('today')).resolves.toMatchObject({
-      period: 'today',
+      period: 'day',
       railway: { status: 'unavailable' },
       supabase: { status: 'unavailable' },
       usersSummary: {
@@ -71,9 +74,10 @@ describe('DevService', () => {
       code: 'P2021',
       message: 'The table public.user_usage_events does not exist in the current database.',
     });
+    prisma.userUsageEvent.aggregate.mockResolvedValue({ _sum: { weight: 0 } });
 
     await expect(service.getOverview('today')).resolves.toMatchObject({
-      period: 'today',
+      period: 'day',
       usersSummary: {
         totalUsers: 2,
         activeUsers: 0,
@@ -83,13 +87,15 @@ describe('DevService', () => {
   });
 
   it('retorna lista vazia quando user_usage_events ainda nao existe', async () => {
+    prisma.userProfile.findMany.mockResolvedValue([]);
+    prisma.userProfile.count.mockResolvedValue(0);
     prisma.userUsageEvent.groupBy.mockRejectedValue({
       code: 'P2021',
       message: 'The table public.user_usage_events does not exist in the current database.',
     });
 
-    await expect(service.getUsersUsage('today')).resolves.toEqual({
-      period: 'today',
+    await expect(service.getUsersUsage('today')).resolves.toMatchObject({
+      period: 'day',
       users: [],
     });
   });
@@ -106,5 +112,50 @@ describe('DevService', () => {
         eventType: 'page_view',
       }),
     ).resolves.toBeNull();
+  });
+
+  it('lista todos os usuarios e zera uso quando nao ha eventos no periodo', async () => {
+    prisma.userUsageEvent.groupBy.mockResolvedValue([]);
+    prisma.userProfile.findMany.mockResolvedValue([
+      {
+        id: 'user-1',
+        name: 'Ana',
+        fullName: 'Ana',
+        email: 'ana@test.com',
+        systemType: 'padrao',
+        memberships: [
+          {
+            tenant: { id: 'tenant-1', name: 'Empresa', systemType: 'padrao' },
+            branch: { id: 'branch-1', name: 'Matriz' },
+          },
+        ],
+      },
+    ]);
+    prisma.userProfile.count.mockResolvedValue(1);
+    railwayMetrics.getOverview.mockResolvedValue({ status: 'ok', cpu: null });
+    supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok', databaseSize: null });
+
+    await expect(service.getUsersUsage({ period: 'day' })).resolves.toMatchObject({
+      period: 'day',
+      isEstimated: true,
+      users: [
+        {
+          id: 'user-1',
+          accessCount: 0,
+          eventWeight: 0,
+          serverUsage: { units: 0 },
+          databaseUsage: { units: 0 },
+        },
+      ],
+    });
+  });
+
+  it('aceita aliases de periodo day/week/month e today/weekly/monthly', () => {
+    expect(service.calculatePeriod('today').period).toBe('day');
+    expect(service.calculatePeriod('day').period).toBe('day');
+    expect(service.calculatePeriod('weekly').period).toBe('week');
+    expect(service.calculatePeriod('week').period).toBe('week');
+    expect(service.calculatePeriod('monthly').period).toBe('month');
+    expect(service.calculatePeriod('month').period).toBe('month');
   });
 });

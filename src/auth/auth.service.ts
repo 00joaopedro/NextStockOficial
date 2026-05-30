@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Optional,
   RequestTimeoutException,
   ServiceUnavailableException,
   UnauthorizedException,
@@ -14,6 +15,7 @@ import {
   generateUniqueTenantSlug,
   toTenantSummary,
 } from '../tenancy/tenant.utils';
+import { UsageService } from '../usage/usage.service';
 import {
   canAccessDev,
   isSuperAdmin,
@@ -95,6 +97,7 @@ export class AuthService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly prisma: PrismaService,
+    @Optional() private readonly usageService?: UsageService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -290,6 +293,18 @@ export class AuthService {
       result.tenant.id,
       result.tenant.systemType,
     );
+    await this.usageService?.record({
+      userId: user.id,
+      tenantId: selectedBranch.tenantId,
+      branchId: selectedBranch.id,
+      email: user.email,
+      name: user.name,
+      systemType: selectedBranch.systemType,
+      branchName: selectedBranch.name,
+      eventType: 'register',
+      weight: 2,
+      dbWriteCount: 1,
+    });
 
     return {
       accessToken,
@@ -350,6 +365,17 @@ export class AuthService {
       metadata: data.user.user_metadata,
     });
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    await this.usageService?.record({
+      userId: user.id,
+      tenantId: selectedBranch?.tenantId ?? user.tenantId,
+      branchId: selectedBranch?.id ?? user.branchId,
+      email: user.email,
+      name: user.name,
+      systemType: selectedBranch?.systemType ?? user.systemType,
+      branchName: selectedBranch?.name ?? user.branch?.name,
+      eventType: 'login',
+      weight: 1,
+    });
 
     return {
       accessToken,
@@ -377,6 +403,18 @@ export class AuthService {
 
     if (isSuperAdmin(profile) && !currentSelectedBranch) {
       const context = await this.prepareSuperAdminLoginContext(profile);
+      await this.usageService?.record({
+        userId: context.user.id,
+        tenantId: context.selectedBranch?.tenantId ?? context.user.tenantId,
+        branchId: context.selectedBranch?.id ?? context.user.branchId,
+        email: context.user.email,
+        name: context.user.name,
+        systemType: context.selectedBranch?.systemType ?? context.user.systemType,
+        branchName: context.selectedBranch?.name ?? context.user.branch?.name,
+        eventType: 'profile',
+        weight: 1,
+        dbReadCount: 1,
+      });
 
       return {
         ok: true,
@@ -387,6 +425,18 @@ export class AuthService {
 
     const profileUser = formattedUser;
     const selectedBranch = this.resolveSelectedBranchFromUser(profileUser);
+    await this.usageService?.record({
+      userId: profileUser.id,
+      tenantId: selectedBranch?.tenantId ?? profileUser.tenantId,
+      branchId: selectedBranch?.id ?? profileUser.branchId,
+      email: profileUser.email,
+      name: profileUser.name,
+      systemType: selectedBranch?.systemType ?? profileUser.systemType,
+      branchName: selectedBranch?.name ?? profileUser.branch?.name,
+      eventType: 'profile',
+      weight: 1,
+      dbReadCount: 1,
+    });
 
     return {
       ok: true,

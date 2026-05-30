@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { canAccessDev } from '../auth/super-admin.util';
 import { DevService } from './dev.service';
 import { DevQueryDto } from './dto/dev-query.dto';
+import { DevUsageQueryDto } from './dto/dev-usage-query.dto';
 
 @Controller('dev')
 @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
@@ -28,9 +29,9 @@ export class DevController {
   }
 
   @Get('users-usage')
-  getUsersUsage(@Req() request: Request, @Query() query: DevQueryDto) {
+  getUsersUsage(@Req() request: Request, @Query() query: DevUsageQueryDto) {
     this.assertDevSuperAdmin(request.user);
-    return this.devService.getUsersUsage(query.period || 'today', query.search);
+    return this.devService.getUsersUsage(query);
   }
 
   @Get('health')

@@ -3,11 +3,13 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, Product, ProductImage, SystemMode } from '@prisma/client';
 import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsageService } from '../usage/usage.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
@@ -69,7 +71,10 @@ type ProductWithImages = Product & { images: ProductImage[] };
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly usageService?: UsageService,
+  ) {}
 
   async findAll(user: Express.AuthenticatedUser | undefined, query: ProductQueryDto) {
     const tenant = await this.getReadableTenant(user);
@@ -78,6 +83,10 @@ export class ProductsService {
       const products = await this.prisma.product.findMany({
         include: { images: { orderBy: { createdAt: 'asc' } } },
         orderBy: { createdAt: 'desc' },
+      });
+      await this.recordProductUsage(user, 'products_list', {
+        dbReadCount: 1,
+        metadata: { count: products.length, scope: 'all' },
       });
 
       return {
@@ -120,6 +129,10 @@ export class ProductsService {
       where,
       include: { images: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
+    });
+    await this.recordProductUsage(user, 'products_list', {
+      dbReadCount: 1,
+      metadata: { count: products.length },
     });
 
     return {
@@ -178,6 +191,10 @@ export class ProductsService {
         },
         include: { images: true },
       });
+      await this.recordProductUsage(user, 'product_create', {
+        dbWriteCount: 1,
+        metadata: { productId: product.id },
+      });
 
       return { ok: true, product: this.formatProduct(product) };
     } catch (error) {
@@ -199,6 +216,10 @@ export class ProductsService {
         data: await this.buildUpdateData(id, dto),
         include: { images: { orderBy: { createdAt: 'asc' } } },
       });
+      await this.recordProductUsage(user, 'product_update', {
+        dbWriteCount: 1,
+        metadata: { productId: product.id },
+      });
 
       return { ok: true, product: this.formatProduct(product) };
     } catch (error) {
@@ -211,6 +232,10 @@ export class ProductsService {
     await this.assertTenantProduct(tenant.id, id, isSuperAdmin(user));
 
     await this.prisma.product.delete({ where: { id } });
+    await this.recordProductUsage(user, 'product_delete', {
+      dbWriteCount: 1,
+      metadata: { productId: id },
+    });
 
     return { ok: true };
   }
@@ -238,6 +263,10 @@ export class ProductsService {
         fileUrl: image.fileUrl?.trim() || null,
         storagePath: image.storagePath?.trim() || null,
       })),
+    });
+    await this.recordProductUsage(user, 'product_image_upload', {
+      dbWriteCount: 1,
+      metadata: { productId: id, imageCount: dto.images.length },
     });
 
     const product = await this.prisma.product.findFirst({
@@ -480,6 +509,24 @@ export class ProductsService {
       if (barcode && product.codigoBarra.toLowerCase() !== barcode) return false;
       if (category && !product.categoria.toLowerCase().includes(category)) return false;
       return true;
+    });
+  }
+
+  private async recordProductUsage(
+    user: Express.AuthenticatedUser | undefined,
+    eventType: string,
+    options: {
+      dbReadCount?: number;
+      dbWriteCount?: number;
+      metadata?: Record<string, unknown>;
+    } = {},
+  ) {
+    await this.usageService?.record({
+      user,
+      eventType,
+      dbReadCount: options.dbReadCount ?? 0,
+      dbWriteCount: options.dbWriteCount ?? 0,
+      metadata: options.metadata,
     });
   }
 

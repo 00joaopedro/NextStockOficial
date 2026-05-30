@@ -19,6 +19,11 @@ describe('frontend auth pages', () => {
 
     expect(html).toContain("await requestJson('/dev/health')");
     expect(html).toContain('Acesso restrito ao Dev SuperAdmin.');
+    expect(html).toContain('Os valores de Railway e Supabase s&atilde;o estimativas');
+    expect(html).toContain('<option value="day">Dia atual at&eacute; agora</option>');
+    expect(html).toContain('<option value="week">Semana</option>');
+    expect(html).toContain('<option value="month">M&ecirc;s</option>');
+    expect(html).toContain('Carregando uso estimado dos usuarios');
     expect(html).toContain("sessionStorage.setItem('nextstockBackendMode', 'production')");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedSystemType', selectedType)");
@@ -64,5 +69,15 @@ describe('frontend auth pages', () => {
     expect(dist).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
     expect(dist).toContain('function isDevSuperAdminUser');
     expect(dist).toContain('if (isDevSuperAdminUser(context))');
+  });
+
+  it('sidebar registra page_view em modo production sem expor tokens', () => {
+    const source = publicFile('Js/sidebar.ts');
+
+    expect(source).toContain('const PAGE_VIEW_ENDPOINT = "/api/usage/page-view"');
+    expect(source).toContain('function recordPageView');
+    expect(source).toContain('eventType: "page_view"');
+    expect(source).not.toContain('RAILWAY_API_TOKEN');
+    expect(source).not.toContain('SUPABASE_ACCESS_TOKEN');
   });
 });

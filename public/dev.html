@@ -161,6 +161,18 @@
       color: #334;
     }
 
+    .estimate-note {
+      margin-bottom: 18px;
+      padding: 14px;
+      border-radius: 8px;
+      border: 1px solid #b8d9ee;
+      background: #eef8ff;
+      color: #173a55;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+
     .filters {
       display: flex;
       flex-wrap: wrap;
@@ -328,10 +340,14 @@
         />
 
         <select id="periodFilter">
-          <option value="today">Hoje at&eacute; agora</option>
-          <option value="weekly">Semanal</option>
-          <option value="monthly">Mensal</option>
+          <option value="day">Dia atual at&eacute; agora</option>
+          <option value="week">Semana</option>
+          <option value="month">M&ecirc;s</option>
         </select>
+      </div>
+
+      <div class="estimate-note">
+        Os valores de Railway e Supabase s&atilde;o estimativas por usu&aacute;rio, calculadas por rateio proporcional de atividade interna. As plataformas fornecem m&eacute;tricas globais do projeto, n&atilde;o custo real por usu&aacute;rio.
       </div>
 
       <div class="status" id="statusBox">Carregando dados do backend...</div>
@@ -347,10 +363,12 @@
                 <th>Email</th>
                 <th>Tipo do sistema</th>
                 <th>Filial</th>
-                <th>Acessos</th>
+                <th>Acessos/eventos</th>
+                <th>A&ccedil;&otilde;es ponderadas</th>
                 <th>&Uacute;ltimo acesso</th>
-                <th>Uso servidor</th>
-                <th>Uso database</th>
+                <th>Railway estimado</th>
+                <th>Supabase estimado</th>
+                <th>Custo estimado</th>
                 <th>Per&iacute;odo</th>
               </tr>
             </thead>
@@ -524,12 +542,41 @@
 
     function getPeriodLabel(period) {
       const labels = {
-        today: 'Hoje ate agora',
-        weekly: 'Semanal',
-        monthly: 'Mensal'
+        day: 'Dia atual ate agora',
+        today: 'Dia atual ate agora',
+        week: 'Semana',
+        weekly: 'Semana',
+        month: 'Mes',
+        monthly: 'Mes'
       };
 
-      return labels[period] || 'Hoje ate agora';
+      return labels[period] || 'Dia atual ate agora';
+    }
+
+    function formatMoneyCents(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) {
+        return 'Sem base de custo';
+      }
+
+      return (Number(value) / 100).toLocaleString('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+      });
+    }
+
+    function formatUsageEstimate(value) {
+      if (!value || typeof value !== 'object') {
+        return '0 unidades estimadas';
+      }
+
+      const units = Number(value.units || 0).toLocaleString('pt-BR', {
+        maximumFractionDigits: 2
+      });
+      const share = Number(value.sharePercent || 0).toLocaleString('pt-BR', {
+        maximumFractionDigits: 2
+      });
+
+      return `${units} unidades (${share}%)`;
     }
 
     function renderOverview(data) {
@@ -548,7 +595,7 @@
       els.databaseConnections.textContent = `Conexoes: ${formatMetric(supabase.activeConnections)} | Storage: ${formatBytes(supabase.storageUsed)}`;
 
       els.activeUsers.textContent = String(summary.activeUsers || 0);
-      els.totalAccesses.textContent = `Total usuarios: ${summary.totalUsers || 0} | Acessos: ${summary.totalAccesses || 0}`;
+      els.totalAccesses.textContent = `Total usuarios: ${summary.totalUsers || 0} | Eventos: ${summary.totalEvents || summary.totalAccesses || 0} | Peso: ${summary.totalWeight || 0}`;
       els.updatedAt.textContent = formatDate(data.updatedAt);
       els.selectedPeriodLabel.textContent = getPeriodLabel(data.period || els.periodFilter.value);
     }
@@ -569,9 +616,11 @@
           <td>${escapeHtml(user.systemType || '-')}</td>
           <td>${escapeHtml(user.branchName || '-')}</td>
           <td>${escapeHtml(user.accessCount || 0)}</td>
+          <td>${escapeHtml(user.eventWeight || 0)}</td>
           <td>${escapeHtml(formatDate(user.lastAccessAt))}</td>
-          <td>${escapeHtml(formatMetric(user.serverUsage))}</td>
-          <td>${escapeHtml(formatMetric(user.databaseUsage))}</td>
+          <td>${escapeHtml(formatUsageEstimate(user.serverUsage))}</td>
+          <td>${escapeHtml(formatUsageEstimate(user.databaseUsage))}</td>
+          <td>${escapeHtml(formatMoneyCents(user.estimatedCostCents))}</td>
           <td>${escapeHtml(periodLabel)}</td>
         </tr>
       `).join('');
@@ -580,6 +629,7 @@
     async function loadDevOverview() {
       const period = els.periodFilter.value;
       const params = new URLSearchParams({ period });
+      setStatus('Carregando resumo estimado...');
       const data = await requestJson(`/dev/overview?${params.toString()}`);
 
       renderOverview(data);
@@ -593,15 +643,28 @@
       const search = els.userSearchInput.value.trim();
       const period = els.periodFilter.value;
       const params = new URLSearchParams({ period, search });
+      setStatus('Carregando uso estimado dos usuarios...');
       const data = await requestJson(`/dev/users-usage?${params.toString()}`);
 
       renderUsersUsage(data.users || [], getPeriodLabel(period));
+      setStatus('Uso estimado carregado. Valores calculados por atividade interna ponderada.');
+    }
+
+    function recordDevPageView() {
+      void requestJson('/usage/page-view', {
+        method: 'POST',
+        body: JSON.stringify({
+          page: 'dev.html',
+          eventType: 'page_view'
+        })
+      }).catch(() => undefined);
     }
 
     async function loadDevMode() {
       try {
         await requestJson('/dev/health');
         document.body.classList.remove('dev-access-pending', 'dev-access-denied');
+        recordDevPageView();
         renderPages(PUBLIC_PAGES);
         await Promise.all([loadDevOverview(), loadUsersUsage()]);
       } catch (error) {

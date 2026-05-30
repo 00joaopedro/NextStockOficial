@@ -1,4 +1,5 @@
 const SYSTEM_CONTEXT_ENDPOINT = "/api/system/context";
+const PAGE_VIEW_ENDPOINT = "/api/usage/page-view";
 const FALLBACK_CONTEXT = {
     systemMode: "PREVIEW",
     tenantType: "STANDARD",
@@ -237,17 +238,38 @@ function renderSidebar(container, context) {
     document.documentElement.dataset.systemMode = context.systemMode;
     document.documentElement.dataset.tenantType = context.tenantType;
 }
+function recordPageView(context) {
+    if (context.systemMode !== "PRODUCTION") {
+        return;
+    }
+    void fetch(PAGE_VIEW_ENDPOINT, {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            page: getCurrentPageFileName(),
+            eventType: "page_view",
+        }),
+    }).catch(() => undefined);
+}
 async function loadSidebar() {
     const container = document.getElementById("sidebar-container");
     if (!container) {
         return;
     }
     try {
-        renderSidebar(container, await fetchSystemContext());
+        const context = await fetchSystemContext();
+        renderSidebar(container, context);
+        recordPageView(context);
     }
     catch (error) {
         console.warn("Using fallback sidebar context.", error);
-        renderSidebar(container, getRuntimeFallbackContext());
+        const context = getRuntimeFallbackContext();
+        renderSidebar(container, context);
+        recordPageView(context);
     }
 }
 if (document.readyState === "loading") {
