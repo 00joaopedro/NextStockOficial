@@ -7,6 +7,7 @@ describe('DevService', () => {
     },
     userUsageEvent: {
       count: jest.fn(),
+      create: jest.fn(),
       groupBy: jest.fn(),
     },
   } as any;
@@ -25,7 +26,7 @@ describe('DevService', () => {
   let service: DevService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     service = new DevService(prisma, railwayMetrics, supabaseMetrics);
   });
 
@@ -60,5 +61,50 @@ describe('DevService', () => {
         totalAccesses: 3,
       },
     });
+  });
+
+  it('retorna resumo vazio quando user_usage_events ainda nao existe', async () => {
+    railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    prisma.userProfile.count.mockResolvedValue(2);
+    prisma.userUsageEvent.count.mockRejectedValue({
+      code: 'P2021',
+      message: 'The table public.user_usage_events does not exist in the current database.',
+    });
+
+    await expect(service.getOverview('today')).resolves.toMatchObject({
+      period: 'today',
+      usersSummary: {
+        totalUsers: 2,
+        activeUsers: 0,
+        totalAccesses: 0,
+      },
+    });
+  });
+
+  it('retorna lista vazia quando user_usage_events ainda nao existe', async () => {
+    prisma.userUsageEvent.groupBy.mockRejectedValue({
+      code: 'P2021',
+      message: 'The table public.user_usage_events does not exist in the current database.',
+    });
+
+    await expect(service.getUsersUsage('today')).resolves.toEqual({
+      period: 'today',
+      users: [],
+    });
+  });
+
+  it('ignora registro de uso quando user_usage_events ainda nao existe', async () => {
+    prisma.userUsageEvent.create.mockRejectedValue({
+      code: 'P2021',
+      message: 'The table public.user_usage_events does not exist in the current database.',
+    });
+
+    await expect(
+      service.recordUserUsage({
+        userId: '0fefdbb8-0954-4ea0-991e-9be6a2f9c481',
+        eventType: 'page_view',
+      }),
+    ).resolves.toBeNull();
   });
 });

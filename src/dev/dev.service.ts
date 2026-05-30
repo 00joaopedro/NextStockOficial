@@ -14,6 +14,16 @@ type RecordUserUsageInput = {
   page?: string | null;
 };
 
+function isMissingUserUsageTableError(error: unknown): boolean {
+  const candidate = error as { code?: string; message?: string; meta?: unknown };
+  const message = candidate?.message ?? JSON.stringify(candidate?.meta ?? {});
+
+  return (
+    candidate?.code === 'P2021' &&
+    message.toLowerCase().includes('user_usage_events')
+  );
+}
+
 @Injectable()
 export class DevService {
   constructor(
@@ -74,7 +84,7 @@ export class DevService {
       ];
     }
 
-    const events = await (this.prisma as any).userUsageEvent.groupBy({
+    const events = await this.safeUserUsageGroupBy({
       by: ['userId', 'email', 'name', 'systemType', 'branchName'],
       where,
       _count: { _all: true },
@@ -108,36 +118,69 @@ export class DevService {
   }
 
   async recordUserUsage(input: RecordUserUsageInput) {
-    return (this.prisma as any).userUsageEvent.create({
-      data: {
-        userId: input.userId,
-        email: input.email,
-        name: input.name,
-        systemType: input.systemType,
-        branchName: input.branchName,
-        eventType: input.eventType,
-        page: input.page,
-      },
-    });
+    try {
+      return await (this.prisma as any).userUsageEvent.create({
+        data: {
+          userId: input.userId,
+          email: input.email,
+          name: input.name,
+          systemType: input.systemType,
+          branchName: input.branchName,
+          eventType: input.eventType,
+          page: input.page,
+        },
+      });
+    } catch (error) {
+      if (isMissingUserUsageTableError(error)) {
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   private async getUsersSummary(start: Date, end: Date) {
-    const [totalUsers, totalAccesses, activeUserRows] = await Promise.all([
-      this.prisma.userProfile.count(),
-      (this.prisma as any).userUsageEvent.count({
-        where: { createdAt: { gte: start, lte: end } },
-      }),
-      (this.prisma as any).userUsageEvent.groupBy({
-        by: ['userId'],
-        where: { createdAt: { gte: start, lte: end } },
-      }),
-    ]);
+    const totalUsers = await this.prisma.userProfile.count();
 
-    return {
-      totalUsers,
-      activeUsers: activeUserRows.length,
-      totalAccesses,
-    };
+    try {
+      const [totalAccesses, activeUserRows] = await Promise.all([
+        (this.prisma as any).userUsageEvent.count({
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+        (this.prisma as any).userUsageEvent.groupBy({
+          by: ['userId'],
+          where: { createdAt: { gte: start, lte: end } },
+        }),
+      ]);
+
+      return {
+        totalUsers,
+        activeUsers: activeUserRows.length,
+        totalAccesses,
+      };
+    } catch (error) {
+      if (!isMissingUserUsageTableError(error)) {
+        throw error;
+      }
+
+      return {
+        totalUsers,
+        activeUsers: 0,
+        totalAccesses: 0,
+      };
+    }
+  }
+
+  private async safeUserUsageGroupBy(args: any) {
+    try {
+      return await (this.prisma as any).userUsageEvent.groupBy(args);
+    } catch (error) {
+      if (isMissingUserUsageTableError(error)) {
+        return [];
+      }
+
+      throw error;
+    }
   }
 
   private async safeRailwayOverview() {
