@@ -1,0 +1,180 @@
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { Role, SystemMode, SystemType } from '@prisma/client';
+import { PetClientsService } from './pet-clients.service';
+
+function user(overrides: Partial<Express.AuthenticatedUser> = {}): Express.AuthenticatedUser {
+  return {
+    id: 'user-1',
+    email: 'admin@pet.com',
+    name: 'Admin Pet',
+    role: Role.Admin,
+    roles: [Role.Admin],
+    tenantId: 'tenant-pet',
+    primaryTenantId: 'tenant-pet',
+    tenant: null,
+    branchId: 'branch-pet',
+    branch: null,
+    systemType: 'petshop',
+    mode: 'petshop',
+    ...overrides,
+  };
+}
+
+function prismaMock() {
+  return {
+    tenant: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'tenant-pet',
+        systemType: SystemType.petshop,
+        mode: SystemMode.petshop,
+      }),
+    },
+    branch: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'branch-pet' }),
+    },
+    petClient: {
+      count: jest.fn().mockResolvedValue(1),
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'client-1',
+        tenantId: 'tenant-pet',
+        branchId: 'branch-pet',
+        name: 'Cliente',
+        phone: '999',
+        address: {},
+        pets: [],
+      }),
+      create: jest.fn().mockResolvedValue({
+        id: 'client-1',
+        tenantId: 'tenant-pet',
+        branchId: 'branch-pet',
+        name: 'Cliente',
+        phone: '999',
+        address: {},
+        pets: [],
+      }),
+      update: jest.fn().mockResolvedValue({
+        id: 'client-1',
+        tenantId: 'tenant-pet',
+        branchId: 'branch-pet',
+        name: 'Cliente 2',
+        phone: '999',
+        address: {},
+        pets: [],
+      }),
+    },
+    pet: {
+      updateMany: jest.fn(),
+    },
+    agendaPet: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    $transaction: jest.fn((operations) => Promise.all(operations)),
+  };
+}
+
+describe('PetClientsService', () => {
+  it('cria cliente Pet com usuario Pet Shop autenticado no tenant correto', async () => {
+    const prisma = prismaMock();
+    const service = new PetClientsService(prisma as any);
+
+    const result = await service.create(user(), {
+      name: 'Maria',
+      phone: '999',
+      address: { bairro: 'Centro' },
+    });
+
+    expect(result.client).toMatchObject({ name: 'Cliente', tenantId: 'tenant-pet' });
+    expect(prisma.petClient.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
+          name: 'Maria',
+        }),
+      }),
+    );
+  });
+
+  it('lista clientes apenas do tenant autenticado', async () => {
+    const prisma = prismaMock();
+    const service = new PetClientsService(prisma as any);
+
+    await service.findAll(user(), { search: 'maria', page: 1, pageSize: 20 });
+
+    expect(prisma.petClient.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-pet',
+          deletedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it('bloqueia usuario sem JWT', async () => {
+    const service = new PetClientsService(prismaMock() as any);
+
+    await expect(service.findAll(undefined, {})).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('bloqueia usuario do modo padrao', async () => {
+    const prisma = prismaMock();
+    prisma.tenant.findUnique.mockResolvedValueOnce({
+      id: 'tenant-standard',
+      systemType: SystemType.padrao,
+      mode: SystemMode.padrao,
+    });
+    const service = new PetClientsService(prisma as any);
+
+    await expect(
+      service.create(user({ tenantId: 'tenant-standard', systemType: 'padrao' }), {
+        name: 'Maria',
+        phone: '999',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('bloqueia escrita em modo visualizacao', async () => {
+    const prisma = prismaMock();
+    prisma.tenant.findUnique.mockResolvedValueOnce({
+      id: 'tenant-pet',
+      systemType: SystemType.petshop,
+      mode: SystemMode.visualizacao,
+    });
+    const service = new PetClientsService(prisma as any);
+
+    await expect(
+      service.create(user(), { name: 'Maria', phone: '999' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('permite Dev SuperAdmin com filial Pet Shop selecionada', async () => {
+    const prisma = prismaMock();
+    prisma.branch.findFirst.mockResolvedValueOnce({
+      id: 'branch-pet',
+      tenant: {
+        id: 'tenant-pet',
+        systemType: SystemType.petshop,
+        mode: SystemMode.petshop,
+      },
+    });
+    const service = new PetClientsService(prisma as any);
+
+    await service.create(
+      user({
+        role: Role.superAdmin,
+        roles: [Role.superAdmin],
+        isSuperAdmin: true,
+        tenantId: null,
+        branchId: null,
+      }),
+      { name: 'Maria', phone: '999' },
+      'branch-pet',
+    );
+
+    expect(prisma.petClient.create).toHaveBeenCalled();
+  });
+});

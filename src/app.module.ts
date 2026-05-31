@@ -17,6 +17,9 @@ import { ProfileModule } from './profile/profile.module';
 import { PaymentMachinesModule } from './payment-machines/payment-machines.module';
 import { ProductsModule } from './products/products.module';
 import { DevModule } from './dev/dev.module';
+import { PetClientsModule } from './pet-clients/pet-clients.module';
+import { PetsModule } from './pets/pets.module';
+import { StorageModule } from './storage/storage.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -39,6 +42,9 @@ const publicPath = join(__dirname, '..', 'public');
     ProfileModule,
     PaymentMachinesModule,
     ProductsModule,
+    StorageModule,
+    PetClientsModule,
+    PetsModule,
     DevModule,
   ],
   controllers: [AppController],

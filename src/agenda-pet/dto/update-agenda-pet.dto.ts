@@ -36,4 +36,16 @@ export class UpdateAgendaPetDto {
 	@IsString()
 	@IsOptional()
 	tenantId?: string;
+
+	@IsString()
+	@IsOptional()
+	branchId?: string;
+
+	@IsString()
+	@IsOptional()
+	clientId?: string;
+
+	@IsString()
+	@IsOptional()
+	petId?: string;
 }

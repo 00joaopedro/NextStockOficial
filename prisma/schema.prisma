@@ -48,6 +48,9 @@ model Tenant {
   primaryProfiles UserProfile[]  @relation("PrimaryTenantProfiles")
   profiles        UserProfile[]  @relation("TenantProfiles")
   agendaPets      AgendaPet[]
+  petClients      PetClient[]
+  pets            Pet[]
+  petPhotos       PetPhoto[]
   products        Product[]
   paymentMachines PaymentMachine[]
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -98,6 +101,7 @@ model Branch {
   isDefault Boolean        @default(false) @map("is_default")
   isActive  Boolean        @default(true) @map("is_active")
   members   TenantMember[]
+  petClients PetClient[]
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
@@ -137,10 +141,95 @@ model AgendaPet {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   tenantId  String   @db.Uuid
+  branchId  String?  @map("branch_id") @db.Uuid
+  clientId  String?  @map("client_id") @db.Uuid
+  petId     String?  @map("pet_id") @db.Uuid
   tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client    PetClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  pet       Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
 
   @@index([tenantId])
+  @@index([clientId])
+  @@index([petId])
+  @@index([branchId])
   @@map("agenda_pets")
+}
+
+model PetClient {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String    @map("tenant_id") @db.Uuid
+  branchId  String?   @map("branch_id") @db.Uuid
+  name      String
+  phone     String
+  email     String?
+  document  String?
+  address   Json?
+  notes     String?
+  deletedAt DateTime? @map("deleted_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  pets         Pet[]
+  appointments AgendaPet[]
+
+  @@index([tenantId])
+  @@index([tenantId, branchId])
+  @@index([tenantId, name])
+  @@index([tenantId, phone])
+  @@index([deletedAt])
+  @@map("pet_clients")
+}
+
+model Pet {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  clientId        String    @map("client_id") @db.Uuid
+  name            String
+  species         String    @default("dog")
+  breed           String?
+  birthDate       DateTime? @map("birth_date")
+  ageText         String?   @map("age_text")
+  weight          String?
+  height          String?
+  width           String?
+  length          String?
+  foodPerDay      String?   @map("food_per_day")
+  description     String?
+  vaccinesTaken   String?   @map("vaccines_taken")
+  vaccinesPending String?   @map("vaccines_pending")
+  deletedAt       DateTime? @map("deleted_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  client       PetClient   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  photos       PetPhoto[]
+  appointments AgendaPet[]
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([tenantId, clientId])
+  @@index([deletedAt])
+  @@map("pets")
+}
+
+model PetPhoto {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  petId       String   @map("pet_id") @db.Uuid
+  fileName    String   @map("file_name")
+  fileUrl     String?  @map("file_url")
+  storagePath String?  @map("storage_path")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pet    Pet    @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([petId])
+  @@map("pet_photos")
 }
 
 model Product {

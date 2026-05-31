@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  Headers,
   Query,
   ParseIntPipe,
   DefaultValuePipe,
@@ -34,6 +35,7 @@ export class AgendaPetController {
     @Query('atendente') atendente?: string,
     @Query('dateFilterType') dateFilterType?: 'day' | 'week' | 'month' | 'year',
     @Query('dateValue') dateValue?: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
     @Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit = 12,
   ) {
@@ -44,20 +46,29 @@ export class AgendaPetController {
       dateFilterType,
       dateValue,
       tenantId: req.user?.tenantId ?? undefined,
+      selectedBranchId,
       user: req.user,
     });
   }
 
   @Get(':id')
-  findOne(@Req() req: Request, @Param('id') id: string) {
-    return this.service.findOne(id, req.user);
+  findOne(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.service.findOne(id, req.user, selectedBranchId);
   }
 
   @Post()
   @Roles(Role.Admin, Role.Vendedor)
   @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }))
-  create(@Req() req: Request, @Body() createDto: CreateAgendaPetDto) {
-    return this.service.create(createDto, req.user);
+  create(
+    @Req() req: Request,
+    @Body() createDto: CreateAgendaPetDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.service.create(createDto, req.user, selectedBranchId);
   }
 
   @Patch(':id')
@@ -67,13 +78,18 @@ export class AgendaPetController {
     @Req() req: Request,
     @Param('id') id: string,
     @Body() updateDto: UpdateAgendaPetDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
-    return this.service.update(id, updateDto, req.user);
+    return this.service.update(id, updateDto, req.user, selectedBranchId);
   }
 
   @Delete(':id')
   @Roles(Role.Admin)
-  remove(@Req() req: Request, @Param('id') id: string) {
-    return this.service.remove(id, req.user);
+  remove(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.service.remove(id, req.user, selectedBranchId);
   }
 }

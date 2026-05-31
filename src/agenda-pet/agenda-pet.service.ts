@@ -3,10 +3,10 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { isSuperAdmin } from '../auth/super-admin.util';
+import { PetClientsService } from '../pet-clients/pet-clients.service';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
@@ -56,7 +56,10 @@ function getRange(dateValue: string, type: DateFilterType) {
 
 @Injectable()
 export class AgendaPetService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly petClientsService: PetClientsService,
+  ) {}
 
   async findAll(options: {
     page?: number;
@@ -65,15 +68,19 @@ export class AgendaPetService {
     dateFilterType?: DateFilterType;
     dateValue?: string;
     tenantId?: string;
+    selectedBranchId?: string;
     user?: Express.AuthenticatedUser;
   }) {
+    const context = await this.petClientsService.resolvePetShopContext(
+      options.user,
+      options.selectedBranchId,
+      false,
+    );
     const page = options.page && options.page > 0 ? options.page : 1;
     const limit = options.limit && options.limit > 0 ? options.limit : 12;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (options.tenantId) where.tenantId = options.tenantId;
-    if (isSuperAdmin(options.user) && !options.tenantId) delete where.tenantId;
+    const where: any = { tenantId: context.tenantId };
     if (options.atendente) where.atendente = { contains: options.atendente, mode: 'insensitive' };
     if (options.dateFilterType && options.dateValue) {
       where.data = getRange(options.dateValue, options.dateFilterType);
@@ -95,11 +102,18 @@ export class AgendaPetService {
     };
   }
 
-  async findOne(id: string, user?: Express.AuthenticatedUser) {
+  async findOne(
+    id: string,
+    user?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.petClientsService.resolvePetShopContext(
+      user,
+      selectedBranchId,
+      false,
+    );
     const agenda = await this.prisma.agendaPet.findFirst({
-      where: isSuperAdmin(user)
-        ? { id }
-        : { id, tenantId: this.requireTenantId(user?.tenantId) },
+      where: { id, tenantId: context.tenantId },
     });
 
     if (!agenda) {
@@ -109,58 +123,69 @@ export class AgendaPetService {
     return agenda;
   }
 
-  create(dto: CreateAgendaPetDto, user?: Express.AuthenticatedUser) {
+  async create(
+    dto: CreateAgendaPetDto,
+    user?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.petClientsService.resolvePetShopContext(
+      user,
+      selectedBranchId,
+      true,
+    );
+    await this.assertLinkedEntities(context.tenantId, dto.clientId, dto.petId);
     const payload = {
       ...dto,
       data: new Date(dto.data),
       preco: dto.preco,
-      tenantId: this.resolveWritableTenantId(user, dto.tenantId),
+      tenantId: context.tenantId,
+      branchId: context.branchId,
     } as any;
+    delete payload.tenantIdInput;
     return this.prisma.agendaPet.create({ data: payload });
   }
 
-  async update(id: string, dto: UpdateAgendaPetDto, user?: Express.AuthenticatedUser) {
-    await this.assertTenantOwnership(id, user);
+  async update(
+    id: string,
+    dto: UpdateAgendaPetDto,
+    user?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.petClientsService.resolvePetShopContext(
+      user,
+      selectedBranchId,
+      true,
+    );
+    await this.assertTenantOwnership(id, user, context.tenantId);
+    await this.assertLinkedEntities(context.tenantId, dto.clientId, dto.petId);
 
     const data: any = { ...dto };
     delete data.tenantId;
+    delete data.branchId;
     if (dto.data) data.data = new Date(dto.data);
     return this.prisma.agendaPet.update({ where: { id }, data });
   }
 
-  async remove(id: string, user?: Express.AuthenticatedUser) {
-    await this.assertTenantOwnership(id, user);
+  async remove(
+    id: string,
+    user?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.petClientsService.resolvePetShopContext(
+      user,
+      selectedBranchId,
+      true,
+    );
+    await this.assertTenantOwnership(id, user, context.tenantId);
 
     return this.prisma.agendaPet.delete({ where: { id } });
   }
 
-  private requireTenantId(tenantId?: string | null) {
-    if (!tenantId) {
-      throw new UnauthorizedException(
-        'Authenticated user is not linked to a tenant.',
-      );
-    }
-
-    return tenantId;
-  }
-
-  private resolveWritableTenantId(user?: Express.AuthenticatedUser, requestedTenantId?: string | null) {
-    if (isSuperAdmin(user)) {
-      const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
-
-      if (!tenantId) {
-        throw new UnauthorizedException(
-          'tenantId is required for superAdmin writes.',
-        );
-      }
-
-      return tenantId;
-    }
-
-    return this.requireTenantId(user?.tenantId);
-  }
-
-  private async assertTenantOwnership(id: string, user?: Express.AuthenticatedUser) {
+  private async assertTenantOwnership(
+    id: string,
+    user: Express.AuthenticatedUser | undefined,
+    tenantId: string,
+  ) {
     const agenda = await this.prisma.agendaPet.findUnique({
       where: { id },
       select: { tenantId: true },
@@ -171,13 +196,46 @@ export class AgendaPetService {
     }
 
     if (isSuperAdmin(user)) {
-      return;
+      if (agenda.tenantId === tenantId) return;
     }
 
-    if (agenda.tenantId !== this.requireTenantId(user?.tenantId)) {
+    if (agenda.tenantId !== tenantId) {
       throw new ForbiddenException(
         'You can only access data from your own tenant.',
       );
+    }
+  }
+
+  private async assertLinkedEntities(
+    tenantId: string,
+    clientId?: string | null,
+    petId?: string | null,
+  ) {
+    if (clientId) {
+      const client = await this.prisma.petClient.findFirst({
+        where: { id: clientId, tenantId, deletedAt: null },
+        select: { id: true },
+      });
+
+      if (!client) {
+        throw new BadRequestException('Cliente Pet vinculado nao encontrado.');
+      }
+    }
+
+    if (petId) {
+      const pet = await this.prisma.pet.findFirst({
+        where: {
+          id: petId,
+          tenantId,
+          deletedAt: null,
+          ...(clientId ? { clientId } : {}),
+        },
+        select: { id: true },
+      });
+
+      if (!pet) {
+        throw new BadRequestException('Animal vinculado nao encontrado.');
+      }
     }
   }
 }
