@@ -1,4 +1,8 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { PetClientsService } from './pet-clients.service';
 
@@ -176,5 +180,20 @@ describe('PetClientsService', () => {
     );
 
     expect(prisma.petClient.create).toHaveBeenCalled();
+  });
+
+  it('retorna erro claro quando a estrutura Pet Shop nao foi migrada', async () => {
+    const prisma = prismaMock();
+    prisma.petClient.count.mockRejectedValueOnce({
+      code: 'P2021',
+      message: 'The table public.pet_clients does not exist in the current database.',
+      meta: { table: 'public.pet_clients' },
+    });
+    const service = new PetClientsService(prisma as any);
+
+    await expect(service.findAll(user(), { page: 1, pageSize: 20 })).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
+    await expect(service.findAll(user(), { page: 1, pageSize: 20 })).resolves.toBeDefined();
   });
 });

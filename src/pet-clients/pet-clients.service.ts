@@ -2,8 +2,10 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, SystemMode, SystemType } from '@prisma/client';
@@ -17,6 +19,8 @@ import { UpdatePetClientDto } from './dto/update-pet-client.dto';
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
 const PETSHOP_ONLY_MESSAGE = 'Pagina exclusiva do modo Pet Shop.';
 const MISSING_BRANCH_MESSAGE = 'Usuario sem filial selecionada.';
+const PETSHOP_SCHEMA_NOT_MIGRATED_MESSAGE =
+  'Estrutura do banco Pet Shop nao esta migrada. Rode as migrations do Prisma.';
 
 type PetShopContext = {
   tenantId: string;
@@ -26,6 +30,8 @@ type PetShopContext = {
 
 @Injectable()
 export class PetClientsService {
+  private readonly logger = new Logger(PetClientsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly usageService?: UsageService,
@@ -53,22 +59,29 @@ export class PetClientsService {
       ];
     }
 
-    const [total, clients] = await Promise.all([
-      this.prisma.petClient.count({ where }),
-      this.prisma.petClient.findMany({
-        where,
-        include: {
-          pets: {
-            where: { deletedAt: null },
-            include: { photos: { orderBy: { createdAt: 'asc' } } },
-            orderBy: { createdAt: 'desc' },
+    let total = 0;
+    let clients: any[] = [];
+
+    try {
+      [total, clients] = await Promise.all([
+        this.prisma.petClient.count({ where }),
+        this.prisma.petClient.findMany({
+          where,
+          include: {
+            pets: {
+              where: { deletedAt: null },
+              include: { photos: { orderBy: { createdAt: 'asc' } } },
+              orderBy: { createdAt: 'desc' },
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ]);
+          orderBy: { createdAt: 'desc' },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ]);
+    } catch (error) {
+      this.handlePetShopSchemaError(error);
+    }
 
     await this.recordUsage(user, 'pet_clients_list', 1, 0, { count: clients.length });
 
@@ -292,18 +305,24 @@ export class PetClientsService {
     id: string,
     includePets: boolean,
   ) {
-    const client = await this.prisma.petClient.findFirst({
-      where: { id, tenantId, deletedAt: null },
-      include: includePets
-        ? {
-            pets: {
-              where: { deletedAt: null },
-              include: { photos: { orderBy: { createdAt: 'asc' } } },
-              orderBy: { createdAt: 'desc' },
-            },
-          }
-        : undefined,
-    });
+    let client: any;
+
+    try {
+      client = await this.prisma.petClient.findFirst({
+        where: { id, tenantId, deletedAt: null },
+        include: includePets
+          ? {
+              pets: {
+                where: { deletedAt: null },
+                include: { photos: { orderBy: { createdAt: 'asc' } } },
+                orderBy: { createdAt: 'desc' },
+              },
+            }
+          : undefined,
+      });
+    } catch (error) {
+      this.handlePetShopSchemaError(error);
+    }
 
     if (!client) {
       throw new NotFoundException('Cliente Pet nao encontrado.');
@@ -398,6 +417,30 @@ export class PetClientsService {
       dbWriteCount,
       metadata,
     });
+  }
+
+  private handlePetShopSchemaError(error: unknown): never {
+    const candidate = error as {
+      code?: string;
+      message?: string;
+      meta?: unknown;
+      stack?: string;
+    };
+    const details = [
+      `code=${candidate?.code ?? 'unknown'}`,
+      `message=${candidate?.message ?? 'unknown'}`,
+      `meta=${JSON.stringify(candidate?.meta ?? null)}`,
+    ].join(' ');
+
+    if (candidate?.code === 'P2021' || candidate?.code === 'P2022') {
+      this.logger.error(
+        `Pet Shop database schema is not migrated. ${details}`,
+        candidate?.stack,
+      );
+      throw new ServiceUnavailableException(PETSHOP_SCHEMA_NOT_MIGRATED_MESSAGE);
+    }
+
+    throw error;
   }
 }
 
