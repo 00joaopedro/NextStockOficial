@@ -32,9 +32,13 @@ describe('JwtStrategy', () => {
     primaryTenantId: tenant.id,
     memberships: [
       {
+        id: 'member-id',
+        tenantId: tenant.id,
+        branchId: branch.id,
         role: Role.Admin,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
         tenant,
-        branch,
+        branch: { ...branch, isActive: true },
       },
     ],
   };
@@ -77,6 +81,75 @@ describe('JwtStrategy', () => {
       tenantId: tenant.id,
       branchId: branch.id,
       systemType: SystemType.padrao,
+    });
+  });
+
+  it('validate escolhe membership coerente com systemType em vez do primeiro vinculo', async () => {
+    const standardTenant = { ...tenant, id: 'tenant-standard', systemType: SystemType.padrao };
+    const petTenant = {
+      ...tenant,
+      id: 'tenant-pet',
+      slug: 'pet-shop',
+      systemType: SystemType.petshop,
+      mode: SystemMode.petshop,
+    };
+    const prisma = {
+      userProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...profile,
+          tenantId: null,
+          primaryTenantId: null,
+          systemType: SystemType.petshop,
+          allowedSystemTypes: [SystemType.petshop],
+          memberships: [
+            {
+              id: 'member-standard',
+              tenantId: standardTenant.id,
+              branchId: 'branch-standard',
+              role: Role.Admin,
+              createdAt: new Date('2026-01-01T00:00:00.000Z'),
+              tenant: standardTenant,
+              branch: {
+                id: 'branch-standard',
+                name: 'Matriz Padrao',
+                slug: 'matriz',
+                isActive: true,
+              },
+            },
+            {
+              id: 'member-pet',
+              tenantId: petTenant.id,
+              branchId: 'branch-pet',
+              role: Role.Admin,
+              createdAt: new Date('2026-01-02T00:00:00.000Z'),
+              tenant: petTenant,
+              branch: {
+                id: 'branch-pet',
+                name: 'Matriz Pet',
+                slug: 'matriz',
+                isActive: true,
+              },
+            },
+          ],
+        }),
+        update: jest.fn(),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any);
+
+    await expect(
+      strategy.validate({ sub: 'auth-user-id', email: 'user@test.com' }),
+    ).resolves.toMatchObject({
+      tenantId: petTenant.id,
+      branchId: 'branch-pet',
+      systemType: SystemType.petshop,
+      branches: expect.arrayContaining([
+        expect.objectContaining({
+          id: 'branch-pet',
+          tenantId: petTenant.id,
+          systemType: SystemType.petshop,
+        }),
+      ]),
     });
   });
 

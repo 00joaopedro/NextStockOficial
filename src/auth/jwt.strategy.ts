@@ -24,6 +24,40 @@ type JwtHeader = {
   typ?: string;
 };
 
+type JwtProfile = {
+  id: string;
+  supabaseUserId: string | null;
+  email: string;
+  name: string;
+  fullName: string | null;
+  role: Role;
+  systemType: any;
+  allowedSystemTypes: any[];
+  isSuperAdmin: boolean;
+  tenantId: string | null;
+  primaryTenantId: string | null;
+  memberships: Array<{
+    id: string;
+    tenantId: string;
+    branchId: string | null;
+    role: Role;
+    createdAt: Date;
+    tenant: {
+      id: string;
+      name: string;
+      slug: string;
+      systemType: any;
+      mode: any;
+    };
+    branch: {
+      id: string;
+      name: string;
+      slug: string;
+      isActive: boolean;
+    } | null;
+  }>;
+};
+
 function decodeBase64UrlJson<T>(value: string): T | null {
   try {
     const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -45,6 +79,30 @@ export function decodeJwtHeader(token?: string | null): JwtHeader | null {
 
 function sanitizeMessage(value?: string | null) {
   return value?.replace(/[\r\n]/g, ' ').slice(0, 220) || 'none';
+}
+
+function chooseMembership(profile: Pick<JwtProfile, 'memberships' | 'primaryTenantId' | 'tenantId' | 'systemType'>) {
+  const memberships = profile.memberships.filter(
+    (membership) => membership.branch?.isActive !== false,
+  );
+
+  return (
+    memberships.find(
+      (membership) =>
+        Boolean(profile.primaryTenantId) &&
+        membership.tenantId === profile.primaryTenantId,
+    ) ??
+    memberships.find(
+      (membership) =>
+        Boolean(profile.tenantId) && membership.tenantId === profile.tenantId,
+    ) ??
+    memberships.find(
+      (membership) =>
+        Boolean(profile.systemType) &&
+        membership.tenant.systemType === profile.systemType,
+    ) ??
+    memberships[0]
+  );
 }
 
 function buildJwtOptions() {
@@ -152,9 +210,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         tenantId: true,
         primaryTenantId: true,
         memberships: {
-          take: 1,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: {
+            id: true,
+            tenantId: true,
+            branchId: true,
             role: true,
+            createdAt: true,
             tenant: {
               select: {
                 id: true,
@@ -169,6 +231,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
                 id: true,
                 name: true,
                 slug: true,
+                isActive: true,
               },
             },
           },
@@ -195,7 +258,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     const hasFullAccess = isSuperAdmin(profile);
     const hasDevAccess = canAccessDev(profile);
-    const membership = profile.memberships[0];
+    const membership = chooseMembership(profile);
+    const branches = profile.memberships
+      .filter((item) => item.branch?.isActive !== false)
+      .map((item) => ({
+        id: item.branch!.id,
+        name: item.branch!.name,
+        slug: item.branch!.slug,
+        tenantId: item.tenantId,
+        tenant: toTenantSummary(item.tenant),
+        role: item.role,
+        systemType: item.tenant.systemType,
+        mode: item.tenant.mode,
+      }));
 
     this.logger.log(
       [
@@ -203,6 +278,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         `hasTenantId=${Boolean(profile.tenantId)}`,
         `hasPrimaryTenantId=${Boolean(profile.primaryTenantId)}`,
         `memberships=${profile.memberships.length}`,
+        `selectedTenant=${membership?.tenantId ?? 'none'}`,
         `isSuperAdmin=${hasFullAccess}`,
       ].join(' '),
     );
@@ -222,7 +298,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
               profile.systemType,
           ].filter(Boolean);
     const systemType =
-      profile.systemType ?? membership?.tenant.systemType ?? allowedSystemTypes[0] ?? null;
+      membership?.tenant.systemType ?? profile.systemType ?? allowedSystemTypes[0] ?? null;
 
     return {
       id: profile.id,
@@ -239,6 +315,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       tenant: membership?.tenant ? toTenantSummary(membership.tenant) : null,
       branchId: membership?.branch?.id ?? null,
       branch: membership?.branch ?? null,
+      branches,
       systemType,
       allowedSystemTypes,
       isSuperAdmin: hasFullAccess,

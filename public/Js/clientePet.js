@@ -106,6 +106,55 @@
     }
   }
 
+  function normalizeSystemType(value) {
+    return String(value || '').trim().toLowerCase();
+  }
+
+  function normalizeBranch(branch) {
+    if (!branch?.id || !branch?.tenantId) {
+      return null;
+    }
+
+    const systemType = normalizeSystemType(branch.tenant?.systemType || branch.systemType);
+
+    if (!systemType) {
+      return null;
+    }
+
+    return {
+      id: branch.id,
+      name: branch.name,
+      tenantId: branch.tenantId,
+      systemType,
+    };
+  }
+
+  function getProfileBranches(profile, systemContext) {
+    const user = profile.user || {};
+    const branches = [
+      profile.selectedBranch,
+      systemContext?.selectedBranch,
+      ...(Array.isArray(user.branches) ? user.branches : []),
+    ];
+
+    return branches.map(normalizeBranch).filter(Boolean);
+  }
+
+  function resolvePetShopBranch(profile, systemContext) {
+    const storedBranch = normalizeBranch(getStoredSelectedBranch());
+    const branches = getProfileBranches(profile, systemContext);
+
+    if (storedBranch?.id) {
+      const realStoredBranch = branches.find((branch) => branch.id === storedBranch.id);
+
+      if (realStoredBranch?.systemType === 'petshop') {
+        return realStoredBranch;
+      }
+    }
+
+    return branches.find((branch) => branch.systemType === 'petshop') || null;
+  }
+
   function persistContext(profile, selectedBranch, systemType) {
     sessionStorage.removeItem('nextstockPreviewMode');
     sessionStorage.removeItem('nextstockIsPreview');
@@ -165,16 +214,10 @@
     clientesList.innerHTML = '<div class="list-empty">Validando sessao...</div>';
     const profile = await apiFetch('/api/auth/profile');
     const systemContext = await apiFetch('/api/system/context').catch(() => null);
-    const storedBranch = getStoredSelectedBranch();
-    const profileBranch = profile.selectedBranch;
     const user = profile.user || {};
-    const selectedBranch =
-      storedBranch?.id && storedBranch?.systemType === 'petshop'
-        ? storedBranch
-        : profileBranch;
+    const selectedBranch = resolvePetShopBranch(profile, systemContext);
     const systemType =
       selectedBranch?.systemType ||
-      sessionStorage.getItem('nextstockSelectedSystemType') ||
       user.systemType ||
       (systemContext?.tenantType === 'PETSHOP' ? 'petshop' : 'padrao');
     const isPreview =
@@ -200,7 +243,7 @@
       return false;
     }
 
-    if (!selectedBranch?.id || !selectedBranch?.tenantId) {
+    if (!selectedBranch?.id || !selectedBranch?.tenantId || selectedBranch.systemType !== 'petshop') {
       blockPage('Selecione uma filial Pet Shop valida antes de abrir esta pagina.');
       return false;
     }

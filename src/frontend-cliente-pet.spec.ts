@@ -26,4 +26,11 @@ describe('clientePet.html production wiring', () => {
     expect(script).toContain('Modo visualizacao: alteracao bloqueada.');
     expect(script).toContain('ensureCanWrite');
   });
+
+  it('valida filial Pet Shop real antes de carregar clientes', () => {
+    expect(script).toContain('function resolvePetShopBranch');
+    expect(script).toContain("realStoredBranch?.systemType === 'petshop'");
+    expect(script).toContain("selectedBranch.systemType !== 'petshop'");
+    expect(script).toContain("'x-nextstock-branch-id'");
+  });
 });

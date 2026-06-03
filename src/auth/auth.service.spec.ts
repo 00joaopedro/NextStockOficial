@@ -50,6 +50,7 @@ describe('AuthService', () => {
       branch: {
         create: jest.fn().mockResolvedValue(branch),
         findFirst: jest.fn().mockResolvedValue(branch),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       userProfile: {
         upsert: jest.fn().mockResolvedValue({
@@ -224,6 +225,85 @@ describe('AuthService', () => {
         tenantId: tenant.id,
         systemType: SystemType.padrao,
       },
+    });
+  });
+
+  it('profile retorna branches com systemType real do tenant', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(profile);
+    const service = new AuthService(supabase, prisma);
+
+    await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
+      user: {
+        branches: [
+          {
+            id: branch.id,
+            tenantId: tenant.id,
+            systemType: SystemType.padrao,
+            tenant: {
+              systemType: SystemType.padrao,
+            },
+          },
+        ],
+      },
+    });
+  });
+
+  it('login escolhe membership coerente com systemType em vez do primeiro vinculo', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const standardTenant = { ...tenant, id: 'tenant-standard', systemType: SystemType.padrao };
+    const petTenant = { ...tenant, id: 'tenant-pet', systemType: SystemType.petshop, mode: SystemMode.petshop };
+    const standardBranch = { ...branch, id: 'branch-standard' };
+    const petBranch = { ...branch, id: 'branch-pet' };
+    const multiProfile = {
+      ...profile,
+      tenantId: null,
+      primaryTenantId: null,
+      systemType: SystemType.petshop,
+      allowedSystemTypes: [SystemType.petshop],
+      memberships: [
+        {
+          tenantId: standardTenant.id,
+          branchId: standardBranch.id,
+          role: Role.Admin,
+          tenant: standardTenant,
+          branch: standardBranch,
+        },
+        {
+          tenantId: petTenant.id,
+          branchId: petBranch.id,
+          role: Role.Admin,
+          tenant: petTenant,
+          branch: petBranch,
+        },
+      ],
+    };
+    const refreshedProfile = {
+      ...multiProfile,
+      memberships: [multiProfile.memberships[1]],
+    };
+
+    prisma.tx.tenant.update.mockResolvedValue(petTenant);
+    prisma.tx.branch.findFirst.mockResolvedValue(petBranch);
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce(multiProfile)
+      .mockResolvedValueOnce(refreshedProfile);
+    const service = new AuthService(supabase, prisma);
+
+    const result = await service.login({
+      email: profile.email,
+      password: 'Senha123',
+    });
+
+    expect(prisma.tx.tenant.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: petTenant.id } }),
+    );
+    expect(result.payload.selectedBranch).toMatchObject({
+      id: petBranch.id,
+      tenantId: petTenant.id,
+      systemType: SystemType.petshop,
     });
   });
 

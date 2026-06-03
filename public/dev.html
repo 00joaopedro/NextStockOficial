@@ -469,20 +469,22 @@
       return data;
     }
 
-    function getSelectedBranchFromProfile(profile, selectedType) {
-      const user = profile.user || profile;
-      const branch = profile.selectedBranch ||
-        (user.branch && user.tenantId
-          ? {
-              id: user.branch.id,
-              name: user.branch.name,
-              tenantId: user.tenantId,
-              systemType: user.systemType || selectedType
-            }
-          : null) ||
-        (Array.isArray(user.branches) ? user.branches[0] : null);
+    function normalizeSystemType(value) {
+      return String(value || '').trim().toLowerCase();
+    }
 
+    function branchSystemType(branch) {
+      return normalizeSystemType(branch?.tenant?.systemType || branch?.systemType);
+    }
+
+    function normalizeBranch(branch) {
       if (!branch?.id || !branch?.tenantId) {
+        return null;
+      }
+
+      const systemType = branchSystemType(branch);
+
+      if (!systemType) {
         return null;
       }
 
@@ -490,8 +492,32 @@
         id: branch.id,
         name: branch.name,
         tenantId: branch.tenantId,
-        systemType: selectedType || branch.systemType || 'padrao'
+        systemType
       };
+    }
+
+    function getSelectedBranchFromProfile(profile, selectedType) {
+      const user = profile.user || profile;
+      const candidates = [
+        profile.selectedBranch,
+        (user.branch && user.tenantId
+          ? {
+              id: user.branch.id,
+              name: user.branch.name,
+              tenantId: user.tenantId,
+              systemType: user.branch.systemType || user.systemType
+            }
+          : null),
+        ...(Array.isArray(user.branches) ? user.branches : [])
+      ].map(normalizeBranch).filter(Boolean);
+
+      const branch = candidates.find((item) => item.systemType === selectedType);
+
+      if (!branch) {
+        return null;
+      }
+
+      return branch;
     }
 
     function renderPages(pages) {
@@ -691,7 +717,11 @@
         const selectedBranch = getSelectedBranchFromProfile(profile, selectedType);
 
         if (!selectedBranch) {
-          setStatus('Nao foi possivel abrir o sistema: tenant/filial nao encontrado para o superAdmin.');
+          setStatus(
+            selectedType === 'petshop'
+              ? 'Nenhuma filial Pet Shop real encontrada para abrir este modo.'
+              : 'Nenhuma filial padrao real encontrada para abrir este modo.'
+          );
           return;
         }
 

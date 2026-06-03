@@ -69,6 +69,12 @@ type SupabaseAuthError = {
   code?: string;
 };
 
+type AuthProfileRecord = NonNullable<
+  Awaited<ReturnType<AuthService['findProfileRecordOrNull']>>
+>;
+
+type AuthMembershipRecord = AuthProfileRecord['memberships'][number];
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -398,7 +404,9 @@ export class AuthService {
       profileId: user.id,
       email: user.email ?? undefined,
     });
-    const formattedUser = this.formatProfileWithMembership(profile);
+    const formattedUser = await this.withDevAvailableBranches(
+      this.formatProfileWithMembership(profile),
+    );
     const currentSelectedBranch = this.resolveSelectedBranchFromUser(formattedUser);
 
     if (isSuperAdmin(profile) && !currentSelectedBranch) {
@@ -442,6 +450,53 @@ export class AuthService {
       ok: true,
       user: profileUser,
       selectedBranch,
+    };
+  }
+
+  private async withDevAvailableBranches(
+    user: ReturnType<AuthService['formatAuthUser']>,
+  ) {
+    if (!canAccessDev(user)) {
+      return user;
+    }
+
+    const branches = await this.prisma.branch.findMany({
+      where: { isActive: true },
+      orderBy: [
+        { tenant: { systemType: 'asc' } },
+        { tenant: { name: 'asc' } },
+        { isDefault: 'desc' },
+        { createdAt: 'asc' },
+      ],
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        tenantId: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            systemType: true,
+            mode: true,
+          },
+        },
+      },
+    });
+
+    return {
+      ...user,
+      branches: branches.map((branch) => ({
+        id: branch.id,
+        name: branch.name,
+        slug: branch.slug,
+        tenantId: branch.tenantId,
+        tenant: toTenantSummary(branch.tenant),
+        role: Role.superAdmin,
+        systemType: branch.tenant.systemType,
+        mode: branch.tenant.mode,
+      })),
     };
   }
 
@@ -574,10 +629,13 @@ export class AuthService {
                 },
               }
             : undefined,
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: {
+            id: true,
             tenantId: true,
             branchId: true,
             role: true,
+            createdAt: true,
             tenant: {
               select: {
                 id: true,
@@ -601,12 +659,41 @@ export class AuthService {
     });
   }
 
+  private chooseMembership(
+    profile: Pick<
+      AuthProfileRecord,
+      'memberships' | 'primaryTenantId' | 'tenantId' | 'systemType'
+    >,
+  ): AuthMembershipRecord | undefined {
+    const memberships = profile.memberships.filter(
+      (membership) => membership.branch?.isActive !== false,
+    );
+
+    return (
+      memberships.find(
+        (membership) =>
+          Boolean(profile.primaryTenantId) &&
+          membership.tenantId === profile.primaryTenantId,
+      ) ??
+      memberships.find(
+        (membership) =>
+          Boolean(profile.tenantId) && membership.tenantId === profile.tenantId,
+      ) ??
+      memberships.find(
+        (membership) =>
+          Boolean(profile.systemType) &&
+          membership.tenant.systemType === profile.systemType,
+      ) ??
+      memberships[0]
+    );
+  }
+
   private formatProfileWithMembership(
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
     branchSlug?: string,
   ) {
     const hasFullAccess = isSuperAdmin(profile);
-    const membership = profile.memberships[0];
+    const membership = this.chooseMembership(profile);
     const branches = profile.memberships
       .filter((item) => item.branch?.isActive !== false)
       .map((item) => ({
@@ -617,6 +704,7 @@ export class AuthService {
         tenant: toTenantSummary(item.tenant),
         role: item.role,
         systemType: item.tenant.systemType,
+        mode: item.tenant.mode,
       }));
 
     if (!membership && !hasFullAccess) {
@@ -643,7 +731,8 @@ export class AuthService {
       return this.prepareSuperAdminLoginContext(profile);
     }
 
-    const tenantId = profile.primaryTenantId ?? profile.tenantId ?? profile.memberships[0]?.tenantId;
+    const membership = this.chooseMembership(profile);
+    const tenantId = membership?.tenantId ?? profile.primaryTenantId ?? profile.tenantId;
 
     if (!tenantId) {
       throw new UnauthorizedException('Usuario sem empresa vinculada.');
@@ -654,7 +743,7 @@ export class AuthService {
       tenantId,
       branchName: DEFAULT_BRANCH_NAME,
       branchSlug: DEFAULT_BRANCH_SLUG,
-      role: profile.memberships[0]?.role ?? Role.Admin,
+      role: membership?.role ?? Role.Admin,
       setAsProfileTenant: false,
     });
     const refreshed = await this.findProfileRecord({
@@ -818,14 +907,18 @@ export class AuthService {
   }
 
   private resolveSelectedBranchFromUser(user: ReturnType<AuthService['formatAuthUser']>) {
-    const firstBranch = user.branches?.[0];
+    const firstBranch =
+      user.branches?.find((branch) => branch.systemType === user.systemType) ??
+      user.branches?.[0];
 
     if (user.branch?.id && user.tenantId) {
+      const realBranch = user.branches?.find((branch) => branch.id === user.branch?.id);
+
       return {
         id: user.branch.id,
         name: user.branch.name,
-        tenantId: user.tenantId,
-        systemType: user.systemType ?? firstBranch?.systemType ?? SystemType.padrao,
+        tenantId: realBranch?.tenantId ?? user.tenantId,
+        systemType: realBranch?.systemType ?? user.systemType ?? SystemType.padrao,
       };
     }
 
@@ -873,6 +966,7 @@ export class AuthService {
       tenant: Express.TenantSummary | null;
       role: Role;
       systemType: SystemType;
+      mode?: SystemMode;
     }>;
     createdAt?: Date;
   }) {
@@ -885,7 +979,7 @@ export class AuthService {
         ? profile.allowedSystemTypes
         : [profile.systemType ?? tenantSystemType ?? SystemType.padrao];
     const systemType =
-      profile.systemType ?? tenantSystemType ?? allowedSystemTypes[0] ?? null;
+      tenantSystemType ?? profile.systemType ?? allowedSystemTypes[0] ?? null;
 
     return {
       id: profile.id,

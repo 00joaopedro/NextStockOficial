@@ -222,6 +222,18 @@ function getRuntimeFallbackContext(): SystemContextResponse {
   };
 }
 
+function getSelectedBranchId(): string | null {
+  try {
+    const branch = JSON.parse(
+      sessionStorage.getItem("nextstockSelectedBranch") || "null",
+    ) as { id?: string } | null;
+
+    return branch?.id || sessionStorage.getItem("nextstockBranchId");
+  } catch {
+    return sessionStorage.getItem("nextstockBranchId");
+  }
+}
+
 function getCurrentPageFileName(): string {
   const currentPath = window.location.pathname;
   const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
@@ -307,10 +319,12 @@ function buildSidebarHtml(
 }
 
 async function fetchSystemContext(): Promise<SystemContextResponse> {
+  const selectedBranchId = getSelectedBranchId();
   const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
     method: "GET",
     headers: {
       Accept: "application/json",
+      ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
     },
     credentials: "include",
   });

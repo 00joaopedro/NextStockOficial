@@ -7,12 +7,15 @@ import {
   isSuperAdmin,
   SUPER_ADMIN_SYSTEM_TYPES,
 } from '../auth/super-admin.util';
+import { PrismaService } from '../prisma/prisma.service';
 import { SystemMode } from './enums/system-mode.enum';
 import { TenantType } from './enums/tenant-type.enum';
 import { SystemContext, TenantSystemSettings } from './interfaces/system-context.interface';
 
 @Injectable()
 export class SystemService {
+  constructor(private readonly prisma: PrismaService) {}
+
   listPublicHtmlPages() {
     const publicPath = this.resolvePublicPath();
     const pages = readdirSync(publicPath, { withFileTypes: true })
@@ -30,7 +33,10 @@ export class SystemService {
     };
   }
 
-  getContext(currentUser?: Express.AuthenticatedUser): SystemContextResponseDto {
+  async getContext(
+    currentUser?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ): Promise<SystemContextResponseDto> {
     if (!currentUser) {
       return {
         systemMode: SystemMode.Preview,
@@ -39,6 +45,24 @@ export class SystemService {
     }
 
     if (isSuperAdmin(currentUser)) {
+      const selectedContext = selectedBranchId
+        ? await this.resolveSelectedBranchContext(selectedBranchId)
+        : null;
+
+      if (selectedContext) {
+        return {
+          systemMode:
+            selectedContext.tenant.mode === 'visualizacao'
+              ? SystemMode.Preview
+              : SystemMode.Production,
+          tenantType: this.resolveTenantType(selectedContext.tenant.systemType),
+          isSuperAdmin: true,
+          isDevSuperAdmin: canAccessDev(currentUser),
+          allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
+          selectedBranch: selectedContext.selectedBranch,
+        };
+      }
+
       return {
         systemMode: SystemMode.Production,
         tenantType: this.resolveTenantType(currentUser?.systemType),
@@ -53,6 +77,41 @@ export class SystemService {
     return {
       systemMode: tenantSettings.systemMode ?? this.readSystemModeFromEnv(),
       tenantType: tenantSettings.tenantType ?? this.readTenantTypeFromEnv(),
+    };
+  }
+
+  private async resolveSelectedBranchContext(selectedBranchId: string) {
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: selectedBranchId, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        tenantId: true,
+        tenant: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            systemType: true,
+            mode: true,
+          },
+        },
+      },
+    });
+
+    if (!branch) {
+      return null;
+    }
+
+    return {
+      tenant: branch.tenant,
+      selectedBranch: {
+        id: branch.id,
+        name: branch.name,
+        tenantId: branch.tenantId,
+        systemType: branch.tenant.systemType,
+      },
     };
   }
 

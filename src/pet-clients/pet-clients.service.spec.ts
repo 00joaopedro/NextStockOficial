@@ -182,6 +182,33 @@ describe('PetClientsService', () => {
     expect(prisma.petClient.create).toHaveBeenCalled();
   });
 
+  it('bloqueia Dev SuperAdmin quando a filial selecionada pertence ao modo padrao', async () => {
+    const prisma = prismaMock();
+    prisma.branch.findFirst.mockResolvedValueOnce({
+      id: 'branch-standard',
+      tenant: {
+        id: 'tenant-standard',
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
+      },
+    });
+    const service = new PetClientsService(prisma as any);
+
+    await expect(
+      service.findAll(
+        user({
+          role: Role.superAdmin,
+          roles: [Role.superAdmin],
+          isSuperAdmin: true,
+          tenantId: null,
+          branchId: null,
+        }),
+        { page: 1, pageSize: 20 },
+        'branch-standard',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
   it('retorna erro claro quando a estrutura Pet Shop nao foi migrada', async () => {
     const prisma = prismaMock();
     prisma.petClient.count.mockRejectedValueOnce({

@@ -7,4 +7,10 @@ export class SystemContextResponseDto {
   isSuperAdmin?: boolean;
   isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
+  selectedBranch?: {
+    id: string;
+    name: string;
+    tenantId: string;
+    systemType: string;
+  };
 }

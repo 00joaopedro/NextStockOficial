@@ -28,6 +28,8 @@ describe('frontend auth pages', () => {
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))");
     expect(html).toContain("sessionStorage.setItem('nextstockSelectedSystemType', selectedType)");
     expect(html).toContain("sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true')");
+    expect(html).toContain("const branch = candidates.find((item) => item.systemType === selectedType)");
+    expect(html).toContain('Nenhuma filial Pet Shop real encontrada para abrir este modo.');
     expect(html).toContain('clientePet.html?systemType=petshop&mode=production');
     expect(html).toContain('produtos.html?systemType=padrao&mode=production');
     expect(html).not.toContain("sessionStorage.setItem('nextstockPreviewMode'");

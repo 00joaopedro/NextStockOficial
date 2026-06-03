@@ -1,4 +1,4 @@
-import { Controller, Get, Req } from '@nestjs/common';
+import { Controller, Get, Headers, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
@@ -13,8 +13,11 @@ export class SystemController {
   constructor(private readonly systemService: SystemService) {}
 
   @Get('context')
-  getContext(@Req() request: Request): SystemContextResponseDto {
-    return this.systemService.getContext(request.user);
+  getContext(
+    @Req() request: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ): Promise<SystemContextResponseDto> | SystemContextResponseDto {
+    return this.systemService.getContext(request.user, selectedBranchId);
   }
 
   @Get('pages')

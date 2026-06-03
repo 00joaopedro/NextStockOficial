@@ -13,6 +13,9 @@ declare global {
       id: string;
       name: string;
       slug: string;
+      tenantId?: string;
+      systemType?: string;
+      role?: Role;
     }
 
     interface AuthenticatedUser {
@@ -34,6 +37,11 @@ declare global {
       is_super_admin?: boolean;
       isDevSuperAdmin?: boolean;
       mode?: string | null;
+      branches?: Array<BranchSummary & {
+        tenantId: string;
+        tenant: TenantSummary | null;
+        systemType: string;
+      }>;
     }
 
     interface Request {
