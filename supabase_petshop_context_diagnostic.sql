@@ -1,6 +1,7 @@
 -- Diagnostico seguro para erro 403 em /api/pet-clients.
--- Substitua os placeholders antes de rodar no Supabase SQL Editor.
+-- Fluxo principal de schema: `npm run db:migrate`.
 -- Este arquivo apenas consulta dados; nao altera nenhuma tabela.
+-- Substitua os placeholders antes de executar as consultas em ambiente controlado.
 
 -- 1. Verifique o profile do admin Pet Shop.
 select
@@ -45,14 +46,6 @@ join public.tenants t on t.id = b.tenant_id
 where b.is_active = true
 order by t.system_type, t.name, b.is_default desc, b.created_at asc;
 
--- 4. Se um tenant foi criado como padrao mas deveria ser petshop, corrija
--- somente depois de confirmar manualmente o tenant correto. Exemplo:
--- update public.tenants
--- set system_type = 'petshop', mode = 'petshop'
--- where id = 'TENANT_ID_CONFIRMADO';
---
--- update public.profiles
--- set system_type = 'petshop',
---     tenant_id = 'TENANT_ID_CONFIRMADO',
---     primary_tenant_id = 'TENANT_ID_CONFIRMADO'
--- where id = 'PROFILE_ID_CONFIRMADO';
+-- Se as consultas mostrarem inconsistencia de dados, prepare uma correcao
+-- controlada e revisada. Alteracoes estruturais continuam obrigatoriamente em
+-- prisma/migrations.

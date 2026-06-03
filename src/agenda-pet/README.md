@@ -9,7 +9,8 @@ Files added:
 
 How to use:
 - The module uses the existing `PrismaService` (global) to access the DB.
-- Prisma model `AgendaPet` was added to `prisma/schema.prisma`. Run `npx prisma generate` and `npx prisma migrate dev --name add_agenda_pet` to apply.
+- Prisma model `AgendaPet` lives in `prisma/schema.prisma`, and its database changes must be versioned under `prisma/migrations`.
+- In production, apply pending migrations with `npm run db:migrate`. Do not use the Supabase SQL Editor as the main schema workflow.
 
 Frontend example to replace mock `atendimentos` variable:
 
