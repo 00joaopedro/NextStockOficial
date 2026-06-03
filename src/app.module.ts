@@ -29,7 +29,7 @@ const publicPath = join(__dirname, '..', 'public');
       rootPath: existsSync(publicPath)
         ? publicPath
         : join(__dirname, '..', '..', 'public'),
-      exclude: ['/api/:path*', '/dev.html'],
+      exclude: ['/api', '/api/*path', '/dev.html'],
     }),
     PrismaModule,
     TenancyModule,
