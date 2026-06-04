@@ -11,11 +11,16 @@ npm install
 Configure `.env` com as variaveis do projeto. Para Prisma com Supabase/PostgreSQL, as principais sao:
 
 ```env
-DATABASE_URL="postgresql://..."
-DIRECT_URL="postgresql://..."
+DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1"
+DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
 ```
 
-`DATABASE_URL` deve ser usada em runtime. `DIRECT_URL` deve apontar para conexao direta adequada para migrations.
+- `DATABASE_URL`: runtime no Railway usando Supabase Transaction Pooler na porta `6543`.
+- `pgbouncer=true`: desativa prepared statements incompativeis com Transaction Pooler.
+- `connection_limit=1`: evita que uma instancia da aplicacao consuma conexoes demais.
+- `DIRECT_URL`: Prisma CLI/migrations usando preferencialmente Supabase Session Pooler na porta `5432`, que nao exige o IPv4 Add-On/Pro.
+
+O backend tambem normaliza URLs runtime na porta `6543` para garantir `sslmode=require`, `pgbouncer=true` e `connection_limit=1`.
 
 ## Banco de dados
 
@@ -29,6 +34,8 @@ npx prisma validate
 ```
 
 Nao use o Supabase SQL Editor como fluxo principal de schema. Scripts SQL soltos neste repositorio existem apenas como diagnostico ou referencia historica; a aplicacao deve evoluir o banco por migrations Prisma versionadas.
+
+Se `npm run db:migrate` nao conseguir conectar nem pela Session Pooler, use o `migration.sql` pendente no Supabase SQL Editor somente como plano B operacional e registre a migration aplicada antes do proximo deploy.
 
 ## Desenvolvimento
 
