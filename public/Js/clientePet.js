@@ -1093,6 +1093,7 @@
         setWriteControls();
       }
     } catch (error) {
+      window.clearNextStockSessionState?.();
       blockPage(error.message || 'Sessao expirada ou invalida. Faca login novamente.');
     }
   }

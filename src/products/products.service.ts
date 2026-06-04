@@ -94,6 +94,7 @@ export class ProductsService {
 
     const where: Prisma.ProductWhereInput = {
       tenantId: tenant.id,
+      branchId: tenant.branchId,
     };
 
     if (query.search) {
@@ -147,7 +148,7 @@ export class ProductsService {
     }
 
     const product = await this.prisma.product.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: { id, tenantId: tenant.id, branchId: tenant.branchId },
       include: { images: { orderBy: { createdAt: 'asc' } } },
     });
 
@@ -169,6 +170,7 @@ export class ProductsService {
       const product = await this.prisma.product.create({
         data: {
           tenantId: tenant.id,
+          branchId: tenant.branchId,
           ...this.buildCreateData(dto),
         },
         include: { images: true },
@@ -191,12 +193,12 @@ export class ProductsService {
     selectedBranchId?: string,
   ) {
     const tenant = await this.requireWritableTenant(user, selectedBranchId);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     try {
       const product = await this.prisma.product.update({
-        where: { id, tenantId: tenant.id },
-        data: await this.buildUpdateData(tenant.id, id, dto),
+        where: { id, tenantId: tenant.id, branchId: tenant.branchId },
+        data: await this.buildUpdateData(tenant.id, tenant.branchId, id, dto),
         include: { images: { orderBy: { createdAt: 'asc' } } },
       });
       await this.recordProductUsage(user, 'product_update', {
@@ -216,9 +218,11 @@ export class ProductsService {
     selectedBranchId?: string,
   ) {
     const tenant = await this.requireWritableTenant(user, selectedBranchId);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
-    await this.prisma.product.delete({ where: { id, tenantId: tenant.id } });
+    await this.prisma.product.delete({
+      where: { id, tenantId: tenant.id, branchId: tenant.branchId },
+    });
     await this.recordProductUsage(user, 'product_delete', {
       dbWriteCount: 1,
       metadata: { productId: id },
@@ -234,7 +238,7 @@ export class ProductsService {
     selectedBranchId?: string,
   ) {
     const tenant = await this.requireWritableTenant(user, selectedBranchId);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const existingCount = await this.prisma.productImage.count({
       where: { productId: id },
@@ -258,7 +262,7 @@ export class ProductsService {
     });
 
     const product = await this.prisma.product.findFirst({
-      where: { id, tenantId: tenant.id },
+      where: { id, tenantId: tenant.id, branchId: tenant.branchId },
       include: { images: { orderBy: { createdAt: 'asc' } } },
     });
 
@@ -272,7 +276,7 @@ export class ProductsService {
     selectedBranchId?: string,
   ) {
     const tenant = await this.requireWritableTenant(user, selectedBranchId);
-    await this.assertTenantProduct(tenant.id, id);
+    await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId: id },
@@ -296,8 +300,11 @@ export class ProductsService {
       return null;
     }
 
-    const context = await this.contextResolver().resolve(user, { selectedBranchId });
-    return { id: context.tenantId, mode: context.mode };
+    const context = await this.contextResolver().resolve(user, {
+      selectedBranchId,
+      requireBranch: true,
+    });
+    return { id: context.tenantId, branchId: context.branchId!, mode: context.mode };
   }
 
   private async requireWritableTenant(
@@ -306,14 +313,15 @@ export class ProductsService {
   ) {
     const context = await this.contextResolver().resolve(user, {
       selectedBranchId,
+      requireBranch: true,
       writable: true,
     });
-    return { id: context.tenantId, mode: context.mode };
+    return { id: context.tenantId, branchId: context.branchId!, mode: context.mode };
   }
 
-  private async assertTenantProduct(tenantId: string, id: string) {
+  private async assertTenantProduct(tenantId: string, branchId: string, id: string) {
     const product = await this.prisma.product.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, branchId },
       select: { id: true },
     });
 
@@ -351,7 +359,12 @@ export class ProductsService {
     };
   }
 
-  private async buildUpdateData(tenantId: string, id: string, dto: UpdateProductDto) {
+  private async buildUpdateData(
+    tenantId: string,
+    branchId: string,
+    id: string,
+    dto: UpdateProductDto,
+  ) {
     const data: Prisma.ProductUncheckedUpdateInput = {};
 
     if (dto.nome !== undefined) data.name = dto.nome.trim();
@@ -371,7 +384,7 @@ export class ProductsService {
 
     if (dto.precoCusto !== undefined || dto.percentualLucro !== undefined) {
       const current = await this.prisma.product.findUniqueOrThrow({
-        where: { id, tenantId },
+        where: { id, tenantId, branchId },
         select: { costPriceCents: true, profitPercent: true },
       });
       const costPriceCents =
@@ -460,7 +473,7 @@ export class ProductsService {
   private handlePrismaError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        throw new BadRequestException('SKU or barcode already exists for this tenant.');
+        throw new BadRequestException('SKU or barcode already exists for this branch.');
       }
     }
 

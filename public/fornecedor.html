@@ -584,6 +584,7 @@
       </div>
     </div>
   </div>
+  <script src="./dist/session-state.js"></script>
   <script>
     const supplierForm = document.getElementById("supplierForm");
     const supplierList = document.getElementById("supplierList");
@@ -621,7 +622,7 @@
 
     let fornecedorSelecionadoId = null;
 
-    let fornecedores = [
+    const DEMO_FORNECEDORES = [
       {
         id: 1,
         razaoSocial: "Distribuidora Pet Norte LTDA",
@@ -673,6 +674,7 @@
         observacoes: "Atende sob encomenda para alguns produtos."
       }
     ];
+    let fornecedores = window.isNextStockDemoMode?.() ? DEMO_FORNECEDORES : [];
 
     function sanitizarTexto(valor) {
       return String(valor)

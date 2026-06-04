@@ -624,8 +624,9 @@
       </div>
     </div>
   </div>
+  <script src="./dist/session-state.js"></script>
   <script>
-    const closingData = [
+    const DEMO_CLOSING_DATA = [
       {
         id: "FEC-0001",
         funcionario: "Mariana Souza",
@@ -711,6 +712,7 @@
         ]
       }
     ];
+    const closingData = window.isNextStockDemoMode?.() ? DEMO_CLOSING_DATA : [];
 
     const closingGrid = document.getElementById("closingGrid");
     const filterDate = document.getElementById("filterDate");

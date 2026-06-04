@@ -48,10 +48,6 @@ export class TenantContextService {
       );
     }
 
-    if (!devAccess && requestedBranchId && !this.userCanSelectBranch(user, requestedBranchId)) {
-      throw new ForbiddenException('Filial nao permitida para este usuario.');
-    }
-
     const branch = branchId
       ? await this.prisma.branch.findFirst({
           where: { id: branchId, isActive: true },
@@ -74,18 +70,57 @@ export class TenantContextService {
     }
 
     const authenticatedTenantId = user.tenantId ?? user.primaryTenantId ?? null;
-    const tenantId = devAccess ? branch?.tenantId ?? null : authenticatedTenantId;
+    const tenantId = devAccess
+      ? branch?.tenantId ?? null
+      : branch?.tenantId ?? authenticatedTenantId;
 
     if (!tenantId) {
       throw new UnauthorizedException('Usuario sem tenant/empresa vinculado.');
     }
 
-    if (!devAccess && branch && branch.tenantId !== tenantId) {
-      throw new ForbiddenException('Filial nao pertence ao tenant autenticado.');
-    }
-
     if (options.requireBranch && !branch) {
       throw new BadRequestException('Selecione uma filial valida para continuar.');
+    }
+
+    const liveMembership = devAccess
+      ? null
+      : await this.prisma.tenantMember.findFirst({
+          where: {
+            userProfileId: user.id,
+            tenantId,
+            ...(branch ? { branchId: branch.id } : {}),
+          },
+          select: {
+            id: true,
+            role: true,
+            tenantId: true,
+            branchId: true,
+            branch: {
+              select: {
+                id: true,
+                tenantId: true,
+                isActive: true,
+              },
+            },
+          },
+        });
+
+    if (!devAccess && !liveMembership) {
+      throw new ForbiddenException(
+        branch
+          ? 'Usuario nao possui acesso atual a filial selecionada.'
+          : 'Usuario nao possui acesso atual ao tenant selecionado.',
+      );
+    }
+
+    if (
+      !devAccess &&
+      branch &&
+      (!liveMembership?.branch ||
+        !liveMembership.branch.isActive ||
+        liveMembership.branch.tenantId !== tenantId)
+    ) {
+      throw new ForbiddenException('Membership ou filial nao esta mais ativa.');
     }
 
     const tenant =
@@ -97,6 +132,17 @@ export class TenantContextService {
 
     if (!tenant) {
       throw new UnauthorizedException('Tenant/empresa nao encontrado.');
+    }
+
+    if (
+      !devAccess &&
+      Array.isArray(user.allowedSystemTypes) &&
+      user.allowedSystemTypes.length > 0 &&
+      !user.allowedSystemTypes.includes(tenant.systemType)
+    ) {
+      throw new ForbiddenException(
+        'Tipo de sistema nao permitido para este usuario.',
+      );
     }
 
     if (options.expectedSystemType && tenant.systemType !== options.expectedSystemType) {
@@ -114,7 +160,7 @@ export class TenantContextService {
     if (
       options.allowedRoles?.length &&
       !devAccess &&
-      !options.allowedRoles.includes(user.role)
+      !options.allowedRoles.includes(liveMembership!.role)
     ) {
       throw new ForbiddenException('Usuario sem permissao para esta operacao.');
     }
@@ -123,20 +169,11 @@ export class TenantContextService {
       userId: user.id,
       tenantId,
       branchId: branch?.id ?? null,
-      role: user.role,
+      role: devAccess ? user.role : liveMembership!.role,
       systemType: tenant.systemType,
       mode: tenant.mode,
       isDevSuperAdmin: devAccess,
     };
   }
 
-  private userCanSelectBranch(user: Express.AuthenticatedUser, branchId: string) {
-    if (user.branchId === branchId) {
-      return true;
-    }
-
-    return user.branches?.some(
-      (branch) => branch.id === branchId && branch.tenantId === user.tenantId,
-    ) === true;
-  }
 }

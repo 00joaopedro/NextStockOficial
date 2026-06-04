@@ -297,14 +297,94 @@ describe('AuthService', () => {
       password: 'Senha123',
     });
 
-    expect(prisma.tx.tenant.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: petTenant.id } }),
-    );
+    expect(prisma.tx.tenant.update).not.toHaveBeenCalled();
+    expect(prisma.tx.tenantMember.upsert).not.toHaveBeenCalled();
     expect(result.payload.selectedBranch).toMatchObject({
       id: petBranch.id,
       tenantId: petTenant.id,
       systemType: SystemType.petshop,
     });
+  });
+
+  it('usuario da branch B continua na branch B depois de novo login', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const branchB = { ...branch, id: 'branch-b', name: 'Filial B', slug: 'filial-b' };
+    const branchBProfile = {
+      ...profile,
+      memberships: [
+        {
+          ...profile.memberships[0],
+          branchId: branchB.id,
+          branch: branchB,
+        },
+      ],
+    };
+    prisma.userProfile.findFirst.mockResolvedValue(branchBProfile);
+    const service = new AuthService(supabase, prisma);
+
+    const result = await service.login({
+      email: profile.email,
+      password: 'Senha123',
+    });
+
+    expect(result.payload.selectedBranch).toMatchObject({
+      id: branchB.id,
+      name: branchB.name,
+    });
+    expect(prisma.tx.tenantMember.upsert).not.toHaveBeenCalled();
+  });
+
+  it('user_metadata nunca concede superAdmin em profile criado automaticamente', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    supabase.anon.auth.signInWithPassword.mockResolvedValue({
+      data: {
+        user: {
+          id: 'metadata-user',
+          email: 'metadata@test.com',
+          user_metadata: {
+            role: Role.superAdmin,
+            is_super_admin: true,
+            systemType: SystemType.petshop,
+          },
+        },
+        session: { access_token: 'login-token' },
+      },
+      error: null,
+    });
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        ...profile,
+        id: 'metadata-user',
+        supabaseUserId: 'metadata-user',
+        email: 'metadata@test.com',
+        role: Role.Comprador,
+        isSuperAdmin: false,
+        systemType: SystemType.padrao,
+        allowedSystemTypes: [SystemType.padrao],
+        tenantId: null,
+        primaryTenantId: null,
+        memberships: [],
+      });
+    const service = new AuthService(supabase, prisma);
+
+    await expect(
+      service.login({ email: 'metadata@test.com', password: 'Senha123' }),
+    ).rejects.toThrow('Usuario sem empresa/filial vinculada.');
+    expect(prisma.userProfile.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          role: Role.Comprador,
+          isSuperAdmin: false,
+          systemType: SystemType.padrao,
+          allowedSystemTypes: [SystemType.padrao],
+        }),
+      }),
+    );
   });
 
   it('login superAdmin retorna filial dev padrao e redireciona para dev.html', async () => {

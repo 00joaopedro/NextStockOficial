@@ -639,6 +639,7 @@
     </div>
   </div>
 
+  <script src="./dist/session-state.js"></script>
   <script>
     const precoCusto = document.getElementById("precoCusto");
     const percentualLucro = document.getElementById("percentualLucro");
@@ -749,6 +750,7 @@
         profile = await apiFetch("/auth/profile");
       } catch {
         sessaoAutenticada = false;
+        window.clearNextStockSessionState?.();
         throw new Error(mensagemSessaoInvalida);
       }
 
@@ -808,6 +810,7 @@
       } catch (error) {
         sessaoAutenticada = false;
         modoSistema = "pendente";
+        window.clearNextStockSessionState?.();
         console.warn(error.message);
       }
     }

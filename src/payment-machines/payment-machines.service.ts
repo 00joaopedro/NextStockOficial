@@ -51,10 +51,13 @@ export class PaymentMachinesService {
   ) {}
 
   async list(user?: Express.AuthenticatedUser, selectedBranchId?: string) {
-    const context = await this.tenantContext.resolve(user, { selectedBranchId });
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      requireBranch: true,
+    });
 
     const machines = await this.prisma.paymentMachine.findMany({
-      where: { tenantId: context.tenantId },
+      where: { tenantId: context.tenantId, branchId: context.branchId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -72,6 +75,7 @@ export class PaymentMachinesService {
   ) {
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
+      requireBranch: true,
       writable: true,
       allowedRoles: [Role.Admin],
     });
@@ -79,6 +83,7 @@ export class PaymentMachinesService {
     const machine = await this.prisma.paymentMachine.create({
       data: {
         tenantId: context.tenantId,
+        branchId: context.branchId,
         name: dto.name.trim(),
         provider: dto.provider,
         model: dto.model.trim(),
@@ -100,10 +105,11 @@ export class PaymentMachinesService {
   ) {
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
+      requireBranch: true,
       writable: true,
       allowedRoles: [Role.Admin],
     });
-    await this.assertTenantMachine(context.tenantId, id);
+    await this.assertTenantMachine(context.tenantId, context.branchId!, id);
 
     const data: Prisma.PaymentMachineUpdateInput = {};
 
@@ -120,7 +126,11 @@ export class PaymentMachinesService {
     }
 
     const machine = await this.prisma.paymentMachine.update({
-      where: { id, tenantId: context.tenantId },
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
       data,
     });
 
@@ -134,21 +144,26 @@ export class PaymentMachinesService {
   ) {
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
+      requireBranch: true,
       writable: true,
       allowedRoles: [Role.Admin],
     });
-    await this.assertTenantMachine(context.tenantId, id);
+    await this.assertTenantMachine(context.tenantId, context.branchId!, id);
 
     await this.prisma.paymentMachine.delete({
-      where: { id, tenantId: context.tenantId },
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
     });
 
     return { ok: true };
   }
 
-  private async assertTenantMachine(tenantId: string, id: string) {
+  private async assertTenantMachine(tenantId: string, branchId: string, id: string) {
     const machine = await this.prisma.paymentMachine.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, branchId },
       select: { id: true },
     });
 

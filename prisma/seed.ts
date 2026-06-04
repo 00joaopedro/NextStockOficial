@@ -45,8 +45,9 @@ async function main() {
   }
 
   const demoTenantId = process.env.NEXTSTOCK_DEMO_TENANT_ID;
+  const demoBranchId = process.env.NEXTSTOCK_DEMO_BRANCH_ID;
 
-  if (process.env.NODE_ENV === 'development' && demoTenantId) {
+  if (process.env.NODE_ENV === 'development' && demoTenantId && demoBranchId) {
     const demoMachines = [
       {
         name: 'Stone - Caixa Principal',
@@ -76,6 +77,7 @@ async function main() {
       await prisma.paymentMachine.create({
         data: {
           tenantId: demoTenantId,
+          branchId: demoBranchId,
           ...machine,
         },
       });
@@ -126,14 +128,16 @@ async function main() {
       const { images, ...productData } = product;
       const savedProduct = await prisma.product.upsert({
         where: {
-          tenantId_sku: {
+          tenantId_branchId_sku: {
             tenantId: demoTenantId,
+            branchId: demoBranchId,
             sku: product.sku,
           },
         },
         update: productData,
         create: {
           tenantId: demoTenantId,
+          branchId: demoBranchId,
           ...productData,
         },
       });

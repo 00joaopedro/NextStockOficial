@@ -881,8 +881,9 @@
     </main>
   </div>
 
+  <script src="./dist/session-state.js"></script>
   <script>
-    const clientsMock = [
+    const DEMO_CLIENTS = [
       {
         nome: "Ana Paula Ribeiro",
         tipoDoc: "cpf",
@@ -929,6 +930,7 @@
         pais: "Brasil"
       }
     ];
+    const clientsMock = window.isNextStockDemoMode?.() ? DEMO_CLIENTS : [];
 
     const searchInput = document.getElementById("searchClient");
     const autocompleteList = document.getElementById("autocompleteList");

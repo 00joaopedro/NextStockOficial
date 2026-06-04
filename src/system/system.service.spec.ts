@@ -9,15 +9,27 @@ describe('SystemService', () => {
       findFirst: jest.fn(),
     },
   };
+  const tenantContext = {
+    resolve: jest.fn().mockResolvedValue({
+      userId: 'user-id',
+      tenantId: 'tenant-standard',
+      branchId: null,
+      role: 'Admin',
+      systemType: SystemType.padrao,
+      mode: 'padrao',
+      isDevSuperAdmin: false,
+    }),
+  };
 
   beforeEach(() => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
     process.env.DEV_SUPER_ADMIN_USER_IDS = '';
     prisma.branch.findFirst.mockReset();
+    tenantContext.resolve.mockClear();
   });
 
   it('contexto sem usuario continua preview/demo', async () => {
-    const service = new SystemService(prisma as any);
+    const service = new SystemService(prisma as any, tenantContext as any);
 
     await expect(service.getContext()).resolves.toMatchObject({
       systemMode: SystemMode.Preview,
@@ -25,8 +37,8 @@ describe('SystemService', () => {
     });
   });
 
-  it('superAdmin comum nao recebe isDevSuperAdmin por padrao', async () => {
-    const service = new SystemService(prisma as any);
+  it('superAdmin comum usa somente contexto validado no banco', async () => {
+    const service = new SystemService(prisma as any, tenantContext as any);
 
     await expect(
       service.getContext({
@@ -49,11 +61,12 @@ describe('SystemService', () => {
       isSuperAdmin: true,
       isDevSuperAdmin: false,
     });
+    expect(tenantContext.resolve).toHaveBeenCalled();
   });
 
   it('Dev SuperAdmin em allowlist recebe isDevSuperAdmin', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@example.com';
-    const service = new SystemService(prisma as any);
+    const service = new SystemService(prisma as any, tenantContext as any);
 
     await expect(
       service.getContext({
@@ -91,7 +104,7 @@ describe('SystemService', () => {
         mode: 'petshop',
       },
     });
-    const service = new SystemService(prisma as any);
+    const service = new SystemService(prisma as any, tenantContext as any);
 
     await expect(
       service.getContext(

@@ -386,6 +386,7 @@
     </main>
   </div>
 
+  <script src="./dist/session-state.js"></script>
   <script>
     const API = '/api';
     const DEV_UNAUTHORIZED_MESSAGE = 'Acesso restrito ao Dev SuperAdmin.';
@@ -725,8 +726,7 @@
           return;
         }
 
-        sessionStorage.removeItem('nextstockPreviewMode');
-        sessionStorage.removeItem('nextstockIsPreview');
+        window.clearNextStockSessionState?.();
         sessionStorage.setItem('nextstockBackendMode', 'production');
         sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
         sessionStorage.setItem('nextstockTenantId', selectedBranch.tenantId);
@@ -765,12 +765,7 @@
 
     els.logoutBtn.addEventListener('click', async () => {
       await requestJson('/auth/logout', { method: 'POST' }).catch(() => undefined);
-
-      sessionStorage.removeItem('nextstockSelectedBranch');
-      sessionStorage.removeItem('nextstockSystemType');
-      sessionStorage.removeItem('nextstockSelectedSystemType');
-      sessionStorage.removeItem('nextstockIsSuperAdmin');
-      sessionStorage.removeItem('nextstockIsDevSuperAdmin');
+      window.clearNextStockSessionState?.();
 
       window.location.href = 'index.html';
     });

@@ -71,10 +71,17 @@ export class PetClientsService {
           where,
           include: {
             pets: {
-              where: { branchId: context.branchId, deletedAt: null },
+              where: {
+                tenantId: context.tenantId,
+                branchId: context.branchId,
+                deletedAt: null,
+              },
               include: {
                 photos: {
-                  where: { branchId: context.branchId },
+                  where: {
+                    tenantId: context.tenantId,
+                    branchId: context.branchId,
+                  },
                   orderBy: { createdAt: 'asc' },
                 },
               },
@@ -161,8 +168,20 @@ export class PetClientsService {
       data: this.buildUpdateData(dto),
       include: {
         pets: {
-          where: { deletedAt: null },
-          include: { photos: { orderBy: { createdAt: 'asc' } } },
+          where: {
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+            deletedAt: null,
+          },
+          include: {
+            photos: {
+              where: {
+                tenantId: context.tenantId,
+                branchId: context.branchId,
+              },
+              orderBy: { createdAt: 'asc' },
+            },
+          },
         },
       },
     });
@@ -258,10 +277,10 @@ export class PetClientsService {
         include: includePets
           ? {
               pets: {
-                where: { branchId, deletedAt: null },
+                where: { tenantId, branchId, deletedAt: null },
                 include: {
                   photos: {
-                    where: { branchId },
+                    where: { tenantId, branchId },
                     orderBy: { createdAt: 'asc' },
                   },
                 },

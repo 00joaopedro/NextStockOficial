@@ -554,6 +554,7 @@
 
   <div id="printArea"></div>
 
+  <script src="./dist/session-state.js"></script>
   <script>
     function getOperationalStorageKey(baseKey) {
       let branch = null;
@@ -573,7 +574,7 @@
       ].join(":");
     }
 
-    const orders = [
+    const DEMO_ORDERS = [
       {
         id: 1,
         buyer: "Ana Paula Ribeiro",
@@ -719,6 +720,7 @@
         ]
       }
     ];
+    const orders = window.isNextStockDemoMode?.() ? DEMO_ORDERS : [];
 
     const itemsPerPage = 10;
     let currentPage = 1;

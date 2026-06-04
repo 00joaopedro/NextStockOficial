@@ -75,10 +75,12 @@ model Plan {
 }
 
 model PaymentMachine {
-  /// Payment machines are tenant-wide and intentionally shared by all branches.
+  /// Payment machines are branch-wide. Legacy rows without branchId are not exposed.
   id                String          @id @default(uuid()) @db.Uuid
   tenantId          String          @map("tenant_id") @db.Uuid
   tenant            Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          String?         @map("branch_id") @db.Uuid
+  branch            Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
   name              String
   provider          PaymentProvider
   model             String
@@ -89,7 +91,7 @@ model PaymentMachine {
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
-  @@index([tenantId])
+  @@index([tenantId, branchId])
   @@map("payment_machines")
 }
 
@@ -106,6 +108,8 @@ model Branch {
   pets      Pet[]
   petPhotos PetPhoto[]
   agendaPets AgendaPet[]
+  products Product[]
+  paymentMachines PaymentMachine[]
   createdAt DateTime       @default(now()) @map("created_at")
   updatedAt DateTime       @updatedAt @map("updated_at")
 
@@ -244,10 +248,12 @@ model PetPhoto {
 }
 
 model Product {
-  /// Products are tenant-wide and intentionally shared by all branches.
+  /// Products are branch-wide. Legacy rows without branchId are not exposed.
   id               String         @id @default(uuid()) @db.Uuid
   tenantId         String         @map("tenant_id") @db.Uuid
   tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         String?        @map("branch_id") @db.Uuid
+  branch           Branch?        @relation(fields: [branchId], references: [id], onDelete: SetNull)
   name             String
   costPriceCents   Int            @map("cost_price_cents")
   profitPercent    Decimal        @map("profit_percent") @db.Decimal(7, 2)
@@ -269,10 +275,10 @@ model Product {
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
-  @@unique([tenantId, sku])
-  @@unique([tenantId, barcode])
-  @@index([tenantId])
-  @@index([tenantId, category])
+  @@unique([tenantId, branchId, sku])
+  @@unique([tenantId, branchId, barcode])
+  @@index([tenantId, branchId])
+  @@index([tenantId, branchId, category])
   @@map("products")
 }
 

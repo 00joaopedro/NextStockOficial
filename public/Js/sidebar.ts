@@ -355,6 +355,7 @@ async function loadSidebar(): Promise<void> {
     recordPageView(context);
   } catch (error) {
     console.warn("Using fallback sidebar context.", error);
+    (window as any).clearNextStockSessionState?.();
     const context = getRuntimeFallbackContext();
     renderSidebar(container, context);
     recordPageView(context);

@@ -8,13 +8,17 @@ import {
   SUPER_ADMIN_SYSTEM_TYPES,
 } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { SystemMode } from './enums/system-mode.enum';
 import { TenantType } from './enums/tenant-type.enum';
 import { SystemContext, TenantSystemSettings } from './interfaces/system-context.interface';
 
 @Injectable()
 export class SystemService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
   listPublicHtmlPages() {
     const publicPath = this.resolvePublicPath();
@@ -72,13 +76,23 @@ export class SystemService {
       };
     }
 
-    const tenantSettings = this.resolveTenantSettings(currentUser);
+    const operationalContext = await this.tenantContext.resolve(currentUser, {
+      selectedBranchId,
+      requireBranch: Boolean(selectedBranchId || currentUser.branchId),
+    });
+    const selectedContext = operationalContext.branchId
+      ? await this.resolveSelectedBranchContext(operationalContext.branchId)
+      : null;
 
     return {
-      systemMode: tenantSettings.systemMode ?? this.readSystemModeFromEnv(),
-      tenantType: tenantSettings.tenantType ?? this.readTenantTypeFromEnv(),
+      systemMode:
+        operationalContext.mode === 'visualizacao'
+          ? SystemMode.Preview
+          : SystemMode.Production,
+      tenantType: this.resolveTenantType(operationalContext.systemType),
       isSuperAdmin: isSuperAdmin(currentUser),
       isDevSuperAdmin: false,
+      selectedBranch: selectedContext?.selectedBranch,
     };
   }
 

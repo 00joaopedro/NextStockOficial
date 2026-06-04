@@ -55,6 +55,25 @@ function prismaMock() {
         ),
       ),
     },
+    tenantMember: {
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          where.tenantId === 'tenant-a' && (!where.branchId || where.branchId === 'branch-a')
+            ? {
+                id: 'member-a',
+                role: Role.Admin,
+                tenantId: 'tenant-a',
+                branchId: 'branch-a',
+                branch: {
+                  id: 'branch-a',
+                  tenantId: 'tenant-a',
+                  isActive: true,
+                },
+              }
+            : null,
+        ),
+      ),
+    },
   };
 }
 
@@ -130,5 +149,15 @@ describe('TenantContextService', () => {
       branchId: 'branch-b',
       isDevSuperAdmin: true,
     });
+  });
+
+  it('membership removida no banco invalida acesso mesmo com token antigo', async () => {
+    const prisma = prismaMock();
+    prisma.tenantMember.findFirst.mockResolvedValueOnce(null);
+    const service = new TenantContextService(prisma as any);
+
+    await expect(
+      service.resolve(user(), { selectedBranchId: 'branch-a', requireBranch: true }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

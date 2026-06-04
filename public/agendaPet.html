@@ -599,9 +599,19 @@
       </div>
     </div>
   </div>
+<script src="./dist/session-state.js"></script>
 <script type="module" src="./dist/sidebar.js"></script>
   <script>
-    let atendimentos = [
+    function isDemoMode() {
+      const params = new URLSearchParams(window.location.search);
+      return sessionStorage.getItem("nextstockIsPreview") === "true" ||
+        sessionStorage.getItem("nextstockPreviewMode") === "true" ||
+        sessionStorage.getItem("nextstockBackendMode") === "preview" ||
+        params.get("mode") === "preview" ||
+        params.get("mode") === "visualizacao";
+    }
+
+    const DEMO_ATENDIMENTOS = [
       {
         id: 1,
         cliente: "Mariana Oliveira Santos",
@@ -658,6 +668,7 @@
         descricao: "Consulta por queda de apetite."
       }
     ];
+    let atendimentos = isDemoMode() ? DEMO_ATENDIMENTOS : [];
 
     const itemsPerPage = 12;
     let currentPage = 1;
@@ -907,6 +918,11 @@
 
     function confirmDeleteCard() {
       if (cardIdToDelete === null) return;
+      if (!isDemoMode()) {
+        alert("Operacao local bloqueada em producao. Use a API real da agenda.");
+        closeDeleteConfirm();
+        return;
+      }
 
       atendimentos = atendimentos.filter(item => item.id !== cardIdToDelete);
       filteredAtendimentos = getFilteredAgenda();

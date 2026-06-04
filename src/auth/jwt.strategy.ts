@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import * as jwksRsa from 'jwks-rsa';
 import type { Request } from 'express';
-import { Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
 import {
@@ -83,7 +83,7 @@ function sanitizeMessage(value?: string | null) {
 
 function chooseMembership(profile: Pick<JwtProfile, 'memberships' | 'primaryTenantId' | 'tenantId' | 'systemType'>) {
   const memberships = profile.memberships.filter(
-    (membership) => membership.branch?.isActive !== false,
+    (membership) => membership.branch?.isActive === true,
   );
 
   return (
@@ -189,15 +189,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('PAYLOAD_INVALID: Invalid token payload (missing sub).');
     }
 
-    const profile = await this.prisma.userProfile.findFirst({
-      where: {
-        OR: [
-          { supabaseUserId: userId },
-          { id: userId },
-          email ? { email } : undefined,
-        ].filter(Boolean) as any,
-      },
-      select: {
+    const profileSelect = Prisma.validator<Prisma.UserProfileSelect>()({
         id: true,
         supabaseUserId: true,
         email: true,
@@ -236,14 +228,41 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             },
           },
         },
-      },
+      });
+
+    let profile = await this.prisma.userProfile.findFirst({
+      where: { supabaseUserId: userId },
+      select: profileSelect,
     });
+
+    if (!profile) {
+      profile = await this.prisma.userProfile.findFirst({
+        where: { id: userId },
+        select: profileSelect,
+      });
+    }
+
+    if (!profile && email) {
+      profile = await this.prisma.userProfile.findFirst({
+        where: { email },
+        select: profileSelect,
+      });
+    }
 
     if (!profile) {
       this.logger.warn(
         `PROFILE_NOT_FOUND: no profile for sub=${String(userId).slice(0, 8)} email=${email ? 'present' : 'missing'}`,
       );
       throw new UnauthorizedException('PROFILE_NOT_FOUND: User profile not found.');
+    }
+
+    if (profile.supabaseUserId && profile.supabaseUserId !== userId) {
+      this.logger.error(
+        `PROFILE_BINDING_MISMATCH: profile=${profile.id.slice(0, 8)} auth=${String(userId).slice(0, 8)} emailMatch=${Boolean(email && profile.email?.toLowerCase() === email)}`,
+      );
+      throw new UnauthorizedException(
+        'PROFILE_BINDING_MISMATCH: Token does not belong to this profile.',
+      );
     }
 
     if (!profile.supabaseUserId && email && profile.email?.toLowerCase() === email) {
@@ -253,14 +272,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         select: { id: true },
       });
       profile.supabaseUserId = userId;
-      this.logger.log('Profile linked to Supabase user id from JWT email match.');
+      this.logger.warn('Profile linked to Supabase user id from safe unbound email match.');
+    } else if (!profile.supabaseUserId && profile.id !== userId) {
+      this.logger.error(
+        `PROFILE_BINDING_MISMATCH: unbound profile=${profile.id.slice(0, 8)} has no verified email match`,
+      );
+      throw new UnauthorizedException(
+        'PROFILE_BINDING_MISMATCH: Profile identity could not be verified.',
+      );
     }
 
     const hasFullAccess = isSuperAdmin(profile);
     const hasDevAccess = canAccessDev(profile);
     const membership = chooseMembership(profile);
     const branches = profile.memberships
-      .filter((item) => item.branch?.isActive !== false)
+      .filter((item) => item.branch?.isActive === true)
       .map((item) => ({
         id: item.branch!.id,
         name: item.branch!.name,

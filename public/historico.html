@@ -624,8 +624,9 @@
       </div>
     </div>
   </div>
+  <script src="./dist/session-state.js"></script>
   <script>
-    const salesData = [
+    const DEMO_SALES_DATA = [
       {
         id: "REC-65-0001",
         tipo: "65",
@@ -812,6 +813,7 @@
         ]
       }
     ];
+    const salesData = window.isNextStockDemoMode?.() ? DEMO_SALES_DATA : [];
 
     const ITEMS_PER_PAGE = 10;
     let currentPage = 1;

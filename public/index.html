@@ -320,6 +320,7 @@
     </div>
   </div>
 
+  <script src="./dist/session-state.js"></script>
   <script>
     const API = '/api';
 
@@ -378,12 +379,12 @@
     }
 
     function clearRuntimeContext() {
-      sessionStorage.removeItem('nextstockPreviewMode');
-      sessionStorage.removeItem('nextstockIsPreview');
-      sessionStorage.removeItem('nextstockSelectedBranch');
-      sessionStorage.removeItem('nextstockSystemType');
-      sessionStorage.removeItem('nextstockSelectedSystemType');
-      sessionStorage.removeItem('nextstockIsSuperAdmin');
+      if (typeof window.clearNextStockSessionState === 'function') {
+        window.clearNextStockSessionState();
+        return;
+      }
+
+      sessionStorage.clear();
     }
 
     function persistAuthContext(data) {
@@ -392,11 +393,14 @@
       if (data.selectedBranch) {
         const systemType = data.selectedBranch.systemType || 'padrao';
         sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(data.selectedBranch));
+        sessionStorage.setItem('nextstockTenantId', data.selectedBranch.tenantId || '');
+        sessionStorage.setItem('nextstockBranchId', data.selectedBranch.id || '');
         sessionStorage.setItem('nextstockSystemType', systemType);
         sessionStorage.setItem('nextstockSelectedSystemType', systemType);
       }
 
       sessionStorage.setItem('nextstockBackendMode', 'production');
+      sessionStorage.setItem('nextstockAuthenticatedUser', JSON.stringify(data.user || null));
 
       if (isSuperAdminUser(data.user)) {
         sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
@@ -495,7 +499,6 @@
         setStatus('Encerrando sessao...');
         const { data } = await apiRequest('/auth/logout', { method: 'POST' });
         clearRuntimeContext();
-        sessionStorage.removeItem('nextstockBackendMode');
         setStatus('Logout realizado.\n\n' + extractMessage(data));
       } catch (error) {
         setStatus('Erro no logout:\n\n' + error.message, true);

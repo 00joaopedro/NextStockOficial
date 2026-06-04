@@ -985,6 +985,7 @@
       </div>
     </div>
   </div>
+  <script src="./dist/session-state.js"></script>
   <script>
     const expensesGrid = document.getElementById("expensesGrid");
     const emptyMessage = document.getElementById("emptyMessage");
@@ -1035,7 +1036,7 @@
     let formFiles = [];
     let carouselIndex = 0;
 
-    let expenses = [
+    const DEMO_EXPENSES = [
       {
         id: 1,
         type: "written",
@@ -1072,6 +1073,7 @@
         ]
       }
     ];
+    let expenses = window.isNextStockDemoMode?.() ? DEMO_EXPENSES : [];
 
     function formatMoney(value) {
       return Number(value || 0).toLocaleString("pt-BR", {

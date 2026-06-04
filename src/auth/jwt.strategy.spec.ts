@@ -180,6 +180,8 @@ describe('JwtStrategy', () => {
       userProfile: {
         findFirst: jest.fn().mockResolvedValue({
           ...profile,
+          supabaseUserId: 'super-auth-id',
+          email: 'dev@test.com',
           role: Role.superAdmin,
           isSuperAdmin: true,
           tenantId: null,
@@ -207,6 +209,7 @@ describe('JwtStrategy', () => {
       userProfile: {
         findFirst: jest.fn().mockResolvedValue({
           ...profile,
+          supabaseUserId: 'super-auth-id',
           role: Role.superAdmin,
           isSuperAdmin: true,
           email: 'dev@test.com',
@@ -226,5 +229,23 @@ describe('JwtStrategy', () => {
       isSuperAdmin: true,
       isDevSuperAdmin: true,
     });
+  });
+
+  it('rejeita profile com supabaseUserId diferente do JWT', async () => {
+    const prisma = {
+      userProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...profile,
+          supabaseUserId: 'different-auth-user',
+        }),
+        update: jest.fn(),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any);
+
+    await expect(
+      strategy.validate({ sub: 'auth-user-id', email: profile.email }),
+    ).rejects.toThrow('PROFILE_BINDING_MISMATCH');
+    expect(prisma.userProfile.update).not.toHaveBeenCalled();
   });
 });

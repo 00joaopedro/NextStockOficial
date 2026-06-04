@@ -10,6 +10,7 @@ describe('ProductsService', () => {
   const product = {
     id: 'product-id',
     tenantId: 'tenant-id',
+    branchId: 'branch-id',
     name: 'Produto teste',
     costPriceCents: 1000,
     profitPercent: new Prisma.Decimal(30),
@@ -66,6 +67,19 @@ describe('ProductsService', () => {
           tenant: { id: 'tenant-id', mode, systemType: 'padrao' },
         }),
       },
+      tenantMember: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'member-id',
+          role: 'Admin',
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          branch: {
+            id: 'branch-id',
+            tenantId: 'tenant-id',
+            isActive: true,
+          },
+        }),
+      },
       product: {
         create: jest.fn().mockResolvedValue(product),
         findFirst: jest.fn().mockResolvedValue({ id: 'product-id' }),
@@ -93,7 +107,10 @@ describe('ProductsService', () => {
     });
     expect(prisma.product.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ tenantId: 'tenant-id' }),
+        data: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+        }),
       }),
     );
   });
@@ -144,7 +161,8 @@ describe('ProductsService', () => {
 
   it('superAdmin comum nao pode selecionar tenant por body/header', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
-    const { service } = makeService(SystemMode.padrao);
+    const { service, prisma } = makeService(SystemMode.padrao);
+    prisma.tenantMember.findFirst.mockResolvedValueOnce(null);
     const superAdmin = {
       ...user,
       tenantId: null,
@@ -168,5 +186,23 @@ describe('ProductsService', () => {
       NotFoundException,
     );
     expect(prisma.product.delete).not.toHaveBeenCalled();
+  });
+
+  it('branch A nao remove produto da branch B', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+    prisma.product.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.remove(user, 'product-branch-b')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'product-branch-b',
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+        }),
+      }),
+    );
   });
 });

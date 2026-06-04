@@ -44,6 +44,19 @@ function prismaMock() {
         },
       }),
     },
+    tenantMember: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'member-pet',
+        role: Role.Admin,
+        tenantId: 'tenant-pet',
+        branchId: 'branch-pet',
+        branch: {
+          id: 'branch-pet',
+          tenantId: 'tenant-pet',
+          isActive: true,
+        },
+      }),
+    },
     petClient: {
       count: jest.fn().mockResolvedValue(1),
       findMany: jest.fn().mockResolvedValue([]),

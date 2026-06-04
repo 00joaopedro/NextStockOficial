@@ -86,3 +86,21 @@ npm test
 O Supabase SQL Editor nao e o fluxo principal para schema do NextStock. Use-o apenas para consultas diagnosticas ou como plano B quando o Prisma CLI nao conseguir acessar uma conexao adequada para migration.
 
 Se uma correcao mudar estrutura de banco, ela deve virar migration Prisma antes de ser considerada pronta para deploy.
+
+## Branch isolation rollout
+
+`Product` and `PaymentMachine` are branch-wide. The branch-isolation migration adds
+nullable `branch_id` columns without guessing ownership for legacy rows. Rows with a
+null branch are intentionally hidden by the backend until an operator reviews the
+read-only report at `sql/audit/multitenant_integrity_audit.sql` and assigns each row
+to the correct branch through a separately reviewed data-fix procedure.
+
+Do not mass-assign legacy rows to the first branch of a tenant.
+
+## Pet photo storage
+
+Pet photo object paths include `tenantId/branchId/petId`, and upload/removal is
+authorized by the backend. The current UI persists public URLs, so changing the
+`pet-photos` bucket to private requires a coordinated signed-URL read flow before the
+bucket policy changes. Keep this as an explicit production decision; do not make the
+bucket private without releasing the signed-URL flow at the same time.

@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
   Optional,
   RequestTimeoutException,
   ServiceUnavailableException,
@@ -100,6 +101,8 @@ async function withTimeout<T>(
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly supabase: SupabaseService,
     private readonly prisma: PrismaService,
@@ -534,10 +537,7 @@ export class AuthService {
     email: string;
     metadata?: Record<string, any> | null;
   }) {
-    const profile = await this.findProfileRecordOrNull({
-      supabaseUserId: input.supabaseUserId,
-      email: input.email,
-    });
+    const profile = await this.findProfileForSupabaseIdentity(input);
 
     if (profile) {
       return profile;
@@ -548,15 +548,9 @@ export class AuthService {
         input.metadata?.full_name ||
         input.email.split('@')[0],
     );
-    const role =
-      input.metadata?.role === Role.superAdmin ||
-      input.metadata?.isSuperAdmin === true ||
-      input.metadata?.is_super_admin === true
-        ? Role.superAdmin
-        : Role.Admin;
-    const systemType = this.normalizeSystemType(
-      input.metadata?.systemType || SystemType.padrao,
-    );
+    // Supabase user_metadata is user-controlled and must never grant authorization.
+    const role = Role.Comprador;
+    const systemType = SystemType.padrao;
     const createdProfile = await this.prisma.userProfile.create({
       data: {
         id: input.supabaseUserId,
@@ -566,8 +560,8 @@ export class AuthService {
         fullName: name,
         role,
         systemType,
-        allowedSystemTypes: role === Role.superAdmin ? SUPER_ADMIN_SYSTEM_TYPES : [systemType],
-        isSuperAdmin: role === Role.superAdmin,
+        allowedSystemTypes: [systemType],
+        isSuperAdmin: false,
         accessNameNormalized: normalizeAccessName(name),
       },
       select: { id: true },
@@ -576,6 +570,72 @@ export class AuthService {
     return this.findProfileRecord({
       profileId: createdProfile.id,
     });
+  }
+
+  private async findProfileForSupabaseIdentity(input: {
+    supabaseUserId: string;
+    email: string;
+  }) {
+    const bySupabaseId = await this.findProfileRecordOrNull({
+      supabaseUserId: input.supabaseUserId,
+    });
+
+    if (bySupabaseId) {
+      return bySupabaseId;
+    }
+
+    const byProfileId = await this.findProfileRecordOrNull({
+      profileId: input.supabaseUserId,
+    });
+
+    if (byProfileId) {
+      if (
+        byProfileId.supabaseUserId &&
+        byProfileId.supabaseUserId !== input.supabaseUserId
+      ) {
+        this.logger.error(
+          `SECURITY_PROFILE_BINDING_MISMATCH profile=${byProfileId.id.slice(0, 8)} auth=${input.supabaseUserId.slice(0, 8)}`,
+        );
+        throw new UnauthorizedException('Perfil nao corresponde ao usuario autenticado.');
+      }
+
+      if (!byProfileId.supabaseUserId) {
+        await this.linkProfileToSupabaseUser(byProfileId.id, input.supabaseUserId);
+        return this.findProfileRecord({ profileId: byProfileId.id });
+      }
+
+      return byProfileId;
+    }
+
+    const byEmail = await this.findProfileRecordOrNull({ email: input.email });
+
+    if (!byEmail) {
+      return null;
+    }
+
+    if (
+      byEmail.supabaseUserId &&
+      byEmail.supabaseUserId !== input.supabaseUserId
+    ) {
+      this.logger.error(
+        `SECURITY_PROFILE_BINDING_MISMATCH profile=${byEmail.id.slice(0, 8)} auth=${input.supabaseUserId.slice(0, 8)} emailMatch=true`,
+      );
+      throw new UnauthorizedException('Perfil nao corresponde ao usuario autenticado.');
+    }
+
+    await this.linkProfileToSupabaseUser(byEmail.id, input.supabaseUserId);
+    return this.findProfileRecord({ profileId: byEmail.id });
+  }
+
+  private async linkProfileToSupabaseUser(profileId: string, supabaseUserId: string) {
+    await this.prisma.userProfile.update({
+      where: { id: profileId },
+      data: { supabaseUserId },
+      select: { id: true },
+    });
+    this.logger.warn(
+      `SECURITY_PROFILE_BINDING_CREATED profile=${profileId.slice(0, 8)} auth=${supabaseUserId.slice(0, 8)}`,
+    );
   }
 
   private async findProfileRecord(input: {
@@ -666,7 +726,7 @@ export class AuthService {
     >,
   ): AuthMembershipRecord | undefined {
     const memberships = profile.memberships.filter(
-      (membership) => membership.branch?.isActive !== false,
+      (membership) => membership.branch?.isActive === true,
     );
 
     return (
@@ -696,7 +756,7 @@ export class AuthService {
     const hasDevAccess = canAccessDev(profile);
     const membership = this.chooseMembership(profile);
     const branches = profile.memberships
-      .filter((item) => item.branch?.isActive !== false)
+      .filter((item) => item.branch?.isActive === true)
       .map((item) => ({
         id: item.branch!.id,
         name: item.branch!.name,
@@ -733,32 +793,31 @@ export class AuthService {
     }
 
     const membership = this.chooseMembership(profile);
-    const tenantId = membership?.tenantId ?? profile.primaryTenantId ?? profile.tenantId;
 
-    if (!tenantId) {
-      throw new UnauthorizedException('Usuario sem empresa vinculada.');
+    if (!membership) {
+      this.logger.warn(
+        `LOGIN_MEMBERSHIP_MISSING profile=${profile.id.slice(0, 8)} tenant=${profile.primaryTenantId ?? profile.tenantId ?? 'none'}`,
+      );
+      throw new UnauthorizedException('Usuario sem empresa/filial vinculada.');
     }
 
-    const context = await this.ensureTenantBranchAndMembership({
-      profileId: profile.id,
-      tenantId,
-      branchName: DEFAULT_BRANCH_NAME,
-      branchSlug: DEFAULT_BRANCH_SLUG,
-      role: membership?.role ?? Role.Admin,
-      setAsProfileTenant: false,
-    });
-    const refreshed = await this.findProfileRecord({
-      profileId: profile.id,
-      branchSlug: context.branch.slug,
-    });
-    const user = this.formatProfileWithMembership(refreshed, context.branch.slug);
+    if (!membership.branchId || !membership.branch?.isActive) {
+      this.logger.warn(
+        `LOGIN_BRANCH_INVALID profile=${profile.id.slice(0, 8)} membership=${membership.id.slice(0, 8)} branch=${membership.branchId ?? 'none'}`,
+      );
+      throw new UnauthorizedException(
+        'Usuario sem filial ativa vinculada. Solicite acesso ao administrador.',
+      );
+    }
+
+    const user = this.formatProfileWithMembership(profile, membership.branch.slug);
 
     return {
       user,
       selectedBranch: this.formatSelectedBranch(
-        context.branch,
-        context.tenant.id,
-        context.tenant.systemType,
+        membership.branch,
+        membership.tenant.id,
+        membership.tenant.systemType,
       ),
     };
   }

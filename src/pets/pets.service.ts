@@ -49,7 +49,10 @@ export class PetsService {
       },
       include: {
         photos: {
-          where: { branchId: context.branchId },
+          where: {
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+          },
           orderBy: { createdAt: 'asc' },
         },
       },
@@ -129,7 +132,15 @@ export class PetsService {
     const pet = await this.prisma.pet.update({
       where: { id, tenantId: context.tenantId, branchId: context.branchId },
       data: this.buildUpdateData(dto),
-      include: { photos: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        photos: {
+          where: {
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
     });
 
     await this.recordUsage(user, 'pet_update', 0, 1, { petId: id });
@@ -318,7 +329,12 @@ export class PetsService {
     const pet = await this.prisma.pet.findFirst({
       where: { id, tenantId, branchId, deletedAt: null },
       include: includePhotos
-        ? { photos: { orderBy: { createdAt: 'asc' } } }
+        ? {
+            photos: {
+              where: { tenantId, branchId },
+              orderBy: { createdAt: 'asc' },
+            },
+          }
         : undefined,
     });
 
