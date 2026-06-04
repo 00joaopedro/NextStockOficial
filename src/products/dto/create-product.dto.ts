@@ -12,14 +12,6 @@ import {
 } from 'class-validator';
 
 export class CreateProductDto {
-  @IsOptional()
-  @IsString()
-  tenantId?: string;
-
-  @IsOptional()
-  @IsString()
-  branchId?: string;
-
   @IsString()
   @MaxLength(120)
   nome!: string;

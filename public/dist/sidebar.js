@@ -131,26 +131,7 @@ function normalizeContext(value) {
     };
 }
 function getRuntimeFallbackContext() {
-    const params = new URLSearchParams(window.location.search);
-    const productionMode = sessionStorage.getItem("nextstockBackendMode") === "production" ||
-        params.get("mode") === "production";
-    const selectedSystemType = sessionStorage.getItem("nextstockSelectedSystemType") ||
-        sessionStorage.getItem("nextstockSystemType");
-    if (!productionMode) {
-        return FALLBACK_CONTEXT;
-    }
-    return {
-        systemMode: "PRODUCTION",
-        tenantType: selectedSystemType === "petshop" ? "PETSHOP" : "STANDARD",
-        isSuperAdmin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
-        is_super_admin: sessionStorage.getItem("nextstockIsSuperAdmin") === "true",
-        isDevSuperAdmin: sessionStorage.getItem("nextstockIsDevSuperAdmin") === "true",
-        allowedSystemTypes: sessionStorage.getItem("nextstockIsSuperAdmin") === "true"
-            ? ["padrao", "petshop"]
-            : selectedSystemType
-                ? [selectedSystemType]
-                : [],
-    };
+    return FALLBACK_CONTEXT;
 }
 function getSelectedBranchId() {
     try {

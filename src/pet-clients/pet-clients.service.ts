@@ -9,8 +9,8 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, SystemMode, SystemType } from '@prisma/client';
-import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UsageService } from '../usage/usage.service';
 import { CreatePetClientDto } from './dto/create-pet-client.dto';
 import { PetClientQueryDto } from './dto/pet-client-query.dto';
@@ -35,6 +35,7 @@ export class PetClientsService {
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly usageService?: UsageService,
+    @Optional() private readonly tenantContext?: TenantContextService,
   ) {}
 
   async findAll(
@@ -48,6 +49,7 @@ export class PetClientsService {
     const search = query.search?.trim();
     const where: Prisma.PetClientWhereInput = {
       tenantId: context.tenantId,
+      branchId: context.branchId,
       deletedAt: null,
     };
 
@@ -69,8 +71,13 @@ export class PetClientsService {
           where,
           include: {
             pets: {
-              where: { deletedAt: null },
-              include: { photos: { orderBy: { createdAt: 'asc' } } },
+              where: { branchId: context.branchId, deletedAt: null },
+              include: {
+                photos: {
+                  where: { branchId: context.branchId },
+                  orderBy: { createdAt: 'asc' },
+                },
+              },
               orderBy: { createdAt: 'desc' },
             },
           },
@@ -104,7 +111,7 @@ export class PetClientsService {
     selectedBranchId?: string,
   ) {
     const context = await this.resolvePetShopContext(user, selectedBranchId, false);
-    const client = await this.findTenantClient(context.tenantId, id, true);
+    const client = await this.findTenantClient(context.tenantId, context.branchId, id, true);
     await this.recordUsage(user, 'pet_client_detail', 1, 0, { clientId: id });
 
     return {
@@ -147,10 +154,10 @@ export class PetClientsService {
     selectedBranchId?: string,
   ) {
     const context = await this.resolvePetShopContext(user, selectedBranchId, true);
-    await this.findTenantClient(context.tenantId, id, false);
+    await this.findTenantClient(context.tenantId, context.branchId, id, false);
 
     const client = await this.prisma.petClient.update({
-      where: { id },
+      where: { id, tenantId: context.tenantId, branchId: context.branchId },
       data: this.buildUpdateData(dto),
       include: {
         pets: {
@@ -174,16 +181,21 @@ export class PetClientsService {
     selectedBranchId?: string,
   ) {
     const context = await this.resolvePetShopContext(user, selectedBranchId, true);
-    await this.findTenantClient(context.tenantId, id, false);
+    await this.findTenantClient(context.tenantId, context.branchId, id, false);
     const now = new Date();
 
     await this.prisma.$transaction([
       this.prisma.pet.updateMany({
-        where: { tenantId: context.tenantId, clientId: id, deletedAt: null },
+        where: {
+          tenantId: context.tenantId,
+          branchId: context.branchId,
+          clientId: id,
+          deletedAt: null,
+        },
         data: { deletedAt: now },
       }),
       this.prisma.petClient.update({
-        where: { id },
+        where: { id, tenantId: context.tenantId, branchId: context.branchId },
         data: { deletedAt: now },
       }),
     ]);
@@ -199,11 +211,12 @@ export class PetClientsService {
     selectedBranchId?: string,
   ) {
     const context = await this.resolvePetShopContext(user, selectedBranchId, false);
-    await this.findTenantClient(context.tenantId, id, false);
+    await this.findTenantClient(context.tenantId, context.branchId, id, false);
 
     const appointments = await this.prisma.agendaPet.findMany({
       where: {
         tenantId: context.tenantId,
+        branchId: context.branchId,
         clientId: id,
       },
       orderBy: { data: 'desc' },
@@ -217,91 +230,23 @@ export class PetClientsService {
     selectedBranchId?: string,
     writable = false,
   ): Promise<PetShopContext> {
-    if (!user) {
-      throw new UnauthorizedException('Sessao expirada. Faca login novamente.');
-    }
-
-    if (isSuperAdmin(user) && selectedBranchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: selectedBranchId, isActive: true },
-        select: {
-          id: true,
-          tenant: {
-            select: { id: true, systemType: true, mode: true },
-          },
-        },
-      });
-
-      if (!branch) {
-        throw new ForbiddenException('Filial selecionada nao encontrada.');
-      }
-
-      this.assertPetShopTenant(branch.tenant.systemType);
-      this.assertWritableMode(branch.tenant.mode, writable);
-
-      return {
-        tenantId: branch.tenant.id,
-        branchId: branch.id,
-        mode: branch.tenant.mode,
-      };
-    }
-
-    const tenantId = user.tenantId ?? user.primaryTenantId;
-
-    if (!tenantId) {
-      throw new UnauthorizedException('Usuario sem tenant/empresa vinculado.');
-    }
-
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true, systemType: true, mode: true },
+    const context = await this.contextResolver().resolve(user, {
+      selectedBranchId,
+      requireBranch: true,
+      expectedSystemType: SystemType.petshop,
+      writable,
     });
 
-    if (!tenant) {
-      throw new UnauthorizedException('Tenant/empresa nao encontrado.');
-    }
-
-    this.assertPetShopTenant(tenant.systemType);
-    this.assertWritableMode(tenant.mode, writable);
-
-    const branchId = user.branchId ?? selectedBranchId ?? null;
-
-    if (writable && !branchId) {
-      throw new BadRequestException(MISSING_BRANCH_MESSAGE);
-    }
-
-    if (branchId) {
-      const branch = await this.prisma.branch.findFirst({
-        where: { id: branchId, tenantId: tenant.id, isActive: true },
-        select: { id: true },
-      });
-
-      if (!branch) {
-        throw new ForbiddenException('Filial nao encontrada para este tenant.');
-      }
-    }
-
     return {
-      tenantId: tenant.id,
-      branchId,
-      mode: tenant.mode,
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      mode: context.mode,
     };
-  }
-
-  private assertPetShopTenant(systemType: SystemType) {
-    if (systemType !== SystemType.petshop) {
-      throw new ForbiddenException(PETSHOP_ONLY_MESSAGE);
-    }
-  }
-
-  private assertWritableMode(mode: SystemMode, writable: boolean) {
-    if (writable && mode === SystemMode.visualizacao) {
-      throw new ForbiddenException(PREVIEW_BLOCKED_MESSAGE);
-    }
   }
 
   private async findTenantClient(
     tenantId: string,
+    branchId: string | null,
     id: string,
     includePets: boolean,
   ) {
@@ -309,12 +254,17 @@ export class PetClientsService {
 
     try {
       client = await this.prisma.petClient.findFirst({
-        where: { id, tenantId, deletedAt: null },
+        where: { id, tenantId, branchId, deletedAt: null },
         include: includePets
           ? {
               pets: {
-                where: { deletedAt: null },
-                include: { photos: { orderBy: { createdAt: 'asc' } } },
+                where: { branchId, deletedAt: null },
+                include: {
+                  photos: {
+                    where: { branchId },
+                    orderBy: { createdAt: 'asc' },
+                  },
+                },
                 orderBy: { createdAt: 'desc' },
               },
             }
@@ -329,6 +279,10 @@ export class PetClientsService {
     }
 
     return client;
+  }
+
+  private contextResolver() {
+    return this.tenantContext ?? new TenantContextService(this.prisma);
   }
 
   private buildCreateData(dto: CreatePetClientDto) {

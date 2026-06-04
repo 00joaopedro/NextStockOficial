@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { isSuperAdmin } from '../auth/super-admin.util';
+import { canAccessDev, isSuperAdmin } from '../auth/super-admin.util';
 import { toTenantSummary } from './tenant.utils';
 
 type AuthUser = Express.AuthenticatedUser;
@@ -77,7 +77,7 @@ export class TenantAccessService {
   ) {
     const user = this.requireUser(userInput);
 
-    if (isSuperAdmin(user)) {
+    if (canAccessDev(user)) {
       const tenantId = requestedTenantId ?? user.tenantId ?? user.primaryTenantId;
 
       if (!tenantId) {
@@ -103,7 +103,7 @@ export class TenantAccessService {
     profileId: string,
   ) {
     const user = this.requireUser(userInput);
-    const membershipWhere = isSuperAdmin(user)
+    const membershipWhere = canAccessDev(user)
       ? undefined
       : { tenantId: this.requireTenantId(user) };
     const profile = await this.prisma.userProfile.findUnique({
@@ -138,7 +138,7 @@ export class TenantAccessService {
 
     const membership = profile.memberships[0];
 
-    if (isSuperAdmin(user)) {
+    if (canAccessDev(user)) {
       return {
         id: profile.id,
         email: profile.email,

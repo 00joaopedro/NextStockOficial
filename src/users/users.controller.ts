@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Patch,
   Post,
@@ -22,8 +23,11 @@ export class UsersController {
 
   @Get()
   @Roles(Role.Admin)
-  async listAll(@Req() req: Request) {
-    return this.usersService.list(req.user);
+  async listAll(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.usersService.list(req.user, selectedBranchId);
   }
 
   @Post()
@@ -36,11 +40,10 @@ export class UsersController {
       name?: string;
       password?: string;
       role?: Role;
-      tenantId?: string;
-      branchId?: string;
     },
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
-    return this.usersService.create(req.user, body);
+    return this.usersService.create(req.user, body, selectedBranchId);
   }
 
   @Patch(':userId/role')
@@ -49,7 +52,8 @@ export class UsersController {
     @Req() req: Request,
     @Param('userId') userId: string,
     @Body() body: { role?: Role },
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
-    return this.usersService.updateRole(req.user, userId, body.role);
+    return this.usersService.updateRole(req.user, userId, body.role, selectedBranchId);
   }
 }

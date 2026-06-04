@@ -7,10 +7,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
 
 type CreateTenantUserInput = {
@@ -18,8 +18,6 @@ type CreateTenantUserInput = {
   name?: string;
   password?: string;
   role?: Role;
-  tenantId?: string;
-  branchId?: string;
 };
 
 const TENANT_MANAGED_ROLES: Role[] = [
@@ -45,27 +43,29 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly tenantAccess: TenantAccessService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
-  async list(currentUser?: Express.AuthenticatedUser) {
-    const user = this.tenantAccess.requireUser(currentUser);
-    const tenantId = isSuperAdmin(user) ? null : this.tenantAccess.requireTenantId(user);
+  async list(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(currentUser, {
+      selectedBranchId,
+      requireBranch: true,
+      allowedRoles: [Role.Admin],
+    });
 
     const users = await this.prisma.userProfile.findMany({
-      where: tenantId
-        ? {
-            memberships: {
-              some: { tenantId },
-            },
-          }
-        : undefined,
+      where: {
+        memberships: {
+          some: { tenantId: context.tenantId, branchId: context.branchId },
+        },
+      },
       select: {
         id: true,
         email: true,
         name: true,
         createdAt: true,
         memberships: {
-          where: tenantId ? { tenantId } : undefined,
+          where: { tenantId: context.tenantId, branchId: context.branchId },
           take: 1,
           select: {
             role: true,
@@ -115,21 +115,20 @@ export class UsersService {
   async create(
     currentUser: Express.AuthenticatedUser | undefined,
     input: CreateTenantUserInput,
+    selectedBranchId?: string,
   ) {
-    const user = this.tenantAccess.requireUser(currentUser);
+    const context = await this.tenantContext.resolve(currentUser, {
+      selectedBranchId,
+      requireBranch: true,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
     const email = this.normalizeEmail(input.email);
     const name = this.normalizeName(input.name ?? input.email);
     const password = this.normalizePassword(input.password);
     const role = this.parseManagedRole(input.role);
-    const tenant = await this.tenantAccess.resolveTenantForOperation(
-      user,
-      input.tenantId,
-    );
-
-    if (!tenant) {
-      throw new BadRequestException('tenantId is required to create a tenant user.');
-    }
-    const branch = await this.resolveBranch(tenant.id, input.branchId);
+    const tenant = await this.tenantAccess.findTenantOrThrow(context.tenantId);
+    const branch = await this.resolveBranch(tenant.id, context.branchId ?? undefined);
     const accessNameNormalized = this.normalizeAccessName(name);
 
     const existingProfile = await this.prisma.userProfile.findFirst({
@@ -251,8 +250,15 @@ export class UsersService {
     currentUser: Express.AuthenticatedUser | undefined,
     profileId: string,
     nextRole?: Role,
+    selectedBranchId?: string,
   ) {
     const user = this.tenantAccess.requireUser(currentUser);
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      requireBranch: true,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
     const role = this.parseManagedRole(nextRole, true);
     const profile = await this.tenantAccess.findAccessibleProfile(
       user,
@@ -263,13 +269,21 @@ export class UsersService {
       throw new ForbiddenException('You cannot change your own role.');
     }
 
-    const updatedMember = await this.prisma.tenantMember.update({
+    const targetMember = await this.prisma.tenantMember.findFirst({
       where: {
-        tenantId_userProfileId: {
-          tenantId: this.tenantAccess.requireTenantId(user),
-          userProfileId: profileId,
-        },
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        userProfileId: profileId,
       },
+      select: { id: true },
+    });
+
+    if (!targetMember) {
+      throw new ForbiddenException('Usuario nao pertence a filial selecionada.');
+    }
+
+    const updatedMember = await this.prisma.tenantMember.update({
+      where: { id: targetMember.id },
       data: { role },
       select: {
         role: true,
@@ -320,7 +334,7 @@ export class UsersService {
   private async resolveBranch(tenantId: string, branchId?: string) {
     if (branchId) {
       const branch = await this.prisma.branch.findFirst({
-        where: { id: branchId, tenantId },
+        where: { id: branchId, tenantId, isActive: true },
         select: { id: true },
       });
 
@@ -332,7 +346,7 @@ export class UsersService {
     }
 
     return this.prisma.branch.findFirst({
-      where: { tenantId, isDefault: true },
+      where: { tenantId, isDefault: true, isActive: true },
       select: { id: true },
     });
   }

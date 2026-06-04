@@ -637,6 +637,23 @@
     const chartType = document.getElementById("chart-type");
     const storeBrand = document.getElementById("store-brand");
 
+    function getLocalStorageScope() {
+      let branch = null;
+      let user = null;
+      try {
+        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      } catch {
+        branch = null;
+        user = null;
+      }
+      return [
+        branch?.tenantId || "no-tenant",
+        branch?.id || "no-branch",
+        user?.id || "anonymous"
+      ].join(":");
+    }
+
     function formatarDataLocal(data) {
       const ano = data.getFullYear();
       const mes = String(data.getMonth() + 1).padStart(2, "0");
@@ -745,8 +762,9 @@
 
       let valorMarca = "";
 
+      const storageScope = getLocalStorageScope();
       for (const chave of possiveisChaves) {
-        const valor = localStorage.getItem(chave);
+        const valor = localStorage.getItem(`${chave}:${storageScope}`);
         if (valor && String(valor).trim()) {
           valorMarca = String(valor).trim();
           break;

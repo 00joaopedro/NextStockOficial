@@ -813,13 +813,7 @@
     }
 
     function montarPayloadProduto(dados) {
-      const branch = lerSelectedBranch() || selectedBranch;
-      const payload = { ...dados };
-
-      if (branch?.id) payload.branchId = branch.id;
-      if (usuarioSuperAdmin && branch?.tenantId) payload.tenantId = branch.tenantId;
-
-      return payload;
+      return { ...dados };
     }
 
     /*
@@ -996,10 +990,12 @@
     }
 
     async function apiFetch(url, options = {}) {
+      const branch = lerSelectedBranch() || selectedBranch;
       const response = await fetch(`/api${url}`, {
         credentials: "include",
         headers: {
           "Content-Type": "application/json",
+          ...(branch?.id ? { "x-nextstock-branch-id": branch.id } : {}),
           ...(options.headers || {})
         },
         ...options

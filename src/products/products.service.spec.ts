@@ -1,4 +1,8 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Prisma, SystemMode } from '@prisma/client';
 import { ProductsService } from './products.service';
 
@@ -34,7 +38,6 @@ describe('ProductsService', () => {
     percentualLucro: 30,
     precoVenda: 13,
     quantidade: 5,
-    branchId: 'branch-id',
   };
 
   const user = {
@@ -57,10 +60,16 @@ describe('ProductsService', () => {
         findUnique: jest.fn().mockResolvedValue({ id: 'tenant-id', mode }),
       },
       branch: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'branch-id' }),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'branch-id',
+          tenantId: 'tenant-id',
+          tenant: { id: 'tenant-id', mode, systemType: 'padrao' },
+        }),
       },
       product: {
         create: jest.fn().mockResolvedValue(product),
+        findFirst: jest.fn().mockResolvedValue({ id: 'product-id' }),
+        delete: jest.fn().mockResolvedValue(product),
       },
     } as any;
 
@@ -109,6 +118,7 @@ describe('ProductsService', () => {
   });
 
   it('permite superAdmin criar no tenant/filial selecionado', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'user@test.com';
     const { service, prisma } = makeService(SystemMode.padrao);
     const superAdmin = {
       ...user,
@@ -119,20 +129,44 @@ describe('ProductsService', () => {
     };
 
     await expect(
-      service.create(superAdmin, {
-        ...dto,
-        tenantId: 'tenant-id',
-        branchId: 'branch-id',
-      }),
+      service.create(superAdmin, dto, 'branch-id'),
     ).resolves.toMatchObject({ ok: true });
     expect(prisma.branch.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           id: 'branch-id',
-          tenantId: 'tenant-id',
           isActive: true,
         }),
       }),
     );
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+  });
+
+  it('superAdmin comum nao pode selecionar tenant por body/header', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+    const { service } = makeService(SystemMode.padrao);
+    const superAdmin = {
+      ...user,
+      tenantId: null,
+      primaryTenantId: null,
+      branchId: null,
+      role: 'superAdmin',
+      roles: ['superAdmin'],
+      isSuperAdmin: true,
+    };
+
+    await expect(service.create(superAdmin, dto, 'branch-id')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  it('nao remove produto de outro tenant', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+    prisma.product.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.remove(user, 'product-other')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.product.delete).not.toHaveBeenCalled();
   });
 });

@@ -980,10 +980,28 @@
 
   <div id="printArea"></div>
   <script>
+    function getOperationalStorageKey(baseKey) {
+      let branch = null;
+      let user = null;
+      try {
+        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      } catch {
+        branch = null;
+        user = null;
+      }
+      return [
+        baseKey,
+        branch?.tenantId || "no-tenant",
+        branch?.id || "no-branch",
+        user?.id || "anonymous"
+      ].join(":");
+    }
+
     const STORAGE_KEYS = {
-      reciboPendente: "nextstockReciboPendente",
-      notaFiscalPendente: "nextstockNotaFiscalPendente",
-      ultimaVendaPaga: "nextstockUltimaVendaPaga"
+      reciboPendente: getOperationalStorageKey("nextstockReciboPendente"),
+      notaFiscalPendente: getOperationalStorageKey("nextstockNotaFiscalPendente"),
+      ultimaVendaPaga: getOperationalStorageKey("nextstockUltimaVendaPaga")
     };
 
     const produtosCatalogo = {

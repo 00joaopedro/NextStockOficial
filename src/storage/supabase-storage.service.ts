@@ -27,6 +27,7 @@ export class SupabaseStorageService {
 
   async uploadPetPhoto(input: {
     tenantId: string;
+    branchId: string;
     petId: string;
     file: UploadFile;
   }) {
@@ -38,6 +39,7 @@ export class SupabaseStorageService {
     const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
     const storagePath = [
       input.tenantId,
+      input.branchId,
       input.petId,
       `${randomUUID()}${extension}`,
     ].join('/');

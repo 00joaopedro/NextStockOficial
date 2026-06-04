@@ -370,4 +370,39 @@ describe('AuthService', () => {
       'requires' + 'BranchSelection',
     );
   });
+
+  it('superAdmin comum permanece no proprio tenant e nao recebe tenant Dev', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const commonSuperAdmin = {
+      ...profile,
+      role: Role.superAdmin,
+      isSuperAdmin: true,
+    };
+
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce(commonSuperAdmin)
+      .mockResolvedValueOnce(commonSuperAdmin);
+
+    const service = new AuthService(supabase, prisma);
+    const result = await service.login({
+      email: profile.email,
+      password: 'Senha123',
+    });
+
+    expect(prisma.tenant.upsert).not.toHaveBeenCalled();
+    expect(result.payload).toMatchObject({
+      redirectTo: 'produtos.html',
+      selectedBranch: {
+        id: branch.id,
+        tenantId: tenant.id,
+        systemType: SystemType.padrao,
+      },
+      user: {
+        role: Role.superAdmin,
+        isDevSuperAdmin: false,
+        tenantId: tenant.id,
+      },
+    });
+  });
 });

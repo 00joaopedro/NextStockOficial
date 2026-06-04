@@ -68,6 +68,27 @@ Quando houver migration nova, rode:
 npm run db:migrate
 ```
 
+### Multi-tenant integrity
+
+Application requests are scoped by the backend `TenantContextService`; values stored in
+the browser are never authorization sources. Before applying security migrations in an
+existing database, run the read-only report:
+
+```text
+prisma/audit/multitenant_integrity_audit.sql
+```
+
+Review and correct reported legacy inconsistencies explicitly before validating the
+composite foreign keys.
+
+Current ownership rules:
+
+- products and payment machines are tenant-wide and shared between the tenant branches;
+- Pet Shop clients, pets, photos and appointments are branch-wide;
+- the current `TenantMember` model grants one branch per user/tenant. Supporting
+  multiple branches per user requires a separate access-model decision and migration;
+- only an allowlisted Dev SuperAdmin may select a branch outside its own tenant.
+
 Esse comando pode ser executado manualmente pelo terminal da Railway, por job separado, ou no pipeline antes/depois do deploy, desde que nao bloqueie a inicializacao normal do backend.
 
 Veja tambem [DEPLOY.md](./DEPLOY.md).

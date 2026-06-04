@@ -16,13 +16,19 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
+import { Role, SystemType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { BranchContextGuard } from '../tenancy/branch-context.guard';
+import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { PetsService } from './pets.service';
 
 @Controller()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+@RequireTenantContext({ requireBranch: true, expectedSystemType: SystemType.petshop })
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class PetsController {
   constructor(private readonly petsService: PetsService) {}
@@ -37,6 +43,7 @@ export class PetsController {
   }
 
   @Post('pet-clients/:clientId/pets')
+  @Roles(Role.Admin, Role.Vendedor)
   create(
     @Req() req: Request,
     @Param('clientId') clientId: string,
@@ -56,6 +63,7 @@ export class PetsController {
   }
 
   @Patch('pets/:id')
+  @Roles(Role.Admin, Role.Vendedor)
   update(
     @Req() req: Request,
     @Param('id') id: string,
@@ -66,6 +74,7 @@ export class PetsController {
   }
 
   @Delete('pets/:id')
+  @Roles(Role.Admin)
   remove(
     @Req() req: Request,
     @Param('id') id: string,
@@ -84,6 +93,7 @@ export class PetsController {
   }
 
   @Post('pets/:id/photos')
+  @Roles(Role.Admin, Role.Vendedor)
   @UseInterceptors(FileInterceptor('file'))
   addPhoto(
     @Req() req: Request,
@@ -95,6 +105,7 @@ export class PetsController {
   }
 
   @Delete('pets/:id/photos/:photoId')
+  @Roles(Role.Admin, Role.Vendedor)
   removePhoto(
     @Req() req: Request,
     @Param('id') id: string,

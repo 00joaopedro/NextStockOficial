@@ -555,6 +555,24 @@
   <div id="printArea"></div>
 
   <script>
+    function getOperationalStorageKey(baseKey) {
+      let branch = null;
+      let user = null;
+      try {
+        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      } catch {
+        branch = null;
+        user = null;
+      }
+      return [
+        baseKey,
+        branch?.tenantId || "no-tenant",
+        branch?.id || "no-branch",
+        user?.id || "anonymous"
+      ].join(":");
+    }
+
     const orders = [
       {
         id: 1,
@@ -973,7 +991,10 @@
       const order = orders.find(item => item.id === orderId);
       if (!order) return;
 
-      sessionStorage.setItem("nextstockPedidoParaNfe", JSON.stringify(order));
+      sessionStorage.setItem(
+        getOperationalStorageKey("nextstockPedidoParaNfe"),
+        JSON.stringify(order)
+      );
       window.location.href = "ntfe.html";
     }
 

@@ -38,11 +38,21 @@ export class PetsService {
       selectedBranchId,
       false,
     );
-    await this.assertClient(context.tenantId, clientId);
+    await this.assertClient(context.tenantId, context.branchId, clientId);
 
     const pets = await this.prisma.pet.findMany({
-      where: { tenantId: context.tenantId, clientId, deletedAt: null },
-      include: { photos: { orderBy: { createdAt: 'asc' } } },
+      where: {
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        clientId,
+        deletedAt: null,
+      },
+      include: {
+        photos: {
+          where: { branchId: context.branchId },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -65,11 +75,12 @@ export class PetsService {
       selectedBranchId,
       true,
     );
-    await this.assertClient(context.tenantId, clientId);
+    await this.assertClient(context.tenantId, context.branchId, clientId);
 
     const pet = await this.prisma.pet.create({
       data: {
         tenantId: context.tenantId,
+        branchId: context.branchId,
         clientId,
         ...this.buildCreateData(dto),
       },
@@ -94,7 +105,7 @@ export class PetsService {
       selectedBranchId,
       false,
     );
-    const pet = await this.assertPet(context.tenantId, id, true);
+    const pet = await this.assertPet(context.tenantId, context.branchId, id, true);
 
     return {
       ok: true,
@@ -113,10 +124,10 @@ export class PetsService {
       selectedBranchId,
       true,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     const pet = await this.prisma.pet.update({
-      where: { id },
+      where: { id, tenantId: context.tenantId, branchId: context.branchId },
       data: this.buildUpdateData(dto),
       include: { photos: { orderBy: { createdAt: 'asc' } } },
     });
@@ -139,10 +150,10 @@ export class PetsService {
       selectedBranchId,
       true,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     await this.prisma.pet.update({
-      where: { id },
+      where: { id, tenantId: context.tenantId, branchId: context.branchId },
       data: { deletedAt: new Date() },
     });
 
@@ -161,10 +172,10 @@ export class PetsService {
       selectedBranchId,
       false,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     const photos = await this.prisma.petPhoto.findMany({
-      where: { tenantId: context.tenantId, petId: id },
+      where: { tenantId: context.tenantId, branchId: context.branchId, petId: id },
       orderBy: { createdAt: 'asc' },
     });
 
@@ -182,10 +193,10 @@ export class PetsService {
       selectedBranchId,
       true,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     const currentCount = await this.prisma.petPhoto.count({
-      where: { tenantId: context.tenantId, petId: id },
+      where: { tenantId: context.tenantId, branchId: context.branchId, petId: id },
     });
 
     if (currentCount >= 3) {
@@ -194,6 +205,7 @@ export class PetsService {
 
     const uploaded = await this.storage.uploadPetPhoto({
       tenantId: context.tenantId,
+      branchId: context.branchId!,
       petId: id,
       file,
     });
@@ -202,6 +214,7 @@ export class PetsService {
       const photo = await this.prisma.petPhoto.create({
         data: {
           tenantId: context.tenantId,
+          branchId: context.branchId,
           petId: id,
           ...uploaded,
         },
@@ -230,10 +243,15 @@ export class PetsService {
       selectedBranchId,
       true,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     const photo = await this.prisma.petPhoto.findFirst({
-      where: { id: photoId, petId: id, tenantId: context.tenantId },
+      where: {
+        id: photoId,
+        petId: id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
     });
 
     if (!photo) {
@@ -241,7 +259,13 @@ export class PetsService {
     }
 
     await this.storage.removePetPhoto(photo.storagePath);
-    await this.prisma.petPhoto.delete({ where: { id: photo.id } });
+    await this.prisma.petPhoto.delete({
+      where: {
+        id: photo.id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
+    });
 
     return { ok: true };
   }
@@ -256,19 +280,27 @@ export class PetsService {
       selectedBranchId,
       false,
     );
-    await this.assertPet(context.tenantId, id, false);
+    await this.assertPet(context.tenantId, context.branchId, id, false);
 
     const appointments = await this.prisma.agendaPet.findMany({
-      where: { tenantId: context.tenantId, petId: id },
+      where: {
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        petId: id,
+      },
       orderBy: { data: 'desc' },
     });
 
     return { ok: true, appointments };
   }
 
-  private async assertClient(tenantId: string, clientId: string) {
+  private async assertClient(
+    tenantId: string,
+    branchId: string | null,
+    clientId: string,
+  ) {
     const client = await this.prisma.petClient.findFirst({
-      where: { id: clientId, tenantId, deletedAt: null },
+      where: { id: clientId, tenantId, branchId, deletedAt: null },
       select: { id: true },
     });
 
@@ -277,9 +309,14 @@ export class PetsService {
     }
   }
 
-  private async assertPet(tenantId: string, id: string, includePhotos: boolean) {
+  private async assertPet(
+    tenantId: string,
+    branchId: string | null,
+    id: string,
+    includePhotos: boolean,
+  ) {
     const pet = await this.prisma.pet.findFirst({
-      where: { id, tenantId, deletedAt: null },
+      where: { id, tenantId, branchId, deletedAt: null },
       include: includePhotos
         ? { photos: { orderBy: { createdAt: 'asc' } } }
         : undefined,

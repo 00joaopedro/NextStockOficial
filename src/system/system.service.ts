@@ -44,7 +44,7 @@ export class SystemService {
       };
     }
 
-    if (isSuperAdmin(currentUser)) {
+    if (canAccessDev(currentUser)) {
       const selectedContext = selectedBranchId
         ? await this.resolveSelectedBranchContext(selectedBranchId)
         : null;
@@ -77,6 +77,8 @@ export class SystemService {
     return {
       systemMode: tenantSettings.systemMode ?? this.readSystemModeFromEnv(),
       tenantType: tenantSettings.tenantType ?? this.readTenantTypeFromEnv(),
+      isSuperAdmin: isSuperAdmin(currentUser),
+      isDevSuperAdmin: false,
     };
   }
 

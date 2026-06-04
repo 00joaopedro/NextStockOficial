@@ -34,7 +34,15 @@ function prismaMock() {
       }),
     },
     branch: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'branch-pet' }),
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'branch-pet',
+        tenantId: 'tenant-pet',
+        tenant: {
+          id: 'tenant-pet',
+          systemType: SystemType.petshop,
+          mode: SystemMode.petshop,
+        },
+      }),
     },
     petClient: {
       count: jest.fn().mockResolvedValue(1),
@@ -78,6 +86,10 @@ function prismaMock() {
 }
 
 describe('PetClientsService', () => {
+  beforeEach(() => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = '';
+    process.env.DEV_SUPER_ADMIN_USER_IDS = '';
+  });
   it('cria cliente Pet com usuario Pet Shop autenticado no tenant correto', async () => {
     const prisma = prismaMock();
     const service = new PetClientsService(prisma as any);
@@ -110,6 +122,7 @@ describe('PetClientsService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
           deletedAt: null,
         }),
       }),
@@ -126,10 +139,14 @@ describe('PetClientsService', () => {
 
   it('bloqueia usuario do modo padrao', async () => {
     const prisma = prismaMock();
-    prisma.tenant.findUnique.mockResolvedValueOnce({
-      id: 'tenant-standard',
-      systemType: SystemType.padrao,
-      mode: SystemMode.padrao,
+    prisma.branch.findFirst.mockResolvedValueOnce({
+      id: 'branch-pet',
+      tenantId: 'tenant-standard',
+      tenant: {
+        id: 'tenant-standard',
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
+      },
     });
     const service = new PetClientsService(prisma as any);
 
@@ -143,10 +160,14 @@ describe('PetClientsService', () => {
 
   it('bloqueia escrita em modo visualizacao', async () => {
     const prisma = prismaMock();
-    prisma.tenant.findUnique.mockResolvedValueOnce({
-      id: 'tenant-pet',
-      systemType: SystemType.petshop,
-      mode: SystemMode.visualizacao,
+    prisma.branch.findFirst.mockResolvedValueOnce({
+      id: 'branch-pet',
+      tenantId: 'tenant-pet',
+      tenant: {
+        id: 'tenant-pet',
+        systemType: SystemType.petshop,
+        mode: SystemMode.visualizacao,
+      },
     });
     const service = new PetClientsService(prisma as any);
 
@@ -156,9 +177,11 @@ describe('PetClientsService', () => {
   });
 
   it('permite Dev SuperAdmin com filial Pet Shop selecionada', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'admin@pet.com';
     const prisma = prismaMock();
     prisma.branch.findFirst.mockResolvedValueOnce({
       id: 'branch-pet',
+      tenantId: 'tenant-pet',
       tenant: {
         id: 'tenant-pet',
         systemType: SystemType.petshop,
@@ -183,9 +206,11 @@ describe('PetClientsService', () => {
   });
 
   it('bloqueia Dev SuperAdmin quando a filial selecionada pertence ao modo padrao', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'admin@pet.com';
     const prisma = prismaMock();
     prisma.branch.findFirst.mockResolvedValueOnce({
       id: 'branch-standard',
+      tenantId: 'tenant-standard',
       tenant: {
         id: 'tenant-standard',
         systemType: SystemType.padrao,

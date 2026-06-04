@@ -687,11 +687,20 @@
     }
 
     async function apiRequest(url, options = {}) {
+      let selectedBranchId = '';
+      try {
+        selectedBranchId = JSON.parse(
+          sessionStorage.getItem('nextstockSelectedBranch') || 'null'
+        )?.id || '';
+      } catch {
+        selectedBranchId = '';
+      }
       const response = await fetch(API + url, {
         credentials: 'include',
         ...options,
         headers: {
           'Content-Type': 'application/json',
+          ...(selectedBranchId ? { 'x-nextstock-branch-id': selectedBranchId } : {}),
           ...(options.headers || {})
         }
       });
@@ -708,7 +717,6 @@
     }
 
     function blockPreview() {
-      if (currentUserIsSuperAdmin) return false;
       if (currentMode !== 'visualizacao') return false;
       showMessage('Modo visualização: alteração bloqueada.', true);
       return true;

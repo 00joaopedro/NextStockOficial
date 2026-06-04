@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Patch,
   Req,
   UseGuards,
@@ -9,26 +10,38 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { Role } from '@prisma/client';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
+import { PreviewMutationGuard } from '../system/guards/preview-mutation.guard';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { UpdateModeDto } from './dto/update-mode.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { ProfileService } from './profile.service';
 
 @Controller('profile')
-@UseGuards(OptionalJwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
   @Get('company')
-  getCompany(@Req() req: Request) {
-    return this.profileService.getCompany(req.user);
+  getCompany(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.profileService.getCompany(req.user, selectedBranchId);
   }
 
   @Patch('company')
-  updateCompany(@Req() req: Request, @Body() body: UpdateCompanyDto) {
-    return this.profileService.updateCompany(req.user, body);
+  @Roles(Role.Admin)
+  updateCompany(
+    @Req() req: Request,
+    @Body() body: UpdateCompanyDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.profileService.updateCompany(req.user, body, selectedBranchId);
   }
 
   @Get('plans')
@@ -37,17 +50,30 @@ export class ProfileController {
   }
 
   @Patch('plan')
-  updatePlan(@Req() req: Request, @Body() body: UpdatePlanDto) {
-    return this.profileService.updatePlan(req.user, body.planSlug);
+  @Roles(Role.Admin)
+  updatePlan(
+    @Req() req: Request,
+    @Body() body: UpdatePlanDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.profileService.updatePlan(req.user, body.planSlug, selectedBranchId);
   }
 
   @Get('mode')
-  getMode(@Req() req: Request) {
-    return this.profileService.getMode(req.user);
+  getMode(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.profileService.getMode(req.user, selectedBranchId);
   }
 
   @Patch('mode')
-  updateMode(@Req() req: Request, @Body() body: UpdateModeDto) {
-    return this.profileService.updateMode(req.user, body.mode);
+  @Roles(Role.Admin)
+  updateMode(
+    @Req() req: Request,
+    @Body() body: UpdateModeDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.profileService.updateMode(req.user, body.mode, selectedBranchId);
   }
 }

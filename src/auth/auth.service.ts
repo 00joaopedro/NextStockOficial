@@ -409,7 +409,7 @@ export class AuthService {
     );
     const currentSelectedBranch = this.resolveSelectedBranchFromUser(formattedUser);
 
-    if (isSuperAdmin(profile) && !currentSelectedBranch) {
+    if (canAccessDev(profile) && !currentSelectedBranch) {
       const context = await this.prepareSuperAdminLoginContext(profile);
       await this.usageService?.record({
         userId: context.user.id,
@@ -692,7 +692,8 @@ export class AuthService {
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
     branchSlug?: string,
   ) {
-    const hasFullAccess = isSuperAdmin(profile);
+    const hasSuperAdminRole = isSuperAdmin(profile);
+    const hasDevAccess = canAccessDev(profile);
     const membership = this.chooseMembership(profile);
     const branches = profile.memberships
       .filter((item) => item.branch?.isActive !== false)
@@ -707,17 +708,17 @@ export class AuthService {
         mode: item.tenant.mode,
       }));
 
-    if (!membership && !hasFullAccess) {
+    if (!membership && !hasDevAccess) {
       throw new UnauthorizedException('User is not linked to this branch.');
     }
 
-    if (branchSlug && !membership && !hasFullAccess) {
+    if (branchSlug && !membership && !hasDevAccess) {
       throw new UnauthorizedException('User is not linked to this branch.');
     }
 
     return this.formatAuthUser({
       ...profile,
-      role: hasFullAccess ? Role.superAdmin : membership!.role,
+      role: hasSuperAdminRole ? Role.superAdmin : membership!.role,
       tenant: membership?.tenant ?? null,
       branch: membership?.branch ?? null,
       branches,
@@ -727,7 +728,7 @@ export class AuthService {
   private async prepareLoginContext(
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
   ) {
-    if (isSuperAdmin(profile)) {
+    if (canAccessDev(profile)) {
       return this.prepareSuperAdminLoginContext(profile);
     }
 
@@ -970,10 +971,10 @@ export class AuthService {
     }>;
     createdAt?: Date;
   }) {
-    const hasFullAccess = isSuperAdmin(profile);
+    const hasSuperAdminRole = isSuperAdmin(profile);
     const hasDevAccess = canAccessDev(profile);
     const tenantSystemType = profile.tenant?.systemType;
-    const allowedSystemTypes = hasFullAccess
+    const allowedSystemTypes = hasDevAccess
       ? SUPER_ADMIN_SYSTEM_TYPES
       : profile.allowedSystemTypes?.length
         ? profile.allowedSystemTypes
@@ -987,14 +988,16 @@ export class AuthService {
       email: profile.email,
       name: profile.name,
       fullName: profile.fullName ?? profile.name,
-      role: hasFullAccess ? Role.superAdmin : profile.role,
-      roles: [hasFullAccess ? Role.superAdmin : profile.role],
+      role: hasSuperAdminRole ? Role.superAdmin : profile.role,
+      roles: [hasSuperAdminRole ? Role.superAdmin : profile.role],
       systemType,
       allowedSystemTypes,
-      isSuperAdmin: hasFullAccess,
-      is_super_admin: hasFullAccess,
+      isSuperAdmin: hasSuperAdminRole,
+      is_super_admin: hasSuperAdminRole,
       isDevSuperAdmin: hasDevAccess,
-      tenantId: hasFullAccess ? profile.tenantId ?? null : profile.tenant?.id ?? profile.tenantId ?? null,
+      tenantId: hasDevAccess
+        ? profile.tenantId ?? null
+        : profile.tenant?.id ?? profile.tenantId ?? null,
       primaryTenantId: profile.primaryTenantId ?? null,
       tenant: toTenantSummary(profile.tenant),
       branchId: profile.branch?.id ?? null,

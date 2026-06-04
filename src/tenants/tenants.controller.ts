@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Patch, Req, UseGuards } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -13,13 +13,19 @@ export class TenantsController {
 
   @Get()
   @Roles(Role.Admin)
-  list(@Req() req: Request) {
-    return this.tenantsService.list(req.user);
+  list(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.tenantsService.list(req.user, selectedBranchId);
   }
 
   @Get('current')
-  current(@Req() req: Request) {
-    return this.tenantsService.getCurrent(req.user);
+  current(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+  ) {
+    return this.tenantsService.getCurrent(req.user, selectedBranchId);
   }
 
   @Patch('current')
@@ -27,7 +33,8 @@ export class TenantsController {
   updateCurrent(
     @Req() req: Request,
     @Body() body: { name?: string; slug?: string },
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
-    return this.tenantsService.updateCurrent(req.user, body);
+    return this.tenantsService.updateCurrent(req.user, body, selectedBranchId);
   }
 }

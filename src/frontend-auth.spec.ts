@@ -44,8 +44,9 @@ describe('frontend auth pages', () => {
     expect(html).toContain('detectarPreviewExplicito');
     expect(html).toContain('Sess\\u00e3o expirada ou inv\\u00e1lida');
     expect(html).toContain('montarPayloadProduto');
-    expect(html).toContain('branchId');
-    expect(html).toContain('tenantId');
+    expect(html).toContain('"x-nextstock-branch-id"');
+    expect(html).not.toContain('payload.tenantId');
+    expect(html).not.toContain('payload.branchId');
     expect(html).toContain('Modo visualiza');
     expect(html).not.toContain('if (usuarioSuperAdmin) return false');
   });
@@ -55,8 +56,23 @@ describe('frontend auth pages', () => {
 
     expect(html).toContain('loadProductsFromBackend');
     expect(html).toContain('/api/products');
+    expect(html).toContain('"x-nextstock-branch-id"');
     expect(html).toContain('nextstockBackendMode');
     expect(html).toContain('mode") === "production"');
+  });
+
+  it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
+    const pages = ['produtos.html', 'caixa.html', 'pedido.html'];
+
+    for (const page of pages) {
+      expect(publicFile(page)).toContain('getOperationalStorageKey');
+      expect(publicFile(page)).toContain('branch?.tenantId || "no-tenant"');
+      expect(publicFile(page)).toContain('branch?.id || "no-branch"');
+      expect(publicFile(page)).toContain('user?.id || "anonymous"');
+    }
+
+    expect(publicFile('dashboard.html')).toContain('getLocalStorageScope');
+    expect(publicFile('dashboard.html')).toContain('`${chave}:${storageScope}`');
   });
 
   it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {
@@ -66,7 +82,8 @@ describe('frontend auth pages', () => {
     expect(source).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
     expect(source).toContain('function isDevSuperAdminUser');
     expect(source).toContain('if (isDevSuperAdminUser(context))');
-    expect(source).toContain('sessionStorage.getItem("nextstockIsDevSuperAdmin") === "true"');
+    expect(source).toContain('function getRuntimeFallbackContext');
+    expect(source).toContain('return FALLBACK_CONTEXT');
 
     expect(dist).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
     expect(dist).toContain('function isDevSuperAdminUser');

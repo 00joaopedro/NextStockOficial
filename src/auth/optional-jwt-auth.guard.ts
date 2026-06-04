@@ -1,22 +1,31 @@
-import { ExecutionContext, Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 @Injectable()
 export class OptionalJwtAuthGuard extends AuthGuard('jwt') {
   handleRequest<TUser = Express.AuthenticatedUser | undefined>(
-    _err: unknown,
+    err: unknown,
     user: TUser,
+    info?: { message?: string },
+    context?: ExecutionContext,
   ): TUser | undefined {
+    const request = context?.switchToHttp().getRequest();
+    if (err) {
+      throw err;
+    }
+    if (!user && request?.cookies?.jwt) {
+      throw new UnauthorizedException(info?.message || 'Sessao invalida.');
+    }
     return user ?? undefined;
   }
 
   async canActivate(context: ExecutionContext) {
-    try {
-      return (await super.canActivate(context)) as boolean;
-    } catch {
-      const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest();
+    if (!request?.cookies?.jwt) {
       request.user = undefined;
       return true;
     }
+
+    return (await super.canActivate(context)) as boolean;
   }
 }

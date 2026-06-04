@@ -5,7 +5,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { isSuperAdmin } from '../auth/super-admin.util';
 import { PetClientsService } from '../pet-clients/pet-clients.service';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
@@ -67,7 +66,6 @@ export class AgendaPetService {
     atendente?: string;
     dateFilterType?: DateFilterType;
     dateValue?: string;
-    tenantId?: string;
     selectedBranchId?: string;
     user?: Express.AuthenticatedUser;
   }) {
@@ -80,7 +78,10 @@ export class AgendaPetService {
     const limit = options.limit && options.limit > 0 ? options.limit : 12;
     const skip = (page - 1) * limit;
 
-    const where: any = { tenantId: context.tenantId };
+    const where: any = {
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+    };
     if (options.atendente) where.atendente = { contains: options.atendente, mode: 'insensitive' };
     if (options.dateFilterType && options.dateValue) {
       where.data = getRange(options.dateValue, options.dateFilterType);
@@ -113,7 +114,11 @@ export class AgendaPetService {
       false,
     );
     const agenda = await this.prisma.agendaPet.findFirst({
-      where: { id, tenantId: context.tenantId },
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
     });
 
     if (!agenda) {
@@ -133,7 +138,12 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertLinkedEntities(context.tenantId, dto.clientId, dto.petId);
+    await this.assertLinkedEntities(
+      context.tenantId,
+      context.branchId,
+      dto.clientId,
+      dto.petId,
+    );
     const payload = {
       ...dto,
       data: new Date(dto.data),
@@ -141,7 +151,6 @@ export class AgendaPetService {
       tenantId: context.tenantId,
       branchId: context.branchId,
     } as any;
-    delete payload.tenantIdInput;
     return this.prisma.agendaPet.create({ data: payload });
   }
 
@@ -156,14 +165,26 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertTenantOwnership(id, user, context.tenantId);
-    await this.assertLinkedEntities(context.tenantId, dto.clientId, dto.petId);
+    await this.assertTenantOwnership(id, context.tenantId, context.branchId);
+    await this.assertLinkedEntities(
+      context.tenantId,
+      context.branchId,
+      dto.clientId,
+      dto.petId,
+    );
 
     const data: any = { ...dto };
     delete data.tenantId;
     delete data.branchId;
     if (dto.data) data.data = new Date(dto.data);
-    return this.prisma.agendaPet.update({ where: { id }, data });
+    return this.prisma.agendaPet.update({
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
+      data,
+    });
   }
 
   async remove(
@@ -176,44 +197,42 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertTenantOwnership(id, user, context.tenantId);
+    await this.assertTenantOwnership(id, context.tenantId, context.branchId);
 
-    return this.prisma.agendaPet.delete({ where: { id } });
+    return this.prisma.agendaPet.delete({
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+      },
+    });
   }
 
   private async assertTenantOwnership(
     id: string,
-    user: Express.AuthenticatedUser | undefined,
     tenantId: string,
+    branchId: string | null,
   ) {
-    const agenda = await this.prisma.agendaPet.findUnique({
-      where: { id },
-      select: { tenantId: true },
+    const agenda = await this.prisma.agendaPet.findFirst({
+      where: { id, tenantId, branchId },
+      select: { id: true },
     });
 
     if (!agenda) {
       throw new NotFoundException('Agenda pet not found.');
     }
 
-    if (isSuperAdmin(user)) {
-      if (agenda.tenantId === tenantId) return;
-    }
-
-    if (agenda.tenantId !== tenantId) {
-      throw new ForbiddenException(
-        'You can only access data from your own tenant.',
-      );
-    }
   }
 
   private async assertLinkedEntities(
     tenantId: string,
+    branchId: string | null,
     clientId?: string | null,
     petId?: string | null,
   ) {
     if (clientId) {
       const client = await this.prisma.petClient.findFirst({
-        where: { id: clientId, tenantId, deletedAt: null },
+        where: { id: clientId, tenantId, branchId, deletedAt: null },
         select: { id: true },
       });
 
@@ -227,6 +246,7 @@ export class AgendaPetService {
         where: {
           id: petId,
           tenantId,
+          branchId,
           deletedAt: null,
           ...(clientId ? { clientId } : {}),
         },

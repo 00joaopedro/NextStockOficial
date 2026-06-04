@@ -5,9 +5,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, SystemMode, SystemType } from '@prisma/client';
-import { isSuperAdmin } from '../auth/super-admin.util';
+import { Prisma, Role, SystemMode, SystemType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 
 const DEMO_COMPANY = {
@@ -20,37 +20,18 @@ const DEMO_COMPANY = {
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
-  async getCompany(user?: Express.AuthenticatedUser) {
-    if (isSuperAdmin(user) && !user?.tenantId) {
-      return {
-        ok: true,
-        mode: SystemMode.padrao,
-        isSuperAdmin: true,
-        company: {
-          nomeCompleto: user?.fullName ?? user?.name ?? 'Super Admin',
-          empresa: 'NextStock',
-          cnpj: null,
-          email: user?.email ?? null,
-          contato: null,
-        },
-        currentPlan: null,
-      };
-    }
-
-    if (!user?.tenantId) {
-      return {
-        ok: true,
-        mode: SystemMode.visualizacao,
-        company: DEMO_COMPANY,
-      };
-    }
+  async getCompany(user?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(user, { selectedBranchId });
 
     const [tenant, profile] = await Promise.all([
-      this.findTenant(user.tenantId),
+      this.findTenant(context.tenantId),
       this.prisma.userProfile.findUnique({
-        where: { id: user.id },
+        where: { id: user!.id },
         select: { fullName: true, name: true, email: true },
       }),
     ]);
@@ -59,18 +40,22 @@ export class ProfileService {
       ok: true,
       mode: tenant.mode,
       company: {
-        nomeCompleto: profile?.fullName ?? profile?.name ?? user.name,
+        nomeCompleto: profile?.fullName ?? profile?.name ?? user!.name,
         empresa: tenant.name,
         cnpj: tenant.cnpj,
-        email: tenant.contactEmail ?? profile?.email ?? user.email,
+        email: tenant.contactEmail ?? profile?.email ?? user!.email,
         contato: tenant.contactPhone,
       },
       currentPlan: tenant.currentPlan ? this.formatPlan(tenant.currentPlan) : null,
     };
   }
 
-  async updateCompany(user: Express.AuthenticatedUser | undefined, dto: UpdateCompanyDto) {
-    const tenant = await this.requireWritableTenant(user);
+  async updateCompany(
+    user: Express.AuthenticatedUser | undefined,
+    dto: UpdateCompanyDto,
+    selectedBranchId?: string,
+  ) {
+    const tenant = await this.requireWritableTenant(user, selectedBranchId);
 
     const data: Prisma.TenantUpdateInput = {};
 
@@ -97,7 +82,7 @@ export class ProfileService {
         : []),
     ]);
 
-    return this.getCompany(user);
+    return this.getCompany(user, selectedBranchId);
   }
 
   async listPlans() {
@@ -109,8 +94,12 @@ export class ProfileService {
     return { ok: true, plans: plans.map(this.formatPlan) };
   }
 
-  async updatePlan(user: Express.AuthenticatedUser | undefined, planSlug: string) {
-    const tenant = await this.requireWritableTenant(user);
+  async updatePlan(
+    user: Express.AuthenticatedUser | undefined,
+    planSlug: string,
+    selectedBranchId?: string,
+  ) {
+    const tenant = await this.requireWritableTenant(user, selectedBranchId);
     const plan = await this.prisma.plan.findUnique({
       where: { slug: planSlug },
     });
@@ -133,26 +122,9 @@ export class ProfileService {
     };
   }
 
-  async getMode(user?: Express.AuthenticatedUser) {
-    if (isSuperAdmin(user)) {
-      return {
-        ok: true,
-        mode: SystemMode.padrao,
-        systemType: SystemType.petshop,
-        isSuperAdmin: true,
-        allowedSystemTypes: [SystemType.padrao, SystemType.petshop],
-      };
-    }
-
-    if (!user?.tenantId) {
-      return {
-        ok: true,
-        mode: SystemMode.visualizacao,
-        systemType: SystemType.padrao,
-      };
-    }
-
-    const tenant = await this.findTenant(user.tenantId);
+  async getMode(user?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(user, { selectedBranchId });
+    const tenant = await this.findTenant(context.tenantId);
 
     return {
       ok: true,
@@ -161,8 +133,12 @@ export class ProfileService {
     };
   }
 
-  async updateMode(user: Express.AuthenticatedUser | undefined, mode: SystemMode) {
-    const tenant = await this.requireWritableTenant(user);
+  async updateMode(
+    user: Express.AuthenticatedUser | undefined,
+    mode: SystemMode,
+    selectedBranchId?: string,
+  ) {
+    const tenant = await this.requireWritableTenant(user, selectedBranchId);
 
     if (mode === SystemMode.petshop && tenant.systemType !== SystemType.petshop) {
       throw new BadRequestException('Pet Shop mode requires systemType petshop.');
@@ -177,28 +153,16 @@ export class ProfileService {
     return { ok: true, ...updatedTenant };
   }
 
-  private async requireWritableTenant(user?: Express.AuthenticatedUser) {
-    if (isSuperAdmin(user)) {
-      const tenantId = user?.tenantId ?? user?.primaryTenantId;
-
-      if (!tenantId) {
-        throw new ForbiddenException('tenantId is required for superAdmin writes.');
-      }
-
-      return this.findTenant(tenantId);
-    }
-
-    if (!user?.tenantId) {
-      throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
-    }
-
-    const tenant = await this.findTenant(user.tenantId);
-
-    if (tenant.mode === SystemMode.visualizacao) {
-      throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
-    }
-
-    return tenant;
+  private async requireWritableTenant(
+    user?: Express.AuthenticatedUser,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
+    return this.findTenant(context.tenantId);
   }
 
   private async findTenant(tenantId: string) {

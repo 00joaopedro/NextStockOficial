@@ -4,9 +4,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { MachineStatus, PaymentProvider, Prisma, SystemMode } from '@prisma/client';
-import { isSuperAdmin } from '../auth/super-admin.util';
+import { MachineStatus, PaymentProvider, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { CreatePaymentMachineDto } from './dto/create-payment-machine.dto';
 import { UpdatePaymentMachineDto } from './dto/update-payment-machine.dto';
 
@@ -45,46 +45,40 @@ const DEMO_MACHINES = [
 
 @Injectable()
 export class PaymentMachinesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContextService,
+  ) {}
 
-  async list(user?: Express.AuthenticatedUser) {
-    const tenant = await this.getTenantOrDemo(user);
-
-    if (isSuperAdmin(user) && !tenant) {
-      const machines = await this.prisma.paymentMachine.findMany({
-        orderBy: { createdAt: 'desc' },
-      });
-
-      return {
-        ok: true,
-        mode: SystemMode.padrao,
-        isSuperAdmin: true,
-        machines: machines.map(this.formatMachine),
-      };
-    }
-
-    if (!tenant) {
-      return { ok: true, mode: SystemMode.visualizacao, machines: DEMO_MACHINES };
-    }
+  async list(user?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(user, { selectedBranchId });
 
     const machines = await this.prisma.paymentMachine.findMany({
-      where: { tenantId: tenant.id },
+      where: { tenantId: context.tenantId },
       orderBy: { createdAt: 'desc' },
     });
 
     return {
       ok: true,
-      mode: tenant.mode,
+      mode: context.mode,
       machines: machines.map(this.formatMachine),
     };
   }
 
-  async create(user: Express.AuthenticatedUser | undefined, dto: CreatePaymentMachineDto) {
-    const tenant = await this.requireWritableTenant(user, dto.tenantId);
+  async create(
+    user: Express.AuthenticatedUser | undefined,
+    dto: CreatePaymentMachineDto,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
 
     const machine = await this.prisma.paymentMachine.create({
       data: {
-        tenantId: tenant.id,
+        tenantId: context.tenantId,
         name: dto.name.trim(),
         provider: dto.provider,
         model: dto.model.trim(),
@@ -102,9 +96,14 @@ export class PaymentMachinesService {
     user: Express.AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePaymentMachineDto,
+    selectedBranchId?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantMachine(tenant.id, id, isSuperAdmin(user));
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
+    await this.assertTenantMachine(context.tenantId, id);
 
     const data: Prisma.PaymentMachineUpdateInput = {};
 
@@ -121,80 +120,35 @@ export class PaymentMachinesService {
     }
 
     const machine = await this.prisma.paymentMachine.update({
-      where: { id },
+      where: { id, tenantId: context.tenantId },
       data,
     });
 
     return { ok: true, machine: this.formatMachine(machine) };
   }
 
-  async remove(user: Express.AuthenticatedUser | undefined, id: string) {
-    const tenant = await this.requireWritableTenant(user);
-    await this.assertTenantMachine(tenant.id, id, isSuperAdmin(user));
+  async remove(
+    user: Express.AuthenticatedUser | undefined,
+    id: string,
+    selectedBranchId?: string,
+  ) {
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
+    await this.assertTenantMachine(context.tenantId, id);
 
-    await this.prisma.paymentMachine.delete({ where: { id } });
+    await this.prisma.paymentMachine.delete({
+      where: { id, tenantId: context.tenantId },
+    });
 
     return { ok: true };
   }
 
-  private async getTenantOrDemo(user?: Express.AuthenticatedUser) {
-    if (isSuperAdmin(user) && !user?.tenantId) {
-      return null;
-    }
-
-    if (!user?.tenantId) {
-      return null;
-    }
-
-    return this.prisma.tenant.findUnique({
-      where: { id: user.tenantId },
-      select: { id: true, mode: true },
-    });
-  }
-
-  private async requireWritableTenant(
-    user?: Express.AuthenticatedUser,
-    requestedTenantId?: string | null,
-  ) {
-    if (isSuperAdmin(user)) {
-      const tenantId = requestedTenantId ?? user?.tenantId ?? user?.primaryTenantId;
-
-      if (!tenantId) {
-        throw new ForbiddenException('tenantId is required for superAdmin writes.');
-      }
-
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { id: true, mode: true },
-      });
-
-      if (!tenant) {
-        throw new UnauthorizedException('Tenant not found.');
-      }
-
-      return tenant;
-    }
-
-    if (!user?.tenantId) {
-      throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
-    }
-
-    const tenant = await this.getTenantOrDemo(user);
-
-    if (!tenant) {
-      throw new UnauthorizedException('Tenant not found.');
-    }
-
-    if (tenant.mode === SystemMode.visualizacao) {
-      throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
-    }
-
-    return tenant;
-  }
-
-  private async assertTenantMachine(tenantId: string, id: string, bypassTenant = false) {
+  private async assertTenantMachine(tenantId: string, id: string) {
     const machine = await this.prisma.paymentMachine.findFirst({
-      where: bypassTenant ? { id } : { id, tenantId },
+      where: { id, tenantId },
       select: { id: true },
     });
 

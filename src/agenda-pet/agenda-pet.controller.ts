@@ -15,17 +15,20 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { Role, SystemType } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { BranchContextGuard } from '../tenancy/branch-context.guard';
+import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { AgendaPetService } from './agenda-pet.service';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
 @Controller('agenda-pet')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+@RequireTenantContext({ requireBranch: true, expectedSystemType: SystemType.petshop })
 export class AgendaPetController {
   constructor(private readonly service: AgendaPetService) {}
 
@@ -45,7 +48,6 @@ export class AgendaPetController {
       atendente,
       dateFilterType,
       dateValue,
-      tenantId: req.user?.tenantId ?? undefined,
       selectedBranchId,
       user: req.user,
     });

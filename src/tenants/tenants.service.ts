@@ -3,9 +3,10 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { isSuperAdmin } from '../auth/super-admin.util';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
+import { TenantContextService } from '../tenancy/tenant-context.service';
 import { generateUniqueTenantSlug } from '../tenancy/tenant.utils';
 
 type UpdateCurrentTenantInput = {
@@ -18,60 +19,41 @@ export class TenantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantAccess: TenantAccessService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
-  async list(currentUser?: Express.AuthenticatedUser) {
-    const user = this.tenantAccess.requireUser(currentUser);
-
-    if (isSuperAdmin(user)) {
-      const tenants = await this.prisma.tenant.findMany({
-        select: { id: true },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      return {
-        ok: true,
-        tenants: await Promise.all(
-          tenants.map((tenant) => this.formatTenantWithMemberCount(tenant.id)),
-        ),
-      };
-    }
+  async list(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(currentUser, {
+      selectedBranchId,
+      allowedRoles: [Role.Admin],
+    });
 
     return {
       ok: true,
-      tenants: [await this.formatTenantWithMemberCount(user.tenantId)],
+      tenants: [await this.formatTenantWithMemberCount(context.tenantId)],
     };
   }
 
-  async getCurrent(currentUser?: Express.AuthenticatedUser) {
-    const user = this.tenantAccess.requireUser(currentUser);
-
-    if (isSuperAdmin(user) && !user.tenantId && !user.primaryTenantId) {
-      return {
-        ok: true,
-        tenant: null,
-        isSuperAdmin: true,
-      };
-    }
+  async getCurrent(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+    const context = await this.tenantContext.resolve(currentUser, { selectedBranchId });
 
     return {
       ok: true,
-      tenant: await this.formatTenantWithMemberCount(user.tenantId),
+      tenant: await this.formatTenantWithMemberCount(context.tenantId),
     };
   }
 
   async updateCurrent(
     currentUser: Express.AuthenticatedUser | undefined,
     input: UpdateCurrentTenantInput,
+    selectedBranchId?: string,
   ) {
-    const user = this.tenantAccess.requireUser(currentUser);
-    const currentTenant = await this.tenantAccess.getCurrentTenant(user);
-
-    if (!currentTenant) {
-      throw new UnauthorizedException(
-        'Authenticated user is not linked to a tenant.',
-      );
-    }
+    const context = await this.tenantContext.resolve(currentUser, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
+    const currentTenant = await this.tenantAccess.findTenantOrThrow(context.tenantId);
 
     const data: { name?: string; slug?: string } = {};
 

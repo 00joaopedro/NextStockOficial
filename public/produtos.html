@@ -1417,8 +1417,18 @@
       if (!shouldUseProductionBackend()) return;
 
       try {
+        let selectedBranch = null;
+        try {
+          selectedBranch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        } catch {
+          selectedBranch = null;
+        }
+
         const response = await fetch("/api/products", {
-          credentials: "include"
+          credentials: "include",
+          headers: selectedBranch?.id
+            ? { "x-nextstock-branch-id": selectedBranch.id }
+            : {}
         });
         const data = await response.json().catch(() => ({}));
 
@@ -1452,7 +1462,37 @@
     }
 
     function getClientOrdersKey() {
-      return `nextstockPedidosCliente:${clientEmail}`;
+      let branch = null;
+      let user = null;
+      try {
+        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      } catch {
+        branch = null;
+        user = null;
+      }
+      const tenantKey = branch?.tenantId || "no-tenant";
+      const branchKey = branch?.id || "no-branch";
+      const userKey = user?.id || clientEmail || "anonymous";
+      return `nextstockPedidosCliente:${tenantKey}:${branchKey}:${userKey}:${clientEmail}`;
+    }
+
+    function getOperationalStorageKey(baseKey) {
+      let branch = null;
+      let user = null;
+      try {
+        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      } catch {
+        branch = null;
+        user = null;
+      }
+      return [
+        baseKey,
+        branch?.tenantId || "no-tenant",
+        branch?.id || "no-branch",
+        user?.id || "anonymous"
+      ].join(":");
     }
 
     function loadClientOrders() {
@@ -1827,7 +1867,10 @@
       clientOrders = clientOrders.slice(0, maxClientOrders);
       saveClientOrders();
 
-      sessionStorage.setItem("nextstockUltimoPedido", JSON.stringify(orderPayload));
+      sessionStorage.setItem(
+        getOperationalStorageKey("nextstockUltimoPedido"),
+        JSON.stringify(orderPayload)
+      );
 
       document.dispatchEvent(
         new CustomEvent("nextstock:pedido-criado", {
