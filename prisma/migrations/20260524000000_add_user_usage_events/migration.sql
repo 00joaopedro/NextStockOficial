@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE "user_usage_events" (
+CREATE TABLE IF NOT EXISTS "user_usage_events" (
     "id" UUID NOT NULL DEFAULT gen_random_uuid(),
     "user_id" UUID NOT NULL,
     "email" TEXT,
@@ -14,6 +14,6 @@ CREATE TABLE "user_usage_events" (
     CONSTRAINT "user_usage_events_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "user_usage_events_user_id_idx" ON "user_usage_events"("user_id");
-CREATE INDEX "user_usage_events_created_at_idx" ON "user_usage_events"("created_at");
-CREATE INDEX "user_usage_events_system_type_idx" ON "user_usage_events"("system_type");
+CREATE INDEX IF NOT EXISTS "user_usage_events_user_id_idx" ON "user_usage_events"("user_id");
+CREATE INDEX IF NOT EXISTS "user_usage_events_created_at_idx" ON "user_usage_events"("created_at");
+CREATE INDEX IF NOT EXISTS "user_usage_events_system_type_idx" ON "user_usage_events"("system_type");
