@@ -25,6 +25,7 @@ O runtime normaliza automaticamente URLs `:6543` para garantir os parametros PgB
 ```bash
 npm run build
 npm run start:prod
+npm run start:railway
 npm run db:migrate
 ```
 
@@ -53,6 +54,25 @@ node dist/src/main.js
 ```
 
 Nao acople migrations ao `start:prod`.
+
+## Railway start command
+
+Este repositorio inclui `railway.json` com:
+
+```bash
+npm run start:railway
+```
+
+Esse script executa:
+
+```bash
+npm run db:migrate && npm run start:prod
+```
+
+Use esse comando no Railway para evitar que a API suba sem migrations pendentes,
+como `dev_workspaces`. O `start:prod` continua intencionalmente limitado a iniciar
+o backend, para que execucoes locais ou jobs especificos nao tenham side effects
+inesperados.
 
 ## Migrations
 

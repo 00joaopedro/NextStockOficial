@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { canAccessDev } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
@@ -59,13 +64,26 @@ export class DevWorkspaceService {
   }
 
   async ensureDefaultWorkspaces(devUserId: string) {
-    const workspaces: unknown[] = [];
+    try {
+      const workspaces: unknown[] = [];
 
-    for (const systemType of this.getSupportedSystemTypes()) {
-      workspaces.push(await this.ensureDefaultWorkspace(devUserId, systemType));
+      for (const systemType of this.getSupportedSystemTypes()) {
+        workspaces.push(await this.ensureDefaultWorkspace(devUserId, systemType));
+      }
+
+      return workspaces;
+    } catch (error) {
+      if (this.isMissingDevWorkspaceTableError(error)) {
+        this.logger.error(
+          'DEV_WORKSPACES_NOT_MIGRATED table=dev_workspaces action=ensureDefaultWorkspaces',
+        );
+        throw new ServiceUnavailableException(
+          'Estrutura DevWorkspace nao esta migrada. Rode npm run db:migrate antes de iniciar o backend.',
+        );
+      }
+
+      throw error;
     }
-
-    return workspaces;
   }
 
   async ensureDefaultWorkspace(devUserId: string, systemType: SystemType) {
@@ -224,59 +242,81 @@ export class DevWorkspaceService {
   }
 
   async listDefaultWorkspaces(devUserId: string) {
-    const workspaces = await (this.prisma as any).devWorkspace.findMany({
-      where: { devUserId },
-      orderBy: { systemType: 'asc' },
-      select: {
-        id: true,
-        systemType: true,
-        tenantId: true,
-        branchId: true,
-        isDefaultWorkspace: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            systemType: true,
-            mode: true,
+    try {
+      const workspaces = await (this.prisma as any).devWorkspace.findMany({
+        where: { devUserId },
+        orderBy: { systemType: 'asc' },
+        select: {
+          id: true,
+          systemType: true,
+          tenantId: true,
+          branchId: true,
+          isDefaultWorkspace: true,
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              systemType: true,
+              mode: true,
+            },
+          },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              tenantId: true,
+              isActive: true,
+            },
           },
         },
-        branch: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            tenantId: true,
-            isActive: true,
-          },
-        },
-      },
-    });
+      });
 
-    return workspaces.filter(
-      (workspace: any) =>
-        workspace.branch?.isActive === true &&
-        workspace.tenant?.systemType === workspace.systemType,
-    );
+      return workspaces.filter(
+        (workspace: any) =>
+          workspace.branch?.isActive === true &&
+          workspace.tenant?.systemType === workspace.systemType,
+      );
+    } catch (error) {
+      if (this.isMissingDevWorkspaceTableError(error)) {
+        this.logger.error(
+          'DEV_WORKSPACES_NOT_MIGRATED table=dev_workspaces action=listDefaultWorkspaces',
+        );
+        return [];
+      }
+
+      throw error;
+    }
   }
 
   async getWorkspaceForBranch(devUserId: string, branchId: string) {
-    return (this.prisma as any).devWorkspace.findFirst({
-      where: { devUserId, branchId },
-      select: {
-        id: true,
-        systemType: true,
-        tenantId: true,
-        branchId: true,
-        tenant: {
-          select: { id: true, systemType: true, mode: true },
+    try {
+      return await (this.prisma as any).devWorkspace.findFirst({
+        where: { devUserId, branchId },
+        select: {
+          id: true,
+          systemType: true,
+          tenantId: true,
+          branchId: true,
+          tenant: {
+            select: { id: true, systemType: true, mode: true },
+          },
+          branch: {
+            select: { id: true, tenantId: true, isActive: true },
+          },
         },
-        branch: {
-          select: { id: true, tenantId: true, isActive: true },
-        },
-      },
-    });
+      });
+    } catch (error) {
+      if (this.isMissingDevWorkspaceTableError(error)) {
+        this.logger.error(
+          'DEV_WORKSPACES_NOT_MIGRATED table=dev_workspaces action=getWorkspaceForBranch',
+        );
+        return null;
+      }
+
+      throw error;
+    }
   }
 
   async assertBranchIsWorkspace(devUserId: string, branchId: string) {
@@ -382,5 +422,22 @@ export class DevWorkspaceService {
       systemType: branch.tenant.systemType,
       isDevWorkspace: true,
     };
+  }
+
+  private isMissingDevWorkspaceTableError(error: unknown) {
+    const prismaError = error as {
+      code?: string;
+      message?: string;
+      meta?: Record<string, unknown>;
+    };
+    const details = JSON.stringify({
+      message: prismaError?.message,
+      meta: prismaError?.meta,
+    });
+
+    return (
+      (prismaError?.code === 'P2021' || prismaError?.code === 'P2022') &&
+      details.includes('dev_workspaces')
+    );
   }
 }

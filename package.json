@@ -12,6 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "build:frontend": "tsc -p tsconfig.frontend.json",
     "start:prod": "node dist/src/main.js",
+    "start:railway": "npm run db:migrate && npm run start:prod",
     "db:migrate": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate deploy",
     "start:debug": "nest start --debug --watch",

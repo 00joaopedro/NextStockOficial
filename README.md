@@ -68,6 +68,16 @@ Quando houver migration nova, rode:
 npm run db:migrate
 ```
 
+No Railway, este repositorio versiona `railway.json` para usar:
+
+```bash
+npm run start:railway
+```
+
+Esse script aplica `npm run db:migrate` e depois inicia `npm run start:prod`.
+Ele existe para impedir que o backend suba sem tabelas versionadas como
+`dev_workspaces`, mantendo `start:prod` sem migrations acopladas.
+
 ### Multi-tenant integrity
 
 Application requests are scoped by the backend `TenantContextService`; values stored in
