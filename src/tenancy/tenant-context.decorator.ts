@@ -8,6 +8,7 @@ export type TenantContextMetadata = {
   writable?: boolean;
   expectedSystemType?: SystemType;
   allowedRoles?: Role[];
+  allowDevSupport?: boolean;
 };
 
 export const RequireTenantContext = (options: TenantContextMetadata = {}) =>

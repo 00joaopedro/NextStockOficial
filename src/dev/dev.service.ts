@@ -9,6 +9,8 @@ import type { DevUsageQueryDto } from './dto/dev-usage-query.dto';
 
 type RecordUserUsageInput = {
   userId: string;
+  tenantId?: string | null;
+  branchId?: string | null;
   email?: string | null;
   name?: string | null;
   systemType?: string | null;
@@ -116,7 +118,7 @@ export class DevService {
     }
 
     const eventRows = (await this.safeUserUsageGroupBy({
-      by: ['userId'],
+      by: ['userId', 'tenantId', 'branchId', 'systemType'],
       where: {
         createdAt: where.createdAt,
       },
@@ -125,7 +127,13 @@ export class DevService {
       _max: { createdAt: true },
       orderBy: { _max: { createdAt: 'desc' } },
     })) as any[];
-    const eventsByUser = new Map(eventRows.map((event) => [event.userId, event]));
+    const eventsByUser = new Map<string, any[]>();
+
+    for (const event of eventRows) {
+      const events = eventsByUser.get(event.userId) ?? [];
+      events.push(event);
+      eventsByUser.set(event.userId, events);
+    }
     const totalWeight = eventRows.reduce(
       (total, event) => total + (event._sum?.weight || event._count?._all || 0),
       0,
@@ -163,8 +171,9 @@ export class DevService {
         railwayGlobalUsage: globalUsage.railway,
         supabaseGlobalUsage: globalUsage.supabase,
       },
-      users: profiles.map((profile) => {
-        const event = eventsByUser.get(profile.id);
+      users: profiles.flatMap((profile) => {
+        const profileEvents = eventsByUser.get(profile.id) ?? [null];
+        return profileEvents.map((event) => {
         const eventWeight = event?._sum?.weight || event?._count?._all || 0;
         const estimate = this.estimateForUser({
           userWeight: eventWeight,
@@ -175,14 +184,22 @@ export class DevService {
           supabaseCostCents,
         });
         const membership = profile.memberships[0];
-        const branchName = membership?.branch?.name || membership?.tenant?.name || '';
+        const branchName =
+          event?.branchId
+            ? membership?.branch?.name || event.branchId
+            : membership?.branch?.name || membership?.tenant?.name || '';
 
         return {
-          id: profile.id,
+          id: event
+            ? [profile.id, event.tenantId || 'no-tenant', event.branchId || 'no-branch', event.systemType || 'no-system'].join(':')
+            : profile.id,
+          userId: profile.id,
           name: profile.name || profile.fullName || '',
           email: profile.email || '',
-          systemType: profile.systemType || membership?.tenant?.systemType || '',
+          systemType: event?.systemType || profile.systemType || membership?.tenant?.systemType || '',
           branchName,
+          tenantId: event?.tenantId || membership?.tenant?.id || null,
+          branchId: event?.branchId || membership?.branch?.id || null,
           tenantName: membership?.tenant?.name || '',
           accessCount: event?._count?._all || 0,
           eventWeight,
@@ -196,6 +213,7 @@ export class DevService {
           period: range.period,
           isEstimated: true,
         };
+        });
       }),
     };
   }
@@ -214,6 +232,8 @@ export class DevService {
       return await (this.prisma as any).userUsageEvent.create({
         data: {
           userId: input.userId,
+          tenantId: input.tenantId,
+          branchId: input.branchId,
           email: input.email,
           name: input.name,
           systemType: input.systemType,

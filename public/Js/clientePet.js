@@ -126,6 +126,8 @@
       name: branch.name,
       tenantId: branch.tenantId,
       systemType,
+      isDevWorkspace: branch.isDevWorkspace === true,
+      isSupportContext: branch.isSupportContext === true,
     };
   }
 
@@ -135,24 +137,65 @@
       profile.selectedBranch,
       systemContext?.selectedBranch,
       ...(Array.isArray(user.branches) ? user.branches : []),
+      ...(Array.isArray(user.devWorkspaces)
+        ? user.devWorkspaces.map((workspace) => ({
+            ...(workspace.selectedBranch || {}),
+            systemType: workspace.systemType || workspace.selectedBranch?.systemType,
+            isDevWorkspace: true,
+          }))
+        : []),
     ];
 
     return branches.map(normalizeBranch).filter(Boolean);
   }
 
   function resolvePetShopBranch(profile, systemContext) {
+    const user = profile.user || {};
     const storedBranch = normalizeBranch(getStoredSelectedBranch());
     const branches = getProfileBranches(profile, systemContext);
+    const isDevUser = user.isDevSuperAdmin === true;
+    const supportContext = readSupportContext();
 
     if (storedBranch?.id) {
       const realStoredBranch = branches.find((branch) => branch.id === storedBranch.id);
 
-      if (realStoredBranch?.systemType === 'petshop') {
-        return realStoredBranch;
+      if (
+        realStoredBranch?.systemType === 'petshop' &&
+        (!isDevUser || realStoredBranch.isDevWorkspace || supportContext?.branchId === realStoredBranch.id)
+      ) {
+        return {
+          ...realStoredBranch,
+          isSupportContext: supportContext?.branchId === realStoredBranch.id,
+        };
       }
     }
 
-    return branches.find((branch) => branch.systemType === 'petshop') || null;
+    const backendSelected = branches.find(
+      (branch) =>
+        branch.systemType === 'petshop' &&
+        (!isDevUser || branch.isDevWorkspace || supportContext?.branchId === branch.id),
+    );
+
+    return backendSelected
+      ? {
+          ...backendSelected,
+          isSupportContext: supportContext?.branchId === backendSelected.id,
+        }
+      : null;
+  }
+
+  function readSupportContext() {
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem('nextstockDevSupportContext') || 'null');
+
+      if (parsed?.branchId && parsed?.mode === 'support') {
+        return parsed;
+      }
+    } catch {
+      return null;
+    }
+
+    return null;
   }
 
   function persistContext(profile, selectedBranch, systemType) {
@@ -178,7 +221,14 @@
 
   function branchHeader() {
     const branchId = authContext.selectedBranch?.id || sessionStorage.getItem('nextstockBranchId');
-    return branchId ? { 'x-nextstock-branch-id': branchId } : {};
+    const supportContext = readSupportContext();
+
+    return {
+      ...(branchId ? { 'x-nextstock-branch-id': branchId } : {}),
+      ...(supportContext?.branchId === branchId
+        ? { 'x-nextstock-dev-context': 'support' }
+        : {}),
+    };
   }
 
   async function apiFetch(url, options = {}) {
@@ -245,6 +295,15 @@
 
     if (!selectedBranch?.id || !selectedBranch?.tenantId || selectedBranch.systemType !== 'petshop') {
       blockPage('Selecione uma filial Pet Shop valida antes de abrir esta pagina.');
+      return false;
+    }
+
+    if (
+      user.isDevSuperAdmin === true &&
+      !selectedBranch.isDevWorkspace &&
+      !selectedBranch.isSupportContext
+    ) {
+      blockPage('Dev SuperAdmin deve selecionar um workspace Pet Shop ou suporte explicito.');
       return false;
     }
 

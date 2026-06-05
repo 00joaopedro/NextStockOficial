@@ -20,8 +20,8 @@ import { UsageService } from '../usage/usage.service';
 import {
   canAccessDev,
   isSuperAdmin,
-  SUPER_ADMIN_SYSTEM_TYPES,
 } from './super-admin.util';
+import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 
 type RegisterInput = {
   email?: string;
@@ -42,10 +42,6 @@ type ForgotPasswordInput = {
 
 const DEFAULT_BRANCH_NAME = 'Matriz';
 const DEFAULT_BRANCH_SLUG = 'matriz';
-const DEV_TENANT_NAME = 'NextStock Dev';
-const DEV_TENANT_SLUG = 'nextstock-dev';
-const DEV_BRANCH_NAME = 'Matriz Dev';
-const DEV_BRANCH_SLUG = 'matriz-dev';
 const SUPABASE_AUTH_TIMEOUT_MS = 15000;
 
 function normalizeAccessName(value: string): string {
@@ -106,6 +102,7 @@ export class AuthService {
   constructor(
     private readonly supabase: SupabaseService,
     private readonly prisma: PrismaService,
+    private readonly devWorkspaces: DevWorkspaceService,
     @Optional() private readonly usageService?: UsageService,
   ) {}
 
@@ -407,7 +404,7 @@ export class AuthService {
       profileId: user.id,
       email: user.email ?? undefined,
     });
-    const formattedUser = await this.withDevAvailableBranches(
+    const formattedUser = await this.withDevWorkspaceBranches(
       this.formatProfileWithMembership(profile),
     );
     const currentSelectedBranch = this.resolveSelectedBranchFromUser(formattedUser);
@@ -456,49 +453,37 @@ export class AuthService {
     };
   }
 
-  private async withDevAvailableBranches(
+  private async withDevWorkspaceBranches(
     user: ReturnType<AuthService['formatAuthUser']>,
   ) {
     if (!canAccessDev(user)) {
       return user;
     }
 
-    const branches = await this.prisma.branch.findMany({
-      where: { isActive: true },
-      orderBy: [
-        { tenant: { systemType: 'asc' } },
-        { tenant: { name: 'asc' } },
-        { isDefault: 'desc' },
-        { createdAt: 'asc' },
-      ],
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        tenantId: true,
-        tenant: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            systemType: true,
-            mode: true,
-          },
-        },
-      },
-    });
+    const workspaces = await this.devWorkspaces.listDefaultWorkspaces(user.id);
 
     return {
       ...user,
-      branches: branches.map((branch) => ({
-        id: branch.id,
-        name: branch.name,
-        slug: branch.slug,
-        tenantId: branch.tenantId,
-        tenant: toTenantSummary(branch.tenant),
-        role: Role.superAdmin,
-        systemType: branch.tenant.systemType,
-        mode: branch.tenant.mode,
+      branches: workspaces.map((workspace: any) =>
+        this.devWorkspaces.toBranchSummary({
+          branch: {
+            ...workspace.branch,
+            tenant: workspace.tenant,
+          },
+          tenant: workspace.tenant,
+          systemType: workspace.systemType,
+        }),
+      ),
+      devWorkspaces: workspaces.map((workspace: any) => ({
+        systemType: workspace.systemType,
+        selectedBranch: {
+          id: workspace.branch.id,
+          name: workspace.branch.name,
+          slug: workspace.branch.slug,
+          tenantId: workspace.tenantId,
+          systemType: workspace.systemType,
+          isDevWorkspace: true,
+        },
       })),
     };
   }
@@ -825,40 +810,19 @@ export class AuthService {
   private async prepareSuperAdminLoginContext(
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
   ) {
-    const tenant = await this.prisma.tenant.upsert({
-      where: { slug: DEV_TENANT_SLUG },
-      update: {
-        name: DEV_TENANT_NAME,
-        systemType: SystemType.padrao,
-        mode: SystemMode.padrao,
-      },
-      create: {
-        name: DEV_TENANT_NAME,
-        slug: DEV_TENANT_SLUG,
-        systemType: SystemType.padrao,
-        mode: SystemMode.padrao,
-      },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        systemType: true,
-        mode: true,
-      },
-    });
-    const context = await this.ensureTenantBranchAndMembership({
-      profileId: profile.id,
-      tenantId: tenant.id,
-      branchName: DEV_BRANCH_NAME,
-      branchSlug: DEV_BRANCH_SLUG,
-      role: Role.Admin,
-      setAsProfileTenant: true,
-    });
+    await this.devWorkspaces.ensureDefaultWorkspaces(profile.id);
+    const systemType = this.devWorkspaces.normalizeSystemType(profile.systemType);
+    const context = await this.devWorkspaces.ensureDefaultWorkspace(
+      profile.id,
+      systemType,
+    );
     const refreshed = await this.findProfileRecord({
       profileId: profile.id,
       branchSlug: context.branch.slug,
     });
-    const user = this.formatProfileWithMembership(refreshed, context.branch.slug);
+    const user = await this.withDevWorkspaceBranches(
+      this.formatProfileWithMembership(refreshed, context.branch.slug),
+    );
 
     return {
       user,
@@ -866,6 +830,7 @@ export class AuthService {
         context.branch,
         context.tenant.id,
         context.tenant.systemType,
+        true,
       ),
     };
   }
@@ -957,12 +922,14 @@ export class AuthService {
     branch: { id: string; name: string; slug?: string },
     tenantId: string,
     systemType: SystemType,
+    isDevWorkspace = false,
   ) {
     return {
       id: branch.id,
       name: branch.name,
       tenantId,
       systemType,
+      ...(isDevWorkspace ? { isDevWorkspace: true } : {}),
     };
   }
 
@@ -979,6 +946,7 @@ export class AuthService {
         name: user.branch.name,
         tenantId: realBranch?.tenantId ?? user.tenantId,
         systemType: realBranch?.systemType ?? user.systemType ?? SystemType.padrao,
+        ...(realBranch?.isDevWorkspace ? { isDevWorkspace: true } : {}),
       };
     }
 
@@ -988,6 +956,7 @@ export class AuthService {
         name: firstBranch.name,
         tenantId: firstBranch.tenantId,
         systemType: firstBranch.systemType ?? user.systemType ?? SystemType.padrao,
+        ...(firstBranch.isDevWorkspace ? { isDevWorkspace: true } : {}),
       };
     }
 
@@ -1027,6 +996,7 @@ export class AuthService {
       role: Role;
       systemType: SystemType;
       mode?: SystemMode;
+      isDevWorkspace?: boolean;
     }>;
     createdAt?: Date;
   }) {
@@ -1034,7 +1004,7 @@ export class AuthService {
     const hasDevAccess = canAccessDev(profile);
     const tenantSystemType = profile.tenant?.systemType;
     const allowedSystemTypes = hasDevAccess
-      ? SUPER_ADMIN_SYSTEM_TYPES
+      ? [tenantSystemType ?? profile.systemType ?? SystemType.padrao].filter(Boolean)
       : profile.allowedSystemTypes?.length
         ? profile.allowedSystemTypes
         : [profile.systemType ?? tenantSystemType ?? SystemType.padrao];
@@ -1054,9 +1024,7 @@ export class AuthService {
       isSuperAdmin: hasSuperAdminRole,
       is_super_admin: hasSuperAdminRole,
       isDevSuperAdmin: hasDevAccess,
-      tenantId: hasDevAccess
-        ? profile.tenantId ?? null
-        : profile.tenant?.id ?? profile.tenantId ?? null,
+      tenantId: profile.tenant?.id ?? profile.tenantId ?? null,
       primaryTenantId: profile.primaryTenantId ?? null,
       tenant: toTenantSummary(profile.tenant),
       branchId: profile.branch?.id ?? null,

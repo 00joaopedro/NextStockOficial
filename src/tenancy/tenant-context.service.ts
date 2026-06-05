@@ -7,6 +7,7 @@ import {
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { canAccessDev } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
+import { DevWorkspaceService } from './dev-workspace.service';
 
 export type TenantContext = {
   userId: string;
@@ -16,6 +17,7 @@ export type TenantContext = {
   systemType: SystemType;
   mode: SystemMode;
   isDevSuperAdmin: boolean;
+  contextKind: 'normal' | 'dev-workspace' | 'dev-support';
 };
 
 export type ResolveTenantContextOptions = {
@@ -24,11 +26,15 @@ export type ResolveTenantContextOptions = {
   writable?: boolean;
   expectedSystemType?: SystemType;
   allowedRoles?: Role[];
+  allowDevSupport?: boolean;
 };
 
 @Injectable()
 export class TenantContextService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly devWorkspaces: DevWorkspaceService,
+  ) {}
 
   async resolve(
     user?: Express.AuthenticatedUser,
@@ -67,6 +73,32 @@ export class TenantContextService {
 
     if (branchId && !branch) {
       throw new ForbiddenException('Filial selecionada nao existe ou esta inativa.');
+    }
+
+    let contextKind: TenantContext['contextKind'] = 'normal';
+
+    if (devAccess && branch) {
+      const workspace = await this.devWorkspaces.getWorkspaceForBranch(
+        user.id,
+        branch.id,
+      );
+
+      if (workspace) {
+        if (
+          workspace.tenantId !== branch.tenantId ||
+          workspace.tenant.systemType !== branch.tenant.systemType
+        ) {
+          throw new ForbiddenException('Workspace Dev inconsistente.');
+        }
+
+        contextKind = 'dev-workspace';
+      } else if (options.allowDevSupport) {
+        contextKind = 'dev-support';
+      } else {
+        throw new ForbiddenException(
+          'Contexto Dev deve usar workspace isolado. Para tenant real, selecione modo suporte explicitamente.',
+        );
+      }
     }
 
     const authenticatedTenantId = user.tenantId ?? user.primaryTenantId ?? null;
@@ -173,6 +205,7 @@ export class TenantContextService {
       systemType: tenant.systemType,
       mode: tenant.mode,
       isDevSuperAdmin: devAccess,
+      contextKind,
     };
   }
 

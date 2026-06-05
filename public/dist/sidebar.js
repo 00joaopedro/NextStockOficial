@@ -142,6 +142,21 @@ function getSelectedBranchId() {
         return sessionStorage.getItem("nextstockBranchId");
     }
 }
+function getDevContextHeader(selectedBranchId) {
+    if (!selectedBranchId) {
+        return {};
+    }
+    try {
+        const supportContext = JSON.parse(sessionStorage.getItem("nextstockDevSupportContext") || "null");
+        if (supportContext?.branchId === selectedBranchId && supportContext.mode === "support") {
+            return { "x-nextstock-dev-context": "support" };
+        }
+    }
+    catch {
+        return {};
+    }
+    return {};
+}
 function getCurrentPageFileName() {
     const currentPath = window.location.pathname;
     const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
@@ -157,10 +172,14 @@ function getMenuByTenantType(tenantType) {
     return SIDEBAR_ITEMS.filter((item) => enabledModules.has(item.module));
 }
 function getMenuByContext(context) {
+    const contextMenu = getMenuByTenantType(context.tenantType);
     if (isDevSuperAdminUser(context)) {
-        return SIDEBAR_ITEMS;
+        return [
+            ...contextMenu,
+            ...SIDEBAR_ITEMS.filter((item) => item.module === "dev"),
+        ];
     }
-    return getMenuByTenantType(context.tenantType);
+    return contextMenu;
 }
 function escapeHtml(value) {
     return value
@@ -215,6 +234,7 @@ async function fetchSystemContext() {
         headers: {
             Accept: "application/json",
             ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+            ...getDevContextHeader(selectedBranchId),
         },
         credentials: "include",
     });
@@ -240,6 +260,10 @@ function recordPageView(context) {
         keepalive: true,
         headers: {
             "Content-Type": "application/json",
+            ...(getSelectedBranchId()
+                ? { "x-nextstock-branch-id": getSelectedBranchId() }
+                : {}),
+            ...getDevContextHeader(getSelectedBranchId()),
         },
         body: JSON.stringify({
             page: getCurrentPageFileName(),

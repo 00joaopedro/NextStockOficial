@@ -114,6 +114,58 @@ describe('AuthService', () => {
       },
     }) as any;
 
+  const createDevWorkspaces = () =>
+    {
+      const devTenant = {
+        ...tenant,
+        id: 'dev-tenant-padrao',
+        name: 'NextStock Dev Padrao',
+        slug: 'nextstock-dev-padrao',
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
+      };
+      const devBranch = {
+        ...branch,
+        id: 'dev-branch-padrao',
+        name: 'Matriz Dev Padrao',
+        slug: 'matriz-dev-padrao',
+      };
+
+      return ({
+      ensureDefaultWorkspaces: jest.fn().mockResolvedValue([]),
+      ensureDefaultWorkspace: jest.fn().mockResolvedValue({
+        tenant: devTenant,
+        branch: devBranch,
+        selectedBranch: {
+          id: devBranch.id,
+          name: devBranch.name,
+          tenantId: devTenant.id,
+          systemType: devTenant.systemType,
+          isDevWorkspace: true,
+        },
+      }),
+      listDefaultWorkspaces: jest.fn().mockResolvedValue([
+        {
+          systemType: devTenant.systemType,
+          tenantId: devTenant.id,
+          branchId: devBranch.id,
+          tenant: devTenant,
+          branch: devBranch,
+        },
+      ]),
+      normalizeSystemType: jest.fn().mockReturnValue(SystemType.padrao),
+      toBranchSummary: jest.fn().mockImplementation((workspace) => ({
+        id: workspace.branch.id,
+        name: workspace.branch.name,
+        slug: workspace.branch.slug,
+        tenantId: workspace.tenant.id,
+        tenant: workspace.tenant,
+        systemType: workspace.systemType,
+        isDevWorkspace: true,
+      })),
+      }) as any;
+    };
+
   beforeEach(() => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
     process.env.DEV_SUPER_ADMIN_USER_IDS = '';
@@ -123,7 +175,7 @@ describe('AuthService', () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
     prisma.userProfile.findFirst.mockResolvedValue(null);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     const result = await service.register({
       email: profile.email,
@@ -183,7 +235,7 @@ describe('AuthService', () => {
     prisma.userProfile.findFirst
       .mockResolvedValueOnce(profile)
       .mockResolvedValueOnce(profile);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     const result = await service.login({
       email: profile.email,
@@ -209,7 +261,7 @@ describe('AuthService', () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
     prisma.userProfile.findFirst.mockResolvedValue(profile);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
       ok: true,
@@ -232,7 +284,7 @@ describe('AuthService', () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
     prisma.userProfile.findFirst.mockResolvedValue(profile);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
       user: {
@@ -290,7 +342,7 @@ describe('AuthService', () => {
     prisma.userProfile.findFirst
       .mockResolvedValueOnce(multiProfile)
       .mockResolvedValueOnce(refreshedProfile);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     const result = await service.login({
       email: profile.email,
@@ -321,7 +373,7 @@ describe('AuthService', () => {
       ],
     };
     prisma.userProfile.findFirst.mockResolvedValue(branchBProfile);
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     const result = await service.login({
       email: profile.email,
@@ -370,7 +422,7 @@ describe('AuthService', () => {
         primaryTenantId: null,
         memberships: [],
       });
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
     await expect(
       service.login({ email: 'metadata@test.com', password: 'Senha123' }),
@@ -432,7 +484,7 @@ describe('AuthService', () => {
       .mockResolvedValueOnce(superProfile)
       .mockResolvedValueOnce(refreshedSuperProfile);
 
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
     const result = await service.login({
       email: profile.email,
       password: 'Senha123',
@@ -441,8 +493,8 @@ describe('AuthService', () => {
     expect(result.payload).toMatchObject({
       redirectTo: 'dev.html',
       selectedBranch: {
-        name: 'Matriz Dev',
-        tenantId: devTenant.id,
+        name: 'Matriz Dev Padrao',
+        tenantId: 'dev-tenant-padrao',
         systemType: SystemType.padrao,
       },
     });
@@ -464,7 +516,7 @@ describe('AuthService', () => {
       .mockResolvedValueOnce(commonSuperAdmin)
       .mockResolvedValueOnce(commonSuperAdmin);
 
-    const service = new AuthService(supabase, prisma);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
     const result = await service.login({
       email: profile.email,
       password: 'Senha123',

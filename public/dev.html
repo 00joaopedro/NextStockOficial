@@ -493,32 +493,54 @@
         id: branch.id,
         name: branch.name,
         tenantId: branch.tenantId,
-        systemType
+        systemType,
+        isDevWorkspace: branch.isDevWorkspace === true,
+        isSupportContext: branch.isSupportContext === true
       };
     }
 
-    function getSelectedBranchFromProfile(profile, selectedType) {
-      const user = profile.user || profile;
-      const candidates = [
-        profile.selectedBranch,
-        (user.branch && user.tenantId
-          ? {
-              id: user.branch.id,
-              name: user.branch.name,
-              tenantId: user.tenantId,
-              systemType: user.branch.systemType || user.systemType
-            }
-          : null),
-        ...(Array.isArray(user.branches) ? user.branches : [])
-      ].map(normalizeBranch).filter(Boolean);
+    function getSelectedBranchFromWorkspaces(workspaces, selectedType) {
+      const candidates = (Array.isArray(workspaces) ? workspaces : [])
+        .map((workspace) => ({
+          ...(workspace.selectedBranch || {}),
+          systemType: workspace.systemType || workspace.selectedBranch?.systemType,
+          isDevWorkspace: true
+        }))
+        .map(normalizeBranch)
+        .filter(Boolean);
 
-      const branch = candidates.find((item) => item.systemType === selectedType);
+      const branch = candidates.find((item) =>
+        item.systemType === selectedType && item.isDevWorkspace === true
+      );
 
       if (!branch) {
         return null;
       }
 
       return branch;
+    }
+
+    function persistDevContext(selectedType, selectedBranch) {
+      const payload = {
+        selectedBranch,
+        systemType: selectedType,
+        mode: 'production',
+        contextKind: 'dev-workspace',
+        savedAt: new Date().toISOString()
+      };
+
+      sessionStorage.setItem(`nextstockDevContext:${selectedType}`, JSON.stringify(payload));
+      sessionStorage.setItem('nextstockBackendMode', 'production');
+      sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
+      sessionStorage.setItem('nextstockTenantId', selectedBranch.tenantId);
+      sessionStorage.setItem('nextstockBranchId', selectedBranch.id);
+      sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
+      sessionStorage.setItem('nextstockSystemType', selectedType);
+      sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
+      sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true');
+      sessionStorage.removeItem('nextstockDevSupportContext');
+      sessionStorage.removeItem('nextstockIsPreview');
+      sessionStorage.removeItem('nextstockPreviewMode');
     }
 
     function renderPages(pages) {
@@ -662,7 +684,6 @@
       renderOverview(data);
       sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
       sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true');
-      sessionStorage.setItem('nextstockSystemType', 'padrao');
       setStatus('Dev SuperAdmin ativo. Dados reais carregados do backend.');
     }
 
@@ -714,27 +735,23 @@
       const selectedType = els.systemTypeSelect.value;
 
       try {
-        const profile = await requestJson('/auth/profile');
-        const selectedBranch = getSelectedBranchFromProfile(profile, selectedType);
+        const workspaceResponse = await requestJson('/dev/workspaces');
+        const selectedBranch = getSelectedBranchFromWorkspaces(
+          workspaceResponse.workspaces,
+          selectedType
+        );
 
         if (!selectedBranch) {
           setStatus(
             selectedType === 'petshop'
-              ? 'Nenhuma filial Pet Shop real encontrada para abrir este modo.'
-              : 'Nenhuma filial padrao real encontrada para abrir este modo.'
+              ? 'Workspace Dev Pet Shop nao encontrado. Configure o contexto Dev deste modo.'
+              : 'Workspace Dev padrao nao encontrado. Configure o contexto Dev deste modo.'
           );
           return;
         }
 
         window.clearNextStockSessionState?.();
-        sessionStorage.setItem('nextstockBackendMode', 'production');
-        sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch));
-        sessionStorage.setItem('nextstockTenantId', selectedBranch.tenantId);
-        sessionStorage.setItem('nextstockBranchId', selectedBranch.id);
-        sessionStorage.setItem('nextstockSelectedSystemType', selectedType);
-        sessionStorage.setItem('nextstockSystemType', selectedType);
-        sessionStorage.setItem('nextstockIsSuperAdmin', 'true');
-        sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true');
+        persistDevContext(selectedType, selectedBranch);
       } catch (error) {
         setStatus(error.message);
         return;

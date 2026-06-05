@@ -7,6 +7,11 @@ describe('DevController', () => {
     getUsersUsage: jest.fn(),
     getHealth: jest.fn(),
   } as any;
+  const devWorkspaces = {
+    ensureDefaultWorkspaces: jest.fn().mockResolvedValue([]),
+    listDefaultWorkspaces: jest.fn().mockResolvedValue([]),
+    listSupportBranches: jest.fn().mockResolvedValue([]),
+  } as any;
 
   let controller: DevController;
 
@@ -14,19 +19,19 @@ describe('DevController', () => {
     jest.clearAllMocks();
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
     process.env.DEV_SUPER_ADMIN_USER_IDS = '';
-    controller = new DevController(devService);
+    controller = new DevController(devService, devWorkspaces);
   });
 
-  it('bloqueia user comum', () => {
-    expect(() =>
+  it('bloqueia user comum', async () => {
+    await expect(
       controller.getHealth({
         user: { role: 'Admin', isSuperAdmin: false },
       } as any),
-    ).toThrow(ForbiddenException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('bloqueia superAdmin nao listado na allowlist Dev', () => {
-    expect(() =>
+  it('bloqueia superAdmin nao listado na allowlist Dev', async () => {
+    await expect(
       controller.getHealth({
         user: {
           id: 'super-id',
@@ -35,7 +40,7 @@ describe('DevController', () => {
           isSuperAdmin: true,
         },
       } as any),
-    ).toThrow(ForbiddenException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('permite Dev SuperAdmin listado por email', async () => {

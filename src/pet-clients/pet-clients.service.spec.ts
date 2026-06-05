@@ -57,6 +57,30 @@ function prismaMock() {
         },
       }),
     },
+    devWorkspace: {
+      findFirst: jest.fn().mockImplementation(({ where }: any) =>
+        Promise.resolve(
+          where.branchId === 'branch-pet'
+            ? {
+                id: 'workspace-pet',
+                systemType: SystemType.petshop,
+                tenantId: 'tenant-pet',
+                branchId: 'branch-pet',
+                tenant: {
+                  id: 'tenant-pet',
+                  systemType: SystemType.petshop,
+                  mode: SystemMode.petshop,
+                },
+                branch: {
+                  id: 'branch-pet',
+                  tenantId: 'tenant-pet',
+                  isActive: true,
+                },
+              }
+            : null,
+        ),
+      ),
+    },
     petClient: {
       count: jest.fn().mockResolvedValue(1),
       findMany: jest.fn().mockResolvedValue([]),

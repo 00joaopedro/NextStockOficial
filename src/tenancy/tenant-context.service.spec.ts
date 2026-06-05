@@ -77,6 +77,41 @@ function prismaMock() {
   };
 }
 
+function devWorkspacesMock(workspaceBranchId?: string) {
+  return {
+    getWorkspaceForBranch: jest.fn().mockImplementation((_userId: string, branchId: string) =>
+      {
+        const tenantId = branchId === 'branch-b' ? 'tenant-b' : 'tenant-a';
+        const systemType =
+          branchId === 'branch-b' ? SystemType.petshop : SystemType.padrao;
+        const mode =
+          branchId === 'branch-b' ? SystemMode.petshop : SystemMode.padrao;
+
+        return Promise.resolve(
+          workspaceBranchId && branchId === workspaceBranchId
+          ? {
+              id: 'workspace-1',
+              systemType,
+              tenantId,
+              branchId: workspaceBranchId,
+              tenant: {
+                id: tenantId,
+                systemType,
+                mode,
+              },
+              branch: {
+                id: workspaceBranchId,
+                tenantId,
+                isActive: true,
+              },
+            }
+          : null,
+        );
+      },
+    ),
+  };
+}
+
 describe('TenantContextService', () => {
   beforeEach(() => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
@@ -84,7 +119,7 @@ describe('TenantContextService', () => {
   });
 
   it('bloqueia branch de outro tenant para usuario comum', async () => {
-    const service = new TenantContextService(prismaMock() as any);
+    const service = new TenantContextService(prismaMock() as any, devWorkspacesMock() as any);
 
     await expect(
       service.resolve(user(), { selectedBranchId: 'branch-b', requireBranch: true }),
@@ -102,7 +137,7 @@ describe('TenantContextService', () => {
         mode: SystemMode.visualizacao,
       },
     });
-    const service = new TenantContextService(prisma as any);
+    const service = new TenantContextService(prisma as any, devWorkspacesMock() as any);
 
     await expect(service.resolve(user(), { writable: true })).rejects.toBeInstanceOf(
       ForbiddenException,
@@ -110,7 +145,7 @@ describe('TenantContextService', () => {
   });
 
   it('superAdmin comum nao recebe acesso cross-tenant', async () => {
-    const service = new TenantContextService(prismaMock() as any);
+    const service = new TenantContextService(prismaMock() as any, devWorkspacesMock() as any);
 
     await expect(
       service.resolve(
@@ -127,9 +162,12 @@ describe('TenantContextService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('Dev SuperAdmin allowlisted acessa somente com branch real validada', async () => {
+  it('Dev SuperAdmin allowlisted acessa workspace Dev validado', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@test.com';
-    const service = new TenantContextService(prismaMock() as any);
+    const service = new TenantContextService(
+      prismaMock() as any,
+      devWorkspacesMock('branch-b') as any,
+    );
 
     await expect(
       service.resolve(
@@ -148,13 +186,56 @@ describe('TenantContextService', () => {
       tenantId: 'tenant-b',
       branchId: 'branch-b',
       isDevSuperAdmin: true,
+      contextKind: 'dev-workspace',
+    });
+  });
+
+  it('Dev SuperAdmin allowlisted so acessa tenant real com suporte explicito', async () => {
+    process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@test.com';
+    const service = new TenantContextService(
+      prismaMock() as any,
+      devWorkspacesMock() as any,
+    );
+
+    await expect(
+      service.resolve(
+        user({
+          email: 'dev@test.com',
+          role: Role.superAdmin,
+          roles: [Role.superAdmin],
+          isSuperAdmin: true,
+          tenantId: null,
+          primaryTenantId: null,
+          branchId: null,
+        }),
+        { selectedBranchId: 'branch-b', requireBranch: true },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    await expect(
+      service.resolve(
+        user({
+          email: 'dev@test.com',
+          role: Role.superAdmin,
+          roles: [Role.superAdmin],
+          isSuperAdmin: true,
+          tenantId: null,
+          primaryTenantId: null,
+          branchId: null,
+        }),
+        { selectedBranchId: 'branch-b', requireBranch: true, allowDevSupport: true },
+      ),
+    ).resolves.toMatchObject({
+      tenantId: 'tenant-b',
+      branchId: 'branch-b',
+      contextKind: 'dev-support',
     });
   });
 
   it('membership removida no banco invalida acesso mesmo com token antigo', async () => {
     const prisma = prismaMock();
     prisma.tenantMember.findFirst.mockResolvedValueOnce(null);
-    const service = new TenantContextService(prisma as any);
+    const service = new TenantContextService(prisma as any, devWorkspacesMock() as any);
 
     await expect(
       service.resolve(user(), { selectedBranchId: 'branch-a', requireBranch: true }),

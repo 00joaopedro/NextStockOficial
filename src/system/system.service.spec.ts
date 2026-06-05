@@ -89,8 +89,18 @@ describe('SystemService', () => {
     });
   });
 
-  it('superAdmin com filial Pet Shop selecionada recebe contexto Pet Shop real', async () => {
+  it('Dev SuperAdmin com suporte explicito recebe contexto Pet Shop real', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@example.com';
+    tenantContext.resolve.mockResolvedValueOnce({
+      userId: 'dev-id',
+      tenantId: 'tenant-pet',
+      branchId: 'branch-pet',
+      role: 'superAdmin',
+      systemType: SystemType.petshop,
+      mode: 'petshop',
+      isDevSuperAdmin: true,
+      contextKind: 'dev-support',
+    });
     prisma.branch.findFirst.mockResolvedValueOnce({
       id: 'branch-pet',
       name: 'Matriz',
@@ -123,6 +133,7 @@ describe('SystemService', () => {
           systemType: SystemType.padrao,
         } as any,
         'branch-pet',
+        'support',
       ),
     ).resolves.toMatchObject({
       systemMode: SystemMode.Production,

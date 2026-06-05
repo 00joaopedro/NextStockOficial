@@ -9,8 +9,8 @@ import { toTenantSummary } from '../tenancy/tenant.utils';
 import {
   canAccessDev,
   isSuperAdmin,
-  SUPER_ADMIN_SYSTEM_TYPES,
 } from './super-admin.util';
+import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 
 const jwtLogger = new Logger('JwtStrategy');
 
@@ -169,7 +169,10 @@ function buildJwtOptions() {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly logger = new Logger(JwtStrategy.name);
 
-  constructor(private readonly prisma: PrismaService) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly devWorkspaces: DevWorkspaceService,
+  ) {
     super(buildJwtOptions());
   }
 
@@ -284,19 +287,39 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     const hasFullAccess = isSuperAdmin(profile);
     const hasDevAccess = canAccessDev(profile);
-    const membership = chooseMembership(profile);
-    const branches = profile.memberships
-      .filter((item) => item.branch?.isActive === true)
-      .map((item) => ({
-        id: item.branch!.id,
-        name: item.branch!.name,
-        slug: item.branch!.slug,
-        tenantId: item.tenantId,
-        tenant: toTenantSummary(item.tenant),
-        role: item.role,
-        systemType: item.tenant.systemType,
-        mode: item.tenant.mode,
-      }));
+    const workspaceRecords = hasDevAccess
+      ? await this.devWorkspaces.listDefaultWorkspaces(profile.id)
+      : [];
+    const selectedWorkspace = hasDevAccess
+      ? workspaceRecords.find(
+          (workspace: any) => workspace.systemType === profile.systemType,
+        ) ?? workspaceRecords[0]
+      : null;
+    const membership = hasDevAccess ? null : chooseMembership(profile);
+    const branches = hasDevAccess
+      ? workspaceRecords.map((workspace: any) => ({
+          id: workspace.branch.id,
+          name: workspace.branch.name,
+          slug: workspace.branch.slug,
+          tenantId: workspace.tenantId,
+          tenant: toTenantSummary(workspace.tenant),
+          role: Role.superAdmin,
+          systemType: workspace.systemType,
+          mode: workspace.tenant.mode,
+          isDevWorkspace: true,
+        }))
+      : profile.memberships
+          .filter((item) => item.branch?.isActive === true)
+          .map((item) => ({
+            id: item.branch!.id,
+            name: item.branch!.name,
+            slug: item.branch!.slug,
+            tenantId: item.tenantId,
+            tenant: toTenantSummary(item.tenant),
+            role: item.role,
+            systemType: item.tenant.systemType,
+            mode: item.tenant.mode,
+          }));
 
     this.logger.log(
       [
@@ -304,7 +327,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         `hasTenantId=${Boolean(profile.tenantId)}`,
         `hasPrimaryTenantId=${Boolean(profile.primaryTenantId)}`,
         `memberships=${profile.memberships.length}`,
-        `selectedTenant=${membership?.tenantId ?? 'none'}`,
+        `selectedTenant=${selectedWorkspace?.tenantId ?? membership?.tenantId ?? 'none'}`,
         `isSuperAdmin=${hasFullAccess}`,
       ].join(' '),
     );
@@ -314,8 +337,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('TENANT_NOT_LINKED: User is not linked to a tenant.');
     }
 
-    const allowedSystemTypes = hasFullAccess
-      ? SUPER_ADMIN_SYSTEM_TYPES
+    const allowedSystemTypes = hasDevAccess
+      ? [selectedWorkspace?.systemType ?? profile.systemType ?? 'padrao'].filter(Boolean)
       : profile.allowedSystemTypes?.length > 0
         ? profile.allowedSystemTypes
         : [
@@ -324,7 +347,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
               profile.systemType,
           ].filter(Boolean);
     const systemType =
-      membership?.tenant.systemType ?? profile.systemType ?? allowedSystemTypes[0] ?? null;
+      selectedWorkspace?.systemType ??
+      membership?.tenant.systemType ??
+      profile.systemType ??
+      allowedSystemTypes[0] ??
+      null;
+    const selectedTenant = selectedWorkspace?.tenant ?? membership?.tenant ?? null;
+    const selectedBranch = selectedWorkspace?.branch ?? membership?.branch ?? null;
 
     return {
       id: profile.id,
@@ -334,14 +363,25 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       fullName: profile.fullName ?? profile.name,
       role: hasFullAccess ? Role.superAdmin : membership!.role,
       roles: [hasFullAccess ? Role.superAdmin : membership!.role],
-      tenantId: hasFullAccess
-        ? profile.tenantId ?? membership?.tenant.id ?? null
-        : membership!.tenant.id,
+      tenantId: selectedTenant?.id ?? null,
       primaryTenantId: profile.primaryTenantId,
-      tenant: membership?.tenant ? toTenantSummary(membership.tenant) : null,
-      branchId: membership?.branch?.id ?? null,
-      branch: membership?.branch ?? null,
+      tenant: selectedTenant ? toTenantSummary(selectedTenant) : null,
+      branchId: selectedBranch?.id ?? null,
+      branch: selectedBranch ?? null,
       branches,
+      devWorkspaces: hasDevAccess
+        ? workspaceRecords.map((workspace: any) => ({
+            systemType: workspace.systemType,
+            selectedBranch: {
+              id: workspace.branch.id,
+              name: workspace.branch.name,
+              slug: workspace.branch.slug,
+              tenantId: workspace.tenantId,
+              systemType: workspace.systemType,
+              isDevWorkspace: true,
+            },
+          }))
+        : undefined,
       systemType,
       allowedSystemTypes,
       isSuperAdmin: hasFullAccess,

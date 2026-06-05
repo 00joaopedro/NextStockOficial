@@ -10,6 +10,7 @@ const NEXTSTOCK_SESSION_KEYS = [
   "nextstockBranchId",
   "nextstockAuthenticatedUser",
   "nextstockBackendMode",
+  "nextstockDevSupportContext",
 ];
 
 const NEXTSTOCK_OPERATIONAL_CACHE_PREFIXES = [
@@ -23,6 +24,8 @@ const NEXTSTOCK_OPERATIONAL_CACHE_PREFIXES = [
   "nextstockCaixa",
   "nextstockProdutos",
   "nextstockAgenda",
+  "nextstockDevContext:",
+  "nextstockDevSupportContext",
 ];
 
 function clearNextStockOperationalCache(): void {
@@ -37,6 +40,23 @@ function clearNextStockOperationalCache(): void {
         )
       ) {
         localStorage.removeItem(key);
+      }
+    }
+  } catch {
+    // Storage can be unavailable in privacy-restricted browser contexts.
+  }
+
+  try {
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+      const key = sessionStorage.key(index);
+
+      if (
+        key &&
+        NEXTSTOCK_OPERATIONAL_CACHE_PREFIXES.some((prefix) =>
+          key.startsWith(prefix),
+        )
+      ) {
+        sessionStorage.removeItem(key);
       }
     }
   } catch {

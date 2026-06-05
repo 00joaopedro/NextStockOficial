@@ -36,8 +36,14 @@ export class ProductsController {
     @Req() req: Request,
     @Query() query: ProductQueryDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.findAll(req.user, query, selectedBranchId);
+    return this.productsService.findAll(
+      req.user,
+      query,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get(':id')
@@ -46,8 +52,9 @@ export class ProductsController {
     @Req() req: Request,
     @Param('id') id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.findOne(req.user, id, selectedBranchId);
+    return this.productsService.findOne(req.user, id, selectedBranchId, devContextMode);
   }
 
   @Post()
@@ -57,8 +64,14 @@ export class ProductsController {
     @Req() req: Request,
     @Body() body: CreateProductDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.create(req.user, body, selectedBranchId);
+    return this.productsService.create(
+      req.user,
+      body,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Patch(':id')
@@ -69,8 +82,15 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() body: UpdateProductDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.update(req.user, id, body, selectedBranchId);
+    return this.productsService.update(
+      req.user,
+      id,
+      body,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Delete(':id')
@@ -80,8 +100,9 @@ export class ProductsController {
     @Req() req: Request,
     @Param('id') id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.remove(req.user, id, selectedBranchId);
+    return this.productsService.remove(req.user, id, selectedBranchId, devContextMode);
   }
 
   @Post(':id/images')
@@ -92,8 +113,15 @@ export class ProductsController {
     @Param('id') id: string,
     @Body() body: CreateProductImagesDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.addImages(req.user, id, body, selectedBranchId);
+    return this.productsService.addImages(
+      req.user,
+      id,
+      body,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Delete(':id/images/:imageId')
@@ -104,7 +132,14 @@ export class ProductsController {
     @Param('id') id: string,
     @Param('imageId') imageId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.removeImage(req.user, id, imageId, selectedBranchId);
+    return this.productsService.removeImage(
+      req.user,
+      id,
+      imageId,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 }

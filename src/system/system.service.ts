@@ -5,7 +5,6 @@ import { SystemContextResponseDto } from './dto/system-context-response.dto';
 import {
   canAccessDev,
   isSuperAdmin,
-  SUPER_ADMIN_SYSTEM_TYPES,
 } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
@@ -40,6 +39,7 @@ export class SystemService {
   async getContext(
     currentUser?: Express.AuthenticatedUser,
     selectedBranchId?: string,
+    devContextMode?: string,
   ): Promise<SystemContextResponseDto> {
     if (!currentUser) {
       return {
@@ -48,37 +48,12 @@ export class SystemService {
       };
     }
 
-    if (canAccessDev(currentUser)) {
-      const selectedContext = selectedBranchId
-        ? await this.resolveSelectedBranchContext(selectedBranchId)
-        : null;
-
-      if (selectedContext) {
-        return {
-          systemMode:
-            selectedContext.tenant.mode === 'visualizacao'
-              ? SystemMode.Preview
-              : SystemMode.Production,
-          tenantType: this.resolveTenantType(selectedContext.tenant.systemType),
-          isSuperAdmin: true,
-          isDevSuperAdmin: canAccessDev(currentUser),
-          allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
-          selectedBranch: selectedContext.selectedBranch,
-        };
-      }
-
-      return {
-        systemMode: SystemMode.Production,
-        tenantType: this.resolveTenantType(currentUser?.systemType),
-        isSuperAdmin: true,
-        isDevSuperAdmin: canAccessDev(currentUser),
-        allowedSystemTypes: SUPER_ADMIN_SYSTEM_TYPES,
-      };
-    }
-
     const operationalContext = await this.tenantContext.resolve(currentUser, {
       selectedBranchId,
-      requireBranch: Boolean(selectedBranchId || currentUser.branchId),
+      requireBranch: Boolean(
+        selectedBranchId || currentUser.branchId || canAccessDev(currentUser),
+      ),
+      allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
     const selectedContext = operationalContext.branchId
       ? await this.resolveSelectedBranchContext(operationalContext.branchId)
@@ -91,7 +66,10 @@ export class SystemService {
           : SystemMode.Production,
       tenantType: this.resolveTenantType(operationalContext.systemType),
       isSuperAdmin: isSuperAdmin(currentUser),
-      isDevSuperAdmin: false,
+      isDevSuperAdmin: canAccessDev(currentUser),
+      allowedSystemTypes: canAccessDev(currentUser)
+        ? [operationalContext.systemType]
+        : undefined,
       selectedBranch: selectedContext?.selectedBranch,
     };
   }

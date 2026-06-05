@@ -407,6 +407,22 @@ function populateTenantSelect(): void {
     .join("");
 }
 
+function renderProductionEmptyState(): void {
+  tenantSelect.innerHTML = '<option value="">Dados reais indisponiveis</option>';
+  tenantBadgeName.textContent = "Sem dados reais";
+  renderCards({
+    totalRevenue: 0,
+    totalCost: 0,
+    totalExpenses: 0,
+    grossProfit: 0,
+    netProfit: 0
+  });
+  renderTable([]);
+  renderChart([], timeRangeSelect.value as RangeType);
+  chartSubtitle.textContent =
+    "Dashboard real ainda nao esta conectado a uma API de producao para este tenant/filial.";
+}
+
 function updateDashboard(): void {
   const tenant = getCurrentTenant();
   const range = timeRangeSelect.value as RangeType;
@@ -439,6 +455,11 @@ function bindEvents(): void {
 }
 
 function init(): void {
+  if (!(window as any).isNextStockDemoMode?.()) {
+    renderProductionEmptyState();
+    return;
+  }
+
   populateTenantSelect();
   bindEvents();
   updateDashboard();

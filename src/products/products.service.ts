@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Product, ProductImage, SystemMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UsageService } from '../usage/usage.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -81,8 +82,9 @@ export class ProductsService {
     user: Express.AuthenticatedUser | undefined,
     query: ProductQueryDto,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.getReadableTenant(user, selectedBranchId);
+    const tenant = await this.getReadableTenant(user, selectedBranchId, devContextMode);
 
     if (!tenant || tenant.mode === SystemMode.visualizacao) {
       return {
@@ -118,7 +120,7 @@ export class ProductsService {
       include: { images: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
     });
-    await this.recordProductUsage(user, 'products_list', {
+    await this.recordProductUsage(user, tenant, 'products_list', {
       dbReadCount: 1,
       metadata: { count: products.length },
     });
@@ -134,8 +136,9 @@ export class ProductsService {
     user: Express.AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.getReadableTenant(user, selectedBranchId);
+    const tenant = await this.getReadableTenant(user, selectedBranchId, devContextMode);
 
     if (!tenant || tenant.mode === SystemMode.visualizacao) {
       const product = DEMO_PRODUCTS.find((item) => item.id === id);
@@ -163,8 +166,9 @@ export class ProductsService {
     user: Express.AuthenticatedUser | undefined,
     dto: CreateProductDto,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId);
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
 
     try {
       const product = await this.prisma.product.create({
@@ -175,7 +179,7 @@ export class ProductsService {
         },
         include: { images: true },
       });
-      await this.recordProductUsage(user, 'product_create', {
+      await this.recordProductUsage(user, tenant, 'product_create', {
         dbWriteCount: 1,
         metadata: { productId: product.id },
       });
@@ -191,8 +195,9 @@ export class ProductsService {
     id: string,
     dto: UpdateProductDto,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId);
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     try {
@@ -201,7 +206,7 @@ export class ProductsService {
         data: await this.buildUpdateData(tenant.id, tenant.branchId, id, dto),
         include: { images: { orderBy: { createdAt: 'asc' } } },
       });
-      await this.recordProductUsage(user, 'product_update', {
+      await this.recordProductUsage(user, tenant, 'product_update', {
         dbWriteCount: 1,
         metadata: { productId: product.id },
       });
@@ -216,14 +221,15 @@ export class ProductsService {
     user: Express.AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId);
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     await this.prisma.product.delete({
       where: { id, tenantId: tenant.id, branchId: tenant.branchId },
     });
-    await this.recordProductUsage(user, 'product_delete', {
+    await this.recordProductUsage(user, tenant, 'product_delete', {
       dbWriteCount: 1,
       metadata: { productId: id },
     });
@@ -236,8 +242,9 @@ export class ProductsService {
     id: string,
     dto: CreateProductImagesDto,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId);
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const existingCount = await this.prisma.productImage.count({
@@ -256,7 +263,7 @@ export class ProductsService {
         storagePath: image.storagePath?.trim() || null,
       })),
     });
-    await this.recordProductUsage(user, 'product_image_upload', {
+    await this.recordProductUsage(user, tenant, 'product_image_upload', {
       dbWriteCount: 1,
       metadata: { productId: id, imageCount: dto.images.length },
     });
@@ -274,8 +281,9 @@ export class ProductsService {
     id: string,
     imageId: string,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId);
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const image = await this.prisma.productImage.findFirst({
@@ -295,6 +303,7 @@ export class ProductsService {
   private async getReadableTenant(
     user?: Express.AuthenticatedUser,
     selectedBranchId?: string,
+    devContextMode?: string,
   ) {
     if (!user) {
       return null;
@@ -303,20 +312,35 @@ export class ProductsService {
     const context = await this.contextResolver().resolve(user, {
       selectedBranchId,
       requireBranch: true,
+      allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
-    return { id: context.tenantId, branchId: context.branchId!, mode: context.mode };
+    return {
+      id: context.tenantId,
+      branchId: context.branchId!,
+      mode: context.mode,
+      systemType: context.systemType,
+      contextKind: context.contextKind,
+    };
   }
 
   private async requireWritableTenant(
     user?: Express.AuthenticatedUser,
     selectedBranchId?: string | null,
+    devContextMode?: string,
   ) {
     const context = await this.contextResolver().resolve(user, {
       selectedBranchId,
       requireBranch: true,
       writable: true,
+      allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
-    return { id: context.tenantId, branchId: context.branchId!, mode: context.mode };
+    return {
+      id: context.tenantId,
+      branchId: context.branchId!,
+      mode: context.mode,
+      systemType: context.systemType,
+      contextKind: context.contextKind,
+    };
   }
 
   private async assertTenantProduct(tenantId: string, branchId: string, id: string) {
@@ -331,7 +355,10 @@ export class ProductsService {
   }
 
   private contextResolver() {
-    return this.tenantContext ?? new TenantContextService(this.prisma);
+    return (
+      this.tenantContext ??
+      new TenantContextService(this.prisma, new DevWorkspaceService(this.prisma))
+    );
   }
 
   private buildCreateData(dto: CreateProductDto) {
@@ -454,6 +481,12 @@ export class ProductsService {
 
   private async recordProductUsage(
     user: Express.AuthenticatedUser | undefined,
+    context: {
+      id: string;
+      branchId: string;
+      systemType?: string;
+      contextKind?: string;
+    },
     eventType: string,
     options: {
       dbReadCount?: number;
@@ -463,10 +496,16 @@ export class ProductsService {
   ) {
     await this.usageService?.record({
       user,
+      tenantId: context.id,
+      branchId: context.branchId,
+      systemType: context.systemType ?? user?.systemType,
       eventType,
       dbReadCount: options.dbReadCount ?? 0,
       dbWriteCount: options.dbWriteCount ?? 0,
-      metadata: options.metadata,
+      metadata: {
+        ...(options.metadata ?? {}),
+        contextKind: context.contextKind ?? 'normal',
+      },
     });
   }
 

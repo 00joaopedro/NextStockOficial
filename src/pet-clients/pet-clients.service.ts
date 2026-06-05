@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, SystemMode, SystemType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UsageService } from '../usage/usage.service';
 import { CreatePetClientDto } from './dto/create-pet-client.dto';
@@ -301,7 +302,10 @@ export class PetClientsService {
   }
 
   private contextResolver() {
-    return this.tenantContext ?? new TenantContextService(this.prisma);
+    return (
+      this.tenantContext ??
+      new TenantContextService(this.prisma, new DevWorkspaceService(this.prisma))
+    );
   }
 
   private buildCreateData(dto: CreatePetClientDto) {

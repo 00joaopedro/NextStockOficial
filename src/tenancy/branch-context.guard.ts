@@ -22,11 +22,14 @@ export class BranchContextGuard implements CanActivate {
         [context.getHandler(), context.getClass()],
       ) ?? {};
     const selectedBranchId = request.header('x-nextstock-branch-id');
+    const devContextMode = request.header('x-nextstock-dev-context');
 
     (request as Request & { tenantContext?: unknown }).tenantContext =
       await this.tenantContext.resolve(request.user, {
         ...options,
         selectedBranchId,
+        allowDevSupport:
+          options.allowDevSupport || devContextMode?.toLowerCase() === 'support',
       });
 
     return true;

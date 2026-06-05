@@ -209,6 +209,26 @@ function getSelectedBranchId(): string | null {
   }
 }
 
+function getDevContextHeader(selectedBranchId: string | null): Record<string, string> {
+  if (!selectedBranchId) {
+    return {};
+  }
+
+  try {
+    const supportContext = JSON.parse(
+      sessionStorage.getItem("nextstockDevSupportContext") || "null",
+    ) as { branchId?: string; mode?: string } | null;
+
+    if (supportContext?.branchId === selectedBranchId && supportContext.mode === "support") {
+      return { "x-nextstock-dev-context": "support" };
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
 function getCurrentPageFileName(): string {
   const currentPath = window.location.pathname;
   const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
@@ -230,11 +250,16 @@ function getMenuByTenantType(tenantType: TenantType): SidebarItem[] {
 }
 
 function getMenuByContext(context: SystemContextResponse): SidebarItem[] {
+  const contextMenu = getMenuByTenantType(context.tenantType);
+
   if (isDevSuperAdminUser(context)) {
-    return SIDEBAR_ITEMS;
+    return [
+      ...contextMenu,
+      ...SIDEBAR_ITEMS.filter((item) => item.module === "dev"),
+    ];
   }
 
-  return getMenuByTenantType(context.tenantType);
+  return contextMenu;
 }
 
 function escapeHtml(value: string): string {
@@ -300,6 +325,7 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
     headers: {
       Accept: "application/json",
       ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+      ...getDevContextHeader(selectedBranchId),
     },
     credentials: "include",
   });
@@ -334,6 +360,10 @@ function recordPageView(context: SystemContextResponse): void {
     keepalive: true,
     headers: {
       "Content-Type": "application/json",
+      ...(getSelectedBranchId()
+        ? { "x-nextstock-branch-id": getSelectedBranchId() as string }
+        : {}),
+      ...getDevContextHeader(getSelectedBranchId()),
     },
     body: JSON.stringify({
       page: getCurrentPageFileName(),

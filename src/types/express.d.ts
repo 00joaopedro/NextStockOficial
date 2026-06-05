@@ -16,6 +16,9 @@ declare global {
       tenantId?: string;
       systemType?: string;
       role?: Role;
+      mode?: string;
+      isDevWorkspace?: boolean;
+      isSupportContext?: boolean;
     }
 
     interface AuthenticatedUser {
@@ -41,6 +44,14 @@ declare global {
         tenantId: string;
         tenant: TenantSummary | null;
         systemType: string;
+      }>;
+      devWorkspaces?: Array<{
+        systemType: string;
+        selectedBranch: BranchSummary & {
+          tenantId: string;
+          systemType: string;
+          isDevWorkspace: true;
+        };
       }>;
     }
 

@@ -85,6 +85,9 @@ describe('ProductsService', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'product-id' }),
         delete: jest.fn().mockResolvedValue(product),
       },
+      devWorkspace: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     } as any;
 
     return { service: new ProductsService(prisma), prisma };
@@ -134,7 +137,7 @@ describe('ProductsService', () => {
     );
   });
 
-  it('permite superAdmin criar no tenant/filial selecionado', async () => {
+  it('permite Dev SuperAdmin criar em tenant real somente via suporte explicito', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = 'user@test.com';
     const { service, prisma } = makeService(SystemMode.padrao);
     const superAdmin = {
@@ -146,7 +149,7 @@ describe('ProductsService', () => {
     };
 
     await expect(
-      service.create(superAdmin, dto, 'branch-id'),
+      service.create(superAdmin, dto, 'branch-id', 'support'),
     ).resolves.toMatchObject({ ok: true });
     expect(prisma.branch.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({

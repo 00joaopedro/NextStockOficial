@@ -49,6 +49,11 @@ describe('JwtStrategy', () => {
     process.env.DEV_SUPER_ADMIN_USER_IDS = '';
   });
 
+  const createDevWorkspaces = (workspaces: any[] = []) =>
+    ({
+      listDefaultWorkspaces: jest.fn().mockResolvedValue(workspaces),
+    }) as any;
+
   it('cookieExtractor extrai req.cookies.jwt', () => {
     expect(cookieExtractor({ cookies: { jwt: 'abc.def.ghi' } } as any)).toBe(
       'abc.def.ghi',
@@ -72,7 +77,7 @@ describe('JwtStrategy', () => {
         update: jest.fn(),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await expect(
       strategy.validate({ sub: 'auth-user-id', email: 'user@test.com' }),
@@ -135,7 +140,7 @@ describe('JwtStrategy', () => {
         update: jest.fn(),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await expect(
       strategy.validate({ sub: 'auth-user-id', email: 'user@test.com' }),
@@ -164,7 +169,7 @@ describe('JwtStrategy', () => {
         update: jest.fn().mockResolvedValue({ id: profile.id }),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await strategy.validate({ sub: 'auth-user-id', email: 'user@test.com' });
 
@@ -191,7 +196,7 @@ describe('JwtStrategy', () => {
         update: jest.fn(),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await expect(
       strategy.validate({ sub: 'super-auth-id', email: 'dev@test.com' }),
@@ -220,7 +225,7 @@ describe('JwtStrategy', () => {
         update: jest.fn(),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await expect(
       strategy.validate({ sub: 'super-auth-id', email: 'dev@test.com' }),
@@ -241,7 +246,7 @@ describe('JwtStrategy', () => {
         update: jest.fn(),
       },
     };
-    const strategy = new JwtStrategy(prisma as any);
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
 
     await expect(
       strategy.validate({ sub: 'auth-user-id', email: profile.email }),

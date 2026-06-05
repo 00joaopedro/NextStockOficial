@@ -22,6 +22,8 @@ export class SupabaseStorageService {
     process.env.SUPABASE_STORAGE_BUCKET_PET_PHOTOS || 'pet-photos';
   private readonly maxSizeBytes =
     Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024;
+  private readonly useSignedUrls =
+    process.env.SUPABASE_STORAGE_SIGNED_URLS === 'true';
 
   constructor(private readonly supabase: SupabaseService) {}
 
@@ -57,15 +59,29 @@ export class SupabaseStorageService {
       );
     }
 
-    const { data } = this.supabase.admin.storage
-      .from(this.bucket)
-      .getPublicUrl(storagePath);
+    const fileUrl = this.useSignedUrls
+      ? await this.createSignedUrl(storagePath)
+      : this.supabase.admin.storage.from(this.bucket).getPublicUrl(storagePath)
+          .data.publicUrl;
 
     return {
       fileName: originalName,
-      fileUrl: data.publicUrl,
+      fileUrl,
       storagePath,
     };
+  }
+
+  async getPetPhotoUrl(storagePath?: string | null) {
+    if (!storagePath) {
+      return null;
+    }
+
+    if (this.useSignedUrls) {
+      return this.createSignedUrl(storagePath);
+    }
+
+    return this.supabase.admin.storage.from(this.bucket).getPublicUrl(storagePath)
+      .data.publicUrl;
   }
 
   async removePetPhoto(storagePath?: string | null) {
@@ -111,5 +127,19 @@ export class SupabaseStorageService {
     if (mime === 'image/png') return '.png';
     if (mime === 'image/webp') return '.webp';
     return '.jpg';
+  }
+
+  private async createSignedUrl(storagePath: string) {
+    const { data, error } = await this.supabase.admin.storage
+      .from(this.bucket)
+      .createSignedUrl(storagePath, 60 * 60);
+
+    if (error || !data?.signedUrl) {
+      throw new InternalServerErrorException(
+        `Supabase Storage signed URL failed: ${error?.message || 'missing signed URL'}`,
+      );
+    }
+
+    return data.signedUrl;
   }
 }
