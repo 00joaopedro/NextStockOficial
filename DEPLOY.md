@@ -66,13 +66,22 @@ npm run start:railway
 Esse script executa:
 
 ```bash
-npm run db:migrate && npm run start:prod
+npm run start:prod
 ```
 
-Use esse comando no Railway para evitar que a API suba sem migrations pendentes,
-como `dev_workspaces`. O `start:prod` continua intencionalmente limitado a iniciar
-o backend, para que execucoes locais ou jobs especificos nao tenham side effects
-inesperados.
+Use esse comando no Railway para evitar que uma migration lenta ou travada bloqueie
+o healthcheck e deixe a aplicacao fora do ar com 502. O `start:prod` continua
+intencionalmente limitado a iniciar o backend.
+
+Migrations continuam obrigatorias, mas devem rodar como etapa controlada:
+
+```bash
+npm run db:migrate
+```
+
+Rode esse comando pelo terminal/job do Railway ou em um ambiente conectado ao mesmo
+Supabase antes de publicar uma versao que dependa de tabelas novas, como
+`dev_workspaces`.
 
 ## Migrations
 

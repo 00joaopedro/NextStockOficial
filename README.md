@@ -74,9 +74,10 @@ No Railway, este repositorio versiona `railway.json` para usar:
 npm run start:railway
 ```
 
-Esse script aplica `npm run db:migrate` e depois inicia `npm run start:prod`.
-Ele existe para impedir que o backend suba sem tabelas versionadas como
-`dev_workspaces`, mantendo `start:prod` sem migrations acopladas.
+Esse script apenas chama `npm run start:prod`. Migrations continuam sendo aplicadas por
+`npm run db:migrate` como etapa manual/controlada ou job separado. Isso impede que
+uma migration lenta/travada bloqueie o healthcheck da Railway e derrube a API com
+502.
 
 ### Multi-tenant integrity
 

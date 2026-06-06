@@ -78,7 +78,7 @@ export class DevWorkspaceService {
           'DEV_WORKSPACES_NOT_MIGRATED table=dev_workspaces action=ensureDefaultWorkspaces',
         );
         throw new ServiceUnavailableException(
-          'Estrutura DevWorkspace nao esta migrada. Rode npm run db:migrate antes de iniciar o backend.',
+          'Estrutura DevWorkspace nao esta migrada. Rode npm run db:migrate como etapa controlada antes do deploy.',
         );
       }
 
