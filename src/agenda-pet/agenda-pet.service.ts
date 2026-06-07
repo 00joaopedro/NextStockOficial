@@ -6,6 +6,12 @@ import {
 import { AgendaPetStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PetClientsService } from '../pet-clients/pet-clients.service';
+import {
+  agendaPetListInclude,
+  agendaPetListOrderBy,
+  formatAgendaPet,
+  formatAgendaPetList,
+} from './agenda-pet.formatter';
 import { AgendaPetQueryDto } from './dto/agenda-pet-query.dto';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
@@ -93,24 +99,12 @@ export class AgendaPetService {
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: [{ startAt: 'asc' }, { data: 'asc' }, { hora: 'asc' }],
-        include: {
-          client: { select: { id: true, name: true } },
-          pet: { select: { id: true, name: true, clientId: true } },
-        },
+        orderBy: agendaPetListOrderBy,
+        include: agendaPetListInclude,
       }),
     ]);
 
-    const items = rows.map((row) => this.formatAgenda(row));
-
-    return {
-      items,
-      data: items,
-      page,
-      pageSize,
-      total,
-      totalPages: Math.ceil(total / pageSize) || 0,
-    };
+    return formatAgendaPetList(rows, { page, pageSize, total });
   }
 
   async findOne(
@@ -125,7 +119,7 @@ export class AgendaPetService {
     );
     const agenda = await this.findScopedAgenda(id, context, true);
 
-    return this.formatAgenda(agenda);
+    return formatAgendaPet(agenda);
   }
 
   async create(
@@ -187,7 +181,7 @@ export class AgendaPetService {
       },
     });
 
-    return this.formatAgenda(agenda);
+    return formatAgendaPet(agenda);
   }
 
   async update(
@@ -263,7 +257,7 @@ export class AgendaPetService {
       },
     });
 
-    return this.formatAgenda(agenda);
+    return formatAgendaPet(agenda);
   }
 
   async remove(
@@ -510,31 +504,6 @@ export class AgendaPetService {
     ).padStart(2, '0')}`;
   }
 
-  private formatAgenda(agenda: any) {
-    return {
-      id: agenda.id,
-      cliente: agenda.cliente,
-      animal: agenda.animal,
-      atendente: agenda.atendente,
-      servico: agenda.servico,
-      data: agenda.data,
-      hora: agenda.hora,
-      preco: agenda.preco,
-      descricao: agenda.descricao,
-      status: agenda.status,
-      startAt: agenda.startAt,
-      endAt: agenda.endAt,
-      notes: agenda.notes,
-      clientId: agenda.clientId,
-      petId: agenda.petId,
-      client: agenda.client,
-      pet: agenda.pet,
-      canceledAt: agenda.canceledAt,
-      cancellationReason: agenda.cancellationReason,
-      createdAt: agenda.createdAt,
-      updatedAt: agenda.updatedAt,
-    };
-  }
 }
 
 function clean(value?: string | null) {

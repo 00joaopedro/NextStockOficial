@@ -3,7 +3,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Role, SystemMode, SystemType } from '@prisma/client';
+import { AgendaPetStatus, Role, SystemMode, SystemType } from '@prisma/client';
 import { PetClientsService } from './pet-clients.service';
 
 function user(overrides: Partial<Express.AuthenticatedUser> = {}): Express.AuthenticatedUser {
@@ -116,7 +116,31 @@ function prismaMock() {
       updateMany: jest.fn(),
     },
     agendaPet: {
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'agenda-1',
+          tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
+          clientId: 'client-1',
+          petId: 'pet-1',
+          cliente: 'Cliente',
+          animal: 'Thor',
+          atendente: 'Ana',
+          servico: 'Banho',
+          data: new Date('2026-06-10T13:00:00.000Z'),
+          hora: '10:00',
+          preco: 80,
+          descricao: 'Banho',
+          notes: 'Banho',
+          status: AgendaPetStatus.canceled,
+          startAt: new Date('2026-06-10T13:00:00.000Z'),
+          endAt: new Date('2026-06-10T14:00:00.000Z'),
+          canceledAt: new Date('2026-06-10T12:00:00.000Z'),
+          cancellationReason: 'Cliente remarcou',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
     },
     $transaction: jest.fn((operations) => Promise.all(operations)),
   };
@@ -284,5 +308,38 @@ describe('PetClientsService', () => {
       ServiceUnavailableException,
     );
     await expect(service.findAll(user(), { page: 1, pageSize: 20 })).resolves.toBeDefined();
+  });
+
+  it('lista historico de cliente com o mesmo contrato da agenda principal', async () => {
+    const prisma = prismaMock();
+    const service = new PetClientsService(prisma as any);
+
+    const result = await service.listAppointments(user(), 'client-1', 'branch-pet');
+
+    expect(result).toMatchObject({
+      page: 1,
+      pageSize: 100,
+      total: 1,
+      totalPages: 1,
+      items: [
+        expect.objectContaining({
+          id: 'agenda-1',
+          clientId: 'client-1',
+          status: AgendaPetStatus.canceled,
+          cancellationReason: 'Cliente remarcou',
+        }),
+      ],
+    });
+    expect((result as any).appointments).toBeUndefined();
+    expect(prisma.agendaPet.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
+          clientId: 'client-1',
+          deletedAt: null,
+        },
+      }),
+    );
   });
 });

@@ -620,25 +620,31 @@
       renderAgendamentos();
       return;
     }
-    const response = await apiFetch(`/api/pet-clients/${cliente.id}/appointments`);
-    cliente.agendamentos = (response.appointments || []).map(normalizeAppointment);
+    const params = new URLSearchParams({
+      clientId: cliente.id,
+      page: '1',
+      pageSize: '100',
+    });
+    const response = await apiFetch(`/api/agenda-pet?${params.toString()}`);
+    cliente.agendamentos = (response.items || response.data || [])
+      .map(normalizeAppointment)
+      .filter((item) => !item.deletedAt);
     renderAgendamentos();
   }
 
   function normalizeAppointment(item) {
-    const date = item.data ? new Date(item.data) : null;
-    const pet = item.petId || item.pet_id || null;
+    const normalized = window.NextStockAgenda?.normalizeAppointment
+      ? window.NextStockAgenda.normalizeAppointment(item)
+      : item;
+
     return {
-      id: item.id,
-      dia: date ? String(date.getUTCDate()).padStart(2, '0') : '',
-      mes: date ? String(date.getUTCMonth() + 1).padStart(2, '0') : '',
-      ano: date ? String(date.getUTCFullYear()) : '',
-      hora: item.hora || '',
-      preco: String(item.preco ?? ''),
-      animalId: pet,
-      descricao: item.descricao || '',
-      atendente: item.atendente || '',
-      servico: item.servico || item.descricao || 'Atendimento Pet',
+      ...normalized,
+      hora: normalized.horaLocal || normalized.hora || '',
+      preco: String(normalized.preco ?? ''),
+      animalId: normalized.petId || null,
+      descricao: normalized.notes || normalized.descricao || '',
+      atendente: normalized.atendente || '',
+      servico: normalized.servico || normalized.descricao || 'Atendimento Pet',
     };
   }
 
@@ -654,14 +660,21 @@
     cliente.agendamentos.forEach((item) => {
       const animal = cliente.animais.find((pet) => pet.id === item.animalId);
       const div = document.createElement('div');
-      div.className = 'list-item' + (item.id === selectedScheduleId ? ' active' : '');
+      div.className =
+        'list-item' +
+        (item.id === selectedScheduleId ? ' active' : '') +
+        (item.status === 'canceled' ? ' is-canceled' : '') +
+        (item.status === 'completed' ? ' is-completed' : '');
       div.innerHTML = `
-        <div class="schedule-title">${escapeHtml(item.dia)}/${escapeHtml(item.mes)}/${escapeHtml(item.ano)} - ${escapeHtml(item.hora)}</div>
+        <div class="schedule-title">${escapeHtml(window.NextStockAgenda?.formatDateTime(item) || `${item.dia}/${item.mes}/${item.ano} - ${item.hora}`)}</div>
         <div class="schedule-sub">
+          <strong>Status:</strong> ${escapeHtml(item.statusLabel || item.status || 'Agendado')}<br>
+          <strong>Servico:</strong> ${escapeHtml(item.servico)}<br>
           <strong>Preco:</strong> R$ ${escapeHtml(item.preco)}<br>
           <strong>Animal:</strong> ${escapeHtml(animal ? animal.nome : 'Nao encontrado')}<br>
           <strong>Atendente:</strong> ${escapeHtml(item.atendente)}<br>
           <strong>Descricao:</strong> ${escapeHtml(item.descricao)}
+          ${item.cancellationReason ? `<br><strong>Cancelamento:</strong> ${escapeHtml(item.cancellationReason)}` : ''}
         </div>
       `;
       div.addEventListener('click', () => {
@@ -768,20 +781,25 @@
     const dia = agDia.value.trim().padStart(2, '0');
     const mes = agMes.value.trim().padStart(2, '0');
     const ano = agAno.value.trim();
+    const data = `${ano}-${mes}-${dia}`;
+    const hora = agHora.value.trim();
+    const startDate = data && hora ? new Date(`${data}T${hora}:00`) : null;
     const payload = {
       cliente: cliente.nomeCompleto,
       animal: agAnimal.options[agAnimal.selectedIndex]?.textContent || '',
       atendente: agAtendente.value.trim(),
       servico: agDescricao.value.trim() || 'Atendimento Pet',
-      data: `${ano}-${mes}-${dia}`,
-      hora: agHora.value.trim(),
+      data,
+      hora,
       preco: Number(agPreco.value),
       descricao: agDescricao.value.trim(),
+      notes: agDescricao.value.trim(),
+      startAt: startDate && !Number.isNaN(startDate.getTime()) ? startDate.toISOString() : undefined,
       clientId: cliente.id,
       petId: agAnimal.value || undefined,
     };
 
-    if (!payload.data || !payload.hora || !payload.preco || !payload.petId || !payload.descricao || !payload.atendente) {
+    if (!payload.data || !payload.hora || !Number.isFinite(payload.preco) || !payload.petId || !payload.descricao || !payload.atendente || !payload.startAt) {
       showAlertPopup('Aviso', 'Preencha todos os campos do agendamento.');
       return;
     }

@@ -9,6 +9,11 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, SystemMode, SystemType } from '@prisma/client';
+import {
+  agendaPetListInclude,
+  agendaPetListOrderBy,
+  formatAgendaPetList,
+} from '../agenda-pet/agenda-pet.formatter';
 import { PrismaService } from '../prisma/prisma.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
@@ -238,11 +243,18 @@ export class PetClientsService {
         tenantId: context.tenantId,
         branchId: context.branchId,
         clientId: id,
+        deletedAt: null,
       },
-      orderBy: { data: 'desc' },
+      include: agendaPetListInclude,
+      orderBy: agendaPetListOrderBy,
+      take: 100,
     });
 
-    return { ok: true, appointments };
+    return formatAgendaPetList(appointments, {
+      page: 1,
+      pageSize: 100,
+      total: appointments.length,
+    });
   }
 
   async resolvePetShopContext(

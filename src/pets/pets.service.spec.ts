@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { Role } from '@prisma/client';
+import { AgendaPetStatus, Role } from '@prisma/client';
 import { PetsService } from './pets.service';
 
 const context = { tenantId: 'tenant-pet', branchId: 'branch-pet', mode: 'petshop' };
@@ -71,7 +71,29 @@ function prismaMock() {
       delete: jest.fn().mockResolvedValue({ id: 'photo-1' }),
     },
     agendaPet: {
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockResolvedValue([
+        {
+          id: 'agenda-1',
+          tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
+          clientId: 'client-1',
+          petId: 'pet-1',
+          cliente: 'Cliente',
+          animal: 'Thor',
+          atendente: 'Ana',
+          servico: 'Banho',
+          data: new Date('2026-06-10T13:00:00.000Z'),
+          hora: '10:00',
+          preco: 80,
+          descricao: 'Banho',
+          notes: 'Banho',
+          status: AgendaPetStatus.completed,
+          startAt: new Date('2026-06-10T13:00:00.000Z'),
+          endAt: new Date('2026-06-10T14:00:00.000Z'),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
     },
   };
 }
@@ -174,5 +196,41 @@ describe('PetsService', () => {
 
     expect(result.photo).toMatchObject({ id: 'photo-1' });
     expect(prisma.petPhoto.create).toHaveBeenCalled();
+  });
+
+  it('lista historico do pet com contrato padrao e sem soft-deletados', async () => {
+    const prisma = prismaMock();
+    const service = new PetsService(
+      prisma as any,
+      { resolvePetShopContext: jest.fn().mockResolvedValue(context) } as any,
+      {} as any,
+    );
+
+    const result = await service.listAppointments(user(), 'pet-1');
+
+    expect(result).toMatchObject({
+      page: 1,
+      pageSize: 100,
+      total: 1,
+      totalPages: 1,
+      items: [
+        expect.objectContaining({
+          id: 'agenda-1',
+          petId: 'pet-1',
+          status: AgendaPetStatus.completed,
+        }),
+      ],
+    });
+    expect((result as any).appointments).toBeUndefined();
+    expect(prisma.agendaPet.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: 'tenant-pet',
+          branchId: 'branch-pet',
+          petId: 'pet-1',
+          deletedAt: null,
+        },
+      }),
+    );
   });
 });

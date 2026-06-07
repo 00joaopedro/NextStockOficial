@@ -5,6 +5,11 @@ import {
   Optional,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import {
+  agendaPetListInclude,
+  agendaPetListOrderBy,
+  formatAgendaPetList,
+} from '../agenda-pet/agenda-pet.formatter';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { UsageService } from '../usage/usage.service';
@@ -298,11 +303,18 @@ export class PetsService {
         tenantId: context.tenantId,
         branchId: context.branchId,
         petId: id,
+        deletedAt: null,
       },
-      orderBy: { data: 'desc' },
+      include: agendaPetListInclude,
+      orderBy: agendaPetListOrderBy,
+      take: 100,
     });
 
-    return { ok: true, appointments };
+    return formatAgendaPetList(appointments, {
+      page: 1,
+      pageSize: 100,
+      total: appointments.length,
+    });
   }
 
   private async assertClient(

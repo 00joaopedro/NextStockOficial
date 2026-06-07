@@ -178,7 +178,7 @@ async function loadAppointments() {
     setLoading("Carregando agenda...");
     const params = buildQueryParams();
     const response = await apiFetch(`/api/agenda-pet?${params.toString()}`);
-    appointments = response.items || response.data || [];
+    appointments = (response.items || response.data || []).map(normalizeAppointment);
     currentPage = response.page || currentPage;
     totalPages = response.totalPages || 0;
     resultsCount.textContent = `${response.total || appointments.length} agendamento(s) encontrado(s)`;
@@ -505,6 +505,10 @@ function formatDateTime(value, fallbackTime) {
         hour: "2-digit",
         minute: "2-digit",
     })}`;
+}
+function normalizeAppointment(item) {
+    const normalizer = window.NextStockAgenda?.normalizeAppointment;
+    return normalizer ? normalizer(item) : item;
 }
 function formatCurrency(value) {
     return Number(value || 0).toLocaleString("pt-BR", {

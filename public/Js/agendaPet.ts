@@ -290,7 +290,7 @@ async function loadAppointments(): Promise<void> {
     `/api/agenda-pet?${params.toString()}`,
   );
 
-  appointments = response.items || response.data || [];
+  appointments = (response.items || response.data || []).map(normalizeAppointment);
   currentPage = response.page || currentPage;
   totalPages = response.totalPages || 0;
   resultsCount.textContent = `${response.total || appointments.length} agendamento(s) encontrado(s)`;
@@ -646,6 +646,11 @@ function formatDateTime(value?: string | null, fallbackTime?: string): string {
     hour: "2-digit",
     minute: "2-digit",
   })}`;
+}
+
+function normalizeAppointment(item: Appointment): Appointment {
+  const normalizer = (window as any).NextStockAgenda?.normalizeAppointment;
+  return normalizer ? normalizer(item) : item;
 }
 
 function formatCurrency(value: number): string {
