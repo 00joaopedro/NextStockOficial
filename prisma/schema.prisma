@@ -25,6 +25,9 @@ model UserProfile {
   primaryTenant        Tenant?        @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
   memberships          TenantMember[]
   devWorkspaces        DevWorkspace[]
+  createdAgendaPets    AgendaPet[]    @relation("AgendaPetCreatedBy")
+  updatedAgendaPets    AgendaPet[]    @relation("AgendaPetUpdatedBy")
+  canceledAgendaPets   AgendaPet[]    @relation("AgendaPetCanceledBy")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
@@ -159,30 +162,48 @@ model TenantMember {
 }
 
 model AgendaPet {
-  id        String   @id @default(uuid()) @db.Uuid
-  cliente   String
-  animal    String
-  atendente String
-  servico   String
-  data      DateTime
-  hora      String
-  preco     Float
-  descricao String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  tenantId  String   @db.Uuid
-  branchId  String?  @map("branch_id") @db.Uuid
-  clientId  String?  @map("client_id") @db.Uuid
-  petId     String?  @map("pet_id") @db.Uuid
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch    Branch?  @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  client    PetClient? @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  pet       Pet?     @relation(fields: [petId], references: [id], onDelete: SetNull)
+  id                 String           @id @default(uuid()) @db.Uuid
+  cliente            String
+  animal             String
+  atendente          String
+  servico            String
+  data               DateTime
+  hora               String
+  preco              Float
+  descricao          String?
+  status             AgendaPetStatus  @default(scheduled)
+  startAt            DateTime?        @map("start_at")
+  endAt              DateTime?        @map("end_at")
+  notes              String?
+  createdById        String?          @map("created_by_id") @db.Uuid
+  updatedById        String?          @map("updated_by_id") @db.Uuid
+  canceledById       String?          @map("canceled_by_id") @db.Uuid
+  canceledAt         DateTime?        @map("canceled_at")
+  cancellationReason String?          @map("cancellation_reason")
+  deletedAt          DateTime?        @map("deleted_at")
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  tenantId           String           @db.Uuid
+  branchId           String?          @map("branch_id") @db.Uuid
+  clientId           String?          @map("client_id") @db.Uuid
+  petId              String?          @map("pet_id") @db.Uuid
+  tenant             Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch             Branch?          @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  client             PetClient?       @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  pet                Pet?             @relation(fields: [petId], references: [id], onDelete: SetNull)
+  createdBy          UserProfile?     @relation("AgendaPetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy          UserProfile?     @relation("AgendaPetUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  canceledBy         UserProfile?     @relation("AgendaPetCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
 
+  @@index([tenantId, branchId, startAt])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, clientId])
+  @@index([tenantId, branchId, petId])
   @@index([tenantId])
   @@index([clientId])
   @@index([petId])
   @@index([branchId])
+  @@index([deletedAt])
   @@map("agenda_pets")
 }
 
@@ -381,6 +402,15 @@ enum SystemMode {
   visualizacao
   padrao
   petshop
+}
+
+enum AgendaPetStatus {
+  scheduled
+  confirmed
+  in_progress
+  completed
+  canceled
+  no_show
 }
 
 enum MachineStatus {

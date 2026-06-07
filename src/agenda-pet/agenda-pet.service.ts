@@ -1,57 +1,70 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AgendaPetStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PetClientsService } from '../pet-clients/pet-clients.service';
+import { AgendaPetQueryDto } from './dto/agenda-pet-query.dto';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
-type DateFilterType = 'day' | 'week' | 'month' | 'year';
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const DEFAULT_DURATION_MINUTES = 60;
+const CONFLICT_IGNORED_STATUSES = [
+  AgendaPetStatus.canceled,
+  AgendaPetStatus.completed,
+  AgendaPetStatus.no_show,
+];
 
-function getRange(dateValue: string, type: DateFilterType) {
-  const d = new Date(dateValue);
-  if (Number.isNaN(d.getTime())) throw new BadRequestException('Invalid dateValue');
+const STATUS_TRANSITIONS: Record<AgendaPetStatus, AgendaPetStatus[]> = {
+  [AgendaPetStatus.scheduled]: [
+    AgendaPetStatus.confirmed,
+    AgendaPetStatus.in_progress,
+    AgendaPetStatus.completed,
+    AgendaPetStatus.canceled,
+    AgendaPetStatus.no_show,
+  ],
+  [AgendaPetStatus.confirmed]: [
+    AgendaPetStatus.in_progress,
+    AgendaPetStatus.completed,
+    AgendaPetStatus.canceled,
+    AgendaPetStatus.no_show,
+  ],
+  [AgendaPetStatus.in_progress]: [
+    AgendaPetStatus.completed,
+    AgendaPetStatus.canceled,
+    AgendaPetStatus.no_show,
+  ],
+  [AgendaPetStatus.completed]: [],
+  [AgendaPetStatus.canceled]: [],
+  [AgendaPetStatus.no_show]: [],
+};
 
-  const start = new Date(d);
-  const end = new Date(d);
+type PetShopContext = {
+  tenantId: string;
+  branchId: string | null;
+  mode: string;
+};
 
-  switch (type) {
-    case 'day':
-      start.setUTCHours(0, 0, 0, 0);
-      end.setUTCHours(23, 59, 59, 999);
-      break;
-    case 'week': {
-      // ISO week start Monday
-      const day = start.getUTCDay() || 7; // Sunday=0 -> 7
-      start.setUTCDate(start.getUTCDate() - (day - 1));
-      start.setUTCHours(0, 0, 0, 0);
-      end.setUTCDate(start.getUTCDate() + 6);
-      end.setUTCHours(23, 59, 59, 999);
-      break;
-    }
-    case 'month':
-      start.setUTCDate(1);
-      start.setUTCHours(0, 0, 0, 0);
-      end.setUTCMonth(start.getUTCMonth() + 1, 0); // last day of month
-      end.setUTCHours(23, 59, 59, 999);
-      break;
-    case 'year':
-      start.setUTCMonth(0, 1);
-      start.setUTCHours(0, 0, 0, 0);
-      end.setUTCFullYear(start.getUTCFullYear() + 1, 0, 0);
-      end.setUTCHours(0, 0, 0, 0);
-      end.setUTCDate(end.getUTCDate() - 1);
-      end.setUTCHours(23, 59, 59, 999);
-      break;
-    default:
-      throw new BadRequestException('Invalid dateFilterType');
-  }
-
-  return { gte: start.toISOString(), lte: end.toISOString() };
-}
+type LinkedEntities = {
+  client: {
+    id: string;
+    name: string;
+    tenantId: string;
+    branchId: string | null;
+  };
+  pet: {
+    id: string;
+    name: string;
+    tenantId: string;
+    branchId: string | null;
+    clientId: string;
+  };
+};
 
 @Injectable()
 export class AgendaPetService {
@@ -60,46 +73,43 @@ export class AgendaPetService {
     private readonly petClientsService: PetClientsService,
   ) {}
 
-  async findAll(options: {
-    page?: number;
-    limit?: number;
-    atendente?: string;
-    dateFilterType?: DateFilterType;
-    dateValue?: string;
-    selectedBranchId?: string;
-    user?: Express.AuthenticatedUser;
-  }) {
+  async findAll(
+    user: Express.AuthenticatedUser | undefined,
+    query: AgendaPetQueryDto,
+    selectedBranchId?: string,
+  ) {
     const context = await this.petClientsService.resolvePetShopContext(
-      options.user,
-      options.selectedBranchId,
+      user,
+      selectedBranchId,
       false,
     );
-    const page = options.page && options.page > 0 ? options.page : 1;
-    const limit = options.limit && options.limit > 0 ? options.limit : 12;
-    const skip = (page - 1) * limit;
+    const page = this.normalizePage(query.page);
+    const pageSize = this.normalizePageSize(query.pageSize);
+    const where = this.buildWhere(context, query);
 
-    const where: any = {
-      tenantId: context.tenantId,
-      branchId: context.branchId,
-    };
-    if (options.atendente) where.atendente = { contains: options.atendente, mode: 'insensitive' };
-    if (options.dateFilterType && options.dateValue) {
-      where.data = getRange(options.dateValue, options.dateFilterType);
-    }
-
-    const [total, data] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.agendaPet.count({ where }),
-      this.prisma.agendaPet.findMany({ where, skip, take: limit, orderBy: { data: 'asc' } }),
+      this.prisma.agendaPet.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: [{ startAt: 'asc' }, { data: 'asc' }, { hora: 'asc' }],
+        include: {
+          client: { select: { id: true, name: true } },
+          pet: { select: { id: true, name: true, clientId: true } },
+        },
+      }),
     ]);
 
+    const items = rows.map((row) => this.formatAgenda(row));
+
     return {
-      data,
-      meta: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit) || 0,
-      },
+      items,
+      data: items,
+      page,
+      pageSize,
+      total,
+      totalPages: Math.ceil(total / pageSize) || 0,
     };
   }
 
@@ -113,19 +123,9 @@ export class AgendaPetService {
       selectedBranchId,
       false,
     );
-    const agenda = await this.prisma.agendaPet.findFirst({
-      where: {
-        id,
-        tenantId: context.tenantId,
-        branchId: context.branchId,
-      },
-    });
+    const agenda = await this.findScopedAgenda(id, context, true);
 
-    if (!agenda) {
-      throw new NotFoundException('Agenda pet not found.');
-    }
-
-    return agenda;
+    return this.formatAgenda(agenda);
   }
 
   async create(
@@ -138,20 +138,56 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertLinkedEntities(
+    const linked = await this.assertLinkedEntities(
       context.tenantId,
       context.branchId,
       dto.clientId,
       dto.petId,
     );
-    const payload = {
-      ...dto,
-      data: new Date(dto.data),
-      preco: dto.preco,
+    const schedule = this.resolveSchedule(dto);
+    await this.assertNoTimeConflict({
       tenantId: context.tenantId,
       branchId: context.branchId,
-    } as any;
-    return this.prisma.agendaPet.create({ data: payload });
+      petId: linked.pet.id,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
+    });
+
+    const status = dto.status ?? AgendaPetStatus.scheduled;
+    const agenda = await this.prisma.agendaPet.create({
+      data: {
+        cliente: linked.client.name,
+        animal: linked.pet.name,
+        atendente: required(dto.atendente, 'Atendente'),
+        servico: required(dto.servico, 'Servico'),
+        data: schedule.legacyDate,
+        hora: schedule.legacyTime,
+        preco: dto.preco,
+        descricao: clean(dto.descricao),
+        notes: clean(dto.notes),
+        status,
+        startAt: schedule.startAt,
+        endAt: schedule.endAt,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        clientId: linked.client.id,
+        petId: linked.pet.id,
+        createdById: user?.id,
+        updatedById: user?.id,
+        ...(status === AgendaPetStatus.canceled
+          ? {
+              canceledAt: new Date(),
+              canceledById: user?.id,
+            }
+          : {}),
+      },
+      include: {
+        client: { select: { id: true, name: true } },
+        pet: { select: { id: true, name: true, clientId: true } },
+      },
+    });
+
+    return this.formatAgenda(agenda);
   }
 
   async update(
@@ -165,26 +201,69 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertTenantOwnership(id, context.tenantId, context.branchId);
-    await this.assertLinkedEntities(
+    const existing = await this.findScopedAgenda(id, context, false);
+    const finalClientId = dto.clientId ?? existing.clientId;
+    const finalPetId = dto.petId ?? existing.petId;
+    const linked = await this.assertLinkedEntities(
       context.tenantId,
       context.branchId,
-      dto.clientId,
-      dto.petId,
+      finalClientId,
+      finalPetId,
     );
+    const schedule = this.resolveSchedule(dto, existing);
 
-    const data: any = { ...dto };
-    delete data.tenantId;
-    delete data.branchId;
-    if (dto.data) data.data = new Date(dto.data);
-    return this.prisma.agendaPet.update({
+    await this.assertNoTimeConflict({
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      petId: linked.pet.id,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
+      ignoreId: id,
+    });
+
+    const data: Prisma.AgendaPetUncheckedUpdateInput = {
+      cliente: linked.client.name,
+      animal: linked.pet.name,
+      clientId: linked.client.id,
+      petId: linked.pet.id,
+      data: schedule.legacyDate,
+      hora: schedule.legacyTime,
+      startAt: schedule.startAt,
+      endAt: schedule.endAt,
+      updatedById: user?.id,
+    };
+
+    if (dto.atendente !== undefined) data.atendente = required(dto.atendente, 'Atendente');
+    if (dto.servico !== undefined) data.servico = required(dto.servico, 'Servico');
+    if (dto.preco !== undefined) data.preco = dto.preco;
+    if (dto.descricao !== undefined) data.descricao = clean(dto.descricao);
+    if (dto.notes !== undefined) data.notes = clean(dto.notes);
+
+    if (dto.status !== undefined) {
+      this.assertStatusTransition(existing.status, dto.status);
+      data.status = dto.status;
+
+      if (dto.status === AgendaPetStatus.canceled) {
+        data.canceledAt = new Date();
+        data.canceledById = user?.id;
+        data.cancellationReason = clean(dto.cancellationReason);
+      }
+    }
+
+    const agenda = await this.prisma.agendaPet.update({
       where: {
         id,
         tenantId: context.tenantId,
         branchId: context.branchId,
       },
       data,
+      include: {
+        client: { select: { id: true, name: true } },
+        pet: { select: { id: true, name: true, clientId: true } },
+      },
     });
+
+    return this.formatAgenda(agenda);
   }
 
   async remove(
@@ -197,31 +276,98 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    await this.assertTenantOwnership(id, context.tenantId, context.branchId);
+    await this.findScopedAgenda(id, context, false);
 
-    return this.prisma.agendaPet.delete({
+    await this.prisma.agendaPet.update({
       where: {
         id,
         tenantId: context.tenantId,
         branchId: context.branchId,
       },
+      data: {
+        deletedAt: new Date(),
+        updatedById: user?.id,
+      },
     });
+
+    return { ok: true };
   }
 
-  private async assertTenantOwnership(
+  private buildWhere(
+    context: PetShopContext,
+    query: AgendaPetQueryDto,
+  ): Prisma.AgendaPetWhereInput {
+    const where: Prisma.AgendaPetWhereInput = {
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      deletedAt: null,
+    };
+
+    if (query.status) where.status = query.status;
+    if (query.clientId) where.clientId = query.clientId;
+    if (query.petId) where.petId = query.petId;
+
+    const dateRange = this.buildDateRange(query.startAtFrom, query.startAtTo);
+    if (dateRange) {
+      where.OR = [
+        { startAt: dateRange },
+        { startAt: null, data: dateRange },
+      ];
+    }
+
+    const search = query.search?.trim();
+    if (search) {
+      const searchWhere: Prisma.AgendaPetWhereInput = {
+        OR: [
+          { cliente: { contains: search, mode: 'insensitive' } },
+          { animal: { contains: search, mode: 'insensitive' } },
+          { atendente: { contains: search, mode: 'insensitive' } },
+          { servico: { contains: search, mode: 'insensitive' } },
+          { descricao: { contains: search, mode: 'insensitive' } },
+          { notes: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+
+      where.AND = [...(Array.isArray(where.AND) ? where.AND : []), searchWhere];
+    }
+
+    return where;
+  }
+
+  private buildDateRange(startAtFrom?: string, startAtTo?: string) {
+    if (!startAtFrom && !startAtTo) return null;
+
+    const range: Prisma.DateTimeFilter = {};
+    if (startAtFrom) range.gte = this.parseDate(startAtFrom, 'startAtFrom');
+    if (startAtTo) range.lte = this.parseDate(startAtTo, 'startAtTo');
+    return range;
+  }
+
+  private async findScopedAgenda(
     id: string,
-    tenantId: string,
-    branchId: string | null,
+    context: PetShopContext,
+    includeRelations: boolean,
   ) {
     const agenda = await this.prisma.agendaPet.findFirst({
-      where: { id, tenantId, branchId },
-      select: { id: true },
+      where: {
+        id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        deletedAt: null,
+      },
+      include: includeRelations
+        ? {
+            client: { select: { id: true, name: true } },
+            pet: { select: { id: true, name: true, clientId: true } },
+          }
+        : undefined,
     });
 
     if (!agenda) {
-      throw new NotFoundException('Agenda pet not found.');
+      throw new NotFoundException('Agendamento Pet nao encontrado.');
     }
 
+    return agenda;
   }
 
   private async assertLinkedEntities(
@@ -229,33 +375,177 @@ export class AgendaPetService {
     branchId: string | null,
     clientId?: string | null,
     petId?: string | null,
-  ) {
-    if (clientId) {
-      const client = await this.prisma.petClient.findFirst({
-        where: { id: clientId, tenantId, branchId, deletedAt: null },
-        select: { id: true },
-      });
-
-      if (!client) {
-        throw new BadRequestException('Cliente Pet vinculado nao encontrado.');
-      }
+  ): Promise<LinkedEntities> {
+    if (!clientId) {
+      throw new BadRequestException('Cliente Pet e obrigatorio.');
     }
 
-    if (petId) {
-      const pet = await this.prisma.pet.findFirst({
-        where: {
-          id: petId,
-          tenantId,
-          branchId,
-          deletedAt: null,
-          ...(clientId ? { clientId } : {}),
-        },
-        select: { id: true },
-      });
+    if (!petId) {
+      throw new BadRequestException('Animal e obrigatorio.');
+    }
 
-      if (!pet) {
-        throw new BadRequestException('Animal vinculado nao encontrado.');
-      }
+    const client = await this.prisma.petClient.findFirst({
+      where: { id: clientId, tenantId, branchId, deletedAt: null },
+      select: { id: true, name: true, tenantId: true, branchId: true },
+    });
+
+    if (!client) {
+      throw new BadRequestException('Cliente Pet vinculado nao encontrado.');
+    }
+
+    const pet = await this.prisma.pet.findFirst({
+      where: {
+        id: petId,
+        tenantId,
+        branchId,
+        clientId: client.id,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        tenantId: true,
+        branchId: true,
+        clientId: true,
+      },
+    });
+
+    if (!pet) {
+      throw new BadRequestException('Animal vinculado nao encontrado.');
+    }
+
+    return { client, pet };
+  }
+
+  private resolveSchedule(
+    dto: Pick<CreateAgendaPetDto | UpdateAgendaPetDto, 'data' | 'hora' | 'startAt' | 'endAt'>,
+    fallback?: { data: Date; hora: string; startAt: Date | null; endAt: Date | null },
+  ) {
+    const startAt = dto.startAt
+      ? this.parseDate(dto.startAt, 'startAt')
+      : dto.data && dto.hora
+        ? this.parseDate(`${dto.data}T${dto.hora}:00`, 'data/hora')
+        : fallback?.startAt ?? fallback?.data;
+
+    if (!startAt) {
+      throw new BadRequestException('Data e hora do agendamento sao obrigatorias.');
+    }
+
+    const endAt = dto.endAt
+      ? this.parseDate(dto.endAt, 'endAt')
+      : fallback?.endAt && !dto.startAt && !dto.data && !dto.hora
+        ? fallback.endAt
+        : new Date(startAt.getTime() + DEFAULT_DURATION_MINUTES * 60 * 1000);
+
+    if (endAt <= startAt) {
+      throw new BadRequestException('Horario final deve ser maior que o horario inicial.');
+    }
+
+    const legacyDate = dto.data ? this.parseDate(dto.data, 'data') : startAt;
+    const legacyTime = dto.hora ?? this.formatTime(startAt);
+
+    return { startAt, endAt, legacyDate, legacyTime };
+  }
+
+  private async assertNoTimeConflict(input: {
+    tenantId: string;
+    branchId: string | null;
+    petId: string;
+    startAt: Date;
+    endAt: Date;
+    ignoreId?: string;
+  }) {
+    const conflict = await this.prisma.agendaPet.findFirst({
+      where: {
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        petId: input.petId,
+        deletedAt: null,
+        status: { notIn: CONFLICT_IGNORED_STATUSES },
+        ...(input.ignoreId ? { NOT: { id: input.ignoreId } } : {}),
+        startAt: { lt: input.endAt },
+        endAt: { gt: input.startAt },
+      },
+      select: { id: true },
+    });
+
+    if (conflict) {
+      throw new BadRequestException(
+        'Ja existe agendamento ativo para este animal no horario informado.',
+      );
     }
   }
+
+  private assertStatusTransition(
+    currentStatus: AgendaPetStatus,
+    nextStatus: AgendaPetStatus,
+  ) {
+    if (currentStatus === nextStatus) return;
+
+    if (!STATUS_TRANSITIONS[currentStatus].includes(nextStatus)) {
+      throw new BadRequestException('Transicao de status invalida.');
+    }
+  }
+
+  private normalizePage(value?: number) {
+    return value && value > 0 ? value : DEFAULT_PAGE;
+  }
+
+  private normalizePageSize(value?: number) {
+    if (!value || value <= 0) return DEFAULT_PAGE_SIZE;
+    return Math.min(value, MAX_PAGE_SIZE);
+  }
+
+  private parseDate(value: string, field: string) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException(`${field} invalido.`);
+    }
+    return date;
+  }
+
+  private formatTime(value: Date) {
+    return `${String(value.getHours()).padStart(2, '0')}:${String(
+      value.getMinutes(),
+    ).padStart(2, '0')}`;
+  }
+
+  private formatAgenda(agenda: any) {
+    return {
+      id: agenda.id,
+      cliente: agenda.cliente,
+      animal: agenda.animal,
+      atendente: agenda.atendente,
+      servico: agenda.servico,
+      data: agenda.data,
+      hora: agenda.hora,
+      preco: agenda.preco,
+      descricao: agenda.descricao,
+      status: agenda.status,
+      startAt: agenda.startAt,
+      endAt: agenda.endAt,
+      notes: agenda.notes,
+      clientId: agenda.clientId,
+      petId: agenda.petId,
+      client: agenda.client,
+      pet: agenda.pet,
+      canceledAt: agenda.canceledAt,
+      cancellationReason: agenda.cancellationReason,
+      createdAt: agenda.createdAt,
+      updatedAt: agenda.updatedAt,
+    };
+  }
+}
+
+function clean(value?: string | null) {
+  const trimmed = value?.trim();
+  return trimmed || null;
+}
+
+function required(value: string | undefined, field: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    throw new BadRequestException(`${field} e obrigatorio.`);
+  }
+  return trimmed;
 }

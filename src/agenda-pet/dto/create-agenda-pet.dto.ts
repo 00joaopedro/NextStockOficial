@@ -1,4 +1,14 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsDateString } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
+import { AgendaPetStatus } from '@prisma/client';
 
 export class CreateAgendaPetDto {
   @IsString()
@@ -34,11 +44,28 @@ export class CreateAgendaPetDto {
   @IsOptional()
   descricao?: string;
 
-  @IsString()
+  @IsUUID()
+  @IsNotEmpty()
+  clientId: string;
+
+  @IsUUID()
+  @IsNotEmpty()
+  petId: string;
+
+  @IsDateString()
   @IsOptional()
-  clientId?: string;
+  startAt?: string;
+
+  @IsDateString()
+  @IsOptional()
+  endAt?: string;
+
+  @IsEnum(AgendaPetStatus)
+  @IsOptional()
+  status?: AgendaPetStatus;
 
   @IsString()
+  @MaxLength(1000)
   @IsOptional()
-  petId?: string;
+  notes?: string;
 }

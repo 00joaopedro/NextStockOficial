@@ -30,9 +30,8 @@ describe('Frontend session and demo isolation', () => {
     const agenda = publicFile('agendaPet.html');
 
     expect(products).toContain('let products = isDemoMode() ? DEMO_PRODUCTS : []');
-    expect(agenda).toContain(
-      'let atendimentos = isDemoMode() ? DEMO_ATENDIMENTOS : []',
-    );
+    expect(agenda).toContain('id="legacy-agenda-demo-disabled"');
+    expect(agenda).toContain('src="./dist/agendaPet.js"');
 
     for (const file of [
       'fornecedor.html',

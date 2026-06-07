@@ -440,6 +440,18 @@
       flex-wrap: wrap;
     }
 
+    .agenda-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin: 16px 0;
+      text-align: left;
+    }
+
+    .agenda-form .field {
+      min-width: 0;
+    }
+
     @media (max-width: 1280px) {
       .agenda-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -525,7 +537,10 @@
         <p>Consulta de atendimentos agendados com filtros por atendente e período.</p>
       </div>
 
-      <div class="session-badge" id="sessionBadge">Agenda atualizada</div>
+      <div class="confirm-actions">
+        <button class="btn btn-primary" id="openCreateAgendaBtn" type="button">Novo agendamento</button>
+        <div class="session-badge" id="sessionBadge">Validando sessao</div>
+      </div>
     </section>
 
     <section class="panel filters-panel">
@@ -557,6 +572,16 @@
           </select>
         </div>
 
+        <div class="field">
+          <label for="startDateFrom">Data inicial</label>
+          <input type="date" id="startDateFrom">
+        </div>
+
+        <div class="field">
+          <label for="startDateTo">Data final</label>
+          <input type="date" id="startDateTo">
+        </div>
+
         <div class="field hidden" id="dayField">
           <label for="dateDay">Selecionar dia</label>
           <input type="date" id="dateDay">
@@ -577,6 +602,33 @@
           <select id="dateYear"></select>
         </div>
 
+        <div class="field">
+          <label for="statusFilter">Status</label>
+          <select id="statusFilter">
+            <option value="">Todos</option>
+            <option value="scheduled">Agendado</option>
+            <option value="confirmed">Confirmado</option>
+            <option value="in_progress">Em atendimento</option>
+            <option value="completed">Concluido</option>
+            <option value="canceled">Cancelado</option>
+            <option value="no_show">Nao compareceu</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="clientFilter">Cliente</label>
+          <select id="clientFilter">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="petFilter">Animal</label>
+          <select id="petFilter">
+            <option value="">Todos</option>
+          </select>
+        </div>
+
         <button class="btn btn-primary" id="applyFiltersBtn" type="button">Aplicar filtros</button>
         <button class="btn btn-secondary" id="clearFiltersBtn" type="button">Limpar</button>
       </div>
@@ -590,8 +642,8 @@
 
   <div class="confirm-overlay" id="confirmOverlay">
     <div class="confirm-box">
-      <h3>Excluir card</h3>
-      <p>Tem certeza que quer excluir esse card?</p>
+      <h3>Excluir agendamento</h3>
+      <p>Tem certeza que quer excluir este agendamento?</p>
 
       <div class="confirm-actions">
         <button class="btn btn-danger" id="confirmDeleteYes" type="button">Sim</button>
@@ -599,9 +651,67 @@
       </div>
     </div>
   </div>
+  <div class="confirm-overlay" id="agendaModal">
+    <div class="confirm-box">
+      <h3 id="agendaModalTitle">Novo agendamento</h3>
+      <div class="agenda-form">
+        <div class="field">
+          <label for="agendaClient">Cliente</label>
+          <select id="agendaClient"></select>
+        </div>
+        <div class="field">
+          <label for="agendaPet">Animal</label>
+          <select id="agendaPet"></select>
+        </div>
+        <div class="field">
+          <label for="agendaService">Servico</label>
+          <input id="agendaService" maxlength="120" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="agendaAttendant">Atendente</label>
+          <input id="agendaAttendant" maxlength="100" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="agendaStartAt">Inicio</label>
+          <input id="agendaStartAt" type="datetime-local">
+        </div>
+        <div class="field">
+          <label for="agendaEndAt">Fim</label>
+          <input id="agendaEndAt" type="datetime-local">
+        </div>
+        <div class="field">
+          <label for="agendaStatus">Status</label>
+          <select id="agendaStatus">
+            <option value="scheduled">Agendado</option>
+            <option value="confirmed">Confirmado</option>
+            <option value="in_progress">Em atendimento</option>
+            <option value="completed">Concluido</option>
+            <option value="canceled">Cancelado</option>
+            <option value="no_show">Nao compareceu</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="agendaPrice">Valor</label>
+          <input id="agendaPrice" type="number" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label for="agendaNotes">Observacoes</label>
+          <input id="agendaNotes" maxlength="300" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="agendaCancellationReason">Motivo do cancelamento</label>
+          <input id="agendaCancellationReason" maxlength="300" autocomplete="off">
+        </div>
+      </div>
+      <div class="confirm-actions">
+        <button class="btn btn-primary" id="saveAgendaBtn" type="button">Salvar</button>
+        <button class="btn btn-secondary" id="closeAgendaModalBtn" type="button">Fechar</button>
+      </div>
+    </div>
+  </div>
 <script src="./dist/session-state.js"></script>
 <script type="module" src="./dist/sidebar.js"></script>
-  <script>
+  <script type="application/json" id="legacy-agenda-demo-disabled">
     function isDemoMode() {
       const params = new URLSearchParams(window.location.search);
       return sessionStorage.getItem("nextstockIsPreview") === "true" ||
@@ -955,5 +1065,6 @@
     updateDateFields();
     renderAgenda(filteredAtendimentos);
   </script>
+  <script type="module" src="./dist/agendaPet.js"></script>
 </body>
 </html>

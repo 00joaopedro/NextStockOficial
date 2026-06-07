@@ -8,8 +8,6 @@ import {
   Delete,
   Headers,
   Query,
-  ParseIntPipe,
-  DefaultValuePipe,
   UsePipes,
   ValidationPipe,
   Req,
@@ -23,34 +21,24 @@ import { RolesGuard } from '../auth/roles.guard';
 import { BranchContextGuard } from '../tenancy/branch-context.guard';
 import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { AgendaPetService } from './agenda-pet.service';
+import { AgendaPetQueryDto } from './dto/agenda-pet-query.dto';
 import { CreateAgendaPetDto } from './dto/create-agenda-pet.dto';
 import { UpdateAgendaPetDto } from './dto/update-agenda-pet.dto';
 
 @Controller('agenda-pet')
 @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
 @RequireTenantContext({ requireBranch: true, expectedSystemType: SystemType.petshop })
+@UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AgendaPetController {
   constructor(private readonly service: AgendaPetService) {}
 
   @Get()
   async findAll(
     @Req() req: Request,
-    @Query('atendente') atendente?: string,
-    @Query('dateFilterType') dateFilterType?: 'day' | 'week' | 'month' | 'year',
-    @Query('dateValue') dateValue?: string,
+    @Query() query: AgendaPetQueryDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
-    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
-    @Query('limit', new DefaultValuePipe(12), ParseIntPipe) limit = 12,
   ) {
-    return this.service.findAll({
-      page,
-      limit,
-      atendente,
-      dateFilterType,
-      dateValue,
-      selectedBranchId,
-      user: req.user,
-    });
+    return this.service.findAll(req.user, query, selectedBranchId);
   }
 
   @Get(':id')
@@ -64,7 +52,6 @@ export class AgendaPetController {
 
   @Post()
   @Roles(Role.Admin, Role.Vendedor)
-  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }))
   create(
     @Req() req: Request,
     @Body() createDto: CreateAgendaPetDto,
@@ -75,7 +62,6 @@ export class AgendaPetController {
 
   @Patch(':id')
   @Roles(Role.Admin, Role.Vendedor)
-  @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: false }))
   update(
     @Req() req: Request,
     @Param('id') id: string,
