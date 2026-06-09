@@ -6,8 +6,17 @@ describe('SupabaseStorageService', () => {
   const previousSignedUrls = process.env.SUPABASE_STORAGE_SIGNED_URLS;
 
   afterEach(() => {
-    process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = previousProductBucket;
-    process.env.SUPABASE_STORAGE_SIGNED_URLS = previousSignedUrls;
+    if (previousProductBucket === undefined) {
+      delete process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
+    } else {
+      process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = previousProductBucket;
+    }
+
+    if (previousSignedUrls === undefined) {
+      delete process.env.SUPABASE_STORAGE_SIGNED_URLS;
+    } else {
+      process.env.SUPABASE_STORAGE_SIGNED_URLS = previousSignedUrls;
+    }
     jest.restoreAllMocks();
   });
 
@@ -58,6 +67,27 @@ describe('SupabaseStorageService', () => {
     });
 
     expect(supabase.admin.storage.from).toHaveBeenCalledWith('catalog-images');
+  });
+
+  it('usa product-images como fallback exato quando a env de bucket nao existe', async () => {
+    delete process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
+    process.env.SUPABASE_STORAGE_SIGNED_URLS = 'false';
+    const supabase = makeSupabase();
+    const service = new SupabaseStorageService(supabase as any);
+
+    await service.uploadProductImage({
+      tenantId: 'tenant-id',
+      branchId: 'branch-id',
+      productId: 'product-id',
+      file: {
+        originalname: 'produto.jpg',
+        mimetype: 'image/jpeg',
+        size: 10,
+        buffer: Buffer.from('ok'),
+      },
+    });
+
+    expect(supabase.admin.storage.from).toHaveBeenCalledWith('product-images');
   });
 
   it('retorna 503 claro quando o bucket de produto nao existe', async () => {

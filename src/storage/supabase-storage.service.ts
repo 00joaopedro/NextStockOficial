@@ -23,8 +23,6 @@ export class SupabaseStorageService {
   private readonly logger = new Logger(SupabaseStorageService.name);
   private readonly petPhotosBucket =
     process.env.SUPABASE_STORAGE_BUCKET_PET_PHOTOS || 'pet-photos';
-  private readonly productImagesBucket =
-    process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES || 'product-images';
   private readonly petPhotoMaxSizeBytes =
     Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024;
   private readonly productImageMaxSizeBytes =
@@ -86,11 +84,8 @@ export class SupabaseStorageService {
       `${randomUUID()}${extension}`,
     ].join('/');
 
-    const fileUrl = await this.uploadToBucket(
-      this.productImagesBucket,
-      storagePath,
-      input.file,
-    );
+    const bucket = this.getProductImagesBucket();
+    const fileUrl = await this.uploadToBucket(bucket, storagePath, input.file);
 
     return {
       fileName: originalName,
@@ -118,11 +113,11 @@ export class SupabaseStorageService {
     }
 
     if (this.useSignedUrls) {
-      return this.createSignedUrl(this.productImagesBucket, storagePath);
+      return this.createSignedUrl(this.getProductImagesBucket(), storagePath);
     }
 
     return this.supabase.admin.storage
-      .from(this.productImagesBucket)
+      .from(this.getProductImagesBucket())
       .getPublicUrl(storagePath).data.publicUrl;
   }
 
@@ -135,7 +130,11 @@ export class SupabaseStorageService {
   }
 
   async removeProductImage(storagePath?: string | null) {
-    await this.removeFromBucket(this.productImagesBucket, storagePath);
+    await this.removeFromBucket(this.getProductImagesBucket(), storagePath);
+  }
+
+  private getProductImagesBucket() {
+    return process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES || 'product-images';
   }
 
   private async uploadToBucket(
