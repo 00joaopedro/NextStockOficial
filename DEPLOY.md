@@ -29,6 +29,34 @@ npm run start:railway
 npm run db:migrate
 ```
 
+## Supabase Storage
+
+Crie os buckets usados pelo backend no Supabase Storage do mesmo projeto
+configurado em `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`:
+
+```env
+SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES="product-images"
+PRODUCT_IMAGE_MAX_SIZE_MB="5"
+SUPABASE_STORAGE_BUCKET_PET_PHOTOS="pet-photos"
+PET_PHOTO_MAX_SIZE_MB="5"
+SUPABASE_STORAGE_SIGNED_URLS="false"
+```
+
+O endpoint de upload de produto `POST /api/products/:id/images/upload` le
+`SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES`; quando a variavel nao existe, o nome
+padrao usado pelo backend e `product-images`.
+
+Decisao atual:
+
+- `SUPABASE_STORAGE_SIGNED_URLS=false` ou ausente: buckets publicos, URLs
+  renderizaveis via `getPublicUrl()`.
+- `SUPABASE_STORAGE_SIGNED_URLS=true`: buckets podem ser privados, e o backend
+  retorna signed URLs de leitura.
+
+Se o bucket nao existir, o backend retorna 503 em vez de 500 generico. Corrija
+criando o bucket com o mesmo nome da env ou ajustando a env para o bucket
+existente.
+
 ## Multi-tenant security migrations
 
 Before deploying a version that contains multi-tenant hardening migrations:

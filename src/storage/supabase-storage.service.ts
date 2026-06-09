@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
@@ -18,6 +20,7 @@ const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Injectable()
 export class SupabaseStorageService {
+  private readonly logger = new Logger(SupabaseStorageService.name);
   private readonly petPhotosBucket =
     process.env.SUPABASE_STORAGE_BUCKET_PET_PHOTOS || 'pet-photos';
   private readonly productImagesBucket =
@@ -148,6 +151,15 @@ export class SupabaseStorageService {
       });
 
     if (error) {
+      if (this.isBucketNotFoundError(error)) {
+        this.logger.error(
+          `Supabase Storage bucket not found: ${bucket}. Configure the bucket in Supabase Storage and set the matching SUPABASE_STORAGE_BUCKET_* env.`,
+        );
+        throw new ServiceUnavailableException(
+          `Supabase Storage bucket "${bucket}" was not found. Create it in Supabase Storage or configure the correct bucket env before uploading images.`,
+        );
+      }
+
       throw new InternalServerErrorException(
         `Supabase Storage upload failed: ${error.message}`,
       );
@@ -202,6 +214,18 @@ export class SupabaseStorageService {
     if (mime === 'image/png') return '.png';
     if (mime === 'image/webp') return '.webp';
     return '.jpg';
+  }
+
+  private isBucketNotFoundError(error: { message?: string; statusCode?: string | number; status?: string | number }) {
+    const message = error.message?.toLowerCase() ?? '';
+    return (
+      message.includes('bucket not found') ||
+      message.includes('bucket') && message.includes('not found') ||
+      error.statusCode === '404' ||
+      error.statusCode === 404 ||
+      error.status === '404' ||
+      error.status === 404
+    );
   }
 
   private async createSignedUrl(bucket: string, storagePath: string) {

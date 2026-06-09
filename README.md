@@ -52,6 +52,32 @@ npm run build:frontend
 npm test
 ```
 
+## Supabase Storage
+
+Uploads de imagens passam pelo backend com `SUPABASE_SERVICE_ROLE_KEY`; o
+frontend nunca envia tenant/branch como fonte de autoridade.
+
+Configure os buckets no Supabase Storage antes de usar uploads em producao:
+
+```env
+SUPABASE_STORAGE_BUCKET_PET_PHOTOS="pet-photos"
+PET_PHOTO_MAX_SIZE_MB="5"
+SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES="product-images"
+PRODUCT_IMAGE_MAX_SIZE_MB="5"
+SUPABASE_STORAGE_SIGNED_URLS="false"
+```
+
+- `SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES` define o bucket usado por
+  `POST /api/products/:id/images/upload`. Se estiver ausente, o backend usa
+  `product-images`.
+- Com `SUPABASE_STORAGE_SIGNED_URLS` ausente ou `false`, os buckets precisam ser
+  publicos para que as URLs retornadas por `getPublicUrl()` renderizem no
+  navegador.
+- Com `SUPABASE_STORAGE_SIGNED_URLS=true`, o backend retorna signed URLs de
+  leitura; nesse caso os buckets podem ser privados, mas as URLs expiram.
+- Se o bucket configurado nao existir, o upload retorna 503 com mensagem clara
+  pedindo a criacao/correcao do bucket.
+
 ## Producao
 
 O comando de producao deve apenas iniciar o backend:
