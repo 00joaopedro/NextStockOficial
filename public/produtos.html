@@ -1401,12 +1401,24 @@
         params.get("mode") === "production";
     }
 
+    function isRenderableImageUrl(value) {
+      const url = String(value || "").trim();
+      return /^https?:\/\//i.test(url) ||
+        url.startsWith("data:image/") ||
+        url.startsWith("blob:") ||
+        url.startsWith("img/");
+    }
+
+    function productImageFallback() {
+      return "img/techstore.jpg";
+    }
+
     function mapApiProduct(product) {
       const imageMetadata = product.imageMetadata || [];
       const apiImages = imageMetadata
-        .map((image) => image.fileUrl || image.storagePath || image.fileName)
-        .filter(Boolean);
-      const fallbackImages = (product.imagens || []).filter(Boolean);
+        .map((image) => image.fileUrl || image.signedUrl || image.url)
+        .filter(isRenderableImageUrl);
+      const fallbackImages = (product.imagens || []).filter(isRenderableImageUrl);
 
       return {
         id: product.id,
@@ -1420,7 +1432,7 @@
           ? apiImages
           : fallbackImages.length > 0
             ? fallbackImages
-            : ["img/techstore.jpg"]
+            : [productImageFallback()]
       };
     }
 
@@ -1591,7 +1603,7 @@
         card.dataset.id = product.id;
 
         card.innerHTML = `
-          <img src="${product.images[0]}" alt="${product.name}">
+          <img src="${product.images[0]}" alt="${product.name}" onerror="this.onerror=null;this.src='${productImageFallback()}'">
           <h3>${product.name}</h3>
           <p>${formatMoney(product.price)}</p>
           <small>${product.category} • Estoque: ${product.stock}</small>
@@ -1963,7 +1975,7 @@
       const images = selectedProduct.images;
       const image = images[carouselIndex];
 
-      carouselView.innerHTML = `<img src="${image}" alt="${selectedProduct.name}">`;
+      carouselView.innerHTML = `<img src="${image}" alt="${selectedProduct.name}" onerror="this.onerror=null;this.src='${productImageFallback()}'">`;
       carouselCounter.textContent = `${carouselIndex + 1} de ${images.length}`;
 
       prevImageBtn.style.visibility = images.length > 1 ? "visible" : "hidden";

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, Product, ProductImage, SystemMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UsageService } from '../usage/usage.service';
@@ -69,6 +70,12 @@ const DEMO_PRODUCTS = [
 ];
 
 type ProductWithImages = Product & { images: ProductImage[] };
+type UploadFile = {
+  originalname?: string;
+  mimetype?: string;
+  size?: number;
+  buffer?: Buffer;
+};
 
 @Injectable()
 export class ProductsService {
@@ -76,6 +83,7 @@ export class ProductsService {
     private readonly prisma: PrismaService,
     @Optional() private readonly usageService?: UsageService,
     @Optional() private readonly tenantContext?: TenantContextService,
+    @Optional() private readonly storage?: SupabaseStorageService,
   ) {}
 
   async findAll(
@@ -128,7 +136,9 @@ export class ProductsService {
     return {
       ok: true,
       mode: tenant.mode,
-      products: products.map((product) => this.formatProduct(product)),
+      products: await Promise.all(
+        products.map((product) => this.formatProduct(product)),
+      ),
     };
   }
 
@@ -159,7 +169,7 @@ export class ProductsService {
       throw new NotFoundException('Product not found.');
     }
 
-    return { ok: true, mode: tenant.mode, product: this.formatProduct(product) };
+    return { ok: true, mode: tenant.mode, product: await this.formatProduct(product) };
   }
 
   async create(
@@ -184,7 +194,7 @@ export class ProductsService {
         metadata: { productId: product.id },
       });
 
-      return { ok: true, product: this.formatProduct(product) };
+      return { ok: true, product: await this.formatProduct(product) };
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -211,7 +221,7 @@ export class ProductsService {
         metadata: { productId: product.id },
       });
 
-      return { ok: true, product: this.formatProduct(product) };
+      return { ok: true, product: await this.formatProduct(product) };
     } catch (error) {
       this.handlePrismaError(error);
     }
@@ -255,6 +265,14 @@ export class ProductsService {
       throw new BadRequestException('A product can have at most 3 images.');
     }
 
+    dto.images.forEach((image) => {
+      if (!image.fileUrl?.trim() && !image.storagePath?.trim()) {
+        throw new BadRequestException(
+          'Product image metadata requires fileUrl or storagePath. Use /images/upload for file uploads.',
+        );
+      }
+    });
+
     await this.prisma.productImage.createMany({
       data: dto.images.map((image) => ({
         productId: id,
@@ -273,7 +291,55 @@ export class ProductsService {
       include: { images: { orderBy: { createdAt: 'asc' } } },
     });
 
-    return { ok: true, product: this.formatProduct(product!) };
+    return { ok: true, product: await this.formatProduct(product!) };
+  }
+
+  async uploadImage(
+    user: Express.AuthenticatedUser | undefined,
+    id: string,
+    file: UploadFile,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    if (!this.storage) {
+      throw new BadRequestException('Product image storage is not configured.');
+    }
+
+    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    await this.assertTenantProduct(tenant.id, tenant.branchId, id);
+
+    const existingCount = await this.prisma.productImage.count({
+      where: { productId: id },
+    });
+
+    if (existingCount >= 3) {
+      throw new BadRequestException('A product can have at most 3 images.');
+    }
+
+    const uploaded = await this.storage.uploadProductImage({
+      tenantId: tenant.id,
+      branchId: tenant.branchId,
+      productId: id,
+      file,
+    });
+
+    try {
+      const image = await this.prisma.productImage.create({
+        data: {
+          productId: id,
+          ...uploaded,
+        },
+      });
+      await this.recordProductUsage(user, tenant, 'product_image_upload', {
+        dbWriteCount: 1,
+        metadata: { productId: id, imageId: image.id },
+      });
+
+      return { ok: true, image };
+    } catch (error) {
+      await this.storage.removeProductImage(uploaded.storagePath);
+      throw error;
+    }
   }
 
   async removeImage(
@@ -288,7 +354,7 @@ export class ProductsService {
 
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId: id },
-      select: { id: true },
+      select: { id: true, storagePath: true },
     });
 
     if (!image) {
@@ -296,6 +362,7 @@ export class ProductsService {
     }
 
     await this.prisma.productImage.delete({ where: { id: imageId } });
+    await this.storage?.removeProductImage(image.storagePath);
 
     return { ok: true };
   }
@@ -431,7 +498,23 @@ export class ProductsService {
     return data;
   }
 
-  private formatProduct(product: ProductWithImages) {
+  private async formatProduct(product: ProductWithImages) {
+    const imageMetadata = await Promise.all(
+      product.images.map(async (image) => {
+        const renderUrl =
+          image.fileUrl ||
+          (this.storage ? await this.storage.getProductImageUrl(image.storagePath) : null);
+
+        return {
+          id: image.id,
+          fileName: image.fileName,
+          fileUrl: renderUrl,
+          storagePath: image.storagePath,
+          createdAt: image.createdAt,
+        };
+      }),
+    );
+
     return {
       id: product.id,
       nome: product.name,
@@ -451,14 +534,8 @@ export class ProductsService {
       linkExterno: product.externalLink ?? '',
       tamanhoRoupa: product.clothingSize ?? '',
       tamanhoVestimenta: product.apparelSize ?? '',
-      imagens: product.images.map((image) => image.fileName),
-      imageMetadata: product.images.map((image) => ({
-        id: image.id,
-        fileName: image.fileName,
-        fileUrl: image.fileUrl,
-        storagePath: image.storagePath,
-        createdAt: image.createdAt,
-      })),
+      imagens: imageMetadata.map((image) => image.fileUrl).filter(Boolean),
+      imageMetadata,
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };

@@ -9,10 +9,13 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -119,6 +122,26 @@ export class ProductsController {
       req.user,
       id,
       body,
+      selectedBranchId,
+      devContextMode,
+    );
+  }
+
+  @Post(':id/images/upload')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  uploadImage(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @UploadedFile() file: any,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+  ) {
+    return this.productsService.uploadImage(
+      req.user,
+      id,
+      file,
       selectedBranchId,
       devContextMode,
     );

@@ -18,10 +18,14 @@ const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 @Injectable()
 export class SupabaseStorageService {
-  private readonly bucket =
+  private readonly petPhotosBucket =
     process.env.SUPABASE_STORAGE_BUCKET_PET_PHOTOS || 'pet-photos';
-  private readonly maxSizeBytes =
+  private readonly productImagesBucket =
+    process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES || 'product-images';
+  private readonly petPhotoMaxSizeBytes =
     Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024;
+  private readonly productImageMaxSizeBytes =
+    Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
   private readonly useSignedUrls =
     process.env.SUPABASE_STORAGE_SIGNED_URLS === 'true';
 
@@ -33,7 +37,7 @@ export class SupabaseStorageService {
     petId: string;
     file: UploadFile;
   }) {
-    this.assertImage(input.file);
+    this.assertImage(input.file, this.petPhotoMaxSizeBytes);
 
     const originalName = this.cleanFileName(
       input.file.originalname || 'pet-photo',
@@ -46,23 +50,44 @@ export class SupabaseStorageService {
       `${randomUUID()}${extension}`,
     ].join('/');
 
-    const { error } = await this.supabase.admin.storage
-      .from(this.bucket)
-      .upload(storagePath, input.file.buffer!, {
-        contentType: input.file.mimetype,
-        upsert: false,
-      });
+    const fileUrl = await this.uploadToBucket(
+      this.petPhotosBucket,
+      storagePath,
+      input.file,
+    );
 
-    if (error) {
-      throw new InternalServerErrorException(
-        `Supabase Storage upload failed: ${error.message}`,
-      );
-    }
+    return {
+      fileName: originalName,
+      fileUrl,
+      storagePath,
+    };
+  }
 
-    const fileUrl = this.useSignedUrls
-      ? await this.createSignedUrl(storagePath)
-      : this.supabase.admin.storage.from(this.bucket).getPublicUrl(storagePath)
-          .data.publicUrl;
+  async uploadProductImage(input: {
+    tenantId: string;
+    branchId: string;
+    productId: string;
+    file: UploadFile;
+  }) {
+    this.assertImage(input.file, this.productImageMaxSizeBytes);
+
+    const originalName = this.cleanFileName(
+      input.file.originalname || 'product-image',
+    );
+    const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
+    const storagePath = [
+      input.tenantId,
+      input.branchId,
+      'products',
+      input.productId,
+      `${randomUUID()}${extension}`,
+    ].join('/');
+
+    const fileUrl = await this.uploadToBucket(
+      this.productImagesBucket,
+      storagePath,
+      input.file,
+    );
 
     return {
       fileName: originalName,
@@ -77,11 +102,25 @@ export class SupabaseStorageService {
     }
 
     if (this.useSignedUrls) {
-      return this.createSignedUrl(storagePath);
+      return this.createSignedUrl(this.petPhotosBucket, storagePath);
     }
 
-    return this.supabase.admin.storage.from(this.bucket).getPublicUrl(storagePath)
+    return this.supabase.admin.storage.from(this.petPhotosBucket).getPublicUrl(storagePath)
       .data.publicUrl;
+  }
+
+  async getProductImageUrl(storagePath?: string | null) {
+    if (!storagePath) {
+      return null;
+    }
+
+    if (this.useSignedUrls) {
+      return this.createSignedUrl(this.productImagesBucket, storagePath);
+    }
+
+    return this.supabase.admin.storage
+      .from(this.productImagesBucket)
+      .getPublicUrl(storagePath).data.publicUrl;
   }
 
   async removePetPhoto(storagePath?: string | null) {
@@ -89,13 +128,49 @@ export class SupabaseStorageService {
       return;
     }
 
+    await this.removeFromBucket(this.petPhotosBucket, storagePath);
+  }
+
+  async removeProductImage(storagePath?: string | null) {
+    await this.removeFromBucket(this.productImagesBucket, storagePath);
+  }
+
+  private async uploadToBucket(
+    bucket: string,
+    storagePath: string,
+    file: UploadFile,
+  ) {
+    const { error } = await this.supabase.admin.storage
+      .from(bucket)
+      .upload(storagePath, file.buffer!, {
+        contentType: file.mimetype,
+        upsert: false,
+      });
+
+    if (error) {
+      throw new InternalServerErrorException(
+        `Supabase Storage upload failed: ${error.message}`,
+      );
+    }
+
+    return this.useSignedUrls
+      ? this.createSignedUrl(bucket, storagePath)
+      : this.supabase.admin.storage.from(bucket).getPublicUrl(storagePath)
+          .data.publicUrl;
+  }
+
+  private async removeFromBucket(bucket: string, storagePath?: string | null) {
+    if (!storagePath) {
+      return;
+    }
+
     await this.supabase.admin.storage
-      .from(this.bucket)
+      .from(bucket)
       .remove([storagePath])
       .catch(() => undefined);
   }
 
-  private assertImage(file: UploadFile) {
+  private assertImage(file: UploadFile, maxSizeBytes: number) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Nenhum arquivo de imagem foi enviado.');
     }
@@ -106,9 +181,9 @@ export class SupabaseStorageService {
       );
     }
 
-    if ((file.size ?? file.buffer.length) > this.maxSizeBytes) {
+    if ((file.size ?? file.buffer.length) > maxSizeBytes) {
       throw new BadRequestException(
-        `Imagem excede o limite de ${process.env.PET_PHOTO_MAX_SIZE_MB || 5}MB.`,
+        `Imagem excede o limite de ${Math.round(maxSizeBytes / 1024 / 1024)}MB.`,
       );
     }
   }
@@ -129,9 +204,9 @@ export class SupabaseStorageService {
     return '.jpg';
   }
 
-  private async createSignedUrl(storagePath: string) {
+  private async createSignedUrl(bucket: string, storagePath: string) {
     const { data, error } = await this.supabase.admin.storage
-      .from(this.bucket)
+      .from(bucket)
       .createSignedUrl(storagePath, 60 * 60);
 
     if (error || !data?.signedUrl) {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
@@ -30,7 +31,16 @@ describe('ProductsService', () => {
     apparelSize: null,
     createdAt: new Date(),
     updatedAt: new Date(),
-    images: [],
+    images: [
+      {
+        id: 'image-id',
+        productId: 'product-id',
+        fileName: 'produto.jpg',
+        fileUrl: 'https://storage.test/produto.jpg',
+        storagePath: 'tenant-id/branch-id/products/product-id/image.jpg',
+        createdAt: new Date(),
+      },
+    ],
   };
 
   const dto = {
@@ -82,8 +92,16 @@ describe('ProductsService', () => {
       },
       product: {
         create: jest.fn().mockResolvedValue(product),
+        findMany: jest.fn().mockResolvedValue([product]),
         findFirst: jest.fn().mockResolvedValue({ id: 'product-id' }),
         delete: jest.fn().mockResolvedValue(product),
+      },
+      productImage: {
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn().mockResolvedValue(product.images[0]),
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findFirst: jest.fn().mockResolvedValue(product.images[0]),
+        delete: jest.fn().mockResolvedValue(product.images[0]),
       },
       devWorkspace: {
         findFirst: jest.fn().mockResolvedValue(null),
@@ -207,5 +225,64 @@ describe('ProductsService', () => {
         }),
       }),
     );
+  });
+
+  it('faz upload real de imagem do produto no storage e salva ProductImage', async () => {
+    const { prisma } = makeService(SystemMode.padrao);
+    const storage = {
+      uploadProductImage: jest.fn().mockResolvedValue({
+        fileName: 'produto.jpg',
+        fileUrl: 'https://storage.test/produto.jpg',
+        storagePath: 'tenant-id/branch-id/products/product-id/image.jpg',
+      }),
+      removeProductImage: jest.fn(),
+      getProductImageUrl: jest.fn(),
+    };
+    const service = new ProductsService(prisma, undefined, undefined, storage as any);
+
+    const result = await service.uploadImage(user, 'product-id', {
+      originalname: 'produto.jpg',
+      mimetype: 'image/jpeg',
+      size: 10,
+      buffer: Buffer.from('ok'),
+    });
+
+    expect(result.image).toMatchObject({ fileUrl: 'https://storage.test/produto.jpg' });
+    expect(storage.uploadProductImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-id',
+        branchId: 'branch-id',
+        productId: 'product-id',
+      }),
+    );
+    expect(prisma.productImage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        productId: 'product-id',
+        fileUrl: 'https://storage.test/produto.jpg',
+        storagePath: 'tenant-id/branch-id/products/product-id/image.jpg',
+      }),
+    });
+  });
+
+  it('rejeita metadado de imagem sem URL ou storagePath', async () => {
+    const { service } = makeService(SystemMode.padrao);
+
+    await expect(
+      service.addImages(user, 'product-id', {
+        images: [{ fileName: 'fantasma.jpg' }],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('retorna imagens com URL renderizavel em GET /api/products', async () => {
+    const { service } = makeService(SystemMode.padrao);
+
+    const result = await service.findAll(user, {});
+
+    expect((result.products[0] as any).imageMetadata[0]).toMatchObject({
+      fileName: 'produto.jpg',
+      fileUrl: 'https://storage.test/produto.jpg',
+      storagePath: 'tenant-id/branch-id/products/product-id/image.jpg',
+    });
   });
 });

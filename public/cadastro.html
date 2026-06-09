@@ -994,13 +994,15 @@
 
     async function apiFetch(url, options = {}) {
       const branch = lerSelectedBranch() || selectedBranch;
+      const isMultipart = options.body instanceof FormData;
+      const headers = {
+        ...(isMultipart ? {} : { "Content-Type": "application/json" }),
+        ...(branch?.id ? { "x-nextstock-branch-id": branch.id } : {}),
+        ...(options.headers || {})
+      };
       const response = await fetch(`/api${url}`, {
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          ...(branch?.id ? { "x-nextstock-branch-id": branch.id } : {}),
-          ...(options.headers || {})
-        },
+        headers,
         ...options
       });
 
@@ -1054,22 +1056,33 @@
       );
     }
 
-    async function enviarMetadadosImagens(productId, somenteNovas = false) {
-      const imagensParaEnviar = imagensSelecionadas
-        .filter((imagem) => !somenteNovas || (!imagem.id && imagem.arquivo))
-        .slice(0, 3)
-        .map((imagem) => ({
-          fileName: imagem.nome,
-          storagePath: imagem.storagePath || null,
-          fileUrl: imagem.fileUrl || null
-        }));
+    async function enviarImagensProduto(productId, somenteNovas = false) {
+      const imagensParaUpload = imagensSelecionadas
+        .filter((imagem) => imagem.arquivo && (!somenteNovas || !imagem.id))
+        .slice(0, 3);
 
-      if (imagensParaEnviar.length === 0) return;
+      if (imagensParaUpload.length === 0) return { total: 0, falhas: [] };
 
-      await apiFetch(`/products/${productId}/images`, {
-        method: "POST",
-        body: JSON.stringify({ images: imagensParaEnviar })
-      });
+      const falhas = [];
+
+      for (const imagem of imagensParaUpload) {
+        const formData = new FormData();
+        formData.append("file", imagem.arquivo);
+
+        try {
+          await apiFetch(`/products/${productId}/images/upload`, {
+            method: "POST",
+            body: formData
+          });
+        } catch (error) {
+          falhas.push({
+            nome: imagem.nome,
+            mensagem: error.message || "Falha no upload."
+          });
+        }
+      }
+
+      return { total: imagensParaUpload.length, falhas };
     }
 
     function obterProdutosFiltrados() {
@@ -1144,7 +1157,11 @@
         });
 
         if (imagensSelecionadas.length > 0) {
-          await enviarMetadadosImagens(data.product.id);
+          const resultadoUpload = await enviarImagensProduto(data.product.id);
+
+          if (resultadoUpload.falhas.length > 0) {
+            alert(`Produto cadastrado, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`);
+          }
         }
 
         alert("Produto cadastrado com sucesso.");
@@ -1176,7 +1193,11 @@
           body: JSON.stringify(montarPayloadProduto(dados))
         });
 
-        await enviarMetadadosImagens(produtoEmEdicaoId, true);
+        const resultadoUpload = await enviarImagensProduto(produtoEmEdicaoId, true);
+
+        if (resultadoUpload.falhas.length > 0) {
+          alert(`Produto atualizado, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`);
+        }
 
         alert("Produto atualizado com sucesso.");
       } catch (error) {

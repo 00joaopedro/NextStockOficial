@@ -21,6 +21,7 @@ describe('ProductsController guards', () => {
     expect(guardsFor('update')).toContain(JwtAuthGuard);
     expect(guardsFor('remove')).toContain(JwtAuthGuard);
     expect(guardsFor('addImages')).toContain(JwtAuthGuard);
+    expect(guardsFor('uploadImage')).toContain(JwtAuthGuard);
     expect(guardsFor('removeImage')).toContain(JwtAuthGuard);
   });
 });
