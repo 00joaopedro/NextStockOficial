@@ -11,7 +11,6 @@ import {
   OrderStatus,
   Prisma,
   Role,
-  SystemType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
@@ -392,7 +391,6 @@ export class OrdersService {
       selectedBranchId,
       requireBranch: true,
       writable,
-      expectedSystemType: SystemType.padrao,
       allowedRoles: writable ? MUTATION_ROLES : READ_ROLES,
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });

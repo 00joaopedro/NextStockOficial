@@ -11,7 +11,7 @@ describe('OrdersService', () => {
     allowedSystemTypes: [SystemType.padrao],
   } as any;
 
-  const context = {
+  const context: any = {
     userId: 'user-id',
     tenantId: 'tenant-id',
     branchId: 'branch-id',
@@ -60,7 +60,7 @@ describe('OrdersService', () => {
     ],
   };
 
-  function makeService() {
+  function makeService(contextOverride: Record<string, unknown> = {}) {
     const tx: any = {
       product: {
         findMany: jest.fn().mockResolvedValue([
@@ -97,14 +97,14 @@ describe('OrdersService', () => {
       },
     };
     const tenantContext = {
-      resolve: jest.fn().mockResolvedValue(context),
+      resolve: jest.fn().mockResolvedValue({ ...context, ...contextOverride }),
     } as any;
 
     return { service: new OrdersService(prisma, tenantContext), prisma, tx, tenantContext };
   }
 
   it('cria pedido real e baixa estoque na mesma transacao', async () => {
-    const { service, tx } = makeService();
+    const { service, tx, tenantContext } = makeService();
 
     await expect(
       service.create(user, {
@@ -137,6 +137,69 @@ describe('OrdersService', () => {
           quantity: { gte: 2 },
         }),
         data: { quantity: { increment: -2 } },
+      }),
+    );
+    expect(tenantContext.resolve).toHaveBeenCalledWith(
+      user,
+      expect.not.objectContaining({ expectedSystemType: expect.anything() }),
+    );
+  });
+
+  it('cria pedido em tenant Pet Shop sem bloquear por systemType', async () => {
+    const { service, tx, tenantContext } = makeService({
+      systemType: SystemType.petshop,
+      mode: SystemMode.petshop,
+    });
+
+    await expect(
+      service.create(
+        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {
+          customerName: 'Cliente Pet',
+          paymentMethod: OrderPaymentMethod.pix,
+          items: [{ productId: 'product-id', quantity: 1 }],
+        },
+      ),
+    ).resolves.toMatchObject({
+      ok: true,
+      order: { id: 'order-id' },
+    });
+
+    expect(tenantContext.resolve).toHaveBeenCalledWith(
+      expect.objectContaining({ systemType: SystemType.petshop }),
+      expect.not.objectContaining({ expectedSystemType: expect.anything() }),
+    );
+    expect(tx.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+        }),
+      }),
+    );
+  });
+
+  it('lista pedidos em tenant Pet Shop mantendo escopo por tenant e branch', async () => {
+    const { service, prisma } = makeService({
+      systemType: SystemType.petshop,
+      mode: SystemMode.petshop,
+    });
+
+    await expect(
+      service.findAll(
+        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {},
+      ),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: 'order-id' })],
+    });
+
+    expect(prisma.order.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+        }),
       }),
     );
   });

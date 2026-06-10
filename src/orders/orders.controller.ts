@@ -13,7 +13,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { Role, SystemType } from '@prisma/client';
+import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -30,7 +30,7 @@ import { OrdersService } from './orders.service';
 
 @Controller('orders')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
-@RequireTenantContext({ requireBranch: true, expectedSystemType: SystemType.padrao })
+@RequireTenantContext({ requireBranch: true })
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
