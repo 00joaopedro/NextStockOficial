@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -9,7 +10,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Role, SystemMode, SystemType } from '@prisma/client';
+import { EmployeeStatus, Role, SystemMode, SystemType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -370,6 +371,7 @@ export class AuthService {
       email,
       metadata: data.user.user_metadata,
     });
+    this.assertEmployeeCanAuthenticate(profile);
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
     await this.usageService?.record({
       userId: user.id,
@@ -404,6 +406,7 @@ export class AuthService {
       profileId: user.id,
       email: user.email ?? undefined,
     });
+    this.assertEmployeeCanAuthenticate(profile);
     const formattedUser = await this.withDevWorkspaceBranches(
       this.formatProfileWithMembership(profile),
     );
@@ -666,6 +669,13 @@ export class AuthService {
         tenantId: true,
         primaryTenantId: true,
         createdAt: true,
+        employee: {
+          select: {
+            status: true,
+            dismissalDate: true,
+            deletedAt: true,
+          },
+        },
         memberships: {
           where: input.branchSlug
             ? {
@@ -731,6 +741,37 @@ export class AuthService {
       ) ??
       memberships[0]
     );
+  }
+
+  private assertEmployeeCanAuthenticate(profile: {
+    id: string;
+    employee?: {
+      status: EmployeeStatus;
+      dismissalDate: Date | null;
+      deletedAt: Date | null;
+    } | null;
+  }) {
+    const employee = profile.employee;
+
+    if (!employee) {
+      return;
+    }
+
+    const dismissalReached =
+      employee.dismissalDate !== null &&
+      employee.dismissalDate.getTime() <= Date.now();
+
+    if (
+      employee.deletedAt ||
+      employee.status === EmployeeStatus.inactive ||
+      employee.status === EmployeeStatus.dismissed ||
+      dismissalReached
+    ) {
+      this.logger.warn(
+        `EMPLOYEE_ACCESS_BLOCKED profile=${profile.id.slice(0, 8)} status=${employee.status}`,
+      );
+      throw new ForbiddenException('Funcionario inativo ou demitido.');
+    }
   }
 
   private formatProfileWithMembership(

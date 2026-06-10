@@ -2,7 +2,7 @@ jest.mock('jwks-rsa', () => ({
   passportJwtSecret: jest.fn(() => jest.fn()),
 }));
 
-import { Role, SystemMode, SystemType } from '@prisma/client';
+import { EmployeeStatus, Role, SystemMode, SystemType } from '@prisma/client';
 import { cookieExtractor, decodeJwtHeader, JwtStrategy } from './jwt.strategy';
 
 describe('JwtStrategy', () => {
@@ -252,5 +252,26 @@ describe('JwtStrategy', () => {
       strategy.validate({ sub: 'auth-user-id', email: profile.email }),
     ).rejects.toThrow('PROFILE_BINDING_MISMATCH');
     expect(prisma.userProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('rejeita funcionario inativo mesmo com JWT valido', async () => {
+    const prisma = {
+      userProfile: {
+        findFirst: jest.fn().mockResolvedValue({
+          ...profile,
+          employee: {
+            status: EmployeeStatus.inactive,
+            dismissalDate: null,
+            deletedAt: null,
+          },
+        }),
+        update: jest.fn(),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
+
+    await expect(
+      strategy.validate({ sub: 'auth-user-id', email: profile.email }),
+    ).rejects.toThrow('EMPLOYEE_INACTIVE');
   });
 });

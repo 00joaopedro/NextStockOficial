@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import * as jwksRsa from 'jwks-rsa';
 import type { Request } from 'express';
-import { Prisma, Role } from '@prisma/client';
+import { EmployeeStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
 import {
@@ -204,6 +204,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         isSuperAdmin: true,
         tenantId: true,
         primaryTenantId: true,
+        employee: {
+          select: {
+            status: true,
+            dismissalDate: true,
+            deletedAt: true,
+          },
+        },
         memberships: {
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
           select: {
@@ -283,6 +290,23 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException(
         'PROFILE_BINDING_MISMATCH: Profile identity could not be verified.',
       );
+    }
+
+    const dismissalReached =
+      profile.employee?.dismissalDate !== null &&
+      profile.employee?.dismissalDate !== undefined &&
+      profile.employee.dismissalDate.getTime() <= Date.now();
+
+    if (
+      profile.employee?.deletedAt ||
+      profile.employee?.status === EmployeeStatus.inactive ||
+      profile.employee?.status === EmployeeStatus.dismissed ||
+      dismissalReached
+    ) {
+      this.logger.warn(
+        `EMPLOYEE_ACCESS_BLOCKED profile=${profile.id.slice(0, 8)} status=${profile.employee?.status}`,
+      );
+      throw new UnauthorizedException('EMPLOYEE_INACTIVE: Funcionario inativo ou demitido.');
     }
 
     const hasFullAccess = isSuperAdmin(profile);

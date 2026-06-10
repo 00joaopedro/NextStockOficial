@@ -3,115 +3,52 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cadastro de Funcionários</title>
+  <title>Cadastro de Funcionarios</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
       --cyan: #00cfcf;
-      --sidebar-width: 16vw;
-      --page-padding: 10px;
-      --shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
       --panel-bg: #f3f3f3;
       --text-dark: #0d1b2a;
+      --shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
     }
 
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-    }
+    html, body { width: 100%; min-height: 100%; }
 
     body {
       font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #00a7ad, #0d1b2a);
-      height: 100vh;
-      overflow: hidden;
+      color: var(--text-dark);
     }
 
-    /* ===== SIDEBAR ===== */
-    .sidebar {
-      width: 16vw;
-      background: #071b31;
-      height: 100%;
-      position: fixed;
-      top: 0;
-      left: 0;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      padding-top: 18px;
-      overflow-y: auto;
-    }
-
-    .sidebar::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .sidebar::-webkit-scrollbar-thumb {
-      background: #00cfcf;
-      border-radius: 5px;
-    }
-
-    .sidebar h2 {
-      text-align: center;
-      margin-bottom: 20px;
-      color: var(--cyan);
-      font-size: 1.5rem;
-    }
-
-    .menu li {
-      padding: 13.5px 18px;
-      cursor: pointer;
-      transition: background 0.3s;
-      font-size: clamp(16px, 2vw, 22px);
-    }
-
-    .menu li:hover,
-    .menu li.active {
-      background: #19c7cd;
-      color: #0d1b2a;
-    }
-
-    .menu a {
-      text-decoration: none;
-      color: inherit;
-      display: block;
-    }
-
-    /* ===== MAIN ===== */
     .page-content {
-      height: 100vh;
+      min-height: 100vh;
       display: flex;
       gap: 16px;
-      padding: var(--page-padding);
+      padding: 10px;
       align-items: stretch;
       justify-content: center;
-      overflow: hidden;
       margin-left: 12%;
     }
 
     .container,
     .employee-list-panel {
       background: var(--panel-bg);
-      border-radius: 10px;
+      border-radius: 8px;
       box-shadow: var(--shadow);
       overflow: hidden;
     }
 
     .container {
-      width: min(540px, 100%);
+      width: min(560px, 100%);
       display: flex;
       flex-direction: column;
       padding: 22px 24px;
     }
 
     .employee-list-panel {
-      width: min(310px, 100%);
+      width: min(340px, 100%);
       display: flex;
       flex-direction: column;
       padding: 18px 18px 16px;
@@ -120,24 +57,16 @@
     .header,
     .list-header {
       background: #434343;
-      color: white;
+      color: #fff;
       padding: 12px;
       font-weight: bold;
       text-align: center;
       border-radius: 6px;
       margin-bottom: 18px;
       font-size: 0.95rem;
-      flex-shrink: 0;
     }
 
-    form {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      flex: 1;
-      min-height: 0;
-      overflow: hidden;
-    }
+    form { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 
     .form-scroll {
       display: flex;
@@ -148,21 +77,10 @@
       padding-right: 4px;
     }
 
-    .form-scroll::-webkit-scrollbar,
-    .list-scroll::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .form-scroll::-webkit-scrollbar-thumb,
-    .list-scroll::-webkit-scrollbar-thumb {
-      background: #b8c6d3;
-      border-radius: 8px;
-    }
-
     .section-title {
       font-weight: bold;
-      color: #00796B;
-      border-bottom: 2px solid #00796B;
+      color: #00796b;
+      border-bottom: 2px solid #00796b;
       margin-top: 2px;
       padding-bottom: 4px;
       font-size: 0.95rem;
@@ -176,16 +94,14 @@
       color: #111;
     }
 
-    input,
-    select {
+    input, select {
       width: 100%;
       height: 34px;
       padding: 6px 10px;
       border: 1px solid #bbb;
       border-radius: 4px;
-      box-sizing: border-box;
       font-size: 0.9rem;
-      background: #f2f2f2;
+      background: #f8fafc;
     }
 
     .helper-text {
@@ -201,44 +117,33 @@
     }
 
     .actions {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
       margin-top: 10px;
-      flex-shrink: 0;
     }
 
     .btn {
-      flex: 1;
-      height: 36px;
+      min-height: 36px;
       color: #fff;
       border: none;
       border-radius: 5px;
       cursor: pointer;
       font-weight: bold;
       text-align: center;
-      transition: opacity 0.3s ease, transform 0.15s ease;
+      transition: opacity 0.2s ease, transform 0.15s ease;
       font-size: 0.9rem;
+      padding: 8px 10px;
     }
 
-    .btn:hover {
-      opacity: 0.9;
-      transform: scale(1.03);
-    }
+    .btn:hover { opacity: 0.92; transform: scale(1.02); }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn-cadastrar { background: #4caf50; }
+    .btn-atualizar { background: #607d8b; }
+    .btn-deletar { background: #f44336; }
+    .btn-limpar { background: #2196f3; }
 
-    .btn-cadastrar { background: #4CAF50; }
-    .btn-atualizar { background: #607D8B; }
-    .btn-deletar   { background: #f44336; }
-    .btn-limpar    { background: #2196F3; }
-
-    .search-box {
-      margin-bottom: 12px;
-      flex-shrink: 0;
-    }
-
-    .search-box input {
-      background: #f5f5f5;
-      height: 36px;
-    }
+    .search-box { margin-bottom: 12px; flex-shrink: 0; }
 
     .list-scroll {
       display: flex;
@@ -263,20 +168,14 @@
       padding: 10px 12px;
       cursor: pointer;
       transition: 0.2s;
-      font-weight: bold;
       font-size: 0.92rem;
     }
 
-    .employee-list li:hover {
-      background: #dff7f7;
-      border-color: #00b1b1;
-    }
+    .employee-list li:hover { background: #dff7f7; border-color: #00b1b1; }
+    .employee-list li.active { background: #00cfcf; color: #0d1b2a; border-color: #00cfcf; }
 
-    .employee-list li.active {
-      background: #00cfcf;
-      color: #0d1b2a;
-      border-color: #00cfcf;
-    }
+    .employee-name { font-weight: bold; display: block; }
+    .employee-meta { color: #53616f; display: block; font-size: 0.8rem; margin-top: 3px; }
 
     .empty-message {
       color: #666;
@@ -286,79 +185,33 @@
       padding: 8px 0;
     }
 
+    .status-message {
+      min-height: 22px;
+      font-size: 0.86rem;
+      color: #334155;
+      margin-top: 8px;
+    }
+
+    .status-message.error { color: #b91c1c; }
+    .status-message.success { color: #166534; }
+
     @media (max-width: 1100px) {
-      html,
-      body {
-        height: auto;
-      }
-
-      body {
-        overflow: auto;
-      }
-
       .page-content {
         flex-direction: column;
         align-items: center;
-        height: auto;
-        overflow: visible;
+        margin-left: 0;
       }
 
       .container,
       .employee-list-panel {
-        width: min(90%, 760px);
-      }
-
-      .container,
-      .employee-list-panel,
-      .form-scroll,
-      .list-scroll {
-        overflow: visible;
+        width: min(92%, 760px);
       }
     }
 
-    @media (max-width: 900px) {
-      body {
-        padding-left: 0;
-      }
-
-      .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        padding: 10px;
-      }
-
-      .sidebar h2 {
-        order: -1;
-        text-align: center;
-        margin-bottom: 10px;
-      }
-
-      .menu {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px;
-      }
-
-      .menu li {
-        padding: 10px 12px;
-        font-size: 1rem;
-      }
-
-      .page-content {
-        padding: 14px;
-      }
-
-      .two-columns {
-        grid-template-columns: 1fr;
-      }
-
+    @media (max-width: 680px) {
+      .two-columns,
       .actions {
-        flex-direction: column;
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -366,40 +219,41 @@
 <body>
   <div id="sidebar-container"></div>
 
-  <div class="page-content">
-    <div class="container">
-      <div class="header">Cadastro de Funcionários</div>
+  <main class="page-content">
+    <section class="container" aria-labelledby="employee-title">
+      <div class="header" id="employee-title">Cadastro de Funcionarios</div>
 
-      <form id="employeeForm">
+      <form id="employeeForm" autocomplete="off">
         <div class="form-scroll">
-          <div class="section-title">Dados do Funcionário</div>
+          <div class="section-title">Dados do Funcionario</div>
 
           <div class="form-group">
             <label for="nomeCompleto">Nome Completo</label>
-            <input type="text" id="nomeCompleto" placeholder="Ex: João Carlos da Silva" required>
+            <input type="text" id="nomeCompleto" placeholder="Ex: Joao Carlos da Silva" required>
           </div>
 
           <div class="two-columns">
             <div class="form-group">
-              <label for="nomeAcesso">Nome + Sobrenome (acesso)</label>
-              <input type="text" id="nomeAcesso" placeholder="Ex: joao.silva" required>
-              <div class="helper-text">Usuário usado para login/acesso.</div>
+              <label for="email">E-mail de Acesso</label>
+              <input type="email" id="email" placeholder="funcionario@email.com" required>
+              <div class="helper-text">E-mail usado para login.</div>
             </div>
 
             <div class="form-group">
               <label for="senhaAcesso">Senha de Acesso</label>
-              <input type="password" id="senhaAcesso" placeholder="Digite a senha" required>
+              <input type="password" id="senhaAcesso" placeholder="Digite a senha">
+              <div class="helper-text">Obrigatoria apenas no cadastro ou reset.</div>
             </div>
           </div>
 
           <div class="two-columns">
             <div class="form-group">
-              <label for="role">Role (Regra)</label>
+              <label for="role">Cargo de Acesso</label>
               <select id="role" required>
                 <option value="">Selecione</option>
                 <option value="admin">Admin</option>
                 <option value="gerente">Gerente</option>
-                <option value="funcionario">Funcionário</option>
+                <option value="funcionario">Funcionario</option>
                 <option value="estoque">Estoque</option>
                 <option value="caixa">Caixa</option>
               </select>
@@ -414,202 +268,59 @@
           <div class="two-columns">
             <div class="form-group">
               <label for="nascimento">Nascimento</label>
-              <input type="date" id="nascimento" required>
+              <input type="date" id="nascimento">
             </div>
 
             <div class="form-group">
-              <label for="admissao">Data de Admissão</label>
-              <input type="date" id="admissao" required>
+              <label for="admissao">Data de Admissao</label>
+              <input type="date" id="admissao">
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="demissao">Data de Demissão (opcional)</label>
-            <input type="date" id="demissao">
+          <div class="two-columns">
+            <div class="form-group">
+              <label for="demissao">Data de Demissao</label>
+              <input type="date" id="demissao">
+            </div>
+
+            <div class="form-group">
+              <label for="statusFuncionario">Status</label>
+              <select id="statusFuncionario">
+                <option value="active">Ativo</option>
+                <option value="inactive">Inativo</option>
+                <option value="dismissed">Demitido</option>
+              </select>
+            </div>
           </div>
         </div>
 
         <div class="actions">
           <button type="button" class="btn btn-cadastrar" onclick="cadastrarFuncionario()">Cadastrar</button>
           <button type="button" class="btn btn-atualizar" onclick="atualizarFuncionario()">Atualizar</button>
-          <button type="button" class="btn btn-deletar" onclick="deletarFuncionario()">Deletar</button>
+          <button type="button" class="btn btn-deletar" onclick="deletarFuncionario()">Desativar</button>
+          <button type="button" class="btn btn-limpar" onclick="resetarSenhaFuncionario()">Resetar Senha</button>
           <button type="button" class="btn btn-limpar" onclick="limparFormulario()">Limpar</button>
         </div>
-      </form>
-    </div>
 
-    <div class="employee-list-panel">
-      <div class="list-header">Funcionários</div>
+        <p class="status-message" id="statusMessage" role="status"></p>
+      </form>
+    </section>
+
+    <aside class="employee-list-panel" aria-labelledby="employee-list-title">
+      <div class="list-header" id="employee-list-title">Funcionarios</div>
 
       <div class="search-box">
-        <input
-          type="text"
-          id="searchEmployeeInput"
-          placeholder="Pesquisar por nome"
-        >
+        <input type="text" id="searchEmployeeInput" placeholder="Pesquisar por nome ou e-mail">
       </div>
 
       <div class="list-scroll">
         <ul class="employee-list" id="employeeList"></ul>
-        <p class="empty-message" id="emptyMessage">Nenhum funcionário cadastrado.</p>
+        <p class="empty-message" id="emptyMessage">Carregando funcionarios...</p>
       </div>
-    </div>
-  </div>
-  <script>
-    const funcionarios = [];
-    let funcionarioSelecionado = null;
+    </aside>
+  </main>
 
-    const nomeCompleto = document.getElementById("nomeCompleto");
-    const nomeAcesso = document.getElementById("nomeAcesso");
-    const senhaAcesso = document.getElementById("senhaAcesso");
-    const role = document.getElementById("role");
-    const cargo = document.getElementById("cargo");
-    const nascimento = document.getElementById("nascimento");
-    const admissao = document.getElementById("admissao");
-    const demissao = document.getElementById("demissao");
-    const employeeList = document.getElementById("employeeList");
-    const emptyMessage = document.getElementById("emptyMessage");
-    const searchEmployeeInput = document.getElementById("searchEmployeeInput");
-
-    function obterDadosFormulario() {
-      return {
-        nomeCompleto: nomeCompleto.value.trim(),
-        nomeAcesso: nomeAcesso.value.trim(),
-        senhaAcesso: senhaAcesso.value.trim(),
-        role: role.value,
-        cargo: cargo.value.trim(),
-        nascimento: nascimento.value,
-        admissao: admissao.value,
-        demissao: demissao.value
-      };
-    }
-
-    function validarCampos(dados) {
-      if (
-        !dados.nomeCompleto ||
-        !dados.nomeAcesso ||
-        !dados.senhaAcesso ||
-        !dados.role ||
-        !dados.cargo ||
-        !dados.nascimento ||
-        !dados.admissao
-      ) {
-        alert("Preencha todos os campos obrigatórios.");
-        return false;
-      }
-      return true;
-    }
-
-    function obterFuncionariosFiltrados() {
-      const termo = searchEmployeeInput.value.trim().toLowerCase();
-
-      if (!termo) {
-        return funcionarios.map((funcionario, index) => ({ funcionario, index }));
-      }
-
-      return funcionarios
-        .map((funcionario, index) => ({ funcionario, index }))
-        .filter(({ funcionario }) =>
-          funcionario.nomeCompleto.toLowerCase().includes(termo)
-        );
-    }
-
-    function renderizarLista() {
-      employeeList.innerHTML = "";
-      const funcionariosFiltrados = obterFuncionariosFiltrados();
-
-      if (funcionariosFiltrados.length === 0) {
-        emptyMessage.style.display = "block";
-        emptyMessage.textContent = funcionarios.length === 0
-          ? "Nenhum funcionário cadastrado."
-          : "Nenhum funcionário encontrado.";
-        return;
-      }
-
-      emptyMessage.style.display = "none";
-
-      funcionariosFiltrados.forEach(({ funcionario, index }) => {
-        const li = document.createElement("li");
-        li.textContent = funcionario.nomeCompleto;
-        li.onclick = () => selecionarFuncionario(index);
-
-        if (funcionarioSelecionado === index) {
-          li.classList.add("active");
-        }
-
-        employeeList.appendChild(li);
-      });
-    }
-
-    function selecionarFuncionario(index) {
-      const funcionario = funcionarios[index];
-      funcionarioSelecionado = index;
-
-      nomeCompleto.value = funcionario.nomeCompleto;
-      nomeAcesso.value = funcionario.nomeAcesso;
-      senhaAcesso.value = funcionario.senhaAcesso;
-      role.value = funcionario.role;
-      cargo.value = funcionario.cargo;
-      nascimento.value = funcionario.nascimento;
-      admissao.value = funcionario.admissao;
-      demissao.value = funcionario.demissao || "";
-
-      renderizarLista();
-    }
-
-    function limparFormulario() {
-      document.getElementById("employeeForm").reset();
-      funcionarioSelecionado = null;
-      renderizarLista();
-    }
-
-    function cadastrarFuncionario() {
-      const dados = obterDadosFormulario();
-
-      if (!validarCampos(dados)) return;
-
-      funcionarios.push(dados);
-      limparFormulario();
-      renderizarLista();
-      alert("Funcionário cadastrado com sucesso.");
-    }
-
-    function atualizarFuncionario() {
-      if (funcionarioSelecionado === null) {
-        alert("Selecione um funcionário na lista para atualizar.");
-        return;
-      }
-
-      const dados = obterDadosFormulario();
-
-      if (!validarCampos(dados)) return;
-
-      funcionarios[funcionarioSelecionado] = dados;
-      renderizarLista();
-      alert("Funcionário atualizado com sucesso.");
-    }
-
-    function deletarFuncionario() {
-      if (funcionarioSelecionado === null) {
-        alert("Selecione um funcionário na lista para deletar.");
-        return;
-      }
-
-      const confirmar = confirm("Deseja realmente deletar este funcionário?");
-      if (!confirmar) return;
-
-      funcionarios.splice(funcionarioSelecionado, 1);
-      funcionarioSelecionado = null;
-      limparFormulario();
-      renderizarLista();
-      alert("Funcionário deletado com sucesso.");
-    }
-
-    searchEmployeeInput.addEventListener("input", renderizarLista);
-
-    renderizarLista();
-  </script>
-
+  <script src="./Js/funcionario.js" defer></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>
