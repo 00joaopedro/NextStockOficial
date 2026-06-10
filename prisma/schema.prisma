@@ -28,6 +28,8 @@ model UserProfile {
   createdAgendaPets    AgendaPet[]    @relation("AgendaPetCreatedBy")
   updatedAgendaPets    AgendaPet[]    @relation("AgendaPetUpdatedBy")
   canceledAgendaPets   AgendaPet[]    @relation("AgendaPetCanceledBy")
+  createdOrders        Order[]        @relation("OrderCreatedBy")
+  updatedOrders        Order[]        @relation("OrderUpdatedBy")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
@@ -75,6 +77,7 @@ model Tenant {
   pets            Pet[]
   petPhotos       PetPhoto[]
   products        Product[]
+  orders          Order[]
   paymentMachines PaymentMachine[]
   devWorkspaces    DevWorkspace[]
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -133,6 +136,7 @@ model Branch {
   petPhotos PetPhoto[]
   agendaPets AgendaPet[]
   products Product[]
+  orders   Order[]
   paymentMachines PaymentMachine[]
   devWorkspaces DevWorkspace[]
   createdAt DateTime       @default(now()) @map("created_at")
@@ -315,6 +319,7 @@ model Product {
   clothingSize     String?        @map("clothing_size")
   apparelSize      String?        @map("apparel_size")
   images           ProductImage[]
+  orderItems       OrderItem[]
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
@@ -323,6 +328,61 @@ model Product {
   @@index([tenantId, branchId])
   @@index([tenantId, branchId, category])
   @@map("products")
+}
+
+model Order {
+  id                 String             @id @default(uuid()) @db.Uuid
+  tenantId           String             @map("tenant_id") @db.Uuid
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId           String             @map("branch_id") @db.Uuid
+  branch             Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customerName       String             @map("customer_name")
+  customerDocument   String?            @map("customer_document")
+  customerPhone      String?            @map("customer_phone")
+  customerEmail      String?            @map("customer_email")
+  paymentMethod      OrderPaymentMethod @default(other) @map("payment_method")
+  status             OrderStatus        @default(pending)
+  subtotalCents      Int                @map("subtotal_cents")
+  discountCents      Int                @default(0) @map("discount_cents")
+  totalCents         Int                @map("total_cents")
+  notes              String?
+  deliveredAt        DateTime?          @map("delivered_at")
+  canceledAt         DateTime?          @map("canceled_at")
+  cancellationReason String?            @map("cancellation_reason")
+  createdById        String?            @map("created_by_id") @db.Uuid
+  updatedById        String?            @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?          @map("deleted_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  createdBy UserProfile? @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy UserProfile? @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items     OrderItem[]
+
+  @@index([tenantId, branchId, createdAt])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, customerName])
+  @@index([deletedAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  orderId             String   @map("order_id") @db.Uuid
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId           String   @map("product_id") @db.Uuid
+  product             Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productNameSnapshot String   @map("product_name_snapshot")
+  skuSnapshot         String?  @map("sku_snapshot")
+  barcodeSnapshot     String?  @map("barcode_snapshot")
+  quantity            Int
+  unitPriceCents      Int      @map("unit_price_cents")
+  totalPriceCents     Int      @map("total_price_cents")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
 }
 
 model ProductImage {
@@ -411,6 +471,23 @@ enum AgendaPetStatus {
   completed
   canceled
   no_show
+}
+
+enum OrderStatus {
+  pending
+  paid
+  preparing
+  delivered
+  canceled
+  refunded
+}
+
+enum OrderPaymentMethod {
+  pix
+  credit_card
+  debit_card
+  cash
+  other
 }
 
 enum MachineStatus {

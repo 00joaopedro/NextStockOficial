@@ -1162,8 +1162,71 @@
       alert("Frontend pronto: aqui futuramente será integrada a API/rotina de envio para a SEFAZ e depois o redirecionamento para a página de notas.");
     });
 
+    function getSelectedBranch() {
+      try {
+        return JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+      } catch {
+        return null;
+      }
+    }
+
+    function buildApiHeaders() {
+      const headers = { "Content-Type": "application/json" };
+      const branch = getSelectedBranch();
+      if (branch?.id) headers["x-nextstock-branch-id"] = branch.id;
+
+      try {
+        const supportContext = JSON.parse(sessionStorage.getItem("nextstockDevSupportContext") || "null");
+        if (supportContext?.branchId && supportContext.branchId === branch?.id) {
+          headers["x-nextstock-dev-context"] = "support";
+        }
+      } catch {
+        // Backend validates the context.
+      }
+
+      return headers;
+    }
+
+    async function loadOrderDraft(orderId) {
+      const response = await fetch(`/api/orders/${encodeURIComponent(orderId)}/nfe-draft`, {
+        credentials: "include",
+        headers: buildApiHeaders()
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || "Nao foi possivel carregar o pedido para NF-e.");
+      }
+
+      fillClientData({
+        nome: data.customer?.name,
+        doc: data.customer?.document,
+        email: data.customer?.email,
+        telefone: data.customer?.phone,
+        pais: "Brasil"
+      });
+      itemsList.innerHTML = "";
+      (data.items || []).forEach((item) => createItemCard({
+        descricao: item.descricao,
+        codigo: item.codigo,
+        cfop: "5102",
+        unidade: "UN",
+        quantidade: item.quantidade,
+        unitario: item.unitario,
+        desconto: "0"
+      }));
+      updateTotals();
+    }
+
     document.getElementById("dataEmissao").value = new Date().toISOString().slice(0,16);
-    createItemCard({
+    const orderId = new URLSearchParams(window.location.search).get("orderId");
+    if (orderId) {
+      loadOrderDraft(orderId).catch((error) => {
+        alert(error.message || "Nao foi possivel carregar dados reais do pedido.");
+        createItemCard();
+      });
+    } else if (window.isNextStockDemoMode?.()) {
+      createItemCard({
       descricao: "Ração Premium 10kg",
       codigo: "RAC001",
       ncm: "23091000",
@@ -1177,6 +1240,9 @@
       pis: "1.65",
       cofins: "7.60"
     });
+    } else {
+      createItemCard();
+    }
   </script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>

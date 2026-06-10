@@ -556,6 +556,7 @@
 
   <script src="./dist/session-state.js"></script>
   <script>
+    if (window.isNextStockDemoMode?.()) {
     function getOperationalStorageKey(baseKey) {
       let branch = null;
       let user = null;
@@ -1013,7 +1014,9 @@
     });
 
     renderOrders();
+    }
   </script>
+  <script src="./Js/pedido.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>

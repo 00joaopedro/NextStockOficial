@@ -20,6 +20,7 @@ import { DevModule } from './dev/dev.module';
 import { PetClientsModule } from './pet-clients/pet-clients.module';
 import { PetsModule } from './pets/pets.module';
 import { StorageModule } from './storage/storage.module';
+import { OrdersModule } from './orders/orders.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -46,6 +47,7 @@ const publicPath = join(__dirname, '..', 'public');
     PetClientsModule,
     PetsModule,
     DevModule,
+    OrdersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

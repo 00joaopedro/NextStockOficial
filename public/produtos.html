@@ -1524,6 +1524,11 @@
         return;
       }
 
+      if (shouldUseProductionBackend()) {
+        clientOrders = [];
+        return;
+      }
+
       try {
         const saved = localStorage.getItem(getClientOrdersKey());
         clientOrders = saved ? JSON.parse(saved) : [];
@@ -1534,7 +1539,90 @@
 
     function saveClientOrders() {
       if (!clientEmail) return;
+      if (shouldUseProductionBackend()) return;
       localStorage.setItem(getClientOrdersKey(), JSON.stringify(clientOrders));
+    }
+
+    function buildApiHeaders() {
+      let selectedBranch = null;
+      try {
+        selectedBranch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+      } catch {
+        selectedBranch = null;
+      }
+
+      const headers = { "Content-Type": "application/json" };
+      if (selectedBranch?.id) headers["x-nextstock-branch-id"] = selectedBranch.id;
+
+      try {
+        const supportContext = JSON.parse(sessionStorage.getItem("nextstockDevSupportContext") || "null");
+        if (supportContext?.branchId && supportContext.branchId === selectedBranch?.id) {
+          headers["x-nextstock-dev-context"] = "support";
+        }
+      } catch {
+        // Backend validates the context.
+      }
+
+      return headers;
+    }
+
+    async function ordersApiFetch(path, options = {}) {
+      const response = await fetch(`/api${path}`, {
+        credentials: "include",
+        ...options,
+        headers: {
+          ...buildApiHeaders(),
+          ...(options.headers || {})
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.message || `Erro ${response.status}`);
+      }
+
+      return data;
+    }
+
+    function mapOrderFromApi(order) {
+      return {
+        id: order.id,
+        customerEmail: order.customerEmail,
+        customerData: {
+          ...(clientData || {}),
+          fullName: order.customerName,
+          email: order.customerEmail,
+          phone: order.customerPhone
+        },
+        items: (order.items || []).map(item => ({
+          productId: item.productId,
+          name: item.name || item.productNameSnapshot,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice
+        })),
+        total: order.total,
+        createdAt: order.createdAt,
+        source: "api",
+        status: order.status
+      };
+    }
+
+    async function loadClientOrdersFromBackend() {
+      if (!shouldUseProductionBackend() || !clientEmail) return;
+      try {
+        const params = new URLSearchParams({
+          search: clientEmail,
+          status: "pending",
+          page: "1",
+          pageSize: String(maxClientOrders)
+        });
+        const data = await ordersApiFetch(`/orders?${params.toString()}`);
+        clientOrders = (data.items || []).map(mapOrderFromApi);
+      } catch (error) {
+        clientOrders = [];
+        alert(error.message || "Nao foi possivel carregar pedidos do cliente.");
+      }
     }
 
     function syncOrderControls() {
@@ -1870,7 +1958,7 @@
       };
     }
 
-    function finishOrder() {
+    async function finishOrder() {
       const items = Object.values(cart);
 
       if (!items.length) {
@@ -1885,6 +1973,37 @@
       }
 
       const orderPayload = buildOrderPayload();
+
+      if (shouldUseProductionBackend()) {
+        try {
+          const response = await ordersApiFetch("/orders", {
+            method: "POST",
+            body: JSON.stringify({
+              customerName: clientData.fullName,
+              customerEmail: clientData.email,
+              customerPhone: clientData.phone,
+              paymentMethod: "other",
+              notes: "Pedido criado em produtos.html",
+              items: orderPayload.items.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity
+              }))
+            })
+          });
+          clientOrders.unshift(mapOrderFromApi(response.order));
+          clientOrders = clientOrders.slice(0, maxClientOrders);
+          alert(`Pedido de ${clientName} criado no backend com sucesso.`);
+        } catch (error) {
+          alert(error.message || "Nao foi possivel criar o pedido.");
+          return;
+        }
+
+        cart = {};
+        cartList.classList.remove("active");
+        updateCartView();
+        renderClientOrdersList();
+        return;
+      }
 
       clientOrders.unshift(orderPayload);
       clientOrders = clientOrders.slice(0, maxClientOrders);
@@ -1918,9 +2037,25 @@
       updateCartView();
     }
 
-    function deleteClientOrder(orderId) {
+    async function deleteClientOrder(orderId) {
       const confirmDelete = confirm("Deseja excluir este pedido?");
       if (!confirmDelete) return;
+
+      if (shouldUseProductionBackend()) {
+        try {
+          await ordersApiFetch(`/orders/${orderId}/cancel`, {
+            method: "PATCH",
+            body: JSON.stringify({ cancellationReason: "Cancelado pelo cliente em produtos.html" })
+          });
+          await loadClientOrdersFromBackend();
+        } catch (error) {
+          alert(error.message || "Nao foi possivel cancelar o pedido.");
+          return;
+        }
+        renderClientOrdersList();
+        updateCartView();
+        return;
+      }
 
       clientOrders = clientOrders.filter(order => order.id !== orderId);
       saveClientOrders();
@@ -2132,6 +2267,12 @@
       cartActive = true;
 
       loadClientOrders();
+      if (shouldUseProductionBackend()) {
+        loadClientOrdersFromBackend().then(() => {
+          renderClientOrdersList();
+          syncOrderControls();
+        });
+      }
       orderOverlay.classList.remove("active");
       orderOverlay.classList.remove("client-data-mode");
       clientNameBox.classList.remove("active");

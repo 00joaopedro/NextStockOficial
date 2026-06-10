@@ -1,0 +1,220 @@
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { OrderPaymentMethod, OrderStatus, Role, SystemMode, SystemType } from '@prisma/client';
+import { OrdersService } from './orders.service';
+
+describe('OrdersService', () => {
+  const user = {
+    id: 'user-id',
+    role: Role.Admin,
+    tenantId: 'tenant-id',
+    branchId: 'branch-id',
+    allowedSystemTypes: [SystemType.padrao],
+  } as any;
+
+  const context = {
+    userId: 'user-id',
+    tenantId: 'tenant-id',
+    branchId: 'branch-id',
+    role: Role.Admin,
+    systemType: SystemType.padrao,
+    mode: SystemMode.padrao,
+    isDevSuperAdmin: false,
+    contextKind: 'normal',
+  };
+
+  const order = {
+    id: 'order-id',
+    tenantId: 'tenant-id',
+    branchId: 'branch-id',
+    customerName: 'Cliente Teste',
+    customerDocument: null,
+    customerPhone: null,
+    customerEmail: 'cliente@test.com',
+    paymentMethod: OrderPaymentMethod.pix,
+    status: OrderStatus.pending,
+    subtotalCents: 3000,
+    discountCents: 0,
+    totalCents: 3000,
+    notes: null,
+    deliveredAt: null,
+    canceledAt: null,
+    cancellationReason: null,
+    createdById: 'user-id',
+    updatedById: 'user-id',
+    deletedAt: null,
+    createdAt: new Date('2026-06-09T10:00:00.000Z'),
+    updatedAt: new Date('2026-06-09T10:00:00.000Z'),
+    items: [
+      {
+        id: 'item-id',
+        orderId: 'order-id',
+        productId: 'product-id',
+        productNameSnapshot: 'Produto',
+        skuSnapshot: 'SKU-1',
+        barcodeSnapshot: null,
+        quantity: 2,
+        unitPriceCents: 1500,
+        totalPriceCents: 3000,
+        createdAt: new Date('2026-06-09T10:00:00.000Z'),
+      },
+    ],
+  };
+
+  function makeService() {
+    const tx: any = {
+      product: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'product-id',
+            name: 'Produto',
+            sku: 'SKU-1',
+            barcode: null,
+            salePriceCents: 1500,
+            quantity: 5,
+          },
+        ]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      order: {
+        create: jest.fn().mockResolvedValue(order),
+        findFirst: jest.fn().mockResolvedValue(order),
+        update: jest.fn().mockResolvedValue(order),
+      },
+      orderItem: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma: any = {
+      $transaction: jest.fn((input: any) => {
+        if (typeof input === 'function') return input(tx);
+        return Promise.all(input);
+      }),
+      order: {
+        count: jest.fn().mockResolvedValue(1),
+        findMany: jest.fn().mockResolvedValue([order]),
+        findFirst: jest.fn().mockResolvedValue(order),
+        update: jest.fn().mockResolvedValue(order),
+      },
+    };
+    const tenantContext = {
+      resolve: jest.fn().mockResolvedValue(context),
+    } as any;
+
+    return { service: new OrdersService(prisma, tenantContext), prisma, tx, tenantContext };
+  }
+
+  it('cria pedido real e baixa estoque na mesma transacao', async () => {
+    const { service, tx } = makeService();
+
+    await expect(
+      service.create(user, {
+        customerName: 'Cliente Teste',
+        customerEmail: 'cliente@test.com',
+        paymentMethod: OrderPaymentMethod.pix,
+        items: [{ productId: 'product-id', quantity: 2 }],
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      order: { id: 'order-id', total: 30 },
+    });
+
+    expect(tx.order.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          subtotalCents: 3000,
+          totalCents: 3000,
+        }),
+      }),
+    );
+    expect(tx.product.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'product-id',
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          quantity: { gte: 2 },
+        }),
+        data: { quantity: { increment: -2 } },
+      }),
+    );
+  });
+
+  it('falha quando produto nao pertence ao tenant/branch atual', async () => {
+    const { service, tx } = makeService();
+    tx.product.findMany.mockResolvedValueOnce([]);
+
+    await expect(
+      service.create(user, {
+        customerName: 'Cliente Teste',
+        items: [{ productId: 'product-other', quantity: 1 }],
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('falha com estoque insuficiente', async () => {
+    const { service, tx } = makeService();
+    tx.product.findMany.mockResolvedValueOnce([
+      {
+        id: 'product-id',
+        name: 'Produto',
+        sku: null,
+        barcode: null,
+        salePriceCents: 1500,
+        quantity: 1,
+      },
+    ]);
+
+    await expect(
+      service.create(user, {
+        customerName: 'Cliente Teste',
+        items: [{ productId: 'product-id', quantity: 2 }],
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('cancelar pedido devolve estoque e marca canceledAt', async () => {
+    const { service, tx } = makeService();
+    tx.order.update.mockResolvedValueOnce({
+      ...order,
+      status: OrderStatus.canceled,
+      canceledAt: new Date('2026-06-09T11:00:00.000Z'),
+    });
+
+    await expect(
+      service.cancel(user, 'order-id', { cancellationReason: 'Cliente desistiu' }),
+    ).resolves.toMatchObject({
+      ok: true,
+      order: { status: OrderStatus.canceled },
+    });
+    expect(tx.product.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { quantity: { increment: 2 } },
+      }),
+    );
+  });
+
+  it('entregar pedido muda status sem nova baixa de estoque', async () => {
+    const { service, prisma } = makeService();
+    prisma.order.update.mockResolvedValueOnce({
+      ...order,
+      status: OrderStatus.delivered,
+      deliveredAt: new Date('2026-06-09T11:00:00.000Z'),
+    });
+
+    await expect(service.deliver(user, 'order-id')).resolves.toMatchObject({
+      ok: true,
+      order: { status: OrderStatus.delivered },
+    });
+  });
+
+  it('nao encontra pedido fora do tenant/branch atual', async () => {
+    const { service, prisma } = makeService();
+    prisma.order.findFirst.mockResolvedValueOnce(null);
+
+    await expect(service.findOne(user, 'order-other')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
