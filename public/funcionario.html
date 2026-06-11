@@ -17,9 +17,64 @@
     html, body { width: 100%; min-height: 100%; }
 
     body {
+      display: flex;
       font-family: Arial, sans-serif;
       background: linear-gradient(135deg, #00a7ad, #0d1b2a);
       color: var(--text-dark);
+    }
+
+    .sidebar {
+      width: 16vw;
+      background: #071b31;
+      height: 100%;
+      position: fixed;
+      top: 0;
+      left: 0;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      padding-top: 18px;
+      overflow-y: auto;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar::-webkit-scrollbar-thumb {
+      background: #00cfcf;
+      border-radius: 5px;
+    }
+
+    .sidebar h2 {
+      text-align: center;
+      margin-bottom: 20px;
+      color: var(--cyan);
+      font-size: 1.5rem;
+    }
+
+    .menu {
+      list-style: none;
+    }
+
+    .menu li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+      font-size: clamp(16px, 2vw, 22px);
+    }
+
+    .menu li:hover,
+    .menu li.active {
+      background: #00cfcf;
+      color: #0d1b2a;
+      font-weight: bold;
+    }
+
+    .menu a {
+      color: inherit;
+      text-decoration: none;
+      display: block;
     }
 
     .page-content {
@@ -29,7 +84,8 @@
       padding: 10px;
       align-items: stretch;
       justify-content: center;
-      margin-left: 12%;
+      margin-left: 20%;
+      flex: 1;
     }
 
     .container,
@@ -195,7 +251,52 @@
     .status-message.error { color: #b91c1c; }
     .status-message.success { color: #166534; }
 
-    @media (max-width: 1100px) {
+    @media (max-width: 1024px) {
+      .sidebar {
+        width: 25%;
+      }
+
+      .page-content {
+        margin-left: 25%;
+      }
+    }
+
+    @media (max-width: 768px) {
+      body {
+        flex-direction: column;
+      }
+
+      .sidebar {
+        position: relative;
+        width: 100%;
+        height: auto;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 15px 0;
+        overflow-y: visible;
+      }
+
+      .sidebar h2 {
+        display: block;
+        font-size: 1.4rem;
+        text-align: center;
+        margin-bottom: 10px;
+        color: #00cfcf;
+      }
+
+      .menu {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .menu li {
+        padding: 10px;
+        font-size: 14px;
+      }
+
       .page-content {
         flex-direction: column;
         align-items: center;
