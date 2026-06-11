@@ -35,6 +35,8 @@ model UserProfile {
   updatedEmployees     Employee[]     @relation("EmployeeUpdatedBy")
   createdSuppliers     Supplier[]     @relation("SupplierCreatedBy")
   updatedSuppliers     Supplier[]     @relation("SupplierUpdatedBy")
+  createdExpenses      Expense[]      @relation("ExpenseCreatedBy")
+  updatedExpenses      Expense[]      @relation("ExpenseUpdatedBy")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
@@ -85,6 +87,8 @@ model Tenant {
   orders          Order[]
   employees       Employee[]
   suppliers       Supplier[]
+  expenses        Expense[]
+  expenseFiles    ExpenseFile[]
   paymentMachines PaymentMachine[]
   devWorkspaces    DevWorkspace[]
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -146,6 +150,8 @@ model Branch {
   orders   Order[]
   employees Employee[]
   suppliers Supplier[]
+  expenses Expense[]
+  expenseFiles ExpenseFile[]
   paymentMachines PaymentMachine[]
   devWorkspaces DevWorkspace[]
   createdAt DateTime       @default(now()) @map("created_at")
@@ -329,6 +335,7 @@ model Product {
   apparelSize      String?        @map("apparel_size")
   images           ProductImage[]
   orderItems       OrderItem[]
+  expenseItems     ExpenseItem[]
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
@@ -457,6 +464,7 @@ model Supplier {
   createdBy           UserProfile?       @relation("SupplierCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedById         String?            @map("updated_by_id") @db.Uuid
   updatedBy           UserProfile?       @relation("SupplierUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  expenses            Expense[]
   deletedAt           DateTime?          @map("deleted_at")
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
@@ -467,6 +475,82 @@ model Supplier {
   @@index([tenantId, branchId, document])
   @@index([deletedAt])
   @@map("suppliers")
+}
+
+model Expense {
+  id                   String        @id @default(uuid()) @db.Uuid
+  tenantId             String        @map("tenant_id") @db.Uuid
+  branchId             String        @map("branch_id") @db.Uuid
+  type                 ExpenseType
+  status               ExpenseStatus @default(pending)
+  totalCents           Int           @map("total_cents")
+  date                 DateTime
+  employeeName         String        @map("employee_name")
+  storeName            String        @map("store_name")
+  supplierId           String?       @map("supplier_id") @db.Uuid
+  supplierNameSnapshot String?       @map("supplier_name_snapshot")
+  notes                String?
+  createdById          String?       @map("created_by_id") @db.Uuid
+  updatedById          String?       @map("updated_by_id") @db.Uuid
+  deletedAt            DateTime?     @map("deleted_at")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  supplier  Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdBy UserProfile?   @relation("ExpenseCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy UserProfile?   @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items     ExpenseItem[]
+  files     ExpenseFile[]
+
+  @@index([tenantId, branchId, date])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, type])
+  @@index([tenantId, branchId, supplierId])
+  @@index([deletedAt])
+  @@map("expenses")
+}
+
+model ExpenseItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  expenseId      String   @map("expense_id") @db.Uuid
+  productName    String   @map("product_name")
+  units          Int
+  totalCostCents Int      @map("total_cost_cents")
+  productId      String?  @map("product_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([expenseId])
+  @@index([productId])
+  @@map("expense_items")
+}
+
+model ExpenseFile {
+  id          String          @id @default(uuid()) @db.Uuid
+  expenseId   String          @map("expense_id") @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  branchId    String          @map("branch_id") @db.Uuid
+  fileName    String          @map("file_name")
+  mimeType    String          @map("mime_type")
+  fileType    ExpenseFileType @map("file_type")
+  fileSize    Int             @map("file_size")
+  storagePath String          @map("storage_path")
+  fileUrl     String?         @map("file_url")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  deletedAt   DateTime?       @map("deleted_at")
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@index([expenseId])
+  @@index([tenantId, branchId])
+  @@index([deletedAt])
+  @@map("expense_files")
 }
 
 model ProductImage {
@@ -597,6 +681,26 @@ enum SupplierStatus {
 enum SupplierPersonType {
   individual
   company
+}
+
+enum ExpenseType {
+  written
+  upload
+}
+
+enum ExpenseStatus {
+  draft
+  pending
+  approved
+  paid
+  canceled
+}
+
+enum ExpenseFileType {
+  image
+  pdf
+  word
+  other
 }
 
 enum MachineStatus {

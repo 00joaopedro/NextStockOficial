@@ -5,6 +5,7 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { ExpenseFileType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { SupabaseService } from '../supabase/supabase.service';
@@ -17,6 +18,18 @@ type UploadFile = {
 };
 
 const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_EXPENSE_TYPES = new Map<string, ExpenseFileType>([
+  ['image/jpeg', ExpenseFileType.image],
+  ['image/png', ExpenseFileType.image],
+  ['image/webp', ExpenseFileType.image],
+  ['image/gif', ExpenseFileType.image],
+  ['application/pdf', ExpenseFileType.pdf],
+  ['application/msword', ExpenseFileType.word],
+  [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ExpenseFileType.word,
+  ],
+]);
 
 @Injectable()
 export class SupabaseStorageService {
@@ -27,6 +40,8 @@ export class SupabaseStorageService {
     Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024;
   private readonly productImageMaxSizeBytes =
     Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024;
+  private readonly expenseFileMaxSizeBytes =
+    Number(process.env.EXPENSE_FILE_MAX_SIZE_MB || 10) * 1024 * 1024;
   private readonly useSignedUrls =
     process.env.SUPABASE_STORAGE_SIGNED_URLS === 'true';
 
@@ -94,6 +109,39 @@ export class SupabaseStorageService {
     };
   }
 
+  async uploadExpenseFile(input: {
+    tenantId: string;
+    branchId: string;
+    expenseId: string;
+    file: UploadFile;
+  }) {
+    const fileType = this.assertExpenseFile(input.file, this.expenseFileMaxSizeBytes);
+
+    const originalName = this.cleanFileName(
+      input.file.originalname || 'expense-file',
+    );
+    const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
+    const storagePath = [
+      input.tenantId,
+      input.branchId,
+      'expenses',
+      input.expenseId,
+      `${randomUUID()}${extension}`,
+    ].join('/');
+
+    const bucket = this.getExpenseFilesBucket();
+    const fileUrl = await this.uploadToBucket(bucket, storagePath, input.file);
+
+    return {
+      fileName: originalName,
+      fileUrl,
+      storagePath,
+      mimeType: input.file.mimetype || 'application/octet-stream',
+      fileType,
+      fileSize: input.file.size ?? input.file.buffer?.length ?? 0,
+    };
+  }
+
   async getPetPhotoUrl(storagePath?: string | null) {
     if (!storagePath) {
       return null;
@@ -121,6 +169,20 @@ export class SupabaseStorageService {
       .getPublicUrl(storagePath).data.publicUrl;
   }
 
+  async getExpenseFileUrl(storagePath?: string | null) {
+    if (!storagePath) {
+      return null;
+    }
+
+    if (this.useSignedUrls) {
+      return this.createSignedUrl(this.getExpenseFilesBucket(), storagePath);
+    }
+
+    return this.supabase.admin.storage
+      .from(this.getExpenseFilesBucket())
+      .getPublicUrl(storagePath).data.publicUrl;
+  }
+
   async removePetPhoto(storagePath?: string | null) {
     if (!storagePath) {
       return;
@@ -133,8 +195,16 @@ export class SupabaseStorageService {
     await this.removeFromBucket(this.getProductImagesBucket(), storagePath);
   }
 
+  async removeExpenseFile(storagePath?: string | null) {
+    await this.removeFromBucket(this.getExpenseFilesBucket(), storagePath);
+  }
+
   private getProductImagesBucket() {
     return process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES || 'product-images';
+  }
+
+  private getExpenseFilesBucket() {
+    return process.env.SUPABASE_STORAGE_BUCKET_EXPENSE_FILES || 'expense-files';
   }
 
   private async uploadToBucket(
@@ -199,6 +269,27 @@ export class SupabaseStorageService {
     }
   }
 
+  private assertExpenseFile(file: UploadFile, maxSizeBytes: number) {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException('Nenhum arquivo de despesa foi enviado.');
+    }
+
+    const fileType = file.mimetype ? ALLOWED_EXPENSE_TYPES.get(file.mimetype) : undefined;
+    if (!fileType) {
+      throw new BadRequestException(
+        'Formato invalido. Use imagem JPEG, PNG, WEBP, GIF, PDF, DOC ou DOCX.',
+      );
+    }
+
+    if ((file.size ?? file.buffer.length) > maxSizeBytes) {
+      throw new BadRequestException(
+        `Arquivo excede o limite de ${Math.round(maxSizeBytes / 1024 / 1024)}MB.`,
+      );
+    }
+
+    return fileType;
+  }
+
   private cleanFileName(value: string) {
     const cleaned = value
       .trim()
@@ -212,6 +303,10 @@ export class SupabaseStorageService {
   private extensionFromMime(mime?: string) {
     if (mime === 'image/png') return '.png';
     if (mime === 'image/webp') return '.webp';
+    if (mime === 'image/gif') return '.gif';
+    if (mime === 'application/pdf') return '.pdf';
+    if (mime === 'application/msword') return '.doc';
+    if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return '.docx';
     return '.jpg';
   }
 

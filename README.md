@@ -64,12 +64,18 @@ SUPABASE_STORAGE_BUCKET_PET_PHOTOS="pet-photos"
 PET_PHOTO_MAX_SIZE_MB="5"
 SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES="product-images"
 PRODUCT_IMAGE_MAX_SIZE_MB="5"
+SUPABASE_STORAGE_BUCKET_EXPENSE_FILES="expense-files"
+EXPENSE_FILE_MAX_SIZE_MB="10"
 SUPABASE_STORAGE_SIGNED_URLS="false"
 ```
 
 - `SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES` define o bucket usado por
   `POST /api/products/:id/images/upload`. Se estiver ausente, o backend usa
   `product-images`.
+- `SUPABASE_STORAGE_BUCKET_EXPENSE_FILES` define o bucket usado por
+  `POST /api/expenses/:id/files/upload`. Se estiver ausente, o backend usa
+  `expense-files`.
+- `EXPENSE_FILE_MAX_SIZE_MB` limita anexos de despesas. O padrao e `10`.
 - Com `SUPABASE_STORAGE_SIGNED_URLS` ausente ou `false`, os buckets precisam ser
   publicos para que as URLs retornadas por `getPublicUrl()` renderizem no
   navegador.
