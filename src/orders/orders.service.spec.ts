@@ -83,6 +83,9 @@ describe('OrdersService', () => {
       orderItem: {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
+      sale: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
     const prisma: any = {
       $transaction: jest.fn((input: any) => {
@@ -99,8 +102,18 @@ describe('OrdersService', () => {
     const tenantContext = {
       resolve: jest.fn().mockResolvedValue({ ...context, ...contextOverride }),
     } as any;
+    const salesService = {
+      createFromOrder: jest.fn(),
+      receiptByOrder: jest.fn().mockResolvedValue(null),
+    } as any;
 
-    return { service: new OrdersService(prisma, tenantContext), prisma, tx, tenantContext };
+    return {
+      service: new OrdersService(prisma, tenantContext, salesService),
+      prisma,
+      tx,
+      tenantContext,
+      salesService,
+    };
   }
 
   it('cria pedido real e baixa estoque na mesma transacao', async () => {
@@ -258,6 +271,18 @@ describe('OrdersService', () => {
     );
   });
 
+  it('nao cancela pedido que ja possui Sale paga vinculada', async () => {
+    const { service, tx } = makeService();
+    tx.sale.findFirst.mockResolvedValueOnce({ id: 'sale-id' });
+
+    await expect(
+      service.cancel(user, 'order-id', {
+        cancellationReason: 'Cancelamento solicitado',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+  });
+
   it('entregar pedido muda status sem nova baixa de estoque', async () => {
     const { service, prisma } = makeService();
     prisma.order.update.mockResolvedValueOnce({
@@ -270,6 +295,32 @@ describe('OrdersService', () => {
       ok: true,
       order: { status: OrderStatus.delivered },
     });
+  });
+
+  it('confirmar pagamento cria Sale idempotente sem nova baixa de estoque', async () => {
+    const { service, salesService, tx } = makeService();
+    salesService.createFromOrder.mockResolvedValueOnce({
+      ok: true,
+      idempotent: false,
+      sale: { id: 'sale-id', orderId: 'order-id' },
+    });
+
+    await expect(
+      service.updateStatus(user, 'order-id', { status: OrderStatus.paid }),
+    ).resolves.toMatchObject({
+      ok: true,
+      order: { id: 'order-id' },
+      sale: { id: 'sale-id' },
+    });
+
+    expect(salesService.createFromOrder).toHaveBeenCalledWith(
+      user,
+      'order-id',
+      {},
+      undefined,
+      undefined,
+    );
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('nao encontra pedido fora do tenant/branch atual', async () => {

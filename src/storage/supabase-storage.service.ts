@@ -183,6 +183,14 @@ export class SupabaseStorageService {
       .getPublicUrl(storagePath).data.publicUrl;
   }
 
+  async createSignedSaleDocumentUrl(storagePath?: string | null) {
+    if (!storagePath) {
+      return null;
+    }
+
+    return this.createSignedUrl(this.getSaleDocumentsBucket(), storagePath);
+  }
+
   async removePetPhoto(storagePath?: string | null) {
     if (!storagePath) {
       return;
@@ -205,6 +213,10 @@ export class SupabaseStorageService {
 
   private getExpenseFilesBucket() {
     return process.env.SUPABASE_STORAGE_BUCKET_EXPENSE_FILES || 'expense-files';
+  }
+
+  private getSaleDocumentsBucket() {
+    return process.env.SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS || 'sale-documents';
   }
 
   private async uploadToBucket(

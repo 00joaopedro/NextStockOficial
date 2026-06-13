@@ -105,14 +105,8 @@
       sessionStorage.setItem("nextstockSelectedBranch", JSON.stringify(context.selectedBranch));
     }
 
-    const systemType =
-      context.selectedBranch?.systemType ||
-      context.systemType ||
-      profile.selectedBranch?.systemType ||
-      profile.user?.systemType;
-
-    if (systemType !== "padrao") {
-      throw new Error("Pedidos estão disponíveis somente no sistema padrão.");
+    if (!context.selectedBranch?.id) {
+      throw new Error("Selecione uma filial valida para acessar pedidos.");
     }
   }
 

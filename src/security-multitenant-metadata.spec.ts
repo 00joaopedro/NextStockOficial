@@ -8,6 +8,8 @@ import { PetClientsController } from './pet-clients/pet-clients.controller';
 import { PetsController } from './pets/pets.controller';
 import { ProfileController } from './profile/profile.controller';
 import { BranchContextGuard } from './tenancy/branch-context.guard';
+import { PreviewMutationGuard } from './system/guards/preview-mutation.guard';
+import { SalesController } from './sales/sales.controller';
 
 function guards(target: any) {
   return (Reflect.getMetadata(GUARDS_METADATA, target) ?? []) as unknown[];
@@ -26,6 +28,23 @@ describe('Multi-tenant security metadata', () => {
   it('rotas Pet exigem contexto de filial validado', () => {
     expect(guards(PetClientsController)).toContain(BranchContextGuard);
     expect(guards(PetsController)).toContain(BranchContextGuard);
+  });
+
+  it('sales exige JWT, RBAC, contexto de filial e protecao de preview', () => {
+    expect(guards(SalesController)).toEqual(
+      expect.arrayContaining([
+        JwtAuthGuard,
+        RolesGuard,
+        PreviewMutationGuard,
+        BranchContextGuard,
+      ]),
+    );
+    expect(
+      Reflect.getMetadata(ROLES_KEY, SalesController.prototype.create),
+    ).toEqual([Role.Admin, Role.Vendedor]);
+    expect(
+      Reflect.getMetadata(ROLES_KEY, SalesController.prototype.cancel),
+    ).toEqual([Role.Admin]);
   });
 
   it('vendedor/comprador nao alteram perfil nem maquinas', () => {

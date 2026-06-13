@@ -66,6 +66,7 @@ SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES="product-images"
 PRODUCT_IMAGE_MAX_SIZE_MB="5"
 SUPABASE_STORAGE_BUCKET_EXPENSE_FILES="expense-files"
 EXPENSE_FILE_MAX_SIZE_MB="10"
+SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS="sale-documents"
 SUPABASE_STORAGE_SIGNED_URLS="false"
 ```
 
@@ -76,6 +77,10 @@ SUPABASE_STORAGE_SIGNED_URLS="false"
   `POST /api/expenses/:id/files/upload`. Se estiver ausente, o backend usa
   `expense-files`.
 - `EXPENSE_FILE_MAX_SIZE_MB` limita anexos de despesas. O padrao e `10`.
+- `SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS` define o bucket privado reservado
+  para XML/PDF de NFC-e e NF-e. Se ausente, o backend usa `sale-documents`.
+  Downloads fiscais sempre usam signed URL, independentemente da configuracao
+  geral de URLs publicas.
 - Com `SUPABASE_STORAGE_SIGNED_URLS` ausente ou `false`, os buckets precisam ser
   publicos para que as URLs retornadas por `getPublicUrl()` renderizem no
   navegador.
@@ -83,6 +88,20 @@ SUPABASE_STORAGE_SIGNED_URLS="false"
   leitura; nesse caso os buckets podem ser privados, mas as URLs expiram.
 - Se o bucket configurado nao existir, o upload retorna 503 com mensagem clara
   pedindo a criacao/correcao do bucket.
+
+## Historico de vendas
+
+`Sale` e a fonte de verdade para vendas pagas. Um `Order` continua representando
+pedido/separacao/entrega; mudar um pedido para `paid` cria uma unica `Sale` por
+`orderId`, sem nova baixa de estoque. Vendas diretas em `POST /api/sales` baixam
+estoque na propria transacao.
+
+Recibos internos podem ser impressos pela API. NFC-e 65 e NF-e 55 permanecem em
+`draft` ate existir integracao real com um provedor fiscal/SEFAZ; o backend nao
+marca documentos fiscais como autorizados por simulacao. A integracao do
+`caixa.html` com `POST /api/sales` e a criacao de movimentos financeiros ficam
+como etapa separada, pois o caixa atual ainda nao possui um dominio financeiro
+persistido.
 
 ## Producao
 

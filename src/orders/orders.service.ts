@@ -14,6 +14,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
+import { SalesService } from '../sales/sales.service';
 import { CancelOrderDto } from './dto/cancel-order.dto';
 import { CreateOrderDto, CreateOrderItemDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
@@ -26,6 +27,7 @@ type PrismaTx = Prisma.TransactionClient;
 const MUTATION_ROLES = [Role.Admin, Role.Vendedor];
 const READ_ROLES = [Role.Admin, Role.Vendedor];
 const FINAL_STATUSES = new Set<OrderStatus>([
+  OrderStatus.paid,
   OrderStatus.canceled,
   OrderStatus.refunded,
 ]);
@@ -35,6 +37,7 @@ export class OrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
+    private readonly salesService: SalesService,
   ) {}
 
   async findAll(
@@ -233,6 +236,23 @@ export class OrdersService {
       return this.deliver(user, id, selectedBranchId, devContextMode);
     }
 
+    if (dto.status === OrderStatus.paid) {
+      const saleResult = await this.salesService.createFromOrder(
+        user,
+        id,
+        {},
+        selectedBranchId,
+        devContextMode,
+      );
+      const { order } = await this.findOne(
+        user,
+        id,
+        selectedBranchId,
+        devContextMode,
+      );
+      return { ok: true, order, sale: saleResult.sale };
+    }
+
     const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
     const existing = await this.findScopedOrder(context.tenantId, context.branchId!, id);
     this.assertStatusTransition(existing.status, dto.status);
@@ -296,6 +316,21 @@ export class OrdersService {
         throw new BadRequestException('Pedido ja esta cancelado.');
       }
 
+      const paidSale = await tx.sale.findFirst({
+        where: {
+          orderId: id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+      if (paidSale) {
+        throw new BadRequestException(
+          'Pedido pago possui venda vinculada. Cancele a venda pelo historico.',
+        );
+      }
+
       await this.applyStockDelta(tx, context.tenantId, context.branchId!, existing.items.map((item) => ({
         productId: item.productId,
         delta: item.quantity,
@@ -339,6 +374,16 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
+    const saleReceipt = await this.salesService.receiptByOrder(
+      user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
+    if (saleReceipt) {
+      return saleReceipt;
+    }
+
     const { order } = await this.findOne(user, id, selectedBranchId, devContextMode);
     return {
       ok: true,
@@ -569,7 +614,9 @@ export class OrdersService {
 
   private assertMutable(order: OrderWithItems) {
     if (FINAL_STATUSES.has(order.status)) {
-      throw new BadRequestException('Pedido cancelado/estornado nao pode ser alterado.');
+      throw new BadRequestException(
+        'Pedido pago, cancelado ou estornado nao pode ser alterado.',
+      );
     }
 
     if (order.status === OrderStatus.delivered) {

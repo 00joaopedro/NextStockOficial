@@ -37,6 +37,8 @@ model UserProfile {
   updatedSuppliers     Supplier[]     @relation("SupplierUpdatedBy")
   createdExpenses      Expense[]      @relation("ExpenseCreatedBy")
   updatedExpenses      Expense[]      @relation("ExpenseUpdatedBy")
+  sales                Sale[]         @relation("SaleSeller")
+  canceledSales        Sale[]         @relation("SaleCanceledBy")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
@@ -89,6 +91,7 @@ model Tenant {
   suppliers       Supplier[]
   expenses        Expense[]
   expenseFiles    ExpenseFile[]
+  sales           Sale[]
   paymentMachines PaymentMachine[]
   devWorkspaces    DevWorkspace[]
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -126,6 +129,8 @@ model PaymentMachine {
   status            MachineStatus   @default(ativa)
   externalProvider  String?         @map("external_provider")
   externalReference String?         @map("external_reference")
+  sales             Sale[]          @relation("SalePrimaryPaymentMachine")
+  salePayments      SalePayment[]   @relation("SalePaymentMachine")
   createdAt         DateTime        @default(now()) @map("created_at")
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
@@ -152,6 +157,7 @@ model Branch {
   suppliers Supplier[]
   expenses Expense[]
   expenseFiles ExpenseFile[]
+  sales Sale[]
   paymentMachines PaymentMachine[]
   devWorkspaces DevWorkspace[]
   createdAt DateTime       @default(now()) @map("created_at")
@@ -336,6 +342,7 @@ model Product {
   images           ProductImage[]
   orderItems       OrderItem[]
   expenseItems     ExpenseItem[]
+  saleItems        SaleItem[]
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
@@ -374,6 +381,7 @@ model Order {
   createdBy UserProfile? @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy UserProfile? @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   items     OrderItem[]
+  sale      Sale?
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, status])
@@ -399,6 +407,107 @@ model OrderItem {
   @@index([orderId])
   @@index([productId])
   @@map("order_items")
+}
+
+model Sale {
+  id                         String           @id @default(uuid()) @db.Uuid
+  tenantId                   String           @map("tenant_id") @db.Uuid
+  branchId                   String           @map("branch_id") @db.Uuid
+  orderId                    String?          @unique @map("order_id") @db.Uuid
+  sellerId                   String?          @map("seller_id") @db.Uuid
+  sellerNameSnapshot         String           @map("seller_name_snapshot")
+  paymentMethod              String           @map("payment_method")
+  paymentMachineId           String?          @map("payment_machine_id") @db.Uuid
+  paymentMachineNameSnapshot String?          @map("payment_machine_name_snapshot")
+  documentType               SaleDocumentType @default(receipt) @map("document_type")
+  documentNumber             String?          @map("document_number")
+  status                     SaleStatus       @default(paid)
+  subtotalCents              Int              @map("subtotal_cents")
+  discountCents              Int              @default(0) @map("discount_cents")
+  totalCents                 Int              @map("total_cents")
+  soldAt                     DateTime         @default(now()) @map("sold_at")
+  canceledAt                 DateTime?        @map("canceled_at")
+  canceledById               String?          @map("canceled_by_id") @db.Uuid
+  cancellationReason         String?          @map("cancellation_reason")
+  createdAt                  DateTime         @default(now()) @map("created_at")
+  updatedAt                  DateTime         @updatedAt @map("updated_at")
+  deletedAt                  DateTime?        @map("deleted_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order          Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  seller         UserProfile?    @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  canceledBy     UserProfile?    @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  paymentMachine PaymentMachine? @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
+  items          SaleItem[]
+  payments       SalePayment[]
+  documents      SaleDocument[]
+
+  @@index([tenantId, branchId, soldAt])
+  @@index([tenantId, branchId, sellerId])
+  @@index([tenantId, branchId, status])
+  @@index([orderId])
+  @@map("sales")
+}
+
+model SaleItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  saleId              String   @map("sale_id") @db.Uuid
+  productId           String?  @map("product_id") @db.Uuid
+  productNameSnapshot String   @map("product_name_snapshot")
+  skuSnapshot         String?  @map("sku_snapshot")
+  barcodeSnapshot     String?  @map("barcode_snapshot")
+  quantity            Int
+  unitPriceCents      Int      @map("unit_price_cents")
+  totalPriceCents     Int      @map("total_price_cents")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([productId])
+  @@map("sale_items")
+}
+
+model SalePayment {
+  id                         String            @id @default(uuid()) @db.Uuid
+  saleId                     String            @map("sale_id") @db.Uuid
+  paymentMethod              String            @map("payment_method")
+  paymentMachineId           String?           @map("payment_machine_id") @db.Uuid
+  paymentMachineNameSnapshot String?           @map("payment_machine_name_snapshot")
+  amountCents                Int               @map("amount_cents")
+  status                     SalePaymentStatus @default(approved)
+  paidAt                     DateTime?         @map("paid_at")
+  createdAt                  DateTime          @default(now()) @map("created_at")
+
+  sale           Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  paymentMachine PaymentMachine? @relation("SalePaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
+
+  @@index([saleId])
+  @@index([paymentMachineId])
+  @@map("sale_payments")
+}
+
+model SaleDocument {
+  id         String             @id @default(uuid()) @db.Uuid
+  saleId     String             @map("sale_id") @db.Uuid
+  type       SaleDocumentType
+  number     String?
+  series     String?
+  accessKey  String?            @map("access_key")
+  status     SaleDocumentStatus @default(draft)
+  xmlPath    String?            @map("xml_path")
+  pdfPath    String?            @map("pdf_path")
+  issuedAt   DateTime?          @map("issued_at")
+  canceledAt DateTime?          @map("canceled_at")
+  createdAt  DateTime           @default(now()) @map("created_at")
+  updatedAt  DateTime           @updatedAt @map("updated_at")
+
+  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId, type, status])
+  @@map("sale_documents")
 }
 
 model Employee {
@@ -656,6 +765,34 @@ enum OrderPaymentMethod {
   debit_card
   cash
   other
+}
+
+enum SaleStatus {
+  pending
+  paid
+  canceled
+  refunded
+}
+
+enum SaleDocumentType {
+  receipt
+  nfce65
+  nfe55
+}
+
+enum SaleDocumentStatus {
+  draft
+  processing
+  authorized
+  rejected
+  canceled
+}
+
+enum SalePaymentStatus {
+  pending
+  approved
+  failed
+  refunded
 }
 
 enum EmployeeStatus {
