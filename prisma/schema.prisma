@@ -39,6 +39,9 @@ model UserProfile {
   updatedExpenses      Expense[]      @relation("ExpenseUpdatedBy")
   sales                Sale[]         @relation("SaleSeller")
   canceledSales        Sale[]         @relation("SaleCanceledBy")
+  createdFiscalDocuments SaleDocument[] @relation("SaleDocumentCreatedBy")
+  updatedFiscalDocuments SaleDocument[] @relation("SaleDocumentUpdatedBy")
+  fiscalEvents         FiscalDocumentEvent[] @relation("FiscalEventCreatedBy")
   createdAt            DateTime       @default(now()) @map("created_at")
   updatedAt            DateTime       @updatedAt @map("updated_at")
 
@@ -92,6 +95,9 @@ model Tenant {
   expenses        Expense[]
   expenseFiles    ExpenseFile[]
   sales           Sale[]
+  saleDocuments   SaleDocument[]
+  fiscalConfigs   CompanyFiscalConfig[]
+  fiscalSequences FiscalSequence[]
   paymentMachines PaymentMachine[]
   devWorkspaces    DevWorkspace[]
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -158,6 +164,9 @@ model Branch {
   expenses Expense[]
   expenseFiles ExpenseFile[]
   sales Sale[]
+  saleDocuments SaleDocument[]
+  fiscalConfigs CompanyFiscalConfig[]
+  fiscalSequences FiscalSequence[]
   paymentMachines PaymentMachine[]
   devWorkspaces DevWorkspace[]
   createdAt DateTime       @default(now()) @map("created_at")
@@ -343,6 +352,16 @@ model Product {
   orderItems       OrderItem[]
   expenseItems     ExpenseItem[]
   saleItems        SaleItem[]
+  fiscalItems      FiscalDocumentItem[]
+  ncm              String?
+  cfopDefault      String?        @map("cfop_default")
+  cest             String?
+  origin           String?
+  unit             String?
+  icmsRate         Decimal?       @map("icms_rate") @db.Decimal(7, 4)
+  ipiRate          Decimal?       @map("ipi_rate") @db.Decimal(7, 4)
+  pisRate          Decimal?       @map("pis_rate") @db.Decimal(7, 4)
+  cofinsRate       Decimal?       @map("cofins_rate") @db.Decimal(7, 4)
   createdAt        DateTime       @default(now()) @map("created_at")
   updatedAt        DateTime       @updatedAt @map("updated_at")
 
@@ -382,6 +401,7 @@ model Order {
   updatedBy UserProfile? @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   items     OrderItem[]
   sale      Sale?
+  fiscalDocuments SaleDocument[]
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, status])
@@ -457,6 +477,11 @@ model SaleItem {
   productNameSnapshot String   @map("product_name_snapshot")
   skuSnapshot         String?  @map("sku_snapshot")
   barcodeSnapshot     String?  @map("barcode_snapshot")
+  ncmSnapshot         String?  @map("ncm_snapshot")
+  cfopSnapshot        String?  @map("cfop_snapshot")
+  unitSnapshot        String?  @map("unit_snapshot")
+  originSnapshot      String?  @map("origin_snapshot")
+  cestSnapshot        String?  @map("cest_snapshot")
   quantity            Int
   unitPriceCents      Int      @map("unit_price_cents")
   totalPriceCents     Int      @map("total_price_cents")
@@ -464,6 +489,7 @@ model SaleItem {
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  fiscalItems FiscalDocumentItem[]
 
   @@index([saleId])
   @@index([productId])
@@ -490,24 +516,172 @@ model SalePayment {
 }
 
 model SaleDocument {
-  id         String             @id @default(uuid()) @db.Uuid
-  saleId     String             @map("sale_id") @db.Uuid
-  type       SaleDocumentType
-  number     String?
-  series     String?
-  accessKey  String?            @map("access_key")
-  status     SaleDocumentStatus @default(draft)
-  xmlPath    String?            @map("xml_path")
-  pdfPath    String?            @map("pdf_path")
-  issuedAt   DateTime?          @map("issued_at")
-  canceledAt DateTime?          @map("canceled_at")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
+  id                 String             @id @default(uuid()) @db.Uuid
+  saleId             String             @map("sale_id") @db.Uuid
+  tenantId           String?            @map("tenant_id") @db.Uuid
+  branchId           String?            @map("branch_id") @db.Uuid
+  orderId            String?            @map("order_id") @db.Uuid
+  type               SaleDocumentType
+  model              String?
+  environment        FiscalEnvironment?
+  number             String?
+  series             String?
+  accessKey          String?            @map("access_key")
+  protocol           String?
+  provider           String?
+  providerRef        String?            @map("provider_ref")
+  idempotencyKey     String?            @map("idempotency_key")
+  normalizedPayload  Json?              @map("normalized_payload")
+  providerResponse   Json?              @map("provider_response")
+  errorMessage       String?            @map("error_message")
+  status             SaleDocumentStatus @default(draft)
+  xmlPath            String?            @map("xml_path")
+  pdfPath            String?            @map("pdf_path")
+  issuedAt           DateTime?          @map("issued_at")
+  sentAt             DateTime?          @map("sent_at")
+  canceledAt         DateTime?          @map("canceled_at")
+  cancellationReason String?            @map("cancellation_reason")
+  createdById        String?            @map("created_by_id") @db.Uuid
+  updatedById        String?            @map("updated_by_id") @db.Uuid
+  deletedAt          DateTime?          @map("deleted_at")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
 
-  sale Sale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  tenant    Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch    Branch?       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order     Order?        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdBy UserProfile?  @relation("SaleDocumentCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy UserProfile?  @relation("SaleDocumentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items     FiscalDocumentItem[]
+  events    FiscalDocumentEvent[]
 
   @@index([saleId, type, status])
+  @@index([tenantId, branchId, status, type])
+  @@index([orderId])
+  @@index([idempotencyKey])
   @@map("sale_documents")
+}
+
+model CompanyFiscalConfig {
+  id                     String            @id @default(uuid()) @db.Uuid
+  tenantId               String            @map("tenant_id") @db.Uuid
+  branchId               String            @map("branch_id") @db.Uuid
+  legalName              String            @map("legal_name")
+  tradeName              String?           @map("trade_name")
+  cnpj                   String
+  stateRegistration      String?           @map("state_registration")
+  municipalRegistration  String?           @map("municipal_registration")
+  crt                    Int
+  taxRegime              String            @map("tax_regime")
+  street                 String
+  number                 String
+  complement             String?
+  district               String
+  city                   String
+  cityCodeIbge           String            @map("city_code_ibge")
+  state                  String
+  zipCode                String            @map("zip_code")
+  country                String            @default("Brasil")
+  environment            FiscalEnvironment @default(homologacao)
+  certificatePath        String?           @map("certificate_path")
+  certificateSecretRef   String?           @map("certificate_secret_ref")
+  certificateExpiresAt   DateTime?         @map("certificate_expires_at")
+  nfeSeries              String            @default("1") @map("nfe_series")
+  nfceSeries             String            @default("1") @map("nfce_series")
+  nextNfeNumber          Int               @default(1) @map("next_nfe_number")
+  nextNfceNumber         Int               @default(1) @map("next_nfce_number")
+  provider               String            @default("mock")
+  providerConfig         Json?             @map("provider_config")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch   Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, branchId])
+  @@index([cnpj])
+  @@map("company_fiscal_configs")
+}
+
+model FiscalDocumentItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  documentId          String   @map("document_id") @db.Uuid
+  saleItemId          String?  @map("sale_item_id") @db.Uuid
+  productId           String?  @map("product_id") @db.Uuid
+  description         String
+  sku                 String?
+  barcode             String?
+  ncm                 String
+  cfop                String
+  cest                String?
+  origin              String
+  unit                String
+  quantity            Int
+  unitPriceCents      Int      @map("unit_price_cents")
+  totalPriceCents     Int      @map("total_price_cents")
+  discountCents       Int      @default(0) @map("discount_cents")
+  icmsCode            String?  @map("icms_code")
+  icmsRate            Decimal? @map("icms_rate") @db.Decimal(7, 4)
+  icmsAmountCents     Int?     @map("icms_amount_cents")
+  ipiCode             String?  @map("ipi_code")
+  ipiRate             Decimal? @map("ipi_rate") @db.Decimal(7, 4)
+  ipiAmountCents      Int?     @map("ipi_amount_cents")
+  pisCode             String?  @map("pis_code")
+  pisRate             Decimal? @map("pis_rate") @db.Decimal(7, 4)
+  pisAmountCents      Int?     @map("pis_amount_cents")
+  cofinsCode          String?  @map("cofins_code")
+  cofinsRate          Decimal? @map("cofins_rate") @db.Decimal(7, 4)
+  cofinsAmountCents   Int?     @map("cofins_amount_cents")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  document SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  saleItem SaleItem?     @relation(fields: [saleItemId], references: [id], onDelete: SetNull)
+  product  Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([documentId])
+  @@index([saleItemId])
+  @@index([productId])
+  @@map("fiscal_document_items")
+}
+
+model FiscalDocumentEvent {
+  id              String             @id @default(uuid()) @db.Uuid
+  documentId      String             @map("document_id") @db.Uuid
+  eventType       String             @map("event_type")
+  status          SaleDocumentStatus
+  providerRef     String?            @map("provider_ref")
+  requestPayload  Json?              @map("request_payload")
+  responsePayload Json?              @map("response_payload")
+  errorMessage    String?            @map("error_message")
+  createdById     String?            @map("created_by_id") @db.Uuid
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  document SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  createdBy UserProfile? @relation("FiscalEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([documentId, createdAt])
+  @@index([providerRef])
+  @@map("fiscal_document_events")
+}
+
+model FiscalSequence {
+  id          String            @id @default(uuid()) @db.Uuid
+  tenantId    String            @map("tenant_id") @db.Uuid
+  branchId    String            @map("branch_id") @db.Uuid
+  model       String
+  series      String
+  nextNumber  Int               @default(1) @map("next_number")
+  environment FiscalEnvironment
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, branchId, model, series, environment])
+  @@index([tenantId, branchId])
+  @@map("fiscal_sequences")
 }
 
 model Employee {
@@ -793,6 +967,11 @@ enum SalePaymentStatus {
   approved
   failed
   refunded
+}
+
+enum FiscalEnvironment {
+  homologacao
+  producao
 }
 
 enum EmployeeStatus {

@@ -249,7 +249,16 @@ describe('SalesService', () => {
       subtotalCents: 3000,
       discountCents: 0,
       totalCents: 3000,
-      items: sale.items,
+      items: sale.items.map((item) => ({
+        ...item,
+        product: {
+          ncm: '23091000',
+          cfopDefault: '5102',
+          unit: 'UN',
+          origin: '0',
+          cest: null,
+        },
+      })),
     });
     tx.sale.create.mockResolvedValueOnce({
       ...sale,
@@ -295,20 +304,35 @@ describe('SalesService', () => {
     expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
-  it('documento fiscal nasce draft e nunca autorizado por simulacao', async () => {
+  it('NFC-e estrutural nasce draft e nunca autorizada por simulacao', async () => {
     const { service, prisma } = makeService();
     prisma.sale.findFirst.mockResolvedValueOnce(sale);
     prisma.saleDocument.create.mockResolvedValueOnce({
       ...sale.documents[0],
-      type: SaleDocumentType.nfe55,
+      type: SaleDocumentType.nfce65,
       status: SaleDocumentStatus.draft,
     });
 
     await expect(
-      service.createFiscalDocument(user, sale.id, 'nfe55', {}),
+      service.createFiscalDocument(user, sale.id, 'nfce65', {
+        idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        recipient: {
+          name: 'Cliente Fiscal',
+          documentType: 'cpf',
+          document: '52998224725',
+          ieIndicator: '9',
+          street: 'Rua Teste',
+          number: '10',
+          district: 'Centro',
+          city: 'Sao Paulo',
+          cityCodeIbge: '3550308',
+          state: 'SP',
+          zipCode: '01001000',
+        },
+      }),
     ).resolves.toMatchObject({
       document: {
-        type: SaleDocumentType.nfe55,
+        type: SaleDocumentType.nfce65,
         status: SaleDocumentStatus.draft,
       },
       fiscalProviderPending: true,

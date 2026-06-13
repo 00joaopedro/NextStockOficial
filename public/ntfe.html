@@ -144,7 +144,7 @@
 
     .top-tools {
       display: grid;
-      grid-template-columns: 1.4fr auto auto;
+      grid-template-columns: minmax(260px, 1.4fr) repeat(5, auto);
       gap: 12px;
       margin-bottom: 18px;
       align-items: center;
@@ -241,6 +241,16 @@
 
     .btn-send {
       background: var(--success);
+    }
+
+    .btn-secondary {
+      background: var(--info);
+    }
+
+    .toolbar-btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
     }
 
     .note-wrapper {
@@ -533,13 +543,16 @@
         </div>
 
         <button class="toolbar-btn btn-new" id="btnNovo">Novo</button>
-        <button class="toolbar-btn btn-send" id="btnEnviar">Enviar para SEFAZ</button>
+        <button class="toolbar-btn btn-send" id="btnEnviar" disabled>Enviar para SEFAZ</button>
+        <button class="toolbar-btn btn-secondary" id="btnConsultar" disabled>Consultar status</button>
+        <button class="toolbar-btn btn-secondary" id="btnXml" disabled>Baixar XML</button>
+        <button class="toolbar-btn btn-secondary" id="btnPdf" disabled>Baixar DANFE</button>
       </div>
 
       <section class="note-wrapper">
         <div class="note-title">
           <h2>NF-e 55</h2>
-          <div class="status">Rascunho pronto para envio</div>
+          <div class="status" id="fiscalStatus">Validando contexto...</div>
         </div>
 
         <div class="grid">
@@ -549,12 +562,12 @@
             <div class="fields">
               <div class="field span-3">
                 <label>Número da Nota</label>
-                <input type="text" id="numeroNota" placeholder="Ex.: 000001" />
+                <input type="text" id="numeroNota" placeholder="Gerado pelo backend" readonly />
               </div>
 
               <div class="field span-2">
                 <label>Série</label>
-                <input type="text" id="serieNota" placeholder="001" />
+                <input type="text" id="serieNota" placeholder="Configurada pela filial" readonly />
               </div>
 
               <div class="field span-3">
@@ -745,6 +758,11 @@
                 <input type="text" id="destEndereco" placeholder="Rua, avenida, número" />
               </div>
 
+              <div class="field span-2">
+                <label>Número</label>
+                <input type="text" id="destNumero" placeholder="Número" />
+              </div>
+
               <div class="field span-3">
                 <label>Bairro</label>
                 <input type="text" id="destBairro" placeholder="Bairro" />
@@ -753,6 +771,11 @@
               <div class="field span-3">
                 <label>Município</label>
                 <input type="text" id="destMunicipio" placeholder="Município" />
+              </div>
+
+              <div class="field span-3">
+                <label>Código IBGE</label>
+                <input type="text" id="destCityCodeIbge" maxlength="7" placeholder="0000000" />
               </div>
 
               <div class="field span-2">
@@ -875,14 +898,14 @@
         </div>
 
         <p class="footer-note">
-          Este frontend está preparado para digitação manual completa da NF-e e também para preenchimento do destinatário por busca de cliente. O envio para a SEFAZ foi deixado apenas como simulação visual, sem backend.
+          Os dados fiscais são validados e persistidos pelo backend. Autorização somente ocorre quando um provedor fiscal real confirma o retorno da SEFAZ.
         </p>
       </section>
     </main>
   </div>
 
   <script src="./dist/session-state.js"></script>
-  <script>
+  <script type="text/plain" data-legacy-fiscal-script="disabled">
     const DEMO_CLIENTS = [
       {
         nome: "Ana Paula Ribeiro",
@@ -1244,6 +1267,7 @@
       createItemCard();
     }
   </script>
+  <script src="./Js/ntfe.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>

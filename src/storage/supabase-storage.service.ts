@@ -191,6 +191,60 @@ export class SupabaseStorageService {
     return this.createSignedUrl(this.getSaleDocumentsBucket(), storagePath);
   }
 
+  async uploadFiscalXml(input: {
+    tenantId: string;
+    branchId: string;
+    saleId: string;
+    documentId: string;
+    content: Buffer;
+  }) {
+    const storagePath = [
+      input.tenantId,
+      input.branchId,
+      'sales',
+      input.saleId,
+      'documents',
+      input.documentId,
+      'nfe55.xml',
+    ].join('/');
+    await this.uploadPrivateBuffer(
+      this.getSaleDocumentsBucket(),
+      storagePath,
+      input.content,
+      'application/xml',
+    );
+    return storagePath;
+  }
+
+  async uploadFiscalPdf(input: {
+    tenantId: string;
+    branchId: string;
+    saleId: string;
+    documentId: string;
+    content: Buffer;
+  }) {
+    const storagePath = [
+      input.tenantId,
+      input.branchId,
+      'sales',
+      input.saleId,
+      'documents',
+      input.documentId,
+      'danfe.pdf',
+    ].join('/');
+    await this.uploadPrivateBuffer(
+      this.getSaleDocumentsBucket(),
+      storagePath,
+      input.content,
+      'application/pdf',
+    );
+    return storagePath;
+  }
+
+  async removeFiscalFile(storagePath?: string | null) {
+    await this.removeFromBucket(this.getSaleDocumentsBucket(), storagePath);
+  }
+
   async removePetPhoto(storagePath?: string | null) {
     if (!storagePath) {
       return;
@@ -250,6 +304,31 @@ export class SupabaseStorageService {
       ? this.createSignedUrl(bucket, storagePath)
       : this.supabase.admin.storage.from(bucket).getPublicUrl(storagePath)
           .data.publicUrl;
+  }
+
+  private async uploadPrivateBuffer(
+    bucket: string,
+    storagePath: string,
+    content: Buffer,
+    contentType: string,
+  ) {
+    const { error } = await this.supabase.admin.storage
+      .from(bucket)
+      .upload(storagePath, content, {
+        contentType,
+        upsert: false,
+      });
+
+    if (error) {
+      if (this.isBucketNotFoundError(error)) {
+        throw new ServiceUnavailableException(
+          `Supabase Storage bucket "${bucket}" was not found. Fiscal documents require this private bucket.`,
+        );
+      }
+      throw new InternalServerErrorException(
+        `Supabase Storage fiscal upload failed: ${error.message}`,
+      );
+    }
   }
 
   private async removeFromBucket(bucket: string, storagePath?: string | null) {

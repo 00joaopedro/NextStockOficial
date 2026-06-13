@@ -89,6 +89,26 @@ SUPABASE_STORAGE_SIGNED_URLS="false"
 - Se o bucket configurado nao existir, o upload retorna 503 com mensagem clara
   pedindo a criacao/correcao do bucket.
 
+## Modulo fiscal NF-e 55
+
+O modulo fiscal usa `SaleDocument` como fonte de verdade e exige uma `Sale`
+paga para transmissao. `Order` pode apenas preencher um rascunho.
+
+- O bucket `sale-documents` deve ser privado. XML e DANFE sao entregues somente
+  por signed URL apos validacao de tenant e filial.
+- A configuracao fiscal e por filial em `company_fiscal_configs`.
+- Certificados e tokens nao devem ser gravados em `provider_config`; use
+  `certificate_secret_ref` apontando para um secret manager ou cofre do provider.
+- O adapter `mock` existe para desenvolvimento e homologacao interna. Ele nunca
+  retorna `authorized` e a API recusa seu uso quando a configuracao fiscal esta
+  em ambiente `producao`.
+- Um provider real deve implementar `FiscalProvider` e obter credenciais somente
+  por variaveis protegidas/secrets do Railway.
+
+Antes de habilitar emissao real, configure o provider, o certificado A1, o
+ambiente correto, a serie fiscal e o bucket privado. Nao exponha o bucket ao
+papel `anon`.
+
 ## Historico de vendas
 
 `Sale` e a fonte de verdade para vendas pagas. Um `Order` continua representando

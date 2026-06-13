@@ -450,6 +450,19 @@ export class ProductsService {
       externalLink: clean(dto.linkExterno),
       clothingSize: clean(dto.tamanhoRoupa),
       apparelSize: clean(dto.tamanhoVestimenta),
+      ncm: fiscalDigits(dto.ncm),
+      cfopDefault: fiscalDigits(dto.cfopDefault),
+      cest: fiscalDigits(dto.cest),
+      origin: clean(dto.origin),
+      unit: clean(dto.unit)?.toUpperCase() ?? null,
+      icmsRate:
+        dto.icmsRate === undefined ? null : new Prisma.Decimal(dto.icmsRate),
+      ipiRate:
+        dto.ipiRate === undefined ? null : new Prisma.Decimal(dto.ipiRate),
+      pisRate:
+        dto.pisRate === undefined ? null : new Prisma.Decimal(dto.pisRate),
+      cofinsRate:
+        dto.cofinsRate === undefined ? null : new Prisma.Decimal(dto.cofinsRate),
     };
   }
 
@@ -475,6 +488,15 @@ export class ProductsService {
     if (dto.linkExterno !== undefined) data.externalLink = clean(dto.linkExterno);
     if (dto.tamanhoRoupa !== undefined) data.clothingSize = clean(dto.tamanhoRoupa);
     if (dto.tamanhoVestimenta !== undefined) data.apparelSize = clean(dto.tamanhoVestimenta);
+    if (dto.ncm !== undefined) data.ncm = fiscalDigits(dto.ncm);
+    if (dto.cfopDefault !== undefined) data.cfopDefault = fiscalDigits(dto.cfopDefault);
+    if (dto.cest !== undefined) data.cest = fiscalDigits(dto.cest);
+    if (dto.origin !== undefined) data.origin = clean(dto.origin);
+    if (dto.unit !== undefined) data.unit = clean(dto.unit)?.toUpperCase() ?? null;
+    if (dto.icmsRate !== undefined) data.icmsRate = new Prisma.Decimal(dto.icmsRate);
+    if (dto.ipiRate !== undefined) data.ipiRate = new Prisma.Decimal(dto.ipiRate);
+    if (dto.pisRate !== undefined) data.pisRate = new Prisma.Decimal(dto.pisRate);
+    if (dto.cofinsRate !== undefined) data.cofinsRate = new Prisma.Decimal(dto.cofinsRate);
 
     if (dto.precoCusto !== undefined || dto.percentualLucro !== undefined) {
       const current = await this.prisma.product.findUniqueOrThrow({
@@ -534,6 +556,15 @@ export class ProductsService {
       linkExterno: product.externalLink ?? '',
       tamanhoRoupa: product.clothingSize ?? '',
       tamanhoVestimenta: product.apparelSize ?? '',
+      ncm: product.ncm ?? '',
+      cfopDefault: product.cfopDefault ?? '',
+      cest: product.cest ?? '',
+      origin: product.origin ?? '',
+      unit: product.unit ?? '',
+      icmsRate: product.icmsRate === null ? null : Number(product.icmsRate),
+      ipiRate: product.ipiRate === null ? null : Number(product.ipiRate),
+      pisRate: product.pisRate === null ? null : Number(product.pisRate),
+      cofinsRate: product.cofinsRate === null ? null : Number(product.cofinsRate),
       imagens: imageMetadata.map((image) => image.fileUrl).filter(Boolean),
       imageMetadata,
       createdAt: product.createdAt,
@@ -600,6 +631,11 @@ export class ProductsService {
 function clean(value?: string) {
   const cleaned = value?.trim();
   return cleaned ? cleaned : null;
+}
+
+function fiscalDigits(value?: string) {
+  const cleaned = value?.replace(/\D/g, '');
+  return cleaned || null;
 }
 
 function moneyToCents(value: number) {

@@ -102,4 +102,57 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(60)
   tamanhoVestimenta?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(8)
+  ncm?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4)
+  cfopDefault?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  cest?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2)
+  origin?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  unit?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  icmsRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  ipiRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  pisRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  cofinsRate?: number;
 }

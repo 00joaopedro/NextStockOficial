@@ -25,6 +25,7 @@ import { EmployeesModule } from './employees/employees.module';
 import { SuppliersModule } from './suppliers/suppliers.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { SalesModule } from './sales/sales.module';
+import { FiscalModule } from './fiscal/fiscal.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -52,6 +53,7 @@ const publicPath = join(__dirname, '..', 'public');
     PetsModule,
     DevModule,
     SalesModule,
+    FiscalModule,
     OrdersModule,
     EmployeesModule,
     SuppliersModule,

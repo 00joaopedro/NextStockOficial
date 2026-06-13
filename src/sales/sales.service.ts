@@ -167,6 +167,11 @@ export class SalesService {
               productNameSnapshot: item.productNameSnapshot,
               skuSnapshot: item.skuSnapshot,
               barcodeSnapshot: item.barcodeSnapshot,
+              ncmSnapshot: item.ncmSnapshot,
+              cfopSnapshot: item.cfopSnapshot,
+              unitSnapshot: item.unitSnapshot,
+              originSnapshot: item.originSnapshot,
+              cestSnapshot: item.cestSnapshot,
               quantity: item.quantity,
               unitPriceCents: item.unitPriceCents,
               totalPriceCents: item.totalPriceCents,
@@ -234,7 +239,12 @@ export class SalesService {
             branchId: context.branchId!,
             deletedAt: null,
           },
-          include: { items: { orderBy: { createdAt: 'asc' } } },
+          include: {
+            items: {
+              orderBy: { createdAt: 'asc' },
+              include: { product: true },
+            },
+          },
         });
 
         if (!order) {
@@ -291,6 +301,11 @@ export class SalesService {
                 productNameSnapshot: item.productNameSnapshot,
                 skuSnapshot: item.skuSnapshot,
                 barcodeSnapshot: item.barcodeSnapshot,
+                ncmSnapshot: item.product.ncm,
+                cfopSnapshot: item.product.cfopDefault,
+                unitSnapshot: item.product.unit,
+                originSnapshot: item.product.origin,
+                cestSnapshot: item.product.cest,
                 quantity: item.quantity,
                 unitPriceCents: item.unitPriceCents,
                 totalPriceCents: item.totalPriceCents,
@@ -496,6 +511,11 @@ export class SalesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
+    if (type === 'nfe55') {
+      throw new BadRequestException(
+        'NF-e 55 deve ser criada pelo FiscalService para aplicar validacao, idempotencia e sequencia fiscal.',
+      );
+    }
     const context = await this.resolveContext(
       user,
       selectedBranchId,
@@ -513,13 +533,23 @@ export class SalesService {
     const document = await this.prisma.saleDocument.create({
       data: {
         saleId: sale.id,
-        type:
-          type === 'nfe55'
-            ? SaleDocumentType.nfe55
-            : SaleDocumentType.nfce65,
-        number: clean(dto.number),
-        series: clean(dto.series),
-        accessKey: clean(dto.accessKey),
+        type: SaleDocumentType.nfce65,
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+        orderId: sale.orderId,
+        model: '65',
+        provider: 'mock',
+        idempotencyKey: dto.idempotencyKey,
+        normalizedPayload: {
+          recipient: dto.recipient,
+          operationNature: clean(dto.operationNature),
+          buyerPresence: dto.buyerPresence,
+          finalConsumer: dto.finalConsumer,
+          freightCents: dto.freightCents ?? 0,
+          additionalInformation: clean(dto.additionalInformation),
+        } as unknown as Prisma.InputJsonValue,
+        createdById: context.userId,
+        updatedById: context.userId,
         status: SaleDocumentStatus.draft,
       },
     });
@@ -667,6 +697,11 @@ export class SalesService {
         name: true,
         sku: true,
         barcode: true,
+        ncm: true,
+        cfopDefault: true,
+        unit: true,
+        origin: true,
+        cest: true,
         salePriceCents: true,
         quantity: true,
       },
@@ -688,6 +723,11 @@ export class SalesService {
         productNameSnapshot: product.name,
         skuSnapshot: product.sku,
         barcodeSnapshot: product.barcode,
+        ncmSnapshot: product.ncm,
+        cfopSnapshot: product.cfopDefault,
+        unitSnapshot: product.unit,
+        originSnapshot: product.origin,
+        cestSnapshot: product.cest,
         quantity: item.quantity,
         unitPriceCents: product.salePriceCents,
         totalPriceCents: product.salePriceCents * item.quantity,
@@ -794,6 +834,11 @@ export class SalesService {
         name: item.productNameSnapshot,
         skuSnapshot: item.skuSnapshot,
         barcodeSnapshot: item.barcodeSnapshot,
+        ncmSnapshot: item.ncmSnapshot,
+        cfopSnapshot: item.cfopSnapshot,
+        unitSnapshot: item.unitSnapshot,
+        originSnapshot: item.originSnapshot,
+        cestSnapshot: item.cestSnapshot,
         quantity: item.quantity,
         unitPriceCents: item.unitPriceCents,
         totalPriceCents: item.totalPriceCents,

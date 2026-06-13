@@ -154,6 +154,23 @@ to the correct branch through a separately reviewed data-fix procedure.
 
 Do not mass-assign legacy rows to the first branch of a tenant.
 
+## Fiscal rollout
+
+Apply `20260613000000_fiscal_nfe_production_structure` before enabling the new
+`/api/fiscal` routes. Then:
+
+1. Create a private Supabase Storage bucket named `sale-documents`.
+2. Set `SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS=sale-documents` in Railway.
+3. Create the branch fiscal configuration through
+   `PATCH /api/fiscal/company-config`.
+4. Keep `environment=homologacao` and `provider=mock` until a real fiscal
+   provider adapter and protected credentials are configured.
+5. Run `sql/audit/fiscal_ntfe_production_audit.sql`.
+
+The mock provider is intentionally unable to authorize or cancel a fiscal
+document. Do not switch a branch to fiscal production while its provider is
+`mock`.
+
 ## Pet photo storage
 
 Pet photo object paths include `tenantId/branchId/petId`, and upload/removal is

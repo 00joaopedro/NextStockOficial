@@ -26,13 +26,17 @@ import { CreateSaleFromOrderDto } from './dto/create-sale-from-order.dto';
 import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleQueryDto } from './dto/sale-query.dto';
 import { SalesService } from './sales.service';
+import { FiscalService } from '../fiscal/fiscal.service';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
 @RequireTenantContext({ requireBranch: true })
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class SalesController {
-  constructor(private readonly salesService: SalesService) {}
+  constructor(
+    private readonly salesService: SalesService,
+    private readonly fiscalService: FiscalService,
+  ) {}
 
   @Get()
   @Roles(Role.Admin, Role.Vendedor)
@@ -148,11 +152,12 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.createFiscalDocument(
+    return this.fiscalService.createDocument(
       req.user,
-      id,
-      'nfe55',
-      body,
+      {
+        saleId: id,
+        ...body,
+      },
       selectedBranchId,
       devContextMode,
     );
