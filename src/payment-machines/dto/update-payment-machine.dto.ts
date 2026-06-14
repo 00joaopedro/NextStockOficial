@@ -7,12 +7,14 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
 } from 'class-validator';
 import { MachineStatus, PaymentProvider } from '@prisma/client';
 
 export class UpdatePaymentMachineDto {
   @IsOptional()
   @IsString()
+  @MinLength(2)
   @MaxLength(120)
   name?: string;
 
@@ -22,6 +24,7 @@ export class UpdatePaymentMachineDto {
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   @MaxLength(120)
   model?: string;
 

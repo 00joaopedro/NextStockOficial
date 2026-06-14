@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Perfil - NextStock PetShop</title>
+  <title>Perfil - NextStock</title>
 
   <style>
     * {
@@ -187,7 +187,8 @@
 
     .form-group input,
     .form-group select,
-    .machine-form input {
+    .machine-form input,
+    .machine-form select {
       width: 100%;
       padding: 12px 14px;
       border-radius: 12px;
@@ -201,7 +202,8 @@
 
     .form-group input:focus,
     .form-group select:focus,
-    .machine-form input:focus {
+    .machine-form input:focus,
+    .machine-form select:focus {
       border-color: var(--cyan);
       box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
     }
@@ -381,6 +383,12 @@
       opacity: 0.95;
     }
 
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+      transform: none;
+    }
+
     .btn-save {
       background: var(--ok-green);
       color: #fff;
@@ -503,12 +511,27 @@
             <div class="card">
               <h3>Informações da conta</h3>
 
+              <p id="pageStatus" class="helper-text" role="status" aria-live="polite"></p>
+
               <div class="form-grid">
                 <div class="form-group full">
                   <label for="nomeCompleto">Nome completo</label>
                   <input type="text" id="nomeCompleto" placeholder="Digite o nome completo" />
                 </div>
 
+                <div class="form-group full">
+                  <label for="profileEmail">E-mail de acesso</label>
+                  <input type="email" id="profileEmail" readonly />
+                </div>
+              </div>
+
+              <div class="btn-group section-space">
+                <button class="btn btn-save" id="saveProfileBtn">Salvar perfil pessoal</button>
+              </div>
+
+              <h3 class="section-space">Dados da empresa</h3>
+
+              <div class="form-grid">
                 <div class="form-group">
                   <label for="empresa">Nome da empresa</label>
                   <input type="text" id="empresa" placeholder="Digite o nome da empresa" />
@@ -540,54 +563,14 @@
 
               <div class="current-plan">
                 <div>
-                  <strong id="currentPlanTitle">Você está no plano Ouro</strong>
-                  <span>Acompanhe abaixo as opções disponíveis para upgrade.</span>
+                  <strong id="currentPlanTitle">Carregando plano atual...</strong>
+                  <span>Alterações de plano exigem checkout e confirmação de pagamento.</span>
                 </div>
-                <div class="badge" id="currentPlanBadge">Plano atual: Ouro</div>
+                <div class="badge" id="currentPlanBadge">Plano atual: carregando</div>
               </div>
 
               <div class="plans-grid" id="plansGrid">
-                <div class="plan-card">
-                  <img
-                    class="plan-img"
-                    src="img/trofeu-ouro.png"
-                    alt="Imagem do plano Ouro"
-                  />
-
-                  <div>
-                    <h4>Ouro</h4>
-                    <p>Plano ideal para operações essenciais do pet shop com praticidade no dia a dia.</p>
-                    <strong class="plan-price">R$ 200,00</strong>
-                  </div>
-                </div>
-
-                <div class="plan-card">
-                  <img
-                    class="plan-img"
-                    src="img/trofeu-esmeralda.png"
-                    alt="Imagem do plano Esmeralda"
-                  />
-
-                  <div>
-                    <h4>Esmeralda</h4>
-                    <p>Mais recursos para gestão e crescimento, indicado para negócios em expansão.</p>
-                    <strong class="plan-price">R$ 400,00</strong>
-                  </div>
-                </div>
-
-                <div class="plan-card">
-                  <img
-                    class="plan-img"
-                    src="img/trofeu-diamante.png"
-                    alt="Imagem do plano Diamante"
-                  />
-
-                  <div>
-                    <h4>Diamante</h4>
-                    <p>Plano completo para máxima performance, controle e escalabilidade do negócio.</p>
-                    <strong class="plan-price">R$ 600,00</strong>
-                  </div>
-                </div>
+                <p class="helper-text">Carregando planos...</p>
               </div>
             </div>
           </div>
@@ -605,30 +588,27 @@
               </div>
 
               <div class="machine-list" id="machineList">
-                <div class="machine-card selected">
-                  <h4>Stone - Caixa Principal</h4>
-                  <p>Modelo: S920<br>Taxa: 2,99%<br>Status: Ativa</p>
-                </div>
-
-                <div class="machine-card">
-                  <h4>PagSeguro - Banho e Tosa</h4>
-                  <p>Modelo: Moderninha Pro<br>Taxa: 3,19%<br>Status: Ativa</p>
-                </div>
-
-                <div class="machine-card">
-                  <h4>Mercado Pago - Recepção</h4>
-                  <p>Modelo: Point Smart<br>Taxa: 3,49%<br>Status: Inativa</p>
-                </div>
+                <p class="helper-text">Carregando maquininhas...</p>
               </div>
 
               <div class="machine-form">
                 <div class="machine-form-title">Editar maquininha selecionada</div>
 
                 <input id="machineName" type="text" placeholder="Nome da maquininha / identificação" />
-                <input id="machineProvider" type="text" placeholder="Empresa / operadora" />
+                <select id="machineProvider">
+                  <option value="">Selecione a operadora</option>
+                  <option value="stone">Stone</option>
+                  <option value="pagseguro">PagSeguro</option>
+                  <option value="mercado_pago">Mercado Pago</option>
+                  <option value="outro">Outro</option>
+                </select>
                 <input id="machineModel" type="text" placeholder="Modelo" />
-                <input id="machineFee" type="text" placeholder="Taxa" />
-                <input id="machineStatus" type="text" placeholder="Status" />
+                <input id="machineFee" type="number" min="0" max="100" step="0.01" placeholder="Taxa" />
+                <select id="machineStatus">
+                  <option value="ativa">Ativa</option>
+                  <option value="inativa">Inativa</option>
+                  <option value="manutencao">Manutenção</option>
+                </select>
 
                 <div class="btn-group">
                   <button class="btn btn-save" id="saveMachineBtn">Salvar</button>
@@ -641,7 +621,7 @@
       </section>
     </main>
   </div>
-  <script>
+  <script type="application/json" id="legacy-profile-script-disabled">
     const API = '/api';
     let selectedMachineId = null;
     let machines = [];
@@ -926,6 +906,7 @@
       }
     });
   </script>
+  <script src="./Js/perfil.js" defer></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>

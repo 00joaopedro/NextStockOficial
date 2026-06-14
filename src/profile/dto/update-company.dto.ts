@@ -1,13 +1,16 @@
-import { IsEmail, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsEmail,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
 export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
-  @MaxLength(160)
-  nomeCompleto?: string;
-
-  @IsOptional()
-  @IsString()
+  @MinLength(2)
   @MaxLength(160)
   empresa?: string;
 
@@ -17,12 +20,15 @@ export class UpdateCompanyDto {
   cnpj?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsEmail()
   @MaxLength(160)
   email?: string;
 
   @IsOptional()
+  @ValidateIf((_, value) => value !== '')
   @IsString()
+  @MinLength(10)
   @MaxLength(40)
   contato?: string;
 }

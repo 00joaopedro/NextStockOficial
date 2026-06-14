@@ -10,6 +10,7 @@ import { ProfileController } from './profile/profile.controller';
 import { BranchContextGuard } from './tenancy/branch-context.guard';
 import { PreviewMutationGuard } from './system/guards/preview-mutation.guard';
 import { SalesController } from './sales/sales.controller';
+import { DevSuperAdminGuard } from './auth/dev-super-admin.guard';
 
 function guards(target: any) {
   return (Reflect.getMetadata(GUARDS_METADATA, target) ?? []) as unknown[];
@@ -54,9 +55,9 @@ describe('Multi-tenant security metadata', () => {
     expect(
       Reflect.getMetadata(ROLES_KEY, ProfileController.prototype.updatePlan),
     ).toEqual([Role.Admin]);
-    expect(
-      Reflect.getMetadata(ROLES_KEY, ProfileController.prototype.updateMode),
-    ).toEqual([Role.Admin]);
+    expect(guards(ProfileController.prototype.updateMode)).toContain(
+      DevSuperAdminGuard,
+    );
     expect(
       Reflect.getMetadata(ROLES_KEY, PaymentMachinesController.prototype.create),
     ).toEqual([Role.Admin]);

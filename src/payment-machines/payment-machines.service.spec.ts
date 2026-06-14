@@ -31,10 +31,9 @@ describe('PaymentMachinesService branch isolation', () => {
     const prisma = {
       paymentMachine: {
         findMany: jest.fn().mockResolvedValue([machine]),
-        findFirst: jest.fn().mockResolvedValue(machine),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest.fn().mockResolvedValue(machine),
         update: jest.fn().mockResolvedValue(machine),
-        delete: jest.fn().mockResolvedValue(machine),
       },
     };
     const tenantContext = {
@@ -65,7 +64,11 @@ describe('PaymentMachinesService branch isolation', () => {
 
     expect(prisma.paymentMachine.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tenantId: 'tenant-a', branchId: 'branch-a' },
+        where: expect.objectContaining({
+          tenantId: 'tenant-a',
+          branchId: 'branch-a',
+          deletedAt: null,
+        }),
       }),
     );
     expect(prisma.paymentMachine.create).toHaveBeenCalledWith(
@@ -80,11 +83,33 @@ describe('PaymentMachinesService branch isolation', () => {
 
   it('branch A nao altera maquina da branch B', async () => {
     const { service, prisma } = setup();
-    prisma.paymentMachine.findFirst.mockResolvedValueOnce(null);
 
     await expect(
       service.update({ id: 'user-a' } as any, 'machine-b', { name: 'Nope' }, 'branch-a'),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.paymentMachine.update).not.toHaveBeenCalled();
+  });
+
+  it('faz soft delete e registra o usuario que alterou', async () => {
+    const { service, prisma } = setup();
+    prisma.paymentMachine.findFirst.mockResolvedValueOnce(machine);
+
+    await service.remove({ id: 'user-a' } as any, 'machine-a', 'branch-a');
+
+    expect(prisma.paymentMachine.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'machine-a',
+          tenantId: 'tenant-a',
+          branchId: 'branch-a',
+          deletedAt: null,
+        }),
+        data: expect.objectContaining({
+          status: MachineStatus.inativa,
+          deletedAt: expect.any(Date),
+          updatedById: 'user-a',
+        }),
+      }),
+    );
   });
 });
