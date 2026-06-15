@@ -200,11 +200,87 @@ describe('ProductsService', () => {
         where: expect.objectContaining({
           tenantId: 'tenant-id',
           branchId: 'branch-id',
-          barcode: '7891234567890',
           quantity: { gt: 0 },
+          OR: expect.arrayContaining([
+            { barcode: { in: ['7891234567890'] } },
+            { sku: { in: ['7891234567890'] } },
+          ]),
         }),
       }),
     );
+  });
+
+  it('lookup do PDV extrai barcode de QR JSON e mantem fallback bruto', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+    const raw = '{"barcode":"7891234567890","name":"Produto"}';
+    prisma.product.findMany.mockResolvedValueOnce([
+      { ...product, barcode: '7891234567890' },
+    ]);
+
+    await expect(
+      service.lookupForPos(user, { barcode: raw }, 'branch-id'),
+    ).resolves.toMatchObject({
+      products: [expect.objectContaining({ id: 'product-id' })],
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          OR: expect.arrayContaining([
+            { barcode: { in: ['7891234567890', raw] } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('lookup do PDV extrai SKU de QR URL', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+    const raw = 'https://example.test/product?sku=SKU-20';
+    prisma.product.findMany.mockResolvedValueOnce([
+      { ...product, sku: 'SKU-20' },
+    ]);
+
+    await service.lookupForPos(user, { code: raw }, 'branch-id');
+
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { sku: { in: ['SKU-20', raw] } },
+          ]),
+        }),
+      }),
+    );
+  });
+
+  it('autocomplete exige dois caracteres e limita a dez resultados', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+    const products = Array.from({ length: 12 }, (_, index) => ({
+      ...product,
+      id: `product-${index}`,
+      name: `Produto ${String(index).padStart(2, '0')}`,
+    }));
+    prisma.product.findMany.mockResolvedValueOnce(products);
+
+    const result = await service.lookupForPos(
+      user,
+      { search: 'Pr', limit: 10 },
+      'branch-id',
+    );
+    expect(result.products).toHaveLength(10);
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 50 }),
+    );
+  });
+
+  it('autocomplete rejeita pesquisa com menos de dois caracteres', async () => {
+    const { service } = makeService(SystemMode.padrao);
+
+    await expect(
+      service.lookupForPos(user, { search: 'P' }, 'branch-id'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('superAdmin comum nao pode selecionar tenant por body/header', async () => {

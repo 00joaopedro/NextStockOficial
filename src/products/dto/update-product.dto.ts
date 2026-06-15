@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { normalizeScanCode } from '../scan-code.util';
 
 export class UpdateProductDto {
   @IsOptional()
@@ -63,8 +64,11 @@ export class UpdateProductDto {
   sku?: string;
 
   @IsOptional()
+  @Transform(({ value }) => normalizeScanCode(value))
   @IsString()
-  @MaxLength(80)
+  @MaxLength(512, {
+    message: 'codigoBarra deve ter no maximo 512 caracteres.',
+  })
   codigoBarra?: string;
 
   @IsOptional()

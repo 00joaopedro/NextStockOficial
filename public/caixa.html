@@ -365,6 +365,10 @@
       gap: 6px;
     }
 
+    .search-product-box {
+      position: relative;
+    }
+
     .barcode-box label,
     .search-product-box label {
       color: var(--text-dark);
@@ -387,11 +391,17 @@
 
     .search-results {
       display: none;
-      max-height: 220px;
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: calc(100% + 6px);
+      z-index: 100;
+      max-height: min(320px, 45vh);
       overflow-y: auto;
       border: 1px solid var(--border);
       border-radius: 10px;
       background: #fff;
+      box-shadow: 0 14px 30px rgba(13, 27, 42, 0.2);
     }
 
     .search-results.open {
@@ -413,6 +423,24 @@
 
     .search-result:hover {
       background: #eaf8f8;
+    }
+
+    .search-result.active,
+    .search-result[aria-selected="true"] {
+      background: #d8f5f5;
+      outline: 2px solid #19aeb5;
+      outline-offset: -2px;
+    }
+
+    .search-result-state {
+      padding: 12px;
+      color: #607286;
+      background: #fff;
+      font-weight: 700;
+    }
+
+    .search-result-state.error {
+      color: #a52e2a;
     }
 
     button:disabled,
@@ -830,13 +858,13 @@
 
       <div class="bottom-inputs">
         <div class="barcode-box">
-          <label for="barcodeInput">Leitura de código de barras</label>
+          <label for="barcodeInput">Leitura de código 1D/2D</label>
           <input
             type="text"
             id="barcodeInput"
             class="barcode-input"
-            placeholder="Ex.: 789001, 789002 ou 789003 e pressione Enter"
-            maxlength="120"
+            placeholder="Escaneie o código e confirme com Enter ou Tab"
+            maxlength="512"
             autocomplete="off"
             inputmode="text"
           >
@@ -848,10 +876,14 @@
             type="text"
             id="searchProductInput"
             class="search-product-input"
-            placeholder="Digite o nome ou código do produto e pressione Enter"
+            placeholder="Digite ao menos 2 caracteres"
             maxlength="120"
             autocomplete="off"
             inputmode="text"
+            role="combobox"
+            aria-autocomplete="list"
+            aria-controls="searchResults"
+            aria-expanded="false"
           >
           <div class="search-results" id="searchResults" role="listbox"></div>
         </div>
@@ -1827,6 +1859,7 @@
     renderizarLista();
     atualizarResumoModal();
   </script>
+  <script src="./Js/scan-code.js"></script>
   <script src="./Js/caixa.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>

@@ -17,6 +17,10 @@ import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import {
+  extractScanCodeCandidates,
+  normalizeScanCode,
+} from './scan-code.util';
 
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
 const SESSION_EXPIRED_MESSAGE = 'Sessao expirada. Faca login novamente.';
@@ -155,13 +159,23 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const barcode = query.barcode?.trim();
-    const search = query.search?.trim();
-    if (!barcode && !search) {
+    const scanCode = normalizeScanCode(query.barcode ?? query.code);
+    const search = (query.search ?? query.q)?.normalize('NFC').trim();
+    const limit = Math.min(query.limit ?? 10, 10);
+    if (!scanCode && !search) {
       throw new BadRequestException(
-        'Informe barcode ou search para localizar um produto.',
+        'Informe barcode, code, search ou q para localizar um produto.',
       );
     }
+    if (!scanCode && search!.length < 2) {
+      throw new BadRequestException(
+        'Informe pelo menos 2 caracteres para pesquisar produtos.',
+      );
+    }
+
+    const scanCandidates = scanCode
+      ? extractScanCodeCandidates(scanCode)
+      : [];
 
     const context = await this.contextResolver().resolve(user, {
       selectedBranchId,
@@ -174,8 +188,13 @@ export class ProductsService {
         tenantId: context.tenantId,
         branchId: context.branchId!,
         quantity: { gt: 0 },
-        ...(barcode
-          ? { barcode }
+        ...(scanCode
+          ? {
+              OR: [
+                { barcode: { in: scanCandidates } },
+                { sku: { in: scanCandidates } },
+              ],
+            }
           : {
               OR: [
                 { name: { contains: search!, mode: 'insensitive' } },
@@ -198,13 +217,22 @@ export class ProductsService {
         },
       },
       orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
-      take: barcode ? 1 : 20,
+      take: scanCode ? Math.max(scanCandidates.length * 2, 10) : 50,
     });
+
+    const rankedProducts = products
+      .sort((left, right) =>
+        scanCode
+          ? rankScanProduct(left, scanCandidates) -
+            rankScanProduct(right, scanCandidates)
+          : compareSearchProducts(left, right, search!),
+      )
+      .slice(0, scanCode ? 1 : limit);
 
     return {
       ok: true,
       products: await Promise.all(
-        products.map(async (product) => {
+        rankedProducts.map(async (product) => {
           const unit = product.unit?.trim().toUpperCase() || 'UN';
           const weighed = ['KG', 'KGM', 'G', 'GR'].includes(unit);
           const image = product.images[0];
@@ -531,7 +559,7 @@ export class ProductsService {
       category: clean(dto.categoria),
       supplier: clean(dto.fornecedor),
       sku: clean(dto.sku),
-      barcode: clean(dto.codigoBarra),
+      barcode: cleanScanCode(dto.codigoBarra),
       description: clean(dto.descricao),
       weight: clean(dto.peso),
       height: clean(dto.altura),
@@ -569,7 +597,9 @@ export class ProductsService {
     if (dto.categoria !== undefined) data.category = clean(dto.categoria);
     if (dto.fornecedor !== undefined) data.supplier = clean(dto.fornecedor);
     if (dto.sku !== undefined) data.sku = clean(dto.sku);
-    if (dto.codigoBarra !== undefined) data.barcode = clean(dto.codigoBarra);
+    if (dto.codigoBarra !== undefined) {
+      data.barcode = cleanScanCode(dto.codigoBarra);
+    }
     if (dto.descricao !== undefined) data.description = clean(dto.descricao);
     if (dto.peso !== undefined) data.weight = clean(dto.peso);
     if (dto.altura !== undefined) data.height = clean(dto.altura);
@@ -722,9 +752,65 @@ function clean(value?: string) {
   return cleaned ? cleaned : null;
 }
 
+function cleanScanCode(value?: string) {
+  const cleaned = normalizeScanCode(value);
+  return cleaned || null;
+}
+
 function fiscalDigits(value?: string) {
   const cleaned = value?.replace(/\D/g, '');
   return cleaned || null;
+}
+
+type PosLookupProduct = {
+  name: string;
+  sku: string | null;
+  barcode: string | null;
+};
+
+function rankScanProduct(
+  product: PosLookupProduct,
+  candidates: string[],
+): number {
+  const barcodeIndex = product.barcode
+    ? candidates.indexOf(product.barcode)
+    : -1;
+  const skuIndex = product.sku ? candidates.indexOf(product.sku) : -1;
+
+  if (barcodeIndex >= 0) return barcodeIndex * 2;
+  if (skuIndex >= 0) return skuIndex * 2 + 1;
+  return Number.MAX_SAFE_INTEGER;
+}
+
+function compareSearchProducts(
+  left: PosLookupProduct,
+  right: PosLookupProduct,
+  search: string,
+) {
+  const normalizedSearch = search.toLocaleLowerCase('pt-BR');
+  const score = (product: PosLookupProduct) => {
+    if (
+      product.barcode?.toLocaleLowerCase('pt-BR') === normalizedSearch ||
+      product.sku?.toLocaleLowerCase('pt-BR') === normalizedSearch
+    ) {
+      return 0;
+    }
+    if (product.name.toLocaleLowerCase('pt-BR').startsWith(normalizedSearch)) {
+      return 1;
+    }
+    if (
+      product.sku?.toLocaleLowerCase('pt-BR').startsWith(normalizedSearch) ||
+      product.barcode?.toLocaleLowerCase('pt-BR').startsWith(normalizedSearch)
+    ) {
+      return 2;
+    }
+    return 3;
+  };
+
+  return (
+    score(left) - score(right) ||
+    left.name.localeCompare(right.name, 'pt-BR', { sensitivity: 'base' })
+  );
 }
 
 function moneyToCents(value: number) {

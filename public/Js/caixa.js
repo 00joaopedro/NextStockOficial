@@ -11,6 +11,12 @@
     busy: false,
     discountType: "percentage",
     discountValue: 0,
+    searchTimer: null,
+    searchController: null,
+    searchSequence: 0,
+    suggestions: [],
+    activeSuggestion: -1,
+    scanPending: false,
   };
 
   const els = {
@@ -58,6 +64,10 @@
     debito: "debit_card",
     credito: "credit_card",
   };
+
+  function normalizeScanCode(value) {
+    return window.NextStockScanCode.normalize(value);
+  }
 
   function money(cents) {
     return (Number(cents || 0) / 100).toLocaleString("pt-BR", {
@@ -314,49 +324,164 @@
   }
 
   function closeSearchResults() {
+    window.clearTimeout(state.searchTimer);
+    state.searchTimer = null;
+    state.searchController?.abort();
+    state.searchController = null;
+    state.searchSequence += 1;
+    state.suggestions = [];
+    state.activeSuggestion = -1;
     els.searchResults.classList.remove("open");
     els.searchResults.replaceChildren();
+    els.searchInput.setAttribute("aria-expanded", "false");
+    els.searchInput.removeAttribute("aria-activedescendant");
   }
 
   function renderSearchResults(products) {
+    state.suggestions = products.slice(0, 10);
+    state.activeSuggestion = -1;
     const fragment = document.createDocumentFragment();
-    products.forEach((product) => {
+    state.suggestions.forEach((product, index) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "search-result";
+      button.id = `product-suggestion-${state.searchSequence}-${index}`;
+      button.setAttribute("role", "option");
+      button.setAttribute("aria-selected", "false");
       button.textContent = `${product.name} | ${
         product.barcode || product.sku || "sem codigo"
       } | ${money(product.salePriceCents)} | estoque ${product.quantity}`;
-      button.addEventListener("click", () => addProduct(product));
+      button.addEventListener("click", () => selectSuggestion(index));
       fragment.appendChild(button);
     });
     els.searchResults.replaceChildren(fragment);
-    els.searchResults.classList.toggle("open", products.length > 0);
+    els.searchResults.classList.toggle("open", state.suggestions.length > 0);
+    els.searchInput.setAttribute(
+      "aria-expanded",
+      state.suggestions.length > 0 ? "true" : "false",
+    );
   }
 
-  async function lookupProduct(kind, value) {
-    const term = String(value || "").trim();
+  function renderSearchState(message, tone) {
+    state.suggestions = [];
+    state.activeSuggestion = -1;
+    const status = document.createElement("div");
+    status.className = `search-result-state${tone === "error" ? " error" : ""}`;
+    status.setAttribute("role", "status");
+    status.textContent = message;
+    els.searchResults.replaceChildren(status);
+    els.searchResults.classList.add("open");
+    els.searchInput.setAttribute("aria-expanded", "true");
+    els.searchInput.removeAttribute("aria-activedescendant");
+  }
+
+  function setActiveSuggestion(index) {
+    if (!state.suggestions.length) return;
+    const next =
+      (index + state.suggestions.length) % state.suggestions.length;
+    state.activeSuggestion = next;
+    const options = Array.from(
+      els.searchResults.querySelectorAll('[role="option"]'),
+    );
+    options.forEach((option, optionIndex) => {
+      const active = optionIndex === next;
+      option.classList.toggle("active", active);
+      option.setAttribute("aria-selected", active ? "true" : "false");
+      if (active) {
+        els.searchInput.setAttribute("aria-activedescendant", option.id);
+        option.scrollIntoView({ block: "nearest" });
+      }
+    });
+  }
+
+  function selectSuggestion(index) {
+    const product = state.suggestions[index];
+    if (!product) return;
+    addProduct(product);
+    els.searchInput.value = "";
+    closeSearchResults();
+    els.searchInput.focus();
+  }
+
+  async function lookupProduct(value) {
+    let term = "";
+    try {
+      term = normalizeScanCode(value);
+    } catch (error) {
+      toast(error.message, "error");
+      return;
+    }
     if (!term) return;
+    if (state.scanPending) return;
+    state.scanPending = true;
     setBusy(true);
     try {
-      const query = new URLSearchParams({ [kind]: term });
+      const query = new URLSearchParams({ barcode: term, limit: "1" });
       const result = await api(`/api/products/lookup?${query}`);
       const products = Array.isArray(result.products) ? result.products : [];
       if (!products.length) {
-        closeSearchResults();
         toast("Produto nao encontrado ou sem estoque nesta filial.", "warning");
         return;
       }
-      if (kind === "barcode" || products.length === 1) {
-        addProduct(products[0]);
-      } else {
-        renderSearchResults(products);
-      }
+      addProduct(products[0]);
     } catch (error) {
       toast(error.message, "error");
     } finally {
+      state.scanPending = false;
       setBusy(false);
+      els.barcodeInput.focus();
     }
+  }
+
+  function scheduleAutocomplete() {
+    window.clearTimeout(state.searchTimer);
+    state.searchController?.abort();
+    state.searchController = null;
+    const sequence = ++state.searchSequence;
+    const term = els.searchInput.value.normalize("NFC").trim();
+
+    if (term.length < 2) {
+      closeSearchResults();
+      return;
+    }
+
+    renderSearchState("Buscando produtos...");
+    state.searchTimer = window.setTimeout(async () => {
+      const controller = new AbortController();
+      state.searchController = controller;
+      try {
+        const query = new URLSearchParams({
+          search: term,
+          limit: "10",
+        });
+        const result = await api(`/api/products/lookup?${query}`, {
+          signal: controller.signal,
+        });
+        if (
+          sequence !== state.searchSequence ||
+          term !== els.searchInput.value.normalize("NFC").trim()
+        ) {
+          return;
+        }
+        const products = Array.isArray(result.products)
+          ? result.products.slice(0, 10)
+          : [];
+        if (!products.length) {
+          renderSearchState("Nenhum produto encontrado.");
+          return;
+        }
+        renderSearchResults(products);
+      } catch (error) {
+        if (error.name === "AbortError" || sequence !== state.searchSequence) {
+          return;
+        }
+        renderSearchState(error.message, "error");
+      } finally {
+        if (sequence === state.searchSequence) {
+          state.searchController = null;
+        }
+      }
+    }, 250);
   }
 
   async function loadMachines() {
@@ -624,15 +749,39 @@
   }
 
   els.barcodeInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
+    if (!["Enter", "Tab"].includes(event.key)) return;
     event.preventDefault();
-    lookupProduct("barcode", els.barcodeInput.value);
+    const scannedValue = els.barcodeInput.value;
     els.barcodeInput.value = "";
+    lookupProduct(scannedValue);
   });
+  els.searchInput.addEventListener("input", scheduleAutocomplete);
   els.searchInput.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    lookupProduct("search", els.searchInput.value);
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveSuggestion(state.activeSuggestion + 1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveSuggestion(
+        state.activeSuggestion < 0
+          ? state.suggestions.length - 1
+          : state.activeSuggestion - 1,
+      );
+      return;
+    }
+    if (event.key === "Enter" && state.suggestions.length) {
+      event.preventDefault();
+      selectSuggestion(
+        state.activeSuggestion >= 0 ? state.activeSuggestion : 0,
+      );
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeSearchResults();
+    }
   });
   els.pay.addEventListener("click", openPayment);
   els.confirmPayment.addEventListener("click", checkout);

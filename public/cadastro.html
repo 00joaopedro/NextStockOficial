@@ -546,8 +546,8 @@
             </div>
 
             <div class="form-group">
-              <label for="codigoBarra">Código de Barra</label>
-              <input type="text" id="codigoBarra" placeholder="Ex: 7891234567890" maxlength="80">
+              <label for="codigoBarra">Código 1D/2D</label>
+              <input type="text" id="codigoBarra" placeholder="Escaneie ou digite o código" maxlength="512" autocomplete="off">
             </div>
 
             <div class="form-group">
@@ -640,6 +640,7 @@
   </div>
 
   <script src="./dist/session-state.js"></script>
+  <script src="./Js/scan-code.js"></script>
   <script>
     const precoCusto = document.getElementById("precoCusto");
     const percentualLucro = document.getElementById("percentualLucro");
@@ -870,6 +871,10 @@
         .slice(0, 150);
     }
 
+    function normalizarCodigoEscaneavel(valor) {
+      return window.NextStockScanCode.normalize(valor);
+    }
+
     function calcularPrecoVenda() {
       const custo = parseFloat(precoCusto.value) || 0;
       const lucro = parseFloat(percentualLucro.value) || 0;
@@ -881,6 +886,7 @@
       const camposTexto = produtoForm.querySelectorAll('input[type="text"]');
 
       camposTexto.forEach((campo) => {
+        if (campo.id === "codigoBarra") return;
         campo.addEventListener("input", function () {
           this.value = sanitizarEntrada(this.value);
         });
@@ -888,7 +894,7 @@
     }
 
     function renderizarListaImagens() {
-      imageList.innerHTML = "";
+      imageList.replaceChildren();
 
       if (imagensSelecionadas.length === 0) return;
 
@@ -896,13 +902,27 @@
         const item = document.createElement("div");
         item.className = "image-item";
 
-        item.innerHTML = `
-          <span class="image-name">${imagem.nome}</span>
-          <button type="button" class="remove-image-btn" data-index="${index}">X</button>
-        `;
+        const name = document.createElement("span");
+        name.className = "image-name";
+        name.textContent = imagem.nome;
+
+        const remove = document.createElement("button");
+        remove.type = "button";
+        remove.className = "remove-image-btn";
+        remove.dataset.index = String(index);
+        remove.textContent = "X";
+
+        item.append(name, remove);
 
         imageList.appendChild(item);
       });
+    }
+
+    function definirMensagemResultado(mensagem) {
+      const item = document.createElement("div");
+      item.className = "empty-result";
+      item.textContent = mensagem;
+      resultList.replaceChildren(item);
     }
 
     function parseNumero(valor) {
@@ -921,7 +941,9 @@
         categoria: document.getElementById("categoria").value.trim(),
         fornecedor: document.getElementById("fornecedor").value.trim(),
         sku: document.getElementById("sku").value.trim(),
-        codigoBarra: document.getElementById("codigoBarra").value.trim(),
+        codigoBarra: normalizarCodigoEscaneavel(
+          document.getElementById("codigoBarra").value
+        ),
         descricao: document.getElementById("descricao").value.trim(),
         peso: document.getElementById("peso").value.trim(),
         altura: document.getElementById("altura").value.trim(),
@@ -973,17 +995,20 @@
       produtoSelecionadoConsulta = null;
       imgInput.value = "";
       pesquisaProdutoInput.value = "";
-      resultList.innerHTML = "";
+      resultList.replaceChildren();
     }
 
     async function abrirModalConsulta() {
       consultaModal.classList.add("active");
       pesquisaProdutoInput.value = "";
       produtoSelecionadoConsulta = null;
-      resultList.innerHTML = `<div class="empty-result">Carregando produtos...</div>`;
-      await buscarProdutos().catch((error) => {
-        resultList.innerHTML = `<div class="empty-result">${error.message}</div>`;
-      });
+      definirMensagemResultado("Carregando produtos...");
+      try {
+        await buscarProdutos();
+      } catch (error) {
+        definirMensagemResultado(error.message);
+        return;
+      }
       renderizarResultadosConsulta();
       pesquisaProdutoInput.focus();
     }
@@ -1099,12 +1124,13 @@
 
     function renderizarResultadosConsulta() {
       const resultados = obterProdutosFiltrados();
-      resultList.innerHTML = "";
 
       if (resultados.length === 0) {
-        resultList.innerHTML = `<div class="empty-result">Nenhum produto encontrado.</div>`;
+        definirMensagemResultado("Nenhum produto encontrado.");
         return;
       }
+
+      const fragment = document.createDocumentFragment();
 
       resultados.forEach(({ produto, index }) => {
         const item = document.createElement("div");
@@ -1114,18 +1140,26 @@
           item.classList.add("active");
         }
 
-        item.innerHTML = `
-          <div class="result-name">${produto.nome}</div>
-          <div class="result-sub">SKU: ${produto.sku || "-"} | Código: ${produto.codigoBarra || "-"} | Estoque: ${produto.quantidade || "0"}</div>
-        `;
+        const name = document.createElement("div");
+        name.className = "result-name";
+        name.textContent = produto.nome;
+
+        const details = document.createElement("div");
+        details.className = "result-sub";
+        details.textContent = `SKU: ${produto.sku || "-"} | Código: ${
+          produto.codigoBarra || "-"
+        } | Estoque: ${produto.quantidade || "0"}`;
 
         item.addEventListener("click", () => {
           produtoSelecionadoConsulta = index;
           renderizarResultadosConsulta();
         });
 
-        resultList.appendChild(item);
+        item.append(name, details);
+        fragment.appendChild(item);
       });
+
+      resultList.replaceChildren(fragment);
     }
 
     function confirmarConsultaProduto() {
@@ -1140,7 +1174,13 @@
     }
 
     async function cadastrarProduto() {
-      const dados = obterDadosFormulario();
+      let dados;
+      try {
+        dados = obterDadosFormulario();
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
 
       if (!validarObrigatorios(dados)) {
         alert("Preencha os campos obrigatórios.");
@@ -1177,7 +1217,13 @@
         return;
       }
 
-      const dados = obterDadosFormulario();
+      let dados;
+      try {
+        dados = obterDadosFormulario();
+      } catch (error) {
+        alert(error.message);
+        return;
+      }
 
       if (!validarObrigatorios(dados)) {
         alert("Preencha os campos obrigatórios.");
@@ -1236,6 +1282,29 @@
     precoCusto.addEventListener("input", calcularPrecoVenda);
     percentualLucro.addEventListener("input", calcularPrecoVenda);
 
+    const codigoBarraInput = document.getElementById("codigoBarra");
+    codigoBarraInput.addEventListener("keydown", (event) => {
+      if (!["Enter", "Tab"].includes(event.key)) return;
+      event.preventDefault();
+      try {
+        codigoBarraInput.value = normalizarCodigoEscaneavel(
+          codigoBarraInput.value
+        );
+        document.getElementById("descricao").focus();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+    codigoBarraInput.addEventListener("blur", () => {
+      try {
+        codigoBarraInput.value = normalizarCodigoEscaneavel(
+          codigoBarraInput.value
+        );
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+
     imgInput.addEventListener("change", function (event) {
       const arquivos = Array.from(event.target.files);
       const totalAntes = imagensSelecionadas.length;
@@ -1283,9 +1352,12 @@
     btnFecharModal.addEventListener("click", fecharModalConsulta);
     btnOkConsulta.addEventListener("click", confirmarConsultaProduto);
     pesquisaProdutoInput.addEventListener("input", async () => {
-      await buscarProdutos(pesquisaProdutoInput.value).catch((error) => {
-        resultList.innerHTML = `<div class="empty-result">${error.message}</div>`;
-      });
+      try {
+        await buscarProdutos(pesquisaProdutoInput.value);
+      } catch (error) {
+        definirMensagemResultado(error.message);
+        return;
+      }
       renderizarResultadosConsulta();
     });
 

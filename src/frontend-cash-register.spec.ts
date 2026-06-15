@@ -30,6 +30,37 @@ describe('caixa.html production PDV integration', () => {
     expect(script).toContain('idempotencyKey');
   });
 
+  it('suporta scan 1D/2D com Enter ou Tab e limite coerente', () => {
+    expect(html).toContain('maxlength="512"');
+    expect(html).toContain('./Js/scan-code.js');
+    expect(script).toContain('["Enter", "Tab"].includes(event.key)');
+    expect(script).toContain('normalizeScanCode');
+    expect(script).not.toContain('window.open(scanned');
+  });
+
+  it('implementa autocomplete limitado, cancelavel e sem busy global por tecla', () => {
+    expect(script).toContain('setTimeout(async () =>');
+    expect(script).toContain('}, 250)');
+    expect(script).toContain('new AbortController()');
+    expect(script).toContain('searchSequence');
+    expect(script).toContain('limit: "10"');
+    expect(script).toContain('products.slice(0, 10)');
+    expect(script).toContain('els.searchInput.addEventListener("input"');
+  });
+
+  it('abre sugestoes para cima e oferece navegacao acessivel', () => {
+    expect(html).toContain('bottom: calc(100% + 6px)');
+    expect(html).toContain('position: absolute');
+    expect(html).toContain('role="combobox"');
+    expect(html).toContain('role="listbox"');
+    expect(script).toContain('button.setAttribute("role", "option")');
+    expect(script).toContain('"aria-selected"');
+    expect(script).toContain('"aria-activedescendant"');
+    expect(script).toContain('event.key === "ArrowDown"');
+    expect(script).toContain('event.key === "ArrowUp"');
+    expect(script).toContain('event.key === "Escape"');
+  });
+
   it('usa saleId para recibo e nota fiscal', () => {
     expect(script).toContain('/receipt');
     expect(script).toContain('ntfe.html?saleId=');

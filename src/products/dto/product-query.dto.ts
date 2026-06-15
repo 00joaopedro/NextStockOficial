@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
   IsOptional,
@@ -7,6 +7,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { normalizeScanCode } from '../scan-code.util';
 
 export class ProductQueryDto {
   @IsOptional()
@@ -20,8 +21,9 @@ export class ProductQueryDto {
   sku?: string;
 
   @IsOptional()
+  @Transform(({ value }) => normalizeScanCode(value))
   @IsString()
-  @MaxLength(80)
+  @MaxLength(512)
   barcode?: string;
 
   @IsOptional()
