@@ -36,6 +36,9 @@ describe('SalesService', () => {
     tenantId: context.tenantId,
     branchId: context.branchId,
     orderId: null,
+    source: null,
+    idempotencyKey: null,
+    cashSessionId: null,
     sellerId: user.id,
     sellerNameSnapshot: 'Admin Teste',
     paymentMethod: OrderPaymentMethod.pix,
@@ -45,8 +48,12 @@ describe('SalesService', () => {
     documentNumber: null,
     status: SaleStatus.paid,
     subtotalCents: 3000,
+    discountType: null,
+    discountValue: null,
     discountCents: 0,
     totalCents: 3000,
+    paidCents: 3000,
+    changeCents: 0,
     soldAt: new Date('2026-06-12T10:00:00.000Z'),
     canceledAt: null,
     canceledById: null,
@@ -75,6 +82,11 @@ describe('SalesService', () => {
         paymentMethod: OrderPaymentMethod.pix,
         paymentMachineId: null,
         paymentMachineNameSnapshot: null,
+        paymentMachineProvider: null,
+        paymentMachineModel: null,
+        paymentMachineFeePercent: null,
+        externalProvider: null,
+        externalReference: null,
         amountCents: 3000,
         status: SalePaymentStatus.approved,
         paidAt: new Date('2026-06-12T10:00:00.000Z'),
@@ -213,6 +225,7 @@ describe('SalesService', () => {
 
     await expect(
       service.create(user, {
+        idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
         paymentMethod: OrderPaymentMethod.pix,
         items: [
           {
@@ -352,11 +365,108 @@ describe('SalesService', () => {
 
     await expect(
       service.create(user, {
+        idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
         paymentMethod: OrderPaymentMethod.pix,
         items: [
           {
             productId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
             quantity: 1,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('retorna venda existente para a mesma idempotency key sem baixar estoque', async () => {
+    const { service, prisma, tx } = makeService();
+    prisma.sale.findFirst.mockResolvedValueOnce({
+      ...sale,
+      idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    });
+
+    await expect(
+      service.create(user, {
+        idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+        paymentMethod: OrderPaymentMethod.pix,
+        items: [
+          {
+            productId: '66666666-6666-6666-6666-666666666666',
+            quantity: 2,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({ idempotent: true, sale: { id: sale.id } });
+
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.sale.create).not.toHaveBeenCalled();
+  });
+
+  it('persiste valor pago e troco em pagamento em dinheiro', async () => {
+    const { service, tx } = makeService();
+    tx.sale.create.mockImplementationOnce(({ data }: any) => ({
+      ...sale,
+      ...data,
+      id: sale.id,
+      soldAt: sale.soldAt,
+      createdAt: sale.createdAt,
+      updatedAt: sale.updatedAt,
+      canceledAt: null,
+      canceledById: null,
+      cancellationReason: null,
+      deletedAt: null,
+      items: sale.items,
+      payments: sale.payments,
+      documents: sale.documents,
+    }));
+
+    await expect(
+      service.create(user, {
+        idempotencyKey: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        paymentMethod: OrderPaymentMethod.cash,
+        paidCents: 5000,
+        items: [
+          {
+            productId: '66666666-6666-6666-6666-666666666666',
+            quantity: 2,
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      sale: { paidCents: 5000, changeCents: 2000 },
+    });
+  });
+
+  it('exige maquininha ativa para cartao', async () => {
+    const { service } = makeService();
+
+    await expect(
+      service.create(user, {
+        idempotencyKey: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+        paymentMethod: OrderPaymentMethod.credit_card,
+        paidCents: 3000,
+        items: [
+          {
+            productId: '66666666-6666-6666-6666-666666666666',
+            quantity: 2,
+          },
+        ],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('limita desconto de vendedor a dez por cento', async () => {
+    const { service } = makeService({ role: Role.Vendedor });
+
+    await expect(
+      service.create(user, {
+        idempotencyKey: 'ffffffff-ffff-4fff-8fff-ffffffffffff',
+        paymentMethod: OrderPaymentMethod.pix,
+        discountType: 'percentage' as any,
+        discountValue: 11,
+        items: [
+          {
+            productId: '66666666-6666-6666-6666-666666666666',
+            quantity: 2,
           },
         ],
       }),

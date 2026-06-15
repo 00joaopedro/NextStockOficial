@@ -180,6 +180,33 @@ describe('ProductsService', () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
   });
 
+  it('lookup do PDV busca barcode somente na filial autenticada', async () => {
+    const { service, prisma } = makeService(SystemMode.padrao);
+
+    await expect(
+      service.lookupForPos(user, { barcode: '7891234567890' }, 'branch-id'),
+    ).resolves.toMatchObject({
+      ok: true,
+      products: [
+        expect.objectContaining({
+          id: 'product-id',
+          saleMode: 'unit',
+          salePriceCents: 1300,
+        }),
+      ],
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          barcode: '7891234567890',
+          quantity: { gt: 0 },
+        }),
+      }),
+    );
+  });
+
   it('superAdmin comum nao pode selecionar tenant por body/header', async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
     const { service, prisma } = makeService(SystemMode.padrao);

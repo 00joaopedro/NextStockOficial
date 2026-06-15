@@ -22,8 +22,11 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { BranchContextGuard } from '../tenancy/branch-context.guard';
+import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
+import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
@@ -32,6 +35,24 @@ import { ProductsService } from './products.service';
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
+
+  @Get('lookup')
+  @Roles(Role.Admin, Role.Vendedor)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+  @RequireTenantContext({ requireBranch: true })
+  lookup(
+    @Req() req: Request,
+    @Query() query: ProductLookupQueryDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+  ) {
+    return this.productsService.lookupForPos(
+      req.user,
+      query,
+      selectedBranchId,
+      devContextMode,
+    );
+  }
 
   @Get()
   @UseGuards(OptionalJwtAuthGuard)

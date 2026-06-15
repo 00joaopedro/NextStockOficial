@@ -6,12 +6,17 @@ import {
   IsEnum,
   IsInt,
   IsOptional,
+  IsNumber,
   IsUUID,
   Max,
   Min,
   ValidateNested,
 } from 'class-validator';
-import { OrderPaymentMethod, SaleDocumentType } from '@prisma/client';
+import {
+  OrderPaymentMethod,
+  SaleDiscountType,
+  SaleDocumentType,
+} from '@prisma/client';
 
 export class CreateSaleItemDto {
   @IsUUID()
@@ -25,6 +30,9 @@ export class CreateSaleItemDto {
 }
 
 export class CreateSaleDto {
+  @IsUUID()
+  idempotencyKey!: string;
+
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(200)
@@ -50,10 +58,28 @@ export class CreateSaleDto {
   @Max(100_000_000)
   discountCents?: number;
 
+  @IsOptional()
+  @IsEnum(SaleDiscountType)
+  discountType?: SaleDiscountType;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100_000_000)
+  discountValue?: number;
+
   @Type(() => Number)
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(100_000_000)
   amountCents?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100_000_000)
+  paidCents?: number;
 }

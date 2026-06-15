@@ -385,6 +385,44 @@
       font-weight: 700;
     }
 
+    .search-results {
+      display: none;
+      max-height: 220px;
+      overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .search-results.open {
+      display: block;
+    }
+
+    .search-result {
+      width: 100%;
+      padding: 11px 12px;
+      background: #fff;
+      color: var(--text-dark);
+      text-align: left;
+      border-bottom: 1px solid #e5edf3;
+    }
+
+    .search-result:last-child {
+      border-bottom: 0;
+    }
+
+    .search-result:hover {
+      background: #eaf8f8;
+    }
+
+    button:disabled,
+    input:disabled,
+    select:disabled {
+      cursor: not-allowed;
+      opacity: 0.58;
+      transform: none;
+    }
+
     .totais-wrapper {
       display: flex;
       flex-direction: column;
@@ -815,6 +853,7 @@
             autocomplete="off"
             inputmode="text"
           >
+          <div class="search-results" id="searchResults" role="listbox"></div>
         </div>
       </div>
     </section>
@@ -877,9 +916,6 @@
             <label for="cardMachine">Maquininha usada</label>
             <select id="cardMachine" class="machine-select">
               <option value="">Selecione a maquininha</option>
-              <option value="Stone - Caixa Principal">Stone - Caixa Principal</option>
-              <option value="PagSeguro - Balcão">PagSeguro - Balcão</option>
-              <option value="Mercado Pago - Recepção">Mercado Pago - Recepção</option>
             </select>
           </div>
 
@@ -919,7 +955,7 @@
         </div>
 
         <p class="helper-text">
-          Ao clicar em Pago, o frontend registra a venda como paga e chama a impressão do recibo.
+          A venda somente será concluída depois da confirmação do backend.
         </p>
       </div>
 
@@ -979,7 +1015,7 @@
   <div class="toast-container" id="toastContainer"></div>
 
   <div id="printArea"></div>
-  <script>
+  <script type="text/plain" data-legacy-cash-script="disabled">
     function getOperationalStorageKey(baseKey) {
       let branch = null;
       let user = null;
@@ -1791,6 +1827,7 @@
     renderizarLista();
     atualizarResumoModal();
   </script>
+  <script src="./Js/caixa.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>

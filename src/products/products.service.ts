@@ -6,7 +6,7 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, Product, ProductImage, SystemMode } from '@prisma/client';
+import { Prisma, Product, ProductImage, Role, SystemMode } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
@@ -15,6 +15,7 @@ import { UsageService } from '../usage/usage.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
+import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
@@ -108,7 +109,12 @@ export class ProductsService {
     };
 
     if (query.search) {
-      where.name = { contains: query.search.trim(), mode: 'insensitive' };
+      const search = query.search.trim();
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { sku: { contains: search, mode: 'insensitive' } },
+        { barcode: { contains: search, mode: 'insensitive' } },
+      ];
     }
 
     if (query.sku) {
@@ -127,6 +133,7 @@ export class ProductsService {
       where,
       include: { images: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
+      take: query.pageSize ?? 20,
     });
     await this.recordProductUsage(user, tenant, 'products_list', {
       dbReadCount: 1,
@@ -138,6 +145,88 @@ export class ProductsService {
       mode: tenant.mode,
       products: await Promise.all(
         products.map((product) => this.formatProduct(product)),
+      ),
+    };
+  }
+
+  async lookupForPos(
+    user: Express.AuthenticatedUser | undefined,
+    query: ProductLookupQueryDto,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    const barcode = query.barcode?.trim();
+    const search = query.search?.trim();
+    if (!barcode && !search) {
+      throw new BadRequestException(
+        'Informe barcode ou search para localizar um produto.',
+      );
+    }
+
+    const context = await this.contextResolver().resolve(user, {
+      selectedBranchId,
+      requireBranch: true,
+      allowedRoles: [Role.Admin, Role.Vendedor],
+      allowDevSupport: devContextMode?.toLowerCase() === 'support',
+    });
+    const products = await this.prisma.product.findMany({
+      where: {
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+        quantity: { gt: 0 },
+        ...(barcode
+          ? { barcode }
+          : {
+              OR: [
+                { name: { contains: search!, mode: 'insensitive' } },
+                { sku: { contains: search!, mode: 'insensitive' } },
+                { barcode: { contains: search!, mode: 'insensitive' } },
+              ],
+            }),
+      },
+      select: {
+        id: true,
+        name: true,
+        barcode: true,
+        sku: true,
+        salePriceCents: true,
+        quantity: true,
+        unit: true,
+        images: {
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+        },
+      },
+      orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+      take: barcode ? 1 : 20,
+    });
+
+    return {
+      ok: true,
+      products: await Promise.all(
+        products.map(async (product) => {
+          const unit = product.unit?.trim().toUpperCase() || 'UN';
+          const weighed = ['KG', 'KGM', 'G', 'GR'].includes(unit);
+          const image = product.images[0];
+          const imageUrl = image
+            ? image.fileUrl ||
+              (this.storage
+                ? await this.storage.getProductImageUrl(image.storagePath)
+                : null)
+            : null;
+
+          return {
+            id: product.id,
+            name: product.name,
+            barcode: product.barcode,
+            sku: product.sku,
+            salePriceCents: product.salePriceCents,
+            quantity: product.quantity,
+            saleMode: weighed ? 'weighed' : 'unit',
+            unitLabel: weighed ? 'kg' : 'un',
+            imageUrl,
+          };
+        }),
       ),
     };
   }

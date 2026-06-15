@@ -469,6 +469,9 @@ model Sale {
   tenantId                   String           @map("tenant_id") @db.Uuid
   branchId                   String           @map("branch_id") @db.Uuid
   orderId                    String?          @unique @map("order_id") @db.Uuid
+  source                     SaleSource?
+  idempotencyKey             String?          @map("idempotency_key")
+  cashSessionId              String?          @map("cash_session_id") @db.Uuid
   sellerId                   String?          @map("seller_id") @db.Uuid
   sellerNameSnapshot         String           @map("seller_name_snapshot")
   paymentMethod              String           @map("payment_method")
@@ -478,8 +481,12 @@ model Sale {
   documentNumber             String?          @map("document_number")
   status                     SaleStatus       @default(paid)
   subtotalCents              Int              @map("subtotal_cents")
+  discountType               SaleDiscountType? @map("discount_type")
+  discountValue              Decimal?         @map("discount_value") @db.Decimal(12, 4)
   discountCents              Int              @default(0) @map("discount_cents")
   totalCents                 Int              @map("total_cents")
+  paidCents                  Int?             @map("paid_cents")
+  changeCents                Int              @default(0) @map("change_cents")
   soldAt                     DateTime         @default(now()) @map("sold_at")
   canceledAt                 DateTime?        @map("canceled_at")
   canceledById               String?          @map("canceled_by_id") @db.Uuid
@@ -502,6 +509,8 @@ model Sale {
   @@index([tenantId, branchId, sellerId])
   @@index([tenantId, branchId, status])
   @@index([orderId])
+  @@unique([tenantId, branchId, idempotencyKey])
+  @@index([cashSessionId])
   @@map("sales")
 }
 
@@ -537,6 +546,11 @@ model SalePayment {
   paymentMethod              String            @map("payment_method")
   paymentMachineId           String?           @map("payment_machine_id") @db.Uuid
   paymentMachineNameSnapshot String?           @map("payment_machine_name_snapshot")
+  paymentMachineProvider     PaymentProvider?  @map("payment_machine_provider")
+  paymentMachineModel        String?            @map("payment_machine_model")
+  paymentMachineFeePercent   Decimal?           @map("payment_machine_fee_percent") @db.Decimal(5, 2)
+  externalProvider           String?            @map("external_provider")
+  externalReference          String?            @map("external_reference")
   amountCents                Int               @map("amount_cents")
   status                     SalePaymentStatus @default(approved)
   paidAt                     DateTime?         @map("paid_at")
@@ -990,6 +1004,16 @@ enum SaleStatus {
   paid
   canceled
   refunded
+}
+
+enum SaleSource {
+  cash_register
+  order
+}
+
+enum SaleDiscountType {
+  percentage
+  fixed
 }
 
 enum SaleDocumentType {

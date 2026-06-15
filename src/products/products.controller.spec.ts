@@ -1,6 +1,7 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { BranchContextGuard } from '../tenancy/branch-context.guard';
 import { ProductsController } from './products.controller';
 
 describe('ProductsController guards', () => {
@@ -23,5 +24,10 @@ describe('ProductsController guards', () => {
     expect(guardsFor('addImages')).toContain(JwtAuthGuard);
     expect(guardsFor('uploadImage')).toContain(JwtAuthGuard);
     expect(guardsFor('removeImage')).toContain(JwtAuthGuard);
+  });
+
+  it('exige JWT e contexto de filial no lookup do PDV', () => {
+    expect(guardsFor('lookup')).toContain(JwtAuthGuard);
+    expect(guardsFor('lookup')).toContain(BranchContextGuard);
   });
 });

@@ -6,11 +6,14 @@ import {
 import {
   MachineStatus,
   OrderStatus,
+  OrderPaymentMethod,
   Prisma,
   Role,
+  SaleDiscountType,
   SaleDocumentStatus,
   SaleDocumentType,
   SalePaymentStatus,
+  SaleSource,
   SaleStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -107,100 +110,158 @@ export class SalesService {
       true,
     );
     const normalizedItems = this.normalizeItems(dto.items);
+    const existing = await this.findByIdempotencyKey(
+      context.tenantId,
+      context.branchId!,
+      dto.idempotencyKey,
+    );
+    if (existing) {
+      return {
+        ok: true,
+        idempotent: true,
+        paymentConfirmation: 'manual',
+        sale: this.formatSale(existing),
+      };
+    }
 
-    const sale = await this.prisma.$transaction(async (tx) => {
-      const sellerName = await this.loadSellerName(tx, context.userId, user);
-      const pricedItems = await this.loadPricedItems(
-        tx,
-        context.tenantId,
-        context.branchId!,
-        normalizedItems,
-      );
-      const paymentMachine = await this.loadPaymentMachine(
-        tx,
-        context.tenantId,
-        context.branchId!,
-        dto.paymentMachineId,
-      );
-      const subtotalCents = pricedItems.reduce(
-        (sum, item) => sum + item.totalPriceCents,
-        0,
-      );
-      const discountCents = Math.min(dto.discountCents ?? 0, subtotalCents);
-      const totalCents = subtotalCents - discountCents;
-      const amountCents = dto.amountCents ?? totalCents;
-
-      if (amountCents < totalCents) {
-        throw new BadRequestException('O pagamento aprovado nao cobre o total da venda.');
-      }
-
-      await this.decrementStock(
-        tx,
-        context.tenantId,
-        context.branchId!,
-        pricedItems,
-      );
-
-      const documentType = dto.documentType ?? SaleDocumentType.receipt;
-      const documentStatus =
-        documentType === SaleDocumentType.receipt
-          ? SaleDocumentStatus.authorized
-          : SaleDocumentStatus.draft;
-
-      return tx.sale.create({
-        data: {
-          tenantId: context.tenantId,
-          branchId: context.branchId!,
-          sellerId: context.userId,
-          sellerNameSnapshot: sellerName,
-          paymentMethod: dto.paymentMethod,
-          paymentMachineId: paymentMachine?.id,
-          paymentMachineNameSnapshot: paymentMachine?.name,
-          documentType,
-          status: SaleStatus.paid,
+    try {
+      const sale = await this.prisma.$transaction(async (tx) => {
+        const sellerName = await this.loadSellerName(tx, context.userId, user);
+        const pricedItems = await this.loadPricedItems(
+          tx,
+          context.tenantId,
+          context.branchId!,
+          normalizedItems,
+        );
+        const paymentMachine = await this.loadPaymentMachine(
+          tx,
+          context.tenantId,
+          context.branchId!,
+          dto.paymentMethod,
+          dto.paymentMachineId,
+        );
+        const subtotalCents = pricedItems.reduce(
+          (sum, item) => sum + item.totalPriceCents,
+          0,
+        );
+        const discount = this.calculateDiscount(
+          dto,
           subtotalCents,
-          discountCents,
+          context.role,
+          context.isDevSuperAdmin,
+        );
+        const totalCents = subtotalCents - discount.discountCents;
+        const paidCents = dto.paidCents ?? dto.amountCents ?? totalCents;
+        const changeCents = this.validatePayment(
+          dto.paymentMethod,
+          paidCents,
           totalCents,
-          items: {
-            create: pricedItems.map((item) => ({
-              productId: item.productId,
-              productNameSnapshot: item.productNameSnapshot,
-              skuSnapshot: item.skuSnapshot,
-              barcodeSnapshot: item.barcodeSnapshot,
-              ncmSnapshot: item.ncmSnapshot,
-              cfopSnapshot: item.cfopSnapshot,
-              unitSnapshot: item.unitSnapshot,
-              originSnapshot: item.originSnapshot,
-              cestSnapshot: item.cestSnapshot,
-              quantity: item.quantity,
-              unitPriceCents: item.unitPriceCents,
-              totalPriceCents: item.totalPriceCents,
-            })),
-          },
-          payments: {
-            create: {
-              paymentMethod: dto.paymentMethod,
-              paymentMachineId: paymentMachine?.id,
-              paymentMachineNameSnapshot: paymentMachine?.name,
-              amountCents,
-              status: SalePaymentStatus.approved,
-              paidAt: new Date(),
-            },
-          },
-          documents: {
-            create: {
-              type: documentType,
-              status: documentStatus,
-              issuedAt:
-                documentType === SaleDocumentType.receipt ? new Date() : null,
-            },
-          },
-        },
-        include: SALE_INCLUDE,
-      });
-    });
+        );
 
-    return { ok: true, sale: this.formatSale(sale) };
+        await this.decrementStock(
+          tx,
+          context.tenantId,
+          context.branchId!,
+          pricedItems,
+        );
+
+        const documentType = dto.documentType ?? SaleDocumentType.receipt;
+        const documentStatus =
+          documentType === SaleDocumentType.receipt
+            ? SaleDocumentStatus.authorized
+            : SaleDocumentStatus.draft;
+
+        return tx.sale.create({
+          data: {
+            tenantId: context.tenantId,
+            branchId: context.branchId!,
+            source: SaleSource.cash_register,
+            idempotencyKey: dto.idempotencyKey,
+            sellerId: context.userId,
+            sellerNameSnapshot: sellerName,
+            paymentMethod: dto.paymentMethod,
+            paymentMachineId: paymentMachine?.id,
+            paymentMachineNameSnapshot: paymentMachine?.name,
+            documentType,
+            status: SaleStatus.paid,
+            subtotalCents,
+            discountType: discount.type,
+            discountValue: discount.value,
+            discountCents: discount.discountCents,
+            totalCents,
+            paidCents,
+            changeCents,
+            items: {
+              create: pricedItems.map((item) => ({
+                productId: item.productId,
+                productNameSnapshot: item.productNameSnapshot,
+                skuSnapshot: item.skuSnapshot,
+                barcodeSnapshot: item.barcodeSnapshot,
+                ncmSnapshot: item.ncmSnapshot,
+                cfopSnapshot: item.cfopSnapshot,
+                unitSnapshot: item.unitSnapshot,
+                originSnapshot: item.originSnapshot,
+                cestSnapshot: item.cestSnapshot,
+                quantity: item.quantity,
+                unitPriceCents: item.unitPriceCents,
+                totalPriceCents: item.totalPriceCents,
+              })),
+            },
+            payments: {
+              create: {
+                paymentMethod: dto.paymentMethod,
+                paymentMachineId: paymentMachine?.id,
+                paymentMachineNameSnapshot: paymentMachine?.name,
+                paymentMachineProvider: paymentMachine?.provider,
+                paymentMachineModel: paymentMachine?.model,
+                paymentMachineFeePercent: paymentMachine?.feePercent,
+                externalProvider: paymentMachine?.externalProvider,
+                externalReference: paymentMachine?.externalReference,
+                amountCents: totalCents,
+                status: SalePaymentStatus.approved,
+                paidAt: new Date(),
+              },
+            },
+            documents: {
+              create: {
+                type: documentType,
+                status: documentStatus,
+                issuedAt:
+                  documentType === SaleDocumentType.receipt ? new Date() : null,
+              },
+            },
+          },
+          include: SALE_INCLUDE,
+        });
+      });
+
+      return {
+        ok: true,
+        idempotent: false,
+        paymentConfirmation: 'manual',
+        sale: this.formatSale(sale),
+      };
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const raced = await this.findByIdempotencyKey(
+          context.tenantId,
+          context.branchId!,
+          dto.idempotencyKey,
+        );
+        if (raced) {
+          return {
+            ok: true,
+            idempotent: true,
+            paymentConfirmation: 'manual',
+            sale: this.formatSale(raced),
+          };
+        }
+      }
+      throw error;
+    }
   }
 
   async createFromOrder(
@@ -260,19 +321,20 @@ export class SalesService {
         }
 
         const sellerName = await this.loadSellerName(tx, context.userId, user);
+        const paymentMethod = dto.paymentMethod ?? order.paymentMethod;
         const paymentMachine = await this.loadPaymentMachine(
           tx,
           context.tenantId,
           context.branchId!,
+          paymentMethod,
           dto.paymentMachineId,
         );
-        const paymentMethod = dto.paymentMethod ?? order.paymentMethod;
         const amountCents = dto.amountCents ?? order.totalCents;
-        if (amountCents < order.totalCents) {
-          throw new BadRequestException(
-            'O pagamento aprovado nao cobre o total do pedido.',
-          );
-        }
+        const changeCents = this.validatePayment(
+          paymentMethod,
+          amountCents,
+          order.totalCents,
+        );
 
         const documentType = dto.documentType ?? SaleDocumentType.receipt;
         const documentStatus =
@@ -285,6 +347,7 @@ export class SalesService {
             tenantId: context.tenantId,
             branchId: context.branchId!,
             orderId: order.id,
+            source: SaleSource.order,
             sellerId: context.userId,
             sellerNameSnapshot: sellerName,
             paymentMethod,
@@ -295,6 +358,8 @@ export class SalesService {
             subtotalCents: order.subtotalCents,
             discountCents: order.discountCents,
             totalCents: order.totalCents,
+            paidCents: amountCents,
+            changeCents,
             items: {
               create: order.items.map((item) => ({
                 productId: item.productId,
@@ -316,7 +381,12 @@ export class SalesService {
                 paymentMethod,
                 paymentMachineId: paymentMachine?.id,
                 paymentMachineNameSnapshot: paymentMachine?.name,
-                amountCents,
+                paymentMachineProvider: paymentMachine?.provider,
+                paymentMachineModel: paymentMachine?.model,
+                paymentMachineFeePercent: paymentMachine?.feePercent,
+                externalProvider: paymentMachine?.externalProvider,
+                externalReference: paymentMachine?.externalReference,
+                amountCents: order.totalCents,
                 status: SalePaymentStatus.approved,
                 paidAt: new Date(),
               },
@@ -666,6 +736,17 @@ export class SalesService {
     return sale;
   }
 
+  private findByIdempotencyKey(
+    tenantId: string,
+    branchId: string,
+    idempotencyKey: string,
+  ) {
+    return this.prisma.sale.findFirst({
+      where: { tenantId, branchId, idempotencyKey, deletedAt: null },
+      include: SALE_INCLUDE,
+    });
+  }
+
   private normalizeItems(items: CreateSaleItemDto[]) {
     const quantities = new Map<string, number>();
     items.forEach((item) => {
@@ -781,8 +862,23 @@ export class SalesService {
     tx: PrismaTx,
     tenantId: string,
     branchId: string,
+    paymentMethod: OrderPaymentMethod,
     paymentMachineId?: string,
   ) {
+    const isCard =
+      paymentMethod === OrderPaymentMethod.credit_card ||
+      paymentMethod === OrderPaymentMethod.debit_card;
+
+    if (isCard && !paymentMachineId) {
+      throw new BadRequestException(
+        'Pagamento com cartao exige uma maquininha ativa da filial.',
+      );
+    }
+    if (!isCard && paymentMachineId) {
+      throw new BadRequestException(
+        'Maquininha so pode ser informada para pagamento com cartao.',
+      );
+    }
     if (!paymentMachineId) {
       return null;
     }
@@ -792,8 +888,17 @@ export class SalesService {
         tenantId,
         branchId,
         status: MachineStatus.ativa,
+        deletedAt: null,
       },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        provider: true,
+        model: true,
+        feePercent: true,
+        externalProvider: true,
+        externalReference: true,
+      },
     });
     if (!machine) {
       throw new BadRequestException(
@@ -803,10 +908,117 @@ export class SalesService {
     return machine;
   }
 
+  private calculateDiscount(
+    dto: CreateSaleDto,
+    subtotalCents: number,
+    role: Role,
+    isDevSuperAdmin: boolean,
+  ) {
+    const hasStructuredDiscount =
+      dto.discountType !== undefined || dto.discountValue !== undefined;
+    if (hasStructuredDiscount && dto.discountCents !== undefined) {
+      throw new BadRequestException(
+        'Informe desconto estruturado ou discountCents, nunca os dois.',
+      );
+    }
+    if (
+      (dto.discountType === undefined) !==
+      (dto.discountValue === undefined)
+    ) {
+      throw new BadRequestException(
+        'Tipo e valor do desconto devem ser informados juntos.',
+      );
+    }
+
+    const adminLimit = role === Role.Admin || isDevSuperAdmin;
+    const maxPercentage = adminLimit ? 100 : 10;
+    const maxFixedCents = adminLimit
+      ? subtotalCents
+      : Math.floor(subtotalCents * 0.1);
+
+    if (dto.discountType === SaleDiscountType.percentage) {
+      const value = dto.discountValue!;
+      if (value > maxPercentage) {
+        throw new BadRequestException(
+          `Desconto percentual excede o limite de ${maxPercentage}% para este usuario.`,
+        );
+      }
+      return {
+        type: SaleDiscountType.percentage,
+        value: new Prisma.Decimal(value),
+        discountCents: Math.round(subtotalCents * (value / 100)),
+      };
+    }
+
+    if (dto.discountType === SaleDiscountType.fixed) {
+      const value = dto.discountValue!;
+      if (!Number.isInteger(value)) {
+        throw new BadRequestException(
+          'Desconto fixo deve ser informado em centavos inteiros.',
+        );
+      }
+      if (value > subtotalCents) {
+        throw new BadRequestException(
+          'Desconto fixo nao pode ser maior que o subtotal.',
+        );
+      }
+      if (value > maxFixedCents) {
+        throw new BadRequestException(
+          'Desconto fixo excede o limite permitido para este usuario.',
+        );
+      }
+      return {
+        type: SaleDiscountType.fixed,
+        value: new Prisma.Decimal(value),
+        discountCents: value,
+      };
+    }
+
+    const legacyDiscount = dto.discountCents ?? 0;
+    if (legacyDiscount > subtotalCents) {
+      throw new BadRequestException(
+        'Desconto nao pode ser maior que o subtotal.',
+      );
+    }
+    if (legacyDiscount > maxFixedCents) {
+      throw new BadRequestException(
+        'Desconto excede o limite permitido para este usuario.',
+      );
+    }
+    return {
+      type:
+        legacyDiscount > 0 ? SaleDiscountType.fixed : null,
+      value:
+        legacyDiscount > 0 ? new Prisma.Decimal(legacyDiscount) : null,
+      discountCents: legacyDiscount,
+    };
+  }
+
+  private validatePayment(
+    method: OrderPaymentMethod,
+    paidCents: number,
+    totalCents: number,
+  ) {
+    if (paidCents < totalCents) {
+      throw new BadRequestException(
+        'O pagamento informado nao cobre o total da venda.',
+      );
+    }
+    if (method !== OrderPaymentMethod.cash && paidCents !== totalCents) {
+      throw new BadRequestException(
+        'PIX e cartao devem usar exatamente o total da venda.',
+      );
+    }
+    return paidCents - totalCents;
+  }
+
   private formatSale(sale: SaleWithRelations) {
     return {
       id: sale.id,
       orderId: sale.orderId,
+      source: sale.source,
+      idempotencyKey: sale.idempotencyKey,
+      cashSessionId: sale.cashSessionId,
       sellerId: sale.sellerId,
       sellerNameSnapshot: sale.sellerNameSnapshot,
       paymentMethod: sale.paymentMethod,
@@ -816,8 +1028,16 @@ export class SalesService {
       documentNumber: sale.documentNumber,
       status: sale.status,
       subtotalCents: sale.subtotalCents,
+      discountType: sale.discountType,
+      discountValue:
+        sale.discountValue === null ? null : Number(sale.discountValue),
       discountCents: sale.discountCents,
       totalCents: sale.totalCents,
+      paidCents: sale.paidCents ?? sale.totalCents,
+      changeCents:
+        sale.paidCents === null
+          ? 0
+          : sale.changeCents,
       subtotal: centsToMoneyNumber(sale.subtotalCents),
       discount: centsToMoneyNumber(sale.discountCents),
       total: centsToMoneyNumber(sale.totalCents),
@@ -850,6 +1070,14 @@ export class SalesService {
         paymentMethod: payment.paymentMethod,
         paymentMachineId: payment.paymentMachineId,
         paymentMachineNameSnapshot: payment.paymentMachineNameSnapshot,
+        paymentMachineProvider: payment.paymentMachineProvider,
+        paymentMachineModel: payment.paymentMachineModel,
+        paymentMachineFeePercent:
+          payment.paymentMachineFeePercent === null
+            ? null
+            : Number(payment.paymentMachineFeePercent),
+        externalProvider: payment.externalProvider,
+        externalReference: payment.externalReference,
         amountCents: payment.amountCents,
         amount: centsToMoneyNumber(payment.amountCents),
         status: payment.status,
@@ -924,11 +1152,16 @@ export class SalesService {
   <p>Vendedor: ${escapeHtml(sale.sellerNameSnapshot)}</p>
   <p>Data: ${escapeHtml(sale.soldAt.toISOString())}</p>
   <p>Pagamento: ${escapeHtml(sale.paymentMethod)}</p>
+  ${sale.paymentMachineNameSnapshot ? `<p>Maquininha: ${escapeHtml(sale.paymentMachineNameSnapshot)}</p>` : ''}
   <table>
     <thead><tr><th>Produto</th><th>Qtd.</th><th>Unitario</th><th>Total</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
+  <p>Subtotal: ${formatCurrency(sale.subtotalCents)}</p>
+  <p>Desconto: ${formatCurrency(sale.discountCents)}</p>
   <p class="total">Total: ${formatCurrency(sale.totalCents)}</p>
+  <p>Valor pago: ${formatCurrency(sale.paidCents)}</p>
+  <p>Troco: ${formatCurrency(sale.changeCents)}</p>
 </body>
 </html>`;
   }
