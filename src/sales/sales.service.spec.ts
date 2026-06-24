@@ -128,6 +128,7 @@ describe('SalesService', () => {
             sku: 'SKU-1',
             barcode: null,
             salePriceCents: 1500,
+            costPriceCents: 900,
             quantity: 10,
           },
         ]),
@@ -264,8 +265,9 @@ describe('SalesService', () => {
       totalCents: 3000,
       items: sale.items.map((item) => ({
         ...item,
-        product: {
-          ncm: '23091000',
+          product: {
+            costPriceCents: 900,
+            ncm: '23091000',
           cfopDefault: '5102',
           unit: 'UN',
           origin: '0',

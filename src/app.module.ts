@@ -26,6 +26,7 @@ import { SuppliersModule } from './suppliers/suppliers.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { SalesModule } from './sales/sales.module';
 import { FiscalModule } from './fiscal/fiscal.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -58,6 +59,7 @@ const publicPath = join(__dirname, '..', 'public');
     EmployeesModule,
     SuppliersModule,
     ExpensesModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [AppService],

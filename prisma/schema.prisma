@@ -529,6 +529,8 @@ model SaleItem {
   quantity            Int
   unitPriceCents      Int      @map("unit_price_cents")
   totalPriceCents     Int      @map("total_price_cents")
+  unitCostCentsSnapshot Int?    @map("unit_cost_cents_snapshot")
+  totalCostCentsSnapshot Int?   @map("total_cost_cents_snapshot")
   createdAt           DateTime @default(now()) @map("created_at")
 
   sale    Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -536,6 +538,7 @@ model SaleItem {
   fiscalItems FiscalDocumentItem[]
 
   @@index([saleId])
+  @@index([saleId, productId])
   @@index([productId])
   @@map("sale_items")
 }

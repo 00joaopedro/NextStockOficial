@@ -1,468 +1,405 @@
 declare const ApexCharts: any;
 
-type RangeType = "day" | "week" | "month" | "year";
+type Preset = "today" | "last7days" | "currentMonth" | "previousMonth" | "custom";
+type StatusMode = "confirmed" | "forecast";
 
-interface Sale {
-  date: string;
+type SummaryResponse = {
+  grossRevenueCents: number;
+  totalExpensesCents: number | null;
+  grossProfitCents: number | null;
+  netProfitCents: number | null;
+  averageTicketCents: number;
+  salesCount: number;
+  permissions: { canSeeFinancial: boolean; canSeeProducts: boolean };
+  costSnapshotCoverage?: { rule: string };
+};
+
+type ChartResponse = {
+  labels: string[];
+  revenues: number[];
+  expenses: number[] | null;
+  net: number[] | null;
+};
+
+type TopProductsResponse = {
+  items: Array<{
+    productId: string | null;
+    productName: string;
+    quantitySold: number;
+    revenueCents: number;
+    grossProfitCents: number | null;
+  }>;
+};
+
+type ProductMetricsResponse = {
+  productId: string;
   productName: string;
-  quantity: number;
-  unitCost: number;
-  unitPrice: number;
-}
+  quantitySold: number;
+  revenueCents: number;
+  totalRevenueCents: number;
+  sharePercentage: number;
+};
 
-interface Expense {
-  date: string;
-  description: string;
-  amount: number;
-}
+type AlertsResponse = {
+  upcomingExpenses: Array<{ id: string; name: string; totalCents: number; dueDate: string; status: string }>;
+  upcomingAppointments: Array<{ id: string; cliente: string; animal: string; servico: string; startAt: string; status: string }>;
+  petshopEnabled: boolean;
+};
 
-interface Tenant {
-  id: string;
-  name: string;
-  sales: Sale[];
-  expenses: Expense[];
-}
+type DashboardBundle = {
+  summary: SummaryResponse;
+  charts: ChartResponse;
+  topProducts: TopProductsResponse;
+  alerts: AlertsResponse;
+};
 
-interface Totals {
-  totalRevenue: number;
-  totalCost: number;
-  totalExpenses: number;
-  grossProfit: number;
-  netProfit: number;
-}
-
-interface ProductSummary {
-  productName: string;
-  quantity: number;
-  revenue: number;
-  cost: number;
-  grossProfit: number;
-  netProfit: number;
-}
-
-interface ChartPoint {
-  label: string;
-  grossProfit: number;
-  netProfit: number;
-}
-
-const tenants: Tenant[] = [
-  {
-    id: "tenant-matriz",
-    name: "Loja Matriz",
-    sales: [
-      { date: "2026-03-17", productName: "Arroz 5kg", quantity: 12, unitCost: 18, unitPrice: 28 },
-      { date: "2026-03-17", productName: "Feijão 1kg", quantity: 18, unitCost: 6, unitPrice: 10 },
-      { date: "2026-03-16", productName: "Café 500g", quantity: 10, unitCost: 9, unitPrice: 16 },
-      { date: "2026-03-15", productName: "Leite Integral", quantity: 24, unitCost: 3.2, unitPrice: 5.8 },
-      { date: "2026-03-10", productName: "Arroz 5kg", quantity: 15, unitCost: 18, unitPrice: 28 },
-      { date: "2026-03-05", productName: "Macarrão", quantity: 20, unitCost: 3, unitPrice: 6.5 },
-      { date: "2026-02-18", productName: "Café 500g", quantity: 14, unitCost: 9, unitPrice: 16 },
-      { date: "2026-01-20", productName: "Leite Integral", quantity: 40, unitCost: 3.2, unitPrice: 5.8 }
-    ],
-    expenses: [
-      { date: "2026-03-17", description: "Energia", amount: 85 },
-      { date: "2026-03-16", description: "Frete", amount: 40 },
-      { date: "2026-03-10", description: "Taxas", amount: 65 },
-      { date: "2026-03-01", description: "Sistema", amount: 120 },
-      { date: "2026-02-15", description: "Internet", amount: 99 },
-      { date: "2026-01-10", description: "Manutenção", amount: 150 }
-    ]
-  },
-  {
-    id: "tenant-filial-centro",
-    name: "Filial Centro",
-    sales: [
-      { date: "2026-03-17", productName: "Refrigerante 2L", quantity: 22, unitCost: 5.5, unitPrice: 9.5 },
-      { date: "2026-03-16", productName: "Biscoito", quantity: 30, unitCost: 2, unitPrice: 4.5 },
-      { date: "2026-03-14", productName: "Café 500g", quantity: 8, unitCost: 9, unitPrice: 16 },
-      { date: "2026-03-07", productName: "Arroz 5kg", quantity: 9, unitCost: 18, unitPrice: 29 },
-      { date: "2026-02-20", productName: "Biscoito", quantity: 25, unitCost: 2, unitPrice: 4.5 },
-      { date: "2026-01-08", productName: "Refrigerante 2L", quantity: 40, unitCost: 5.5, unitPrice: 9.5 }
-    ],
-    expenses: [
-      { date: "2026-03-17", description: "Energia", amount: 60 },
-      { date: "2026-03-11", description: "Frete", amount: 30 },
-      { date: "2026-02-05", description: "Sistema", amount: 120 },
-      { date: "2026-01-15", description: "Marketing", amount: 75 }
-    ]
-  }
-];
-
-const tenantSelect = document.getElementById("tenant-select") as HTMLSelectElement;
-const tenantBadgeName = document.getElementById("tenant-badge-name") as HTMLElement;
-const timeRangeSelect = document.getElementById("time-range") as HTMLSelectElement;
+const presetSelect = document.getElementById("time-range") as HTMLSelectElement;
+const fromInput = document.getElementById("custom-from") as HTMLInputElement | null;
+const toInput = document.getElementById("custom-to") as HTMLInputElement | null;
+const customFields = document.getElementById("custom-period-fields") as HTMLElement | null;
+const statusModeSelect = document.getElementById("status-mode") as HTMLSelectElement | null;
 const productSearchInput = document.getElementById("product-search") as HTMLInputElement;
+const productResults = document.getElementById("product-autocomplete") as HTMLElement | null;
+const selectedProductLabel = document.getElementById("selected-product-label") as HTMLElement | null;
+const clearProductButton = document.getElementById("clear-product") as HTMLButtonElement | null;
 const applyFiltersButton = document.getElementById("apply-filters") as HTMLButtonElement;
 const grossProfitElement = document.getElementById("gross-profit") as HTMLElement;
 const netProfitElement = document.getElementById("net-profit") as HTMLElement;
 const totalRevenueElement = document.getElementById("total-revenue") as HTMLElement;
-const totalCostElement = document.getElementById("total-cost") as HTMLElement;
 const totalExpensesElement = document.getElementById("total-expenses") as HTMLElement;
+const averageTicketElement = document.getElementById("average-ticket") as HTMLElement;
 const productsTableBody = document.getElementById("products-table-body") as HTMLElement;
 const chartSubtitle = document.getElementById("chart-subtitle") as HTMLElement;
+const stateMessage = document.getElementById("dashboard-state") as HTMLElement | null;
+const productMetricsPanel = document.getElementById("product-metrics") as HTMLElement | null;
+const upcomingExpensesList = document.getElementById("upcoming-expenses") as HTMLElement | null;
+const upcomingAppointmentsList = document.getElementById("upcoming-appointments") as HTMLElement | null;
+const appointmentsPanel = document.getElementById("appointments-panel") as HTMLElement | null;
+const tenantSelect = document.getElementById("tenant-select") as HTMLSelectElement | null;
+const tenantBadgeName = document.getElementById("tenant-badge-name") as HTMLElement | null;
 
 let chart: any = null;
+let selectedProductId = "";
+let autocompleteAbort: AbortController | null = null;
 
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL"
-  }).format(value);
+function formatCurrencyFromCents(value: number | null): string {
+  if (value === null) return "Restrito";
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value / 100);
 }
 
-function parseDate(date: string): Date {
-  return new Date(`${date}T00:00:00`);
-}
-
-function getCurrentTenant(): Tenant {
-  const selectedTenantId = tenantSelect.value;
-  return tenants.find((tenant) => tenant.id === selectedTenantId) ?? tenants[0];
-}
-
-function getRangeStart(range: RangeType): Date {
-  const now = new Date("2026-03-17T12:00:00");
-
-  switch (range) {
-    case "day":
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    case "week": {
-      const start = new Date(now);
-      start.setDate(now.getDate() - 6);
-      start.setHours(0, 0, 0, 0);
-      return start;
-    }
-
-    case "month":
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-
-    case "year":
-      return new Date(now.getFullYear(), 0, 1);
-
-    default:
-      return new Date(now.getFullYear(), now.getMonth(), 1);
+function headers(): HeadersInit {
+  const output: Record<string, string> = {};
+  const token = sessionStorage.getItem("nextstockAccessToken") || localStorage.getItem("nextstockAccessToken");
+  if (token) output.Authorization = `Bearer ${token}`;
+  try {
+    const branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+    if (branch?.id) output["x-nextstock-branch-id"] = branch.id;
+    if (branch?.isSupportContext) output["x-nextstock-dev-context"] = "support";
+    tenantBadgeName && (tenantBadgeName.textContent = branch?.name || "");
+  } catch {
+    return output;
   }
+  return output;
 }
 
-function isWithinRange(date: string, range: RangeType): boolean {
-  const current = parseDate(date);
-  const start = getRangeStart(range);
-  const now = new Date("2026-03-17T23:59:59");
-
-  return current >= start && current <= now;
-}
-
-function filterSales(tenant: Tenant, range: RangeType, searchTerm: string): Sale[] {
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-
-  return tenant.sales.filter((sale) => {
-    const inRange = isWithinRange(sale.date, range);
-    const matchesProduct =
-      !normalizedSearch ||
-      sale.productName.toLowerCase().includes(normalizedSearch);
-
-    return inRange && matchesProduct;
-  });
-}
-
-function filterExpenses(tenant: Tenant, range: RangeType): Expense[] {
-  return tenant.expenses.filter((expense) => isWithinRange(expense.date, range));
-}
-
-function calculateTotals(sales: Sale[], expenses: Expense[]): Totals {
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.quantity * sale.unitPrice, 0);
-  const totalCost = sales.reduce((sum, sale) => sum + sale.quantity * sale.unitCost, 0);
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-
-  const grossProfit = totalRevenue - totalCost;
-  const netProfit = grossProfit - totalExpenses;
-
-  return {
-    totalRevenue,
-    totalCost,
-    totalExpenses,
-    grossProfit,
-    netProfit
-  };
-}
-
-function buildProductSummary(sales: Sale[], totalExpenses: number): ProductSummary[] {
-  const grouped = new Map<string, ProductSummary>();
-
-  for (const sale of sales) {
-    const revenue = sale.quantity * sale.unitPrice;
-    const cost = sale.quantity * sale.unitCost;
-    const grossProfit = revenue - cost;
-
-    const current = grouped.get(sale.productName);
-
-    if (!current) {
-      grouped.set(sale.productName, {
-        productName: sale.productName,
-        quantity: sale.quantity,
-        revenue,
-        cost,
-        grossProfit,
-        netProfit: 0
-      });
-    } else {
-      current.quantity += sale.quantity;
-      current.revenue += revenue;
-      current.cost += cost;
-      current.grossProfit += grossProfit;
-    }
+function buildQuery(productId = selectedProductId): string {
+  const params = new URLSearchParams();
+  params.set("preset", (presetSelect.value || "currentMonth") as Preset);
+  params.set("statusMode", ((statusModeSelect?.value || "confirmed") as StatusMode));
+  if (presetSelect.value === "custom") {
+    if (fromInput?.value) params.set("from", fromInput.value);
+    if (toInput?.value) params.set("to", toInput.value);
   }
-
-  const summaries = Array.from(grouped.values());
-  const totalGross = summaries.reduce((sum, item) => sum + item.grossProfit, 0);
-
-  return summaries
-    .map((item) => {
-      const proportionalExpense =
-        totalGross > 0 ? (item.grossProfit / totalGross) * totalExpenses : 0;
-
-      return {
-        ...item,
-        netProfit: item.grossProfit - proportionalExpense
-      };
-    })
-    .sort((a, b) => b.grossProfit - a.grossProfit);
+  if (productId) params.set("productId", productId);
+  return params.toString();
 }
 
-function getBucketLabel(date: string, range: RangeType): string {
-  const parsed = parseDate(date);
-
-  switch (range) {
-    case "day":
-    case "week":
-    case "month":
-      return parsed.toLocaleDateString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit"
-      });
-
-    case "year":
-      return parsed.toLocaleDateString("pt-BR", {
-        month: "short"
-      });
-
-    default:
-      return date;
+async function apiGet<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(path, { headers: headers(), signal });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.message || "Nao foi possivel carregar o dashboard.");
   }
+  return response.json() as Promise<T>;
 }
 
-function buildChartData(sales: Sale[], expenses: Expense[], range: RangeType): ChartPoint[] {
-  const buckets = new Map<string, ChartPoint>();
-
-  for (const sale of sales) {
-    const label = getBucketLabel(sale.date, range);
-    const gross = sale.quantity * (sale.unitPrice - sale.unitCost);
-
-    if (!buckets.has(label)) {
-      buckets.set(label, { label, grossProfit: 0, netProfit: 0 });
-    }
-
-    const point = buckets.get(label);
-
-    if (point) {
-      point.grossProfit += gross;
-      point.netProfit += gross;
-    }
-  }
-
-  for (const expense of expenses) {
-    const label = getBucketLabel(expense.date, range);
-
-    if (!buckets.has(label)) {
-      buckets.set(label, { label, grossProfit: 0, netProfit: 0 });
-    }
-
-    const point = buckets.get(label);
-
-    if (point) {
-      point.netProfit -= expense.amount;
-    }
-  }
-
-  return Array.from(buckets.values());
+function setState(message: string, kind: "info" | "error" = "info"): void {
+  if (!stateMessage) return;
+  stateMessage.textContent = message;
+  stateMessage.dataset.kind = kind;
 }
 
-function renderCards(totals: Totals): void {
-  grossProfitElement.textContent = formatCurrency(totals.grossProfit);
-  netProfitElement.textContent = formatCurrency(totals.netProfit);
-  totalRevenueElement.textContent = formatCurrency(totals.totalRevenue);
-  totalCostElement.textContent = formatCurrency(totals.totalCost);
-  totalExpensesElement.textContent = formatCurrency(totals.totalExpenses);
+function clearChildren(element: Element): void {
+  while (element.firstChild) element.removeChild(element.firstChild);
 }
 
-function renderTable(products: ProductSummary[]): void {
-  if (products.length === 0) {
-    productsTableBody.innerHTML = `
-      <tr>
-        <td colspan="6">Nenhum produto encontrado para os filtros selecionados.</td>
-      </tr>
-    `;
+function appendEmptyRow(message: string): void {
+  clearChildren(productsTableBody);
+  const tr = document.createElement("tr");
+  const td = document.createElement("td");
+  td.colSpan = 5;
+  td.textContent = message;
+  tr.appendChild(td);
+  productsTableBody.appendChild(tr);
+}
+
+async function fetchDashboardSummary(): Promise<SummaryResponse> {
+  return apiGet<SummaryResponse>(`/api/dashboard/summary?${buildQuery()}`);
+}
+
+async function fetchDashboardCharts(): Promise<ChartResponse> {
+  return apiGet<ChartResponse>(`/api/dashboard/charts?${buildQuery()}`);
+}
+
+async function fetchTopProducts(): Promise<TopProductsResponse> {
+  return apiGet<TopProductsResponse>(`/api/dashboard/top-products?${buildQuery()}`);
+}
+
+async function fetchDashboardAlerts(): Promise<AlertsResponse> {
+  return apiGet<AlertsResponse>("/api/dashboard/alerts");
+}
+
+async function fetchProductMetrics(productId: string): Promise<ProductMetricsResponse> {
+  return apiGet<ProductMetricsResponse>(`/api/dashboard/product/${encodeURIComponent(productId)}?${buildQuery(productId)}`);
+}
+
+async function fetchProductAutocomplete(search: string, signal: AbortSignal): Promise<Array<{ id: string; name: string }>> {
+  const response = await apiGet<{ products: Array<{ id: string; name: string }> }>(
+    `/api/products/lookup?search=${encodeURIComponent(search)}&limit=10`,
+    signal,
+  );
+  return response.products;
+}
+
+function renderCards(summary: SummaryResponse): void {
+  totalRevenueElement.textContent = formatCurrencyFromCents(summary.grossRevenueCents);
+  totalExpensesElement.textContent = formatCurrencyFromCents(summary.totalExpensesCents);
+  grossProfitElement.textContent = formatCurrencyFromCents(summary.grossProfitCents);
+  netProfitElement.textContent = formatCurrencyFromCents(summary.netProfitCents);
+  averageTicketElement.textContent = formatCurrencyFromCents(summary.averageTicketCents);
+}
+
+function renderTopProducts(products: TopProductsResponse): void {
+  if (products.items.length === 0) {
+    appendEmptyRow("Nenhum produto vendido no periodo selecionado.");
     return;
   }
-
-  productsTableBody.innerHTML = products
-    .map((product) => {
-      return `
-        <tr>
-          <td>${product.productName}</td>
-          <td>${product.quantity}</td>
-          <td>${formatCurrency(product.revenue)}</td>
-          <td>${formatCurrency(product.cost)}</td>
-          <td class="positive">${formatCurrency(product.grossProfit)}</td>
-          <td class="positive">${formatCurrency(product.netProfit)}</td>
-        </tr>
-      `;
-    })
-    .join("");
+  clearChildren(productsTableBody);
+  for (const product of products.items) {
+    const tr = document.createElement("tr");
+    [
+      product.productName,
+      String(product.quantitySold),
+      formatCurrencyFromCents(product.revenueCents),
+      formatCurrencyFromCents(product.grossProfitCents),
+      product.productId ? "Selecionar" : "",
+    ].forEach((value, index) => {
+      const td = document.createElement("td");
+      if (index === 4 && product.productId) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "link-button";
+        button.textContent = "Ver";
+        button.addEventListener("click", () => selectProduct(product.productId!, product.productName));
+        td.appendChild(button);
+      } else {
+        td.textContent = value;
+      }
+      tr.appendChild(td);
+    });
+    productsTableBody.appendChild(tr);
+  }
 }
 
-function renderChart(chartData: ChartPoint[], range: RangeType): void {
-  const labels = chartData.map((item) => item.label);
-  const grossSeries = chartData.map((item) => Number(item.grossProfit.toFixed(2)));
-  const netSeries = chartData.map((item) => Number(item.netProfit.toFixed(2)));
-
-  chartSubtitle.textContent =
-    `Período selecionado: ${translateRange(range)} • comparação entre lucro bruto e líquido`;
-
+function renderChart(data: ChartResponse): void {
+  chartSubtitle.textContent = "Fluxo de caixa por dia: receitas, despesas e saldo.";
+  const series = [
+    { name: "Receitas", data: data.revenues.map((value) => value / 100) },
+  ];
+  if (data.expenses && data.net) {
+    series.push({ name: "Despesas", data: data.expenses.map((value) => value / 100) });
+    series.push({ name: "Saldo", data: data.net.map((value) => value / 100) });
+  }
   const options = {
-    chart: {
-      type: "line",
-      height: 360,
-      toolbar: {
-        show: false
-      }
-    },
-    series: [
-      {
-        name: "Lucro Bruto",
-        data: grossSeries
-      },
-      {
-        name: "Lucro Líquido",
-        data: netSeries
-      }
-    ],
-    xaxis: {
-      categories: labels
-    },
-    stroke: {
-      curve: "smooth",
-      width: 3
-    },
-    dataLabels: {
-      enabled: false
-    },
-    legend: {
-      position: "top"
-    },
-    yaxis: {
-      labels: {
-        formatter: (value: number) => formatCurrency(value)
-      }
-    },
-    tooltip: {
-      y: {
-        formatter: (value: number) => formatCurrency(value)
-      }
-    },
-    noData: {
-      text: "Sem dados para exibir"
-    }
+    chart: { type: "line", height: 360, toolbar: { show: false } },
+    series,
+    xaxis: { categories: data.labels },
+    stroke: { curve: "smooth", width: 3 },
+    dataLabels: { enabled: false },
+    legend: { position: "top" },
+    yaxis: { labels: { formatter: (value: number) => formatCurrencyFromCents(Math.round(value * 100)) } },
+    tooltip: { y: { formatter: (value: number) => formatCurrencyFromCents(Math.round(value * 100)) } },
+    noData: { text: "Sem dados para exibir" },
   };
-
-  if (chart) {
-    chart.destroy();
-  }
-
   const chartElement = document.querySelector("#chart");
-
-  if (!chartElement) {
-    return;
-  }
-
+  if (!chartElement) return;
+  if (chart) chart.destroy();
   chart = new ApexCharts(chartElement, options);
   chart.render();
 }
 
-function translateRange(range: RangeType): string {
-  const labels: Record<RangeType, string> = {
-    day: "Dia",
-    week: "Semana",
-    month: "Mês",
-    year: "Ano"
-  };
-
-  return labels[range];
+function renderAlerts(alerts: AlertsResponse): void {
+  if (upcomingExpensesList) {
+    renderList(
+      upcomingExpensesList,
+      alerts.upcomingExpenses,
+      "Nenhuma conta pendente vence nos proximos 3 dias.",
+      (item) => `${item.name} - ${formatCurrencyFromCents(item.totalCents)} - ${new Date(item.dueDate).toLocaleDateString("pt-BR")}`,
+    );
+  }
+  if (appointmentsPanel) appointmentsPanel.hidden = !alerts.petshopEnabled;
+  if (upcomingAppointmentsList && alerts.petshopEnabled) {
+    renderList(
+      upcomingAppointmentsList,
+      alerts.upcomingAppointments,
+      "Nenhum agendamento para hoje.",
+      (item) => `${item.servico} - ${item.animal} (${item.cliente}) - ${new Date(item.startAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`,
+    );
+  }
 }
 
-function populateTenantSelect(): void {
-  tenantSelect.innerHTML = tenants
-    .map((tenant) => `<option value="${tenant.id}">${tenant.name}</option>`)
-    .join("");
+function renderList<T>(element: HTMLElement, items: T[], empty: string, formatter: (item: T) => string): void {
+  clearChildren(element);
+  if (items.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = empty;
+    element.appendChild(li);
+    return;
+  }
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.textContent = formatter(item);
+    element.appendChild(li);
+  }
 }
 
-function renderProductionEmptyState(): void {
-  tenantSelect.innerHTML = '<option value="">Dados reais indisponiveis</option>';
-  tenantBadgeName.textContent = "Sem dados reais";
-  renderCards({
-    totalRevenue: 0,
-    totalCost: 0,
-    totalExpenses: 0,
-    grossProfit: 0,
-    netProfit: 0
+async function renderProductMetrics(): Promise<void> {
+  if (!productMetricsPanel) return;
+  clearChildren(productMetricsPanel);
+  if (!selectedProductId) {
+    productMetricsPanel.textContent = "Selecione um produto para ver participacao no faturamento.";
+    return;
+  }
+  const metrics = await fetchProductMetrics(selectedProductId);
+  const lines = [
+    `Produto: ${metrics.productName}`,
+    `Quantidade: ${metrics.quantitySold}`,
+    `Receita: ${formatCurrencyFromCents(metrics.revenueCents)}`,
+    `Participacao: ${metrics.sharePercentage.toFixed(2)}%`,
+  ];
+  for (const line of lines) {
+    const p = document.createElement("p");
+    p.textContent = line;
+    productMetricsPanel.appendChild(p);
+  }
+}
+
+async function loadDashboard(): Promise<void> {
+  applyFiltersButton.disabled = true;
+  setState("Carregando dados reais do dashboard...");
+  try {
+    const [summary, charts, topProducts, alerts] = await Promise.all([
+      fetchDashboardSummary(),
+      fetchDashboardCharts(),
+      fetchTopProducts(),
+      fetchDashboardAlerts(),
+    ]);
+    const bundle: DashboardBundle = { summary, charts, topProducts, alerts };
+    renderCards(bundle.summary);
+    renderChart(bundle.charts);
+    renderTopProducts(bundle.topProducts);
+    renderAlerts(bundle.alerts);
+    await renderProductMetrics();
+    setState(bundle.summary.permissions.canSeeFinancial ? "Dashboard atualizado." : "Dashboard atualizado com dados financeiros restritos por permissao.");
+  } catch (error) {
+    renderCards({ grossRevenueCents: 0, totalExpensesCents: null, grossProfitCents: null, netProfitCents: null, averageTicketCents: 0, salesCount: 0, permissions: { canSeeFinancial: false, canSeeProducts: false } });
+    appendEmptyRow("Nao foi possivel carregar os produtos.");
+    setState(error instanceof Error ? error.message : "Erro ao carregar dashboard.", "error");
+  } finally {
+    applyFiltersButton.disabled = false;
+  }
+}
+
+function selectProduct(productId: string, name: string): void {
+  selectedProductId = productId;
+  productSearchInput.value = name;
+  if (selectedProductLabel) selectedProductLabel.textContent = name;
+  if (productResults) clearChildren(productResults);
+  void renderProductMetrics();
+}
+
+function bindAutocomplete(): void {
+  productSearchInput.addEventListener("input", () => {
+    const search = productSearchInput.value.trim();
+    selectedProductId = "";
+    if (selectedProductLabel) selectedProductLabel.textContent = "";
+    autocompleteAbort?.abort();
+    if (!productResults) return;
+    clearChildren(productResults);
+    if (search.length < 2) return;
+    const controller = new AbortController();
+    autocompleteAbort = controller;
+    window.setTimeout(async () => {
+      if (controller.signal.aborted) return;
+      try {
+        const products = await fetchProductAutocomplete(search, controller.signal);
+        clearChildren(productResults);
+        for (const product of products) {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = product.name;
+          button.addEventListener("click", () => selectProduct(product.id, product.name));
+          productResults.appendChild(button);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) setState("Busca de produtos indisponivel no momento.", "error");
+      }
+    }, 250);
   });
-  renderTable([]);
-  renderChart([], timeRangeSelect.value as RangeType);
-  chartSubtitle.textContent =
-    "Dashboard real ainda nao esta conectado a uma API de producao para este tenant/filial.";
-}
-
-function updateDashboard(): void {
-  const tenant = getCurrentTenant();
-  const range = timeRangeSelect.value as RangeType;
-  const searchTerm = productSearchInput.value;
-
-  tenantBadgeName.textContent = tenant.name;
-
-  const filteredSales = filterSales(tenant, range, searchTerm);
-  const filteredExpenses = filterExpenses(tenant, range);
-  const totals = calculateTotals(filteredSales, filteredExpenses);
-  const productSummary = buildProductSummary(filteredSales, totals.totalExpenses);
-  const chartData = buildChartData(filteredSales, filteredExpenses, range);
-
-  renderCards(totals);
-  renderTable(productSummary);
-  renderChart(chartData, range);
 }
 
 function bindEvents(): void {
-  applyFiltersButton.addEventListener("click", updateDashboard);
-  tenantSelect.addEventListener("change", updateDashboard);
-  timeRangeSelect.addEventListener("change", updateDashboard);
-
-  productSearchInput.addEventListener("keydown", (event: KeyboardEvent) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      updateDashboard();
-    }
+  tenantSelect?.closest(".field")?.setAttribute("hidden", "true");
+  presetSelect.addEventListener("change", () => {
+    if (customFields) customFields.hidden = presetSelect.value !== "custom";
   });
+  applyFiltersButton.addEventListener("click", () => void loadDashboard());
+  clearProductButton?.addEventListener("click", () => {
+    selectedProductId = "";
+    productSearchInput.value = "";
+    selectedProductLabel && (selectedProductLabel.textContent = "");
+    void renderProductMetrics();
+  });
+  bindAutocomplete();
+}
+
+function initDemo(): void {
+  setState("Modo demonstracao ativo. Os dados abaixo nao sao fonte de producao.");
+  renderCards({
+    grossRevenueCents: 128900,
+    totalExpensesCents: 38400,
+    grossProfitCents: 84200,
+    netProfitCents: 45800,
+    averageTicketCents: 12890,
+    salesCount: 10,
+    permissions: { canSeeFinancial: true, canSeeProducts: true },
+  });
+  renderTopProducts({
+    items: [
+      { productId: null, productName: "Produto demo", quantitySold: 10, revenueCents: 128900, grossProfitCents: 84200 },
+    ],
+  });
+  renderChart({ labels: ["Hoje"], revenues: [128900], expenses: [38400], net: [90500] });
+  renderAlerts({ upcomingExpenses: [], upcomingAppointments: [], petshopEnabled: false });
 }
 
 function init(): void {
-  if (!(window as any).isNextStockDemoMode?.()) {
-    renderProductionEmptyState();
+  bindEvents();
+  if ((window as any).isNextStockDemoMode?.()) {
+    initDemo();
     return;
   }
-
-  populateTenantSelect();
-  bindEvents();
-  updateDashboard();
+  void loadDashboard();
 }
 
 init();

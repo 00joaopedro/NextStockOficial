@@ -205,6 +205,8 @@ export class SalesService {
                 quantity: item.quantity,
                 unitPriceCents: item.unitPriceCents,
                 totalPriceCents: item.totalPriceCents,
+                unitCostCentsSnapshot: item.unitCostCentsSnapshot,
+                totalCostCentsSnapshot: item.totalCostCentsSnapshot,
               })),
             },
             payments: {
@@ -374,6 +376,8 @@ export class SalesService {
                 quantity: item.quantity,
                 unitPriceCents: item.unitPriceCents,
                 totalPriceCents: item.totalPriceCents,
+                unitCostCentsSnapshot: item.product.costPriceCents,
+                totalCostCentsSnapshot: item.product.costPriceCents * item.quantity,
               })),
             },
             payments: {
@@ -784,6 +788,7 @@ export class SalesService {
         origin: true,
         cest: true,
         salePriceCents: true,
+        costPriceCents: true,
         quantity: true,
       },
     });
@@ -812,6 +817,8 @@ export class SalesService {
         quantity: item.quantity,
         unitPriceCents: product.salePriceCents,
         totalPriceCents: product.salePriceCents * item.quantity,
+        unitCostCentsSnapshot: product.costPriceCents,
+        totalCostCentsSnapshot: product.costPriceCents * item.quantity,
       };
     });
   }
@@ -1062,6 +1069,8 @@ export class SalesService {
         quantity: item.quantity,
         unitPriceCents: item.unitPriceCents,
         totalPriceCents: item.totalPriceCents,
+        unitCostCentsSnapshot: item.unitCostCentsSnapshot,
+        totalCostCentsSnapshot: item.totalCostCentsSnapshot,
         unitPrice: centsToMoneyNumber(item.unitPriceCents),
         totalPrice: centsToMoneyNumber(item.totalPriceCents),
       })),

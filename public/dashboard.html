@@ -5,639 +5,236 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Dashboard - NextStock</title>
   <style>
-  :root {
-    --blue-900: #0d1b2a;
-    --blue-800: #13273d;
-    --cyan: #00cfcf;
-    --bg: #f4f7fa; 
-    --card: #ffffff;
-    --text: #0b2545;
-    --muted: #6b7b86;
-    --border: rgba(11, 37, 69, 0.08);
-    --shadow: 0 6px 18px rgba(13, 27, 42, 0.06);
-    --radius: 12px;
-  }
-
-  * {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-  }
-
-  html,
-  body {
-    width: 100%;
-    min-height: 100%;
-  }
-
-  body {
-    font-family: "Segoe UI", sans-serif;
-    background: linear-gradient(90deg, #0d1b2a, #00cfcf);
-    color: var(--text);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
-
-  .page-scale-wrapper {
-    width: 100%;
-    min-height: 100vh;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-
-  .app {
-    display: flex;
-    min-height: 100vh;
-    width: 100%;
-  }
-
-  /* ===== SIDEBAR ===== */
-  .sidebar {
-    width: 16vw;
-    background: #071b31;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    padding-top: 18px;
-    overflow-y: auto;
-  }
-
-  .sidebar::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .sidebar::-webkit-scrollbar-thumb {
-    background: #00cfcf;
-    border-radius: 5px;
-  }
-
-  .sidebar h2 {
-    text-align: center;
-    margin-bottom: 20px;
-    color: var(--cyan);
-    font-size: 1.5rem;
-  }
-
-  .menu {
-    list-style: none;
-    padding: 0 8px 18px;
-  }
-
-  .menu li {
-    padding: 13.5px 18px;
-    cursor: pointer;
-    transition: background 0.3s;
-    font-size: clamp(16px, 2vw, 22px);
-    border-radius: 6px;
-    line-height: 1.2;
-  }
-
-  .menu li:hover,
-  .menu li.active {
-    background: var(--cyan);
-    color: var(--blue-900);
-    font-weight: 800;
-  }
-
-  .menu a {
-    text-decoration: none;
-    color: white;
-    display: block;
-  }
-
-  /* ===== MAIN ===== */
-  .main {
-    margin-left: 18vw;
-    width: calc(100% - 18vw);
-    max-width: calc(100% - 18vw);
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    min-width: 0;
-  }
-
-  .topbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 22px;
-    background: #fff;
-    border-bottom: 1px solid #eee;
-    flex-wrap: wrap;
-  }
-
-  .topbar-left h1 {
-    font-size: 1.25rem;
-    color: var(--blue-900);
-    font-weight: 800;
-  }
-
-  .topbar-left p {
-    font-size: 0.92rem;
-    color: var(--muted);
-    margin-top: 4px;
-    font-weight: 700;
-  }
-
-  .brand-box {
-    width: min(320px, 100%);
-    flex-shrink: 0;
-  }
-
-  .brand-field {
-    width: 100%;
-    border: 1px solid rgba(0, 207, 207, 0.35);
-    background: #eefbfb;
-    color: var(--blue-900);
-    border-radius: 12px;
-    padding: 12px 14px;
-    font-size: 0.95rem;
-    outline: none;
-    font-weight: 800;
-  }
-
-  .brand-field::placeholder {
-    color: #4f6678;
-    font-weight: 700;
-  }
-
-  .content {
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    min-width: 0;
-  }
-
-  .filters-panel,
-  .chart-panel,
-  .table-panel {
-    background: var(--card);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 16px;
-    min-width: 0;
-  }
-
-  .filters-grid {
-    display: grid;
-    grid-template-columns: 1.1fr 0.8fr 1fr 1fr 1.3fr auto;
-    gap: 14px;
-    align-items: end;
-  }
-
-  .field label {
-    display: block;
-    font-size: 13px;
-    color: var(--muted);
-    margin-bottom: 6px;
-    font-weight: 800;
-  }
-
-  .field input,
-  .field select {
-    width: 100%;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 11px 12px;
-    outline: none;
-    font-size: 14px;
-    font-weight: 800;
-    color: var(--text);
-    background: #fff;
-  }
-
-  .field input::placeholder,
-  .field select,
-  .field option {
-    font-weight: 800;
-  }
-
-  .field input:focus,
-  .field select:focus {
-    border-color: var(--cyan);
-    box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.12);
-  }
-
-  .exact-time-control.hidden {
-    display: none;
-  }
-
-  .btn-refresh {
-    border: none;
-    padding: 11px 16px;
-    border-radius: 10px;
-    background: linear-gradient(90deg, var(--blue-900), var(--cyan));
-    color: #fff;
-    font-weight: 800;
-    cursor: pointer;
-    transition: transform 0.2s ease, opacity 0.2s ease;
-    white-space: nowrap;
-    min-height: 46px;
-  }
-
-  .btn-refresh:hover {
-    opacity: 0.95;
-    transform: translateY(-1px);
-  }
-
-  .cards-row {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 14px;
-  }
-
-  .info-card {
-    background: var(--card);
-    padding: 16px;
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    min-height: 100px;
-  }
-
-  .info-card .title {
-    font-size: 13px;
-    color: var(--muted);
-    font-weight: 800;
-  }
-
-  .info-card .value {
-    font-size: 26px;
-    font-weight: 900;
-    color: var(--blue-900);
-    margin-top: 10px;
-  }
-
-  .info-card .sub {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--muted);
-    font-weight: 700;
-  }
-
-  .panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-    flex-wrap: wrap;
-  }
-
-  .panel-header h3 {
-    font-size: 1rem;
-    color: var(--blue-900);
-    font-weight: 800;
-  }
-
-  .panel-header p {
-    font-size: 0.9rem;
-    color: var(--muted);
-    font-weight: 700;
-  }
-
-  #chart {
-    width: 100%;
-    min-height: 360px;
-  }
-
-  .table-wrap {
-    overflow-x: auto;
-    max-width: 100%;
-  }
-
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-
-  th,
-  td {
-    text-align: left;
-    padding: 12px 10px;
-    border-bottom: 1px solid #edf1f5;
-    font-size: 14px;
-    font-weight: 800;
-  }
-
-  th {
-    color: var(--muted);
-  }
-
-  td {
-    color: var(--text);
-  }
-
-  .positive {
-    color: #1d8f5a;
-    font-weight: 900;
-  }
-
-  #chart text,
-  .apexcharts-text,
-  .apexcharts-text tspan,
-  .apexcharts-xaxis-label,
-  .apexcharts-yaxis-label,
-  .apexcharts-legend-text,
-  .apexcharts-datalabel,
-  .apexcharts-tooltip,
-  .apexcharts-tooltip * {
-    font-weight: 800 !important;
-  }
-
-  @media (max-width: 1400px) {
-    .filters-grid {
-      grid-template-columns: 1fr 1fr 1fr;
+    :root {
+      --blue-900: #0d1b2a;
+      --cyan: #00aeb3;
+      --bg: #f4f7fa;
+      --card: #ffffff;
+      --text: #0b2545;
+      --muted: #647486;
+      --border: rgba(11, 37, 69, 0.12);
+      --shadow: 0 6px 18px rgba(13, 27, 42, 0.06);
+      --radius: 8px;
     }
-  }
-
-  @media (max-width: 1200px) {
-    .cards-row {
-      grid-template-columns: repeat(2, 1fr);
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+    .app { display: flex; min-height: 100vh; width: 100%; }
+    .sidebar { width: 16vw; background: #071b31; height: 100vh; position: fixed; top: 0; left: 0; color: #fff; display: flex; flex-direction: column; padding-top: 18px; overflow-y: auto; }
+    .sidebar h2 { text-align: center; margin-bottom: 20px; color: #00cfcf; font-size: 1.5rem; }
+    .menu { list-style: none; padding: 0 8px 18px; }
+    .menu li { padding: 13px 18px; cursor: pointer; transition: background 0.3s; font-size: 18px; border-radius: 6px; line-height: 1.2; }
+    .menu li:hover, .menu li.active { background: #00cfcf; color: var(--blue-900); font-weight: 800; }
+    .menu a { text-decoration: none; color: white; display: block; }
+    .main { margin-left: 18vw; width: calc(100% - 18vw); min-height: 100vh; min-width: 0; }
+    .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 22px; background: #fff; border-bottom: 1px solid #e7edf2; flex-wrap: wrap; }
+    .topbar h1 { font-size: 1.25rem; color: var(--blue-900); font-weight: 800; }
+    .topbar p { font-size: 0.92rem; color: var(--muted); margin-top: 4px; font-weight: 700; }
+    .brand-field { width: min(320px, 100%); border: 1px solid rgba(0, 174, 179, 0.35); background: #eefbfb; color: var(--blue-900); border-radius: 8px; padding: 12px 14px; font-size: 0.95rem; outline: none; font-weight: 800; }
+    .content { padding: 20px; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+    .filters-panel, .chart-panel, .table-panel, .info-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+    .filters-grid { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr 1.4fr auto; gap: 14px; align-items: end; }
+    .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
+    .field input, .field select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; outline: none; font-size: 14px; font-weight: 800; color: var(--text); background: #fff; }
+    #custom-period-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    #custom-period-fields[hidden], [hidden] { display: none !important; }
+    .autocomplete-list { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 180px; overflow: auto; }
+    .autocomplete-list button, .link-button { border: 1px solid var(--border); background: #fff; color: var(--blue-900); border-radius: 8px; padding: 8px 10px; cursor: pointer; font-weight: 800; text-align: left; }
+    .btn-refresh { border: none; padding: 11px 16px; border-radius: 8px; background: var(--blue-900); color: #fff; font-weight: 800; cursor: pointer; white-space: nowrap; min-height: 46px; }
+    .btn-refresh:disabled { opacity: 0.55; cursor: wait; }
+    .cards-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+    .info-card { min-height: 104px; }
+    .info-card .title { font-size: 13px; color: var(--muted); font-weight: 800; }
+    .info-card .value { font-size: 24px; font-weight: 900; color: var(--blue-900); margin-top: 10px; overflow-wrap: anywhere; }
+    .info-card .sub { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 700; }
+    .dashboard-state { font-weight: 800; color: var(--muted); }
+    .dashboard-state[data-kind="error"] { color: #a13737; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .panel-header h3 { font-size: 1rem; color: var(--blue-900); font-weight: 800; }
+    .panel-header p { font-size: 0.9rem; color: var(--muted); font-weight: 700; }
+    #chart { width: 100%; min-height: 360px; }
+    .table-wrap { overflow-x: auto; max-width: 100%; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid #edf1f5; font-size: 14px; font-weight: 800; }
+    th { color: var(--muted); }
+    td { color: var(--text); }
+    ul { padding-left: 18px; display: grid; gap: 8px; font-weight: 700; color: var(--text); }
+    h4 { margin: 10px 0; color: var(--blue-900); }
+    #product-metrics p { margin: 7px 0; font-weight: 800; }
+    @media (max-width: 1200px) {
+      .cards-row { grid-template-columns: repeat(2, 1fr); }
+      .filters-grid { grid-template-columns: 1fr 1fr; }
     }
-
-    .filters-grid {
-      grid-template-columns: 1fr 1fr;
+    @media (max-width: 900px) {
+      .sidebar { width: 100%; height: auto; position: relative; align-items: center; text-align: center; padding: 15px; }
+      .menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0; }
+      .menu li { padding: 10px 12px; font-size: 1rem; }
+      .main { margin-left: 0; width: 100%; }
+      .filters-grid, .cards-row { grid-template-columns: 1fr; }
     }
-
-    .sidebar {
-      width: 18vw;
-      min-width: 18vw;
-      height: 100vh;
-    }
-
-    .main {
-      margin-left: 18vw;
-      width: calc(100% - 18vw);
-      max-width: calc(100% - 18vw);
-      min-height: 100vh;
-    }
-
-    .app {
-      min-height: 100vh;
-      width: 100%;
-      transform: none;
-    }
-  }
-
-  @media (max-width: 900px) {
-    .sidebar {
-      width: 100%;
-      min-width: 100%;
-      height: auto;
-      position: relative;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-      padding: 15px;
-    }
-
-    .sidebar h2 {
-      margin-bottom: 12px;
-      order: -1;
-    }
-
-    .menu {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      gap: 8px;
-      padding: 0;
-    }
-
-    .menu li {
-      padding: 10px 12px;
-      font-size: 1rem;
-    }
-
-    .main {
-      margin-left: 0;
-      width: 100%;
-      max-width: 100%;
-    }
-
-    .topbar {
-      padding: 14px;
-    }
-
-    .content {
-      padding: 16px;
-    }
-
-    .filters-grid,
-    .cards-row {
-      grid-template-columns: 1fr;
-    }
-
-    .brand-box {
-      width: 100%;
-    }
-  }
-</style>
+  </style>
 </head>
-
 <body>
-  <div class="page-scale-wrapper">
-    <div class="app">
-  <div id="sidebar-container"></div>
+  <div class="app">
+    <div id="sidebar-container"></div>
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Dashboard Financeiro</h1>
+          <p>Dados reais por tenant e filial, com filtros server-side</p>
+        </div>
+        <input id="store-brand" class="brand-field" value="NextStock" readonly aria-label="Marca da loja" />
+        <span id="tenant-badge-name" hidden></span>
+      </header>
 
-      <main class="main">
-        <header class="topbar">
-          <div class="topbar-left">
-            <h1>Dashboard Financeiro</h1>
-            <p>Visão multi-tenant com filtros por período e produto</p>
+      <section class="content">
+        <section class="filters-panel">
+          <div class="filters-grid">
+            <div class="field">
+              <label for="tenant-select">Tenant / Loja</label>
+              <select id="tenant-select"></select>
+            </div>
+            <div class="field">
+              <label for="time-range">Periodo</label>
+              <select id="time-range">
+                <option value="today">Hoje</option>
+                <option value="last7days">Ultimos 7 dias</option>
+                <option value="currentMonth" selected>Este mes</option>
+                <option value="previousMonth">Mes passado</option>
+                <option value="custom">Personalizado</option>
+              </select>
+            </div>
+            <div class="field" id="custom-period-fields" hidden>
+              <label>Datas</label>
+              <input type="date" id="custom-from" aria-label="Data inicial" />
+              <input type="date" id="custom-to" aria-label="Data final" />
+            </div>
+            <div class="field">
+              <label for="status-mode">Status</label>
+              <select id="status-mode">
+                <option value="confirmed" selected>Apenas confirmados</option>
+                <option value="forecast">Previsoes</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="product-search">Produto</label>
+              <input type="text" id="product-search" placeholder="Buscar produto..." autocomplete="off" />
+              <div id="product-autocomplete" class="autocomplete-list"></div>
+              <small id="selected-product-label"></small>
+              <button id="clear-product" class="link-button" type="button">Limpar produto</button>
+            </div>
+            <button class="btn-refresh" id="apply-filters" type="button">Aplicar filtros</button>
           </div>
-
-          <div class="brand-box">
-            <input
-              type="text"
-              id="store-brand"
-              class="brand-field"
-              placeholder="Marca do dono da loja"
-              readonly
-              aria-label="Marca do dono da loja"
-            />
-          </div>
-
-          <span id="tenant-badge-name" hidden aria-hidden="true"></span>
-        </header>
-
-        <section class="content">
-          <section class="filters-panel">
-            <div class="filters-grid">
-              <div class="field">
-                <label for="tenant-select">Tenant / Loja</label>
-                <select id="tenant-select"></select>
-              </div>
-
-              <div class="field">
-                <label for="time-range">Tempo</label>
-                <select id="time-range">
-                  <option value="day">Dia</option>
-                  <option value="week">Semana</option>
-                  <option value="month" selected>Mês</option>
-                  <option value="year">Ano</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="exact-month" id="exact-time-label">Selecionar mês exato</label>
-
-                <input type="date" id="exact-day" class="exact-time-control hidden" />
-                <input type="week" id="exact-week" class="exact-time-control hidden" />
-                <input type="month" id="exact-month" class="exact-time-control" />
-                <select id="exact-year" class="exact-time-control hidden"></select>
-
-                <input type="hidden" id="exact-time-value" />
-              </div>
-
-              <div class="field">
-                <label for="chart-type">Tipo de gráfico</label>
-                <select id="chart-type">
-                  <option value="bar">Torres</option>
-                  <option value="pie">Pizza</option>
-                  <option value="line" selected>Linha</option>
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="product-search">Pesquisar por produto</label>
-                <input
-                  type="text"
-                  id="product-search"
-                  placeholder="Ex: Arroz, Café, Leite..."
-                />
-              </div>
-
-              <button class="btn-refresh" id="apply-filters" type="button">
-                Aplicar filtros
-              </button>
-            </div>
-          </section>
-
-          <section class="cards-row">
-            <article class="info-card">
-              <div class="title">Lucro Bruto</div>
-              <div class="value" id="gross-profit">R$ 0,00</div>
-              <div class="sub">Receita - custo dos produtos vendidos</div>
-            </article>
-
-            <article class="info-card">
-              <div class="title">Lucro Líquido</div>
-              <div class="value" id="net-profit">R$ 0,00</div>
-              <div class="sub">Lucro bruto - despesas operacionais</div>
-            </article>
-
-            <article class="info-card">
-              <div class="title">Receita Total</div>
-              <div class="value" id="total-revenue">R$ 0,00</div>
-              <div class="sub">Soma das vendas do período</div>
-            </article>
-
-            <article class="info-card">
-              <div class="title">Custo Total</div>
-              <div class="value" id="total-cost">R$ 0,00</div>
-              <div class="sub">Custo total dos itens vendidos</div>
-            </article>
-
-            <article class="info-card">
-              <div class="title">Despesas</div>
-              <div class="value" id="total-expenses">R$ 0,00</div>
-              <div class="sub">Despesas operacionais do tenant</div>
-            </article>
-          </section>
-
-          <section class="chart-panel">
-            <div class="panel-header">
-              <div>
-                <h3>Evolução de resultados</h3>
-                <p id="chart-subtitle">Comparativo entre lucro bruto e lucro líquido</p>
-              </div>
-            </div>
-
-            <div id="chart"></div>
-          </section>
-
-          <section class="table-panel">
-            <div class="panel-header">
-              <div>
-                <h3>Produtos filtrados</h3>
-                <p>Lista detalhada conforme tenant, período e pesquisa</p>
-              </div>
-            </div>
-
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Produto</th>
-                    <th>Quantidade</th>
-                    <th>Receita</th>
-                    <th>Custo</th>
-                    <th>Lucro Bruto</th>
-                    <th>Lucro Líquido</th>
-                  </tr>
-                </thead>
-                <tbody id="products-table-body"></tbody>
-              </table>
-            </div>
-          </section>
         </section>
-      </main>
-    </div>
+
+        <section class="cards-row">
+          <article class="info-card">
+            <div class="title">Faturamento Bruto</div>
+            <div class="value" id="total-revenue">R$ 0,00</div>
+            <div class="sub">Vendas pagas/concluidas no periodo</div>
+          </article>
+          <article class="info-card">
+            <div class="title">Total de Despesas</div>
+            <div class="value" id="total-expenses">R$ 0,00</div>
+            <div class="sub">Confirmadas ou previstas conforme filtro</div>
+          </article>
+          <article class="info-card">
+            <div class="title">Lucro Liquido</div>
+            <div class="value" id="net-profit">R$ 0,00</div>
+            <div class="sub">Lucro bruto - despesas</div>
+          </article>
+          <article class="info-card">
+            <div class="title">Ticket Medio</div>
+            <div class="value" id="average-ticket">R$ 0,00</div>
+            <div class="sub">Faturamento / numero de vendas</div>
+          </article>
+          <article class="info-card">
+            <div class="title">Lucro Bruto</div>
+            <div class="value" id="gross-profit">R$ 0,00</div>
+            <div class="sub">Usa snapshot de custo quando existe</div>
+          </article>
+        </section>
+
+        <p id="dashboard-state" class="dashboard-state">Carregando...</p>
+
+        <section class="chart-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Fluxo de caixa</h3>
+              <p id="chart-subtitle">Receitas, despesas e saldo por dia</p>
+            </div>
+          </div>
+          <div id="chart"></div>
+        </section>
+
+        <section class="table-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Top 5 produtos</h3>
+              <p>Produtos mais vendidos no periodo</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Produto</th>
+                  <th>Quantidade</th>
+                  <th>Receita</th>
+                  <th>Lucro Bruto</th>
+                  <th>Acao</th>
+                </tr>
+              </thead>
+              <tbody id="products-table-body"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="table-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Produto especifico</h3>
+              <p>Participacao no faturamento do periodo</p>
+            </div>
+          </div>
+          <div id="product-metrics">Selecione um produto para ver participacao no faturamento.</div>
+        </section>
+
+        <section class="table-panel">
+          <div class="panel-header">
+            <div>
+              <h3>Alertas</h3>
+              <p>Contas a vencer e agenda Pet Shop quando aplicavel</p>
+            </div>
+          </div>
+          <h4>Contas a vencer</h4>
+          <ul id="upcoming-expenses"></ul>
+          <div id="appointments-panel">
+            <h4>Agenda Pet Shop</h4>
+            <ul id="upcoming-appointments"></ul>
+          </div>
+        </section>
+      </section>
+    </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-
   <script>
     (function () {
       if (!window.ApexCharts) return;
-
       const OriginalApexCharts = window.ApexCharts;
-
       function WrappedApexCharts(el, options) {
         const instance = new OriginalApexCharts(el, options);
-
-        try {
-          window.__dashboardChartInstance = instance;
-          window.__dashboardInitialChartOptions = JSON.parse(JSON.stringify(options));
-          window.__dashboardLastCartesianOptions = JSON.parse(JSON.stringify(options));
-        } catch (error) {
-          window.__dashboardChartInstance = instance;
-          window.__dashboardInitialChartOptions = options;
-          window.__dashboardLastCartesianOptions = options;
-        }
-
+        window.__dashboardChartInstance = instance;
+        window.__dashboardInitialChartOptions = options;
         return instance;
       }
-
       WrappedApexCharts.prototype = OriginalApexCharts.prototype;
       Object.setPrototypeOf(WrappedApexCharts, OriginalApexCharts);
-
       window.ApexCharts = WrappedApexCharts;
     })();
   </script>
-
   <script src="./dist/session-state.js"></script>
-  <script type="module" src="./dist/dashboard.js"></script>
-
   <script>
-    const timeRange = document.getElementById("time-range");
-    const exactTimeLabel = document.getElementById("exact-time-label");
-    const exactDay = document.getElementById("exact-day");
-    const exactWeek = document.getElementById("exact-week");
-    const exactMonth = document.getElementById("exact-month");
-    const exactYear = document.getElementById("exact-year");
-    const exactTimeValue = document.getElementById("exact-time-value");
-    const chartType = document.getElementById("chart-type");
-    const storeBrand = document.getElementById("store-brand");
-
     function getLocalStorageScope() {
       let branch = null;
       let user = null;
@@ -655,241 +252,21 @@
       ].join(":");
     }
 
-    function formatarDataLocal(data) {
-      const ano = data.getFullYear();
-      const mes = String(data.getMonth() + 1).padStart(2, "0");
-      const dia = String(data.getDate()).padStart(2, "0");
-      return `${ano}-${mes}-${dia}`;
-    }
-
-    function formatarMesLocal(data) {
-      const ano = data.getFullYear();
-      const mes = String(data.getMonth() + 1).padStart(2, "0");
-      return `${ano}-${mes}`;
-    }
-
-    function formatarSemanaISO(data) {
-      const dataUTC = new Date(Date.UTC(data.getFullYear(), data.getMonth(), data.getDate()));
-      const diaSemana = dataUTC.getUTCDay() || 7;
-      dataUTC.setUTCDate(dataUTC.getUTCDate() + 4 - diaSemana);
-      const anoInicio = new Date(Date.UTC(dataUTC.getUTCFullYear(), 0, 1));
-      const numeroSemana = Math.ceil((((dataUTC - anoInicio) / 86400000) + 1) / 7);
-      return `${dataUTC.getUTCFullYear()}-W${String(numeroSemana).padStart(2, "0")}`;
-    }
-
-    function preencherAnos() {
-      const anoAtual = new Date().getFullYear();
-      exactYear.innerHTML = "";
-
-      for (let ano = anoAtual + 1; ano >= anoAtual - 15; ano -= 1) {
-        const option = document.createElement("option");
-        option.value = String(ano);
-        option.textContent = String(ano);
-        exactYear.appendChild(option);
-      }
-
-      exactYear.value = String(anoAtual);
-    }
-
-    function esconderTodosControlesTempo() {
-      exactDay.classList.add("hidden");
-      exactWeek.classList.add("hidden");
-      exactMonth.classList.add("hidden");
-      exactYear.classList.add("hidden");
-    }
-
-    function sincronizarPeriodoExato() {
-      let valor = "";
-
-      if (timeRange.value === "day") {
-        valor = exactDay.value;
-      }
-
-      if (timeRange.value === "week") {
-        valor = exactWeek.value;
-      }
-
-      if (timeRange.value === "month") {
-        valor = exactMonth.value;
-      }
-
-      if (timeRange.value === "year") {
-        valor = exactYear.value;
-      }
-
-      exactTimeValue.value = valor;
-      timeRange.dataset.exactValue = valor;
-      window.dashboardExtraFilters = {
-        ...(window.dashboardExtraFilters || {}),
-        timeRange: timeRange.value,
-        exactValue: valor,
-        chartType: chartType.value
-      };
-    }
-
-    function atualizarControleTempo() {
-      esconderTodosControlesTempo();
-
-      if (timeRange.value === "day") {
-        exactTimeLabel.textContent = "Selecionar dia exato";
-        exactDay.classList.remove("hidden");
-      }
-
-      if (timeRange.value === "week") {
-        exactTimeLabel.textContent = "Selecionar semana exata";
-        exactWeek.classList.remove("hidden");
-      }
-
-      if (timeRange.value === "month") {
-        exactTimeLabel.textContent = "Selecionar mês exato";
-        exactMonth.classList.remove("hidden");
-      }
-
-      if (timeRange.value === "year") {
-        exactTimeLabel.textContent = "Selecionar ano exato";
-        exactYear.classList.remove("hidden");
-      }
-
-      sincronizarPeriodoExato();
-    }
-
-    function carregarMarcaLoja() {
-      const possiveisChaves = [
-        "marcaLoja",
-        "marca_dono_loja",
-        "nomeMarca",
-        "storeBrand"
-      ];
-
-      let valorMarca = "";
-
+    (function carregarMarcaLoja() {
+      const storeBrand = document.getElementById("store-brand");
+      if (!storeBrand) return;
       const storageScope = getLocalStorageScope();
+      const possiveisChaves = ["marcaLoja", "marca_dono_loja", "nomeMarca", "storeBrand"];
       for (const chave of possiveisChaves) {
         const valor = localStorage.getItem(`${chave}:${storageScope}`);
         if (valor && String(valor).trim()) {
-          valorMarca = String(valor).trim();
-          break;
+          storeBrand.value = String(valor).trim();
+          return;
         }
       }
-
-      storeBrand.value = valorMarca || "Marca não informada";
-    }
-
-    function clonar(obj) {
-      return JSON.parse(JSON.stringify(obj));
-    }
-
-    function somarSerie(dados) {
-      if (!Array.isArray(dados)) return 0;
-
-      return dados.reduce((acc, item) => {
-        if (typeof item === "number") return acc + item;
-        if (item && typeof item.y === "number") return acc + item.y;
-        return acc;
-      }, 0);
-    }
-
-    function aplicarTipoGrafico() {
-      const chart = window.__dashboardChartInstance;
-      if (!chart || !chart.w || !chart.w.config) return;
-
-      const tipoSelecionado = chartType.value;
-      const configAtual = clonar(chart.w.config);
-
-      if (tipoSelecionado !== "pie") {
-        window.__dashboardLastCartesianOptions = clonar(
-          configAtual.chart?.type === "pie"
-            ? (window.__dashboardLastCartesianOptions || window.__dashboardInitialChartOptions || {})
-            : configAtual
-        );
-      }
-
-      if (tipoSelecionado === "pie") {
-        const base = clonar(window.__dashboardLastCartesianOptions || window.__dashboardInitialChartOptions || configAtual);
-        const seriesOriginais = Array.isArray(base.series) ? base.series : [];
-
-        const labels = seriesOriginais.map((serie, index) => {
-          return serie?.name || `Série ${index + 1}`;
-        });
-
-        const series = seriesOriginais.map((serie) => somarSerie(serie?.data));
-
-        chart.updateOptions({
-          chart: {
-            ...(base.chart || {}),
-            type: "pie"
-          },
-          series,
-          labels,
-          legend: {
-            show: true,
-            position: "bottom"
-          },
-          dataLabels: {
-            enabled: true
-          },
-          stroke: {
-            width: 1
-          }
-        }, true, true);
-
-        return;
-      }
-
-      const baseCartesian = clonar(window.__dashboardLastCartesianOptions || window.__dashboardInitialChartOptions || configAtual);
-
-      chart.updateOptions({
-        ...baseCartesian,
-        chart: {
-          ...(baseCartesian.chart || {}),
-          type: tipoSelecionado
-        },
-        plotOptions: tipoSelecionado === "bar"
-          ? {
-              bar: {
-                borderRadius: 6,
-                columnWidth: "45%"
-              }
-            }
-          : {}
-      }, true, true);
-    }
-
-    const hoje = new Date();
-    exactDay.value = formatarDataLocal(hoje);
-    exactWeek.value = formatarSemanaISO(hoje);
-    exactMonth.value = formatarMesLocal(hoje);
-
-    preencherAnos();
-    atualizarControleTempo();
-    carregarMarcaLoja();
-
-    timeRange.addEventListener("change", atualizarControleTempo);
-    exactDay.addEventListener("change", sincronizarPeriodoExato);
-    exactWeek.addEventListener("change", sincronizarPeriodoExato);
-    exactMonth.addEventListener("change", sincronizarPeriodoExato);
-    exactYear.addEventListener("change", sincronizarPeriodoExato);
-
-    chartType.addEventListener("change", function () {
-      window.dashboardExtraFilters = {
-        ...(window.dashboardExtraFilters || {}),
-        chartType: chartType.value,
-        timeRange: timeRange.value,
-        exactValue: exactTimeValue.value
-      };
-
-      aplicarTipoGrafico();
-    });
-
-    window.addEventListener("storage", carregarMarcaLoja);
-
-    const tentativaGrafico = setInterval(() => {
-      if (window.__dashboardChartInstance) {
-        aplicarTipoGrafico();
-        clearInterval(tentativaGrafico);
-      }
-    }, 400);
+    })();
   </script>
+  <script type="module" src="./dist/dashboard.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>
