@@ -88,4 +88,19 @@ describe('GET /dev.html protection', () => {
     expect(response.status).toBe(200);
     expect(response.text).toContain('NextStock Dev');
   });
+
+  it('protege parceiros.html com a mesma allowlist Dev', async () => {
+    const anonymous = await request(app.getHttpServer()).get('/parceiros.html');
+    const admin = await request(app.getHttpServer())
+      .get('/parceiros.html')
+      .set('x-test-user', 'admin');
+    const dev = await request(app.getHttpServer())
+      .get('/parceiros.html')
+      .set('x-test-user', 'dev');
+
+    expect(anonymous.status).toBe(401);
+    expect(admin.status).toBe(403);
+    expect(dev.status).toBe(200);
+    expect(dev.text).toContain('Control-plane comercial do NextStock');
+  });
 });

@@ -11,14 +11,34 @@ async function bootstrap() {
 
   app.use(cookieParser());
   app.use(json());
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
 
   app.enableCors({
-    origin: true,
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      const allowed = (process.env.CORS_ALLOWED_ORIGINS || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const localhost =
+        process.env.NODE_ENV !== 'production' &&
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+      return callback(null, allowed.includes(origin) || localhost);
+    },
     credentials: true,
   });
 
   app.setGlobalPrefix('api', {
-    exclude: [{ path: 'dev.html', method: RequestMethod.GET }],
+    exclude: [
+      { path: 'dev.html', method: RequestMethod.GET },
+      { path: 'parceiros.html', method: RequestMethod.GET },
+    ],
   });
 
   const port = Number(process.env.PORT || 3000);

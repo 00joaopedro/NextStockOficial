@@ -12,9 +12,18 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
 import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
+import { ReferralModule } from '../partners/referral.module';
+import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
 
 @Module({
-  imports: [SupabaseModule, PrismaModule, PassportModule, UsageModule, TenancyModule],
+  imports: [
+    SupabaseModule,
+    PrismaModule,
+    PassportModule,
+    UsageModule,
+    TenancyModule,
+    ReferralModule,
+  ],
   providers: [
     AuthService,
     JwtStrategy,
@@ -22,6 +31,7 @@ import { RolesGuard } from './roles.guard';
     OptionalJwtAuthGuard,
     RolesGuard,
     DevSuperAdminGuard,
+    PublicRateLimitGuard,
   ],
   controllers: [AuthController],
   exports: [

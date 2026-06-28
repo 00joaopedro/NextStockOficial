@@ -1,4 +1,4 @@
-import { IsIn, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 export class RegisterDto {
   @IsString()
@@ -21,4 +21,9 @@ export class RegisterDto {
   @IsIn(['padrao', 'petshop'])
   @MaxLength(20)
   systemType!: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9_-]{32,128}$/)
+  referralCode?: string;
 }

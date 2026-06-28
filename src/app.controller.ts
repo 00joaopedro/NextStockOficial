@@ -27,6 +27,12 @@ export class AppController {
     return res.sendFile(join(this.resolvePublicPath(), 'dev.html'));
   }
 
+  @Get('parceiros.html')
+  @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
+  partnersHtml(@Res() res: Response) {
+    return res.sendFile(join(this.resolvePublicPath(), 'parceiros.html'));
+  }
+
   private resolvePublicPath() {
     const candidates = [
       join(__dirname, '..', 'public'),

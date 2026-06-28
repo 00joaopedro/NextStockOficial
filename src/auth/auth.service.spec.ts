@@ -229,6 +229,51 @@ describe('AuthService', () => {
     expect(JSON.stringify(result.payload)).not.toContain('Senha123');
   });
 
+  it('cadastro com referral usa systemType validado e cria atribuicao', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(null);
+    const referrals = {
+      resolveActive: jest.fn().mockResolvedValue({
+        partnerId: 'partner-1',
+        systemType: SystemType.petshop,
+      }),
+      recordRejected: jest.fn(),
+      createReferral: jest.fn().mockResolvedValue([]),
+    };
+    const service = new AuthService(
+      supabase,
+      prisma,
+      createDevWorkspaces(),
+      undefined,
+      referrals as any,
+    );
+
+    await service.register({
+      email: profile.email,
+      name: profile.name,
+      companyName: tenant.name,
+      password: 'Senha123',
+      systemType: 'padrao',
+      referralCode: 'A'.repeat(43),
+    });
+
+    expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ systemType: SystemType.petshop }),
+      }),
+    );
+    expect(referrals.createReferral).toHaveBeenCalledWith(
+      prisma.tx,
+      expect.objectContaining({ partnerId: 'partner-1' }),
+      expect.objectContaining({
+        profileId: profile.id,
+        tenantId: tenant.id,
+        branchId: branch.id,
+      }),
+    );
+  });
+
   it('login comum usa apenas email/senha e retorna a primeira filial automaticamente', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();

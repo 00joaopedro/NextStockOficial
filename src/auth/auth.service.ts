@@ -23,6 +23,10 @@ import {
   isSuperAdmin,
 } from './super-admin.util';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
+import {
+  ReferralRegistrationService,
+  ValidReferral,
+} from '../partners/referral-registration.service';
 
 type RegisterInput = {
   email?: string;
@@ -30,6 +34,7 @@ type RegisterInput = {
   companyName?: string;
   password?: string;
   systemType?: string;
+  referralCode?: string;
 };
 
 type LoginInput = {
@@ -105,6 +110,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly devWorkspaces: DevWorkspaceService,
     @Optional() private readonly usageService?: UsageService,
+    @Optional() private readonly referrals?: ReferralRegistrationService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -112,7 +118,18 @@ export class AuthService {
     const name = this.normalizeName(input.name);
     const companyName = this.normalizeCompanyName(input.companyName);
     const password = this.normalizePassword(input.password);
-    const systemType = this.normalizeSystemType(input.systemType);
+    let referral: ValidReferral | null = null;
+    if (input.referralCode) {
+      referral = (await this.referrals?.resolveActive(input.referralCode)) ?? null;
+      if (!referral) {
+        await this.referrals?.recordRejected(input.referralCode);
+        throw new BadRequestException(
+          'Link de indicacao invalido ou indisponivel.',
+        );
+      }
+    }
+    const systemType =
+      referral?.systemType ?? this.normalizeSystemType(input.systemType);
     const tenantName = companyName;
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName);
     const accessNameNormalized = normalizeAccessName(name);
@@ -273,6 +290,14 @@ export class AuthService {
             role: Role.Admin,
           },
         });
+
+        if (referral && this.referrals) {
+          await this.referrals.createReferral(tx, referral, {
+            profileId: profile.id,
+            tenantId: tenant.id,
+            branchId: branch.id,
+          });
+        }
 
         return { tenant, branch, profile };
       });

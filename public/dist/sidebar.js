@@ -10,6 +10,7 @@ const TENANT_MODULES = {
 };
 const SIDEBAR_ITEMS = [
     { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
+    { label: "Parceiros", href: "parceiros.html", key: "parceiros", module: "dev" },
     { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
     { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
     { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },

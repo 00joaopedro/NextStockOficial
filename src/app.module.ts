@@ -27,6 +27,7 @@ import { ExpensesModule } from './expenses/expenses.module';
 import { SalesModule } from './sales/sales.module';
 import { FiscalModule } from './fiscal/fiscal.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { PartnersModule } from './partners/partners.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -36,7 +37,7 @@ const publicPath = join(__dirname, '..', 'public');
       rootPath: existsSync(publicPath)
         ? publicPath
         : join(__dirname, '..', '..', 'public'),
-      exclude: ['/api', '/api/*path', '/dev.html'],
+      exclude: ['/api', '/api/*path', '/dev.html', '/parceiros.html'],
     }),
     PrismaModule,
     TenancyModule,
@@ -60,6 +61,7 @@ const publicPath = join(__dirname, '..', 'public');
     SuppliersModule,
     ExpensesModule,
     DashboardModule,
+    PartnersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

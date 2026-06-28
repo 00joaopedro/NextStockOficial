@@ -323,6 +323,9 @@
   <script src="./dist/session-state.js"></script>
   <script>
     const API = '/api';
+    const referralCode = new URLSearchParams(window.location.search).get('ref');
+    let referralReady = !referralCode;
+    let referralSystemType = null;
 
     const previewBtn = document.getElementById('previewBtn');
     const previewOptions = document.getElementById('previewOptions');
@@ -436,6 +439,26 @@
       return { res, data };
     }
 
+    async function validateReferralLink() {
+      if (!referralCode) return;
+
+      try {
+        const { data } = await apiRequest(
+          '/referrals/' + encodeURIComponent(referralCode) + '/context',
+          { method: 'GET' }
+        );
+        referralSystemType = data.systemType;
+        referralReady = true;
+        const systemTypeInput = document.getElementById('registerSystemType');
+        systemTypeInput.value = referralSystemType;
+        systemTypeInput.disabled = true;
+        setStatus('Link de indicação validado. Faça seu cadastro.');
+      } catch {
+        referralReady = false;
+        setStatus('Link de indicação inválido ou indisponível.', true);
+      }
+    }
+
     document.getElementById('standardPreviewLink').addEventListener('click', () => {
       persistPreviewContext('padrao');
     });
@@ -447,11 +470,16 @@
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      if (!referralReady) {
+        setStatus('Link de indicação inválido ou indisponível.', true);
+        return;
+      }
+
       const email = document.getElementById('registerEmail').value.trim();
       const name = document.getElementById('registerName').value.trim();
       const companyName = document.getElementById('registerCompanyName').value.trim();
       const password = document.getElementById('registerPassword').value;
-      const systemType = document.getElementById('registerSystemType').value;
+      const systemType = referralSystemType || document.getElementById('registerSystemType').value;
 
       if (!/^[A-Za-z0-9]{8,}$/.test(password)) {
         setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 8 digitos e nao pode conter simbolos.', true);
@@ -462,7 +490,14 @@
         setStatus('Realizando cadastro...');
         const { data } = await apiRequest('/auth/register', {
           method: 'POST',
-          body: JSON.stringify({ email, name, companyName, password, systemType })
+          body: JSON.stringify({
+            email,
+            name,
+            companyName,
+            password,
+            systemType,
+            ...(referralCode ? { referralCode } : {})
+          })
         });
 
         persistAuthContext(data);
@@ -535,6 +570,7 @@
     });
 
     window.addEventListener('load', async () => {
+      await validateReferralLink();
       try {
         const res = await fetch(API, {
           method: 'GET',
