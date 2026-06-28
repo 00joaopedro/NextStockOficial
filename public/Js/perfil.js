@@ -2,579 +2,223 @@
   const state = {
     user: null,
     selectedBranch: null,
-    mode: "visualizacao",
-    preview: true,
     canManage: false,
+    preview: false,
     machines: [],
     selectedMachineId: null,
     busy: false,
   };
-
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    status: $("pageStatus"), name: $("nomeCompleto"), profileEmail: $("profileEmail"),
+    company: $("empresa"), cnpj: $("cnpj"), email: $("email"), contact: $("contato"),
+    saveProfile: $("saveProfileBtn"), saveCompany: $("saveCompanyBtn"),
+    currentPlan: $("currentPlanTitle"), currentBadge: $("currentPlanBadge"),
+    details: $("subscriptionDetails"), plans: $("plansGrid"),
+    machineList: $("machineList"), addMachine: $("addMachineBtn"),
+    saveMachine: $("saveMachineBtn"), deleteMachine: $("deleteMachineBtn"),
+    machineName: $("machineName"), machineProvider: $("machineProvider"),
+    machineModel: $("machineModel"), machineFee: $("machineFee"),
+    machineStatus: $("machineStatus"),
+  };
   const planImages = {
     ouro: "img/trofeu-ouro.png",
     esmeralda: "img/trofeu-esmeralda.png",
     diamante: "img/trofeu-diamante.png",
   };
 
-  const elements = {
-    pageStatus: document.getElementById("pageStatus"),
-    nomeCompleto: document.getElementById("nomeCompleto"),
-    profileEmail: document.getElementById("profileEmail"),
-    empresa: document.getElementById("empresa"),
-    cnpj: document.getElementById("cnpj"),
-    email: document.getElementById("email"),
-    contato: document.getElementById("contato"),
-    saveProfileBtn: document.getElementById("saveProfileBtn"),
-    saveCompanyBtn: document.getElementById("saveCompanyBtn"),
-    plansGrid: document.getElementById("plansGrid"),
-    currentPlanTitle: document.getElementById("currentPlanTitle"),
-    currentPlanBadge: document.getElementById("currentPlanBadge"),
-    machineList: document.getElementById("machineList"),
-    addMachineBtn: document.getElementById("addMachineBtn"),
-    saveMachineBtn: document.getElementById("saveMachineBtn"),
-    deleteMachineBtn: document.getElementById("deleteMachineBtn"),
-    machineName: document.getElementById("machineName"),
-    machineProvider: document.getElementById("machineProvider"),
-    machineModel: document.getElementById("machineModel"),
-    machineFee: document.getElementById("machineFee"),
-    machineStatus: document.getElementById("machineStatus"),
-  };
-
-  function clean(value) {
-    return String(value || "").replace(/\s+/g, " ").trim();
+  function clean(value) { return String(value || "").replace(/\s+/g, " ").trim(); }
+  function selectedBranch() {
+    try { return JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null"); }
+    catch { return null; }
   }
-
-  function readSelectedBranch() {
+  function headers(extra) {
+    const output = { Accept: "application/json", ...(extra || {}) };
+    if (state.selectedBranch?.id) output["x-nextstock-branch-id"] = state.selectedBranch.id;
     try {
-      return JSON.parse(
-        sessionStorage.getItem("nextstockSelectedBranch") || "null",
-      );
-    } catch {
-      return null;
-    }
-  }
-
-  function hasValidSupportContext(branchId) {
-    try {
-      const support = JSON.parse(
-        sessionStorage.getItem("nextstockDevSupportContext") || "null",
-      );
-      return support?.branchId === branchId && support?.mode === "support";
-    } catch {
-      return false;
-    }
-  }
-
-  function buildHeaders(extra) {
-    const headers = {
-      Accept: "application/json",
-      ...(extra || {}),
-    };
-    const branchId = state.selectedBranch?.id;
-
-    if (branchId) {
-      headers["x-nextstock-branch-id"] = branchId;
-    }
-    if (branchId && hasValidSupportContext(branchId)) {
-      headers["x-nextstock-dev-context"] = "support";
-    }
-
-    return headers;
-  }
-
-  async function api(path, options) {
-    const response = await fetch(path, {
-      credentials: "include",
-      ...options,
-      headers: buildHeaders(options?.headers),
-    });
-    const text = await response.text();
-    let body = {};
-
-    if (text) {
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = { message: text };
+      const support = JSON.parse(sessionStorage.getItem("nextstockDevSupportContext") || "null");
+      if (support?.branchId === state.selectedBranch?.id && support?.mode === "support") {
+        output["x-nextstock-dev-context"] = "support";
       }
+    } catch {}
+    return output;
+  }
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: "include", ...options,
+      headers: headers({ ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      window.clearNextStockSessionState?.();
+      location.href = "index.html";
+      throw new Error("Sessão expirada.");
     }
-
     if (!response.ok) {
-      const message = Array.isArray(body.message)
-        ? body.message.join("\n")
-        : body.message || body.error || "Nao foi possivel concluir a operacao.";
-      const error = new Error(message);
-      error.status = response.status;
-      error.code = body.code;
-      throw error;
+      const error = new Error(Array.isArray(body.message) ? body.message.join(" ") : body.message || "Não foi possível concluir.");
+      error.status = response.status; error.code = body.code; throw error;
     }
-
     return body;
   }
-
-  function setMessage(message, type) {
-    elements.pageStatus.textContent = message || "";
-    elements.pageStatus.style.color =
-      type === "error"
-        ? "#b91c1c"
-        : type === "success"
-          ? "#166534"
-          : "#607D8B";
+  function message(text, type = "") { el.status.textContent = text; el.status.className = `status ${type}`; }
+  function money(cents, currency = "BRL") {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(Number(cents || 0) / 100);
+  }
+  function date(value) { return value ? new Date(value).toLocaleString("pt-BR") : "—"; }
+  function busy(value) { state.busy = value; permissions(); }
+  function permissions() {
+    const blocked = state.busy || state.preview;
+    el.saveProfile.disabled = blocked;
+    el.saveCompany.disabled = blocked || !state.canManage;
+    el.addMachine.disabled = blocked || !state.canManage;
+    el.saveMachine.disabled = blocked || !state.canManage;
+    el.deleteMachine.disabled = blocked || !state.canManage || !state.selectedMachineId;
   }
 
-  function setBusy(value) {
-    state.busy = value;
-    applyPermissions();
-  }
-
-  function applyPermissions() {
-    const mutationBlocked = state.preview || state.busy;
-    elements.saveProfileBtn.disabled = mutationBlocked;
-    elements.saveCompanyBtn.disabled = mutationBlocked || !state.canManage;
-    elements.addMachineBtn.disabled = mutationBlocked || !state.canManage;
-    elements.saveMachineBtn.disabled = mutationBlocked || !state.canManage;
-    elements.deleteMachineBtn.disabled =
-      mutationBlocked || !state.canManage || !state.selectedMachineId;
-
-    [elements.empresa, elements.cnpj, elements.email, elements.contato].forEach(
-      (input) => {
-        input.disabled = !state.canManage || state.preview;
-      },
-    );
-
-    [
-      elements.machineName,
-      elements.machineProvider,
-      elements.machineModel,
-      elements.machineFee,
-      elements.machineStatus,
-    ].forEach((input) => {
-      input.disabled = !state.canManage || state.preview;
-    });
-
-    elements.nomeCompleto.disabled = state.preview;
-  }
-
-  function formatMoney(cents) {
-    return (Number(cents || 0) / 100).toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    });
-  }
-
-  function providerLabel(provider) {
-    return (
-      {
-        stone: "Stone",
-        pagseguro: "PagSeguro",
-        mercado_pago: "Mercado Pago",
-        outro: "Outro",
-      }[provider] || "Outro"
-    );
-  }
-
-  function statusLabel(status) {
-    return (
-      {
-        ativa: "Ativa",
-        inativa: "Inativa",
-        manutencao: "Manutencao",
-      }[status] || "Ativa"
-    );
-  }
-
-  async function bootstrapContext() {
-    const authResponse = await fetch("/api/auth/profile", {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-
-    if (authResponse.status === 401 || authResponse.status === 403) {
-      window.location.href = "index.html";
-      return false;
-    }
-    if (!authResponse.ok) {
-      throw new Error("Nao foi possivel validar a sessao.");
-    }
-
-    const auth = await authResponse.json();
-    state.user = auth.user || auth.profile || auth;
-    state.selectedBranch =
-      readSelectedBranch() || auth.selectedBranch || state.user?.branch || null;
-
+  async function bootstrap() {
+    const auth = await api("/api/auth/profile");
+    state.user = auth.user;
+    state.selectedBranch = selectedBranch() || auth.selectedBranch || state.user?.branch;
     const context = await api("/api/system/context");
-    state.selectedBranch =
-      context.selectedBranch || context.branch || state.selectedBranch;
-
-    if (!state.selectedBranch?.id) {
-      throw new Error("Selecione uma filial valida para continuar.");
-    }
-
-    sessionStorage.setItem(
-      "nextstockSelectedBranch",
-      JSON.stringify(state.selectedBranch),
-    );
-    sessionStorage.setItem("nextstockBranchId", state.selectedBranch.id);
-    sessionStorage.setItem(
-      "nextstockTenantId",
-      state.selectedBranch.tenantId || "",
-    );
-
-    const role = state.user?.role;
-    state.canManage =
-      role === "Admin" ||
-      state.user?.isDevSuperAdmin === true;
-    state.preview =
-      String(context.systemMode || "").toUpperCase() === "PREVIEW";
-
-    return true;
+    state.selectedBranch = context.selectedBranch || state.selectedBranch;
+    if (!state.selectedBranch?.id) throw new Error("Selecione uma filial válida.");
+    state.canManage = state.user?.role === "Admin" || state.user?.isDevSuperAdmin === true;
+    state.preview = String(context.systemMode).toUpperCase() === "PREVIEW";
   }
-
   async function loadProfile() {
     const data = await api("/api/profile/me");
-    elements.nomeCompleto.value = data.profile?.fullName || "";
-    elements.profileEmail.value = data.profile?.email || "";
+    el.name.value = data.profile?.fullName || "";
+    el.profileEmail.value = data.profile?.email || "";
   }
-
   async function loadCompany() {
     const data = await api("/api/profile/company");
-    const company = data.company || {};
-
-    state.mode = data.mode || "visualizacao";
-    state.preview = state.preview || state.mode === "visualizacao";
-    elements.empresa.value = company.empresa || "";
-    elements.cnpj.value = company.cnpj || "";
-    elements.email.value = company.email || "";
-    elements.contato.value = company.contato || "";
-    setCurrentPlan(data.currentPlan);
+    el.company.value = data.company?.empresa || "";
+    el.cnpj.value = data.company?.cnpj || "";
+    el.email.value = data.company?.email || "";
+    el.contact.value = data.company?.contato || "";
   }
-
-  async function loadSubscription() {
-    const data = await api("/api/profile/subscription");
-    setCurrentPlan(data.currentPlan);
+  async function loadBilling() {
+    const data = await api("/api/billing/subscription");
+    const subscription = data.subscription;
+    const entitlement = data.entitlement || {};
+    const plan = subscription?.plan;
+    el.currentPlan.textContent = plan ? `Plano atual: ${plan.name}` : "Período gratuito";
+    el.currentBadge.textContent = subscription?.status || entitlement.reason || "Sem assinatura";
+    const details = [];
+    if (subscription?.trialEndsAt) details.push(`Trial termina em ${date(subscription.trialEndsAt)} (${data.trialDaysRemaining || 0} dia(s) restante(s)).`);
+    if (subscription?.currentPeriodEndsAt) details.push(`Período pago até ${date(subscription.currentPeriodEndsAt)}.`);
+    if (!entitlement.allowed) details.push("Seu período gratuito terminou. Escolha um plano para continuar usando o sistema.");
+    el.details.textContent = details.join(" ");
   }
-
-  function setCurrentPlan(plan) {
-    const name = plan?.name || "Nao contratado";
-    elements.currentPlanTitle.textContent = `Plano atual: ${name}`;
-    elements.currentPlanBadge.textContent = `Plano atual: ${name}`;
-  }
-
   async function loadPlans() {
-    elements.plansGrid.replaceChildren(
-      createTextState("Carregando planos..."),
-    );
-
-    try {
-      const data = await api("/api/profile/plans");
-      const plans = Array.isArray(data.plans) ? data.plans : [];
-      elements.plansGrid.replaceChildren();
-
-      if (!plans.length) {
-        elements.plansGrid.appendChild(
-          createTextState("Nenhum plano disponivel."),
-        );
-        return;
-      }
-
-      plans.forEach((plan) => {
-        elements.plansGrid.appendChild(createPlanCard(plan));
-      });
-    } catch (error) {
-      elements.plansGrid.replaceChildren(
-        createTextState(`Erro ao carregar planos: ${error.message}`, true),
-      );
+    const data = await api("/api/billing/plans");
+    el.plans.replaceChildren();
+    for (const plan of data.plans || []) {
+      const card = document.createElement("article"); card.className = "plan";
+      const image = document.createElement("img"); image.src = planImages[plan.slug] || planImages.ouro; image.alt = plan.name;
+      const title = document.createElement("strong"); title.textContent = plan.name;
+      const description = document.createElement("span"); description.textContent = plan.description || "";
+      const price = document.createElement("span"); price.className = "price"; price.textContent = money(plan.priceCents, plan.currency);
+      const action = document.createElement("button"); action.textContent = "Escolher plano";
+      action.disabled = !state.canManage || !plan.checkoutAvailable;
+      action.addEventListener("click", () => startCheckout(plan.slug));
+      card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
   }
-
-  function createPlanCard(plan) {
-    const card = document.createElement("div");
-    card.className = "plan-card";
-
-    const image = document.createElement("img");
-    image.className = "plan-img";
-    image.src = planImages[plan.slug] || planImages.ouro;
-    image.alt = `Imagem do plano ${clean(plan.name)}`;
-
-    const content = document.createElement("div");
-    const title = document.createElement("h4");
-    title.textContent = clean(plan.name);
-    const description = document.createElement("p");
-    description.textContent = clean(plan.description);
-    const price = document.createElement("strong");
-    price.className = "plan-price";
-    price.textContent = formatMoney(plan.priceCents);
-    const action = document.createElement("button");
-    action.type = "button";
-    action.className = "btn btn-add";
-    action.textContent = "Solicitar alteracao";
-    action.disabled = !state.canManage || state.preview;
-    action.addEventListener("click", () => requestPlan(plan.slug));
-
-    content.append(title, description, price, action);
-    card.append(image, content);
-    return card;
-  }
-
-  function createTextState(message, isError) {
-    const text = document.createElement("p");
-    text.className = "helper-text";
-    text.textContent = message;
-    if (isError) text.style.color = "#b91c1c";
-    return text;
-  }
-
-  async function requestPlan(planSlug) {
-    setBusy(true);
+  async function startCheckout(planSlug) {
+    busy(true); message("Criando checkout...");
     try {
-      await api("/api/profile/plan", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planSlug }),
+      const checkout = await api("/api/billing/checkout", {
+        method: "POST", body: JSON.stringify({ planSlug }),
       });
-    } catch (error) {
-      setMessage(error.message, error.status === 409 ? "info" : "error");
-    } finally {
-      setBusy(false);
+      sessionStorage.setItem("nextstockBillingCheckoutId", checkout.checkoutId);
+      location.assign(checkout.checkoutUrl);
+    } finally { busy(false); }
+  }
+  async function pollCheckout() {
+    const checkoutId = sessionStorage.getItem("nextstockBillingCheckoutId");
+    if (!checkoutId) return;
+    const result = await api(`/api/billing/checkout/${encodeURIComponent(checkoutId)}/status`);
+    if (result.status === "COMPLETED") {
+      sessionStorage.removeItem("nextstockBillingCheckoutId");
+      message("Pagamento confirmado. Seu acesso foi liberado.", "success");
+      await loadBilling();
+    } else {
+      message("Pagamento aguardando confirmação segura do gateway. O retorno do checkout não libera acesso.");
     }
   }
-
   async function saveProfile() {
-    setBusy(true);
-    setMessage("Salvando perfil...", "info");
-    try {
-      await api("/api/profile/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName: clean(elements.nomeCompleto.value) }),
-      });
-      await loadProfile();
-      setMessage("Perfil pessoal salvo.", "success");
-    } finally {
-      setBusy(false);
-    }
+    busy(true);
+    try { await api("/api/profile/me", { method: "PATCH", body: JSON.stringify({ fullName: clean(el.name.value) }) }); message("Perfil salvo.", "success"); }
+    finally { busy(false); }
   }
-
   async function saveCompany() {
-    setBusy(true);
-    setMessage("Salvando empresa...", "info");
+    busy(true);
     try {
-      await api("/api/profile/company", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          empresa: clean(elements.empresa.value),
-          cnpj: clean(elements.cnpj.value),
-          email: clean(elements.email.value),
-          contato: clean(elements.contato.value),
-        }),
-      });
-      await loadCompany();
-      setMessage("Dados da empresa salvos.", "success");
-    } finally {
-      setBusy(false);
-    }
+      await api("/api/profile/company", { method: "PATCH", body: JSON.stringify({
+        empresa: clean(el.company.value), cnpj: clean(el.cnpj.value),
+        email: clean(el.email.value), contato: clean(el.contact.value),
+      }) });
+      message("Empresa salva.", "success");
+    } finally { busy(false); }
   }
-
   async function loadMachines() {
-    elements.machineList.replaceChildren(
-      createTextState("Carregando maquininhas..."),
-    );
-
     try {
       const data = await api("/api/payment-machines");
-      state.machines = Array.isArray(data.machines) ? data.machines : [];
-      state.mode = data.mode || state.mode;
-      state.preview = state.preview || state.mode === "visualizacao";
-      renderMachines();
+      state.machines = data.machines || []; renderMachines();
     } catch (error) {
-      state.machines = [];
-      elements.machineList.replaceChildren(
-        createTextState(
-          `Erro ao carregar maquininhas: ${error.message}`,
-          true,
-        ),
-      );
-    } finally {
-      applyPermissions();
+      if (error.status === 402) el.machineList.textContent = "Maquininhas ficam indisponíveis até a assinatura ser regularizada.";
+      else throw error;
     }
   }
-
   function renderMachines() {
-    elements.machineList.replaceChildren();
-
-    if (!state.machines.length) {
-      elements.machineList.appendChild(
-        createTextState("Nenhuma maquininha cadastrada nesta filial."),
-      );
-      clearMachineForm();
-      return;
-    }
-
-    state.machines.forEach((machine) => {
-      const card = document.createElement("div");
-      card.className = "machine-card";
-      card.classList.toggle("selected", machine.id === state.selectedMachineId);
-
-      const title = document.createElement("h4");
-      title.textContent = `${providerLabel(machine.provider)} - ${clean(machine.name)}`;
-      const details = document.createElement("p");
-      details.style.whiteSpace = "pre-line";
-      details.textContent = [
-        `Modelo: ${clean(machine.model)}`,
-        `Taxa: ${Number(machine.feePercent || 0).toFixed(2)}%`,
-        `Status: ${statusLabel(machine.status)}`,
-      ].join("\n");
-
-      card.append(title, details);
-      card.addEventListener("click", () => selectMachine(machine.id));
-      elements.machineList.appendChild(card);
-    });
-
-    if (!state.selectedMachineId) {
-      selectMachine(state.machines[0].id);
+    el.machineList.replaceChildren();
+    if (!state.machines.length) { el.machineList.textContent = "Nenhuma maquininha cadastrada."; return; }
+    for (const machine of state.machines) {
+      const card = document.createElement("article"); card.className = `machine${machine.id === state.selectedMachineId ? " selected" : ""}`;
+      card.textContent = `${machine.name} · ${machine.model} · ${machine.status}`;
+      card.addEventListener("click", () => selectMachine(machine)); el.machineList.appendChild(card);
     }
   }
-
-  function selectMachine(id) {
-    const machine = state.machines.find((item) => item.id === id);
-    if (!machine) return;
-
-    state.selectedMachineId = id;
-    elements.machineName.value = machine.name || "";
-    elements.machineProvider.value = machine.provider || "";
-    elements.machineModel.value = machine.model || "";
-    elements.machineFee.value = machine.feePercent ?? "";
-    elements.machineStatus.value = machine.status || "ativa";
-    renderMachines();
-    applyPermissions();
+  function selectMachine(machine) {
+    state.selectedMachineId = machine.id; el.machineName.value = machine.name || "";
+    el.machineProvider.value = machine.provider || ""; el.machineModel.value = machine.model || "";
+    el.machineFee.value = machine.feePercent ?? ""; el.machineStatus.value = machine.status || "ativa";
+    renderMachines(); permissions();
   }
-
-  function clearMachineForm() {
-    state.selectedMachineId = null;
-    elements.machineName.value = "";
-    elements.machineProvider.value = "";
-    elements.machineModel.value = "";
-    elements.machineFee.value = "";
-    elements.machineStatus.value = "ativa";
-
-    document.querySelectorAll(".machine-card").forEach((card) => {
-      card.classList.remove("selected");
-    });
-    applyPermissions();
+  function clearMachine() {
+    state.selectedMachineId = null; el.machineName.value = ""; el.machineProvider.value = "";
+    el.machineModel.value = ""; el.machineFee.value = ""; el.machineStatus.value = "ativa";
+    renderMachines(); permissions();
   }
-
   async function saveMachine() {
-    const payload = {
-      name: clean(elements.machineName.value),
-      provider: elements.machineProvider.value,
-      model: clean(elements.machineModel.value),
-      feePercent: Number(elements.machineFee.value),
-      status: elements.machineStatus.value,
-    };
-
-    if (!payload.name || !payload.provider || !payload.model) {
-      throw new Error("Preencha nome, operadora e modelo da maquininha.");
-    }
-    if (!Number.isFinite(payload.feePercent)) {
-      throw new Error("Informe uma taxa valida.");
-    }
-
-    setBusy(true);
-    setMessage("Salvando maquininha...", "info");
+    const body = { name: clean(el.machineName.value), provider: el.machineProvider.value,
+      model: clean(el.machineModel.value), feePercent: Number(el.machineFee.value), status: el.machineStatus.value };
+    busy(true);
     try {
-      await api(
-        state.selectedMachineId
-          ? `/api/payment-machines/${state.selectedMachineId}`
-          : "/api/payment-machines",
-        {
-          method: state.selectedMachineId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
-      clearMachineForm();
-      await loadMachines();
-      setMessage("Maquininha salva.", "success");
-    } finally {
-      setBusy(false);
-    }
+      await api(state.selectedMachineId ? `/api/payment-machines/${state.selectedMachineId}` : "/api/payment-machines",
+        { method: state.selectedMachineId ? "PATCH" : "POST", body: JSON.stringify(body) });
+      clearMachine(); await loadMachines(); message("Maquininha salva.", "success");
+    } finally { busy(false); }
   }
-
   async function deleteMachine() {
-    if (!state.selectedMachineId) return;
-    if (
-      !window.confirm(
-        "Deseja inativar esta maquininha? Ela deixara de aparecer nesta lista.",
-      )
-    ) {
-      return;
-    }
-
-    setBusy(true);
-    setMessage("Inativando maquininha...", "info");
+    if (!state.selectedMachineId || !confirm("Inativar esta maquininha?")) return;
+    busy(true);
+    try { await api(`/api/payment-machines/${state.selectedMachineId}`, { method: "DELETE" }); clearMachine(); await loadMachines(); }
+    finally { busy(false); }
+  }
+  function run(action) { return () => action().catch((error) => { message(error.message, "error"); busy(false); }); }
+  el.saveProfile.addEventListener("click", run(saveProfile)); el.saveCompany.addEventListener("click", run(saveCompany));
+  el.addMachine.addEventListener("click", clearMachine); el.saveMachine.addEventListener("click", run(saveMachine));
+  el.deleteMachine.addEventListener("click", run(deleteMachine));
+  (async () => {
     try {
-      await api(`/api/payment-machines/${state.selectedMachineId}`, {
-        method: "DELETE",
-      });
-      clearMachineForm();
-      await loadMachines();
-      setMessage("Maquininha inativada.", "success");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handle(action) {
-    return () => {
-      action().catch((error) => {
-        setMessage(error.message, "error");
-        setBusy(false);
-      });
-    };
-  }
-
-  async function initialize() {
-    elements.plansGrid.replaceChildren(
-      createTextState("Validando acesso..."),
-    );
-    elements.machineList.replaceChildren(
-      createTextState("Validando acesso..."),
-    );
-    setMessage("Validando sessao e contexto...", "info");
-
-    if (!(await bootstrapContext())) return;
-
-    await Promise.all([
-      loadProfile(),
-      loadCompany(),
-      loadSubscription(),
-      loadPlans(),
-      loadMachines(),
-    ]);
-    applyPermissions();
-    setMessage(
-      state.preview
-        ? "Modo visualizacao: alteracoes estao bloqueadas."
-        : "Dados carregados.",
-      "info",
-    );
-  }
-
-  elements.saveProfileBtn.addEventListener("click", handle(saveProfile));
-  elements.saveCompanyBtn.addEventListener("click", handle(saveCompany));
-  elements.addMachineBtn.addEventListener("click", clearMachineForm);
-  elements.saveMachineBtn.addEventListener("click", handle(saveMachine));
-  elements.deleteMachineBtn.addEventListener("click", handle(deleteMachine));
-
-  initialize().catch((error) => {
-    elements.plansGrid.replaceChildren(
-      createTextState("Nao foi possivel carregar os planos.", true),
-    );
-    elements.machineList.replaceChildren(
-      createTextState("Nao foi possivel carregar as maquininhas.", true),
-    );
-    setMessage(error.message, "error");
-    applyPermissions();
-  });
+      await bootstrap();
+      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines()]);
+      permissions();
+      const returned = new URLSearchParams(location.search).has("billingReturn");
+      if (returned || sessionStorage.getItem("nextstockBillingCheckoutId")) await pollCheckout();
+      else message(state.preview ? "Modo visualização." : "Dados carregados.");
+    } catch (error) { message(error.message, "error"); permissions(); }
+  })();
 })();

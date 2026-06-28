@@ -274,6 +274,38 @@ describe('AuthService', () => {
     );
   });
 
+  it('cadastro novo cria trial na mesma transaction Prisma', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(null);
+    const subscriptions = {
+      createTrial: jest.fn().mockResolvedValue({
+        id: 'subscription-trial',
+      }),
+    };
+    const service = new AuthService(
+      supabase,
+      prisma,
+      createDevWorkspaces(),
+      undefined,
+      undefined,
+      subscriptions as any,
+    );
+
+    await service.register({
+      email: profile.email,
+      name: profile.name,
+      companyName: tenant.name,
+      password: 'Senha123',
+      systemType: 'padrao',
+    });
+
+    expect(subscriptions.createTrial).toHaveBeenCalledWith(
+      prisma.tx,
+      tenant.id,
+    );
+  });
+
   it('login comum usa apenas email/senha e retorna a primeira filial automaticamente', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();

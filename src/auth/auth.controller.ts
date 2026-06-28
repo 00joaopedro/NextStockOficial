@@ -16,8 +16,10 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
+import { BillingExempt } from '../billing/billing-exempt.decorator';
 
 @Controller('auth')
+@BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

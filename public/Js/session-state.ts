@@ -96,3 +96,24 @@ Object.assign(window, {
   isNextStockDemoMode,
   isNextStockProductionMode,
 });
+
+const originalNextStockFetch = window.fetch.bind(window);
+window.fetch = async (...args: Parameters<typeof fetch>) => {
+  const response = await originalNextStockFetch(...args);
+
+  if (
+    response.status === 402 &&
+    !window.location.pathname.toLowerCase().endsWith("/perfil.html")
+  ) {
+    const body = await response
+      .clone()
+      .json()
+      .catch(() => null) as { code?: string; redirectTo?: string } | null;
+
+    if (body?.code === "BILLING_ACCESS_REQUIRED") {
+      window.location.href = body.redirectTo || "/perfil.html";
+    }
+  }
+
+  return response;
+};

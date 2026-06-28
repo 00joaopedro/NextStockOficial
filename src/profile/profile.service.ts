@@ -18,12 +18,6 @@ import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UpdateCompanyDto } from './dto/update-company.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 
-const EFFECTIVE_SUBSCRIPTION_STATUSES: SubscriptionStatus[] = [
-  SubscriptionStatus.active,
-  SubscriptionStatus.trialing,
-  SubscriptionStatus.past_due,
-];
-
 @Injectable()
 export class ProfileService {
   constructor(
@@ -164,8 +158,8 @@ export class ProfileService {
 
   async listPlans() {
     const plans = await this.prisma.plan.findMany({
-      where: { isActive: true },
-      orderBy: { priceCents: 'asc' },
+      where: { isActive: true, deletedAt: null },
+      orderBy: [{ sortOrder: 'asc' }, { priceCents: 'asc' }],
     });
 
     return {
@@ -316,10 +310,24 @@ export class ProfileService {
   }
 
   private findEffectiveSubscription(tenantId: string) {
+    const now = new Date();
     return this.prisma.subscription.findFirst({
       where: {
         tenantId,
-        status: { in: EFFECTIVE_SUBSCRIPTION_STATUSES },
+        OR: [
+          {
+            status: SubscriptionStatus.trialing,
+            trialEndsAt: { gt: now },
+          },
+          {
+            status: SubscriptionStatus.active,
+            OR: [
+              { currentPeriodEndsAt: null },
+              { currentPeriodEndsAt: { gt: now } },
+            ],
+          },
+          { graceEndsAt: { gt: now } },
+        ],
       },
       include: { plan: true },
       orderBy: { updatedAt: 'desc' },
@@ -423,6 +431,8 @@ export class ProfileService {
     slug: string;
     priceCents: number;
     description: string | null;
+    currency?: string;
+    interval?: unknown;
   }) {
     return {
       id: plan.id,
@@ -431,30 +441,12 @@ export class ProfileService {
       priceCents: plan.priceCents,
       price: plan.priceCents / 100,
       description: plan.description,
+      currency: plan.currency ?? 'BRL',
+      interval: plan.interval ?? null,
     };
   }
 
-  private formatSubscription(
-    subscription:
-      | ({
-          plan: {
-            id: string;
-            name: string;
-            slug: string;
-            priceCents: number;
-            description: string | null;
-          };
-        } & {
-          id: string;
-          status: SubscriptionStatus;
-          provider: string | null;
-          currentPeriodStart: Date | null;
-          currentPeriodEnd: Date | null;
-          trialEndsAt: Date | null;
-          canceledAt: Date | null;
-        })
-      | null,
-  ) {
+  private formatSubscription(subscription: any | null) {
     if (!subscription) {
       return null;
     }
@@ -462,12 +454,14 @@ export class ProfileService {
     return {
       id: subscription.id,
       status: subscription.status,
-      provider: subscription.provider,
-      currentPeriodStart: subscription.currentPeriodStart,
-      currentPeriodEnd: subscription.currentPeriodEnd,
+      provider: subscription.gatewayProvider,
+      currentPeriodStart: subscription.currentPeriodStartedAt,
+      currentPeriodEnd: subscription.currentPeriodEndsAt,
+      trialStartedAt: subscription.trialStartedAt,
       trialEndsAt: subscription.trialEndsAt,
+      graceEndsAt: subscription.graceEndsAt,
       canceledAt: subscription.canceledAt,
-      plan: this.formatPlan(subscription.plan),
+      plan: subscription.plan ? this.formatPlan(subscription.plan) : null,
     };
   }
 }

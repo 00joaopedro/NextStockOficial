@@ -14,6 +14,7 @@ import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { ReferralModule } from '../partners/referral.module';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
+import { BillingCoreModule } from '../billing/billing-core.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
     UsageModule,
     TenancyModule,
     ReferralModule,
+    BillingCoreModule,
   ],
   providers: [
     AuthService,

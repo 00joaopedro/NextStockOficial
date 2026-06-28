@@ -23,6 +23,8 @@ import {
   isSuperAdmin,
 } from './super-admin.util';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
+import { BillingEntitlementService } from '../billing/billing-entitlement.service';
+import { SubscriptionsService } from '../billing/subscriptions.service';
 import {
   ReferralRegistrationService,
   ValidReferral,
@@ -111,6 +113,8 @@ export class AuthService {
     private readonly devWorkspaces: DevWorkspaceService,
     @Optional() private readonly usageService?: UsageService,
     @Optional() private readonly referrals?: ReferralRegistrationService,
+    @Optional() private readonly subscriptions?: SubscriptionsService,
+    @Optional() private readonly billingEntitlement?: BillingEntitlementService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -299,6 +303,10 @@ export class AuthService {
           });
         }
 
+        if (this.subscriptions) {
+          await this.subscriptions.createTrial(tx, tenant.id);
+        }
+
         return { tenant, branch, profile };
       });
     } catch (error) {
@@ -398,6 +406,11 @@ export class AuthService {
     });
     this.assertEmployeeCanAuthenticate(profile);
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    const billingState = this.billingEntitlement
+      ? await this.billingEntitlement.forUser(user)
+      : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
+    const billingEnforced =
+      process.env.BILLING_ENFORCEMENT_ENABLED?.toLowerCase() === 'true';
     await this.usageService?.record({
       userId: user.id,
       tenantId: selectedBranch?.tenantId ?? user.tenantId,
@@ -416,7 +429,16 @@ export class AuthService {
         message: 'Login realizado com sucesso.',
         user,
         selectedBranch,
-        redirectTo: canAccessDev(user) ? 'dev.html' : 'produtos.html',
+        billingState: {
+          allowed: billingState.allowed || !billingEnforced,
+          reason: billingState.reason,
+          enforcementEnabled: billingEnforced,
+        },
+        redirectTo: canAccessDev(user)
+          ? 'dev.html'
+          : billingState.allowed || !billingEnforced
+            ? 'produtos.html'
+            : 'perfil.html',
       },
     };
   }
@@ -461,6 +483,11 @@ export class AuthService {
 
     const profileUser = formattedUser;
     const selectedBranch = this.resolveSelectedBranchFromUser(profileUser);
+    const billingState = this.billingEntitlement
+      ? await this.billingEntitlement.forUser(profileUser)
+      : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
+    const billingEnforced =
+      process.env.BILLING_ENFORCEMENT_ENABLED?.toLowerCase() === 'true';
     await this.usageService?.record({
       userId: profileUser.id,
       tenantId: selectedBranch?.tenantId ?? profileUser.tenantId,
@@ -478,6 +505,11 @@ export class AuthService {
       ok: true,
       user: profileUser,
       selectedBranch,
+      billingState: {
+        allowed: billingState.allowed || !billingEnforced,
+        reason: billingState.reason,
+        enforcementEnabled: billingEnforced,
+      },
     };
   }
 

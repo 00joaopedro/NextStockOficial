@@ -6,8 +6,10 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
 import { SystemService } from './system.service';
+import { BillingExempt } from '../billing/billing-exempt.decorator';
 
 @Controller('system')
+@BillingExempt()
 @UseGuards(OptionalJwtAuthGuard)
 export class SystemController {
   constructor(private readonly systemService: SystemService) {}

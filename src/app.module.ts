@@ -28,6 +28,9 @@ import { SalesModule } from './sales/sales.module';
 import { FiscalModule } from './fiscal/fiscal.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PartnersModule } from './partners/partners.module';
+import { BillingModule } from './billing/billing.module';
+import { BillingAccessInterceptor } from './billing/billing-access.interceptor';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -62,8 +65,15 @@ const publicPath = join(__dirname, '..', 'public');
     ExpensesModule,
     DashboardModule,
     PartnersModule,
+    BillingModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: BillingAccessInterceptor,
+    },
+  ],
 })
 export class AppModule {}

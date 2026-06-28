@@ -21,8 +21,10 @@ import { UpdateModeDto } from './dto/update-mode.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
 import { UpdateMeDto } from './dto/update-me.dto';
 import { ProfileService } from './profile.service';
+import { BillingExempt } from '../billing/billing-exempt.decorator';
 
 @Controller('profile')
+@BillingExempt()
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard)
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class ProfileController {

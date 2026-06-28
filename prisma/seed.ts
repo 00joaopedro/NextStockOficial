@@ -1,5 +1,11 @@
 import 'dotenv/config';
-import { MachineStatus, PaymentProvider, PrismaClient } from '@prisma/client';
+import {
+  MachineStatus,
+  PaymentGatewayProvider,
+  PaymentProvider,
+  PlanInterval,
+  PrismaClient,
+} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -11,6 +17,8 @@ async function main() {
       priceCents: 20000,
       description:
         'Plano ideal para operacoes essenciais com praticidade no dia a dia.',
+      sortOrder: 1,
+      paymentLinkUrl: 'https://mpago.la/1AFwduc',
     },
     {
       name: 'Esmeralda',
@@ -18,6 +26,8 @@ async function main() {
       priceCents: 40000,
       description:
         'Mais recursos para gestao e crescimento, indicado para negocios em expansao.',
+      sortOrder: 2,
+      paymentLinkUrl: 'https://mpago.la/31d6g5z',
     },
     {
       name: 'Diamante',
@@ -25,21 +35,62 @@ async function main() {
       priceCents: 60000,
       description:
         'Plano completo para maxima performance, controle e escalabilidade.',
+      sortOrder: 3,
+      paymentLinkUrl: 'https://mpago.la/2Kcwkre',
     },
   ];
 
   for (const plan of plans) {
-    await prisma.plan.upsert({
+    const savedPlan = await prisma.plan.upsert({
       where: { slug: plan.slug },
       update: {
         name: plan.name,
         priceCents: plan.priceCents,
         description: plan.description,
+        currency: 'BRL',
+        interval: PlanInterval.MONTHLY,
+        intervalCount: 1,
+        sortOrder: plan.sortOrder,
         isActive: true,
+        deletedAt: null,
       },
       create: {
-        ...plan,
+        name: plan.name,
+        slug: plan.slug,
+        priceCents: plan.priceCents,
+        description: plan.description,
+        currency: 'BRL',
+        interval: PlanInterval.MONTHLY,
+        intervalCount: 1,
+        sortOrder: plan.sortOrder,
         isActive: true,
+      },
+    });
+
+    await prisma.gatewayPlanMapping.upsert({
+      where: {
+        planId_provider_mode: {
+          planId: savedPlan.id,
+          provider: PaymentGatewayProvider.MERCADO_PAGO,
+          mode: 'production',
+        },
+      },
+      update: {
+        paymentLinkUrl: plan.paymentLinkUrl,
+        isActive: true,
+        metadata: {
+          correlationMode: 'fixed_link_unverified',
+        },
+      },
+      create: {
+        planId: savedPlan.id,
+        provider: PaymentGatewayProvider.MERCADO_PAGO,
+        mode: 'production',
+        paymentLinkUrl: plan.paymentLinkUrl,
+        isActive: true,
+        metadata: {
+          correlationMode: 'fixed_link_unverified',
+        },
       },
     });
   }

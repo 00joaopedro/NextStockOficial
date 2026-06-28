@@ -33,6 +33,10 @@ npm run db:migrate
 npx prisma validate
 ```
 
+Billing SaaS e ordem segura de ativação estão documentados em
+`docs/billing-production.md`. Não habilite enforcement antes de aplicar
+migration, seed e validar o backfill.
+
 Nao use o Supabase SQL Editor como fluxo principal de schema. Scripts SQL soltos neste repositorio existem apenas como diagnostico ou referencia historica; a aplicacao deve evoluir o banco por migrations Prisma versionadas.
 
 Se `npm run db:migrate` nao conseguir conectar nem pela Session Pooler, use o `migration.sql` pendente no Supabase SQL Editor somente como plano B operacional e registre a migration aplicada antes do proximo deploy.

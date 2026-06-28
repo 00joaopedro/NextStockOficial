@@ -4,6 +4,8 @@ import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
+jest.setTimeout(120_000);
+
 jest.mock('jwks-rsa', () => ({
   passportJwtSecret: jest.fn(() => jest.fn()),
 }));

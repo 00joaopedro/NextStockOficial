@@ -174,6 +174,9 @@ function getMenuByTenantType(tenantType) {
 }
 function getMenuByContext(context) {
     const contextMenu = getMenuByTenantType(context.tenantType);
+    if (context.billingAllowed === false && !isDevSuperAdminUser(context)) {
+        return contextMenu.filter((item) => item.key === "perfil");
+    }
     if (isDevSuperAdminUser(context)) {
         return [
             ...contextMenu,
@@ -242,7 +245,23 @@ async function fetchSystemContext() {
     if (!response.ok) {
         throw new Error(`System context failed with status ${response.status}`);
     }
-    return normalizeContext(await response.json());
+    const context = normalizeContext(await response.json());
+    const billingResponse = await fetch("/api/billing/subscription", {
+        method: "GET",
+        headers: {
+            Accept: "application/json",
+            ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+            ...getDevContextHeader(selectedBranchId),
+        },
+        credentials: "include",
+    });
+    if (billingResponse.ok) {
+        const billing = await billingResponse.json();
+        context.billingAllowed =
+            billing?.enforcementEnabled !== true ||
+                billing?.entitlement?.allowed !== false;
+    }
+    return context;
 }
 function renderSidebar(container, context) {
     injectSidebarStyles();

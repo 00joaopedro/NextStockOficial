@@ -16,7 +16,8 @@ describe('perfil frontend production contract', () => {
     expect(script).toContain('/api/system/context');
     expect(script).toContain('/api/profile/me');
     expect(script).toContain('/api/profile/company');
-    expect(script).toContain('/api/profile/subscription');
+    expect(script).toContain('/api/billing/subscription');
+    expect(script).toContain('/api/billing/plans');
     expect(script).toContain('/api/payment-machines');
   });
 
@@ -29,12 +30,12 @@ describe('perfil frontend production contract', () => {
   it('nao deixa mocks de planos ou maquinas no HTML inicial', () => {
     expect(html).not.toContain('<h4>Ouro</h4>');
     expect(html).not.toContain('<h4>Stone - Caixa Principal</h4>');
-    expect(html).toContain('Carregando planos...');
-    expect(html).toContain('Carregando maquininhas...');
+    expect(html).toContain('id="plansGrid"');
+    expect(html).toContain('id="machineList"');
   });
 
   it('envia suporte Dev somente quando branch e modo conferem', () => {
-    expect(script).toContain('support?.branchId === branchId');
+    expect(script).toContain('support?.branchId === state.selectedBranch?.id');
     expect(script).toContain('support?.mode === "support"');
     expect(script).toContain('"x-nextstock-dev-context"');
   });
