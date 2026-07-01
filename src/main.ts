@@ -4,7 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { RequestMethod } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
 import { json } from 'express';
-import compression from 'compression';
+import compression = require('compression');
 import { AppModule } from './app.module';
 
 async function bootstrap() {

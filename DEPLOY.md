@@ -94,22 +94,22 @@ npm run start:railway
 Esse script executa:
 
 ```bash
+npm run migrate:deploy
 npm run start:prod
 ```
 
-Use esse comando no Railway para evitar que uma migration lenta ou travada bloqueie
-o healthcheck e deixe a aplicacao fora do ar com 502. O `start:prod` continua
-intencionalmente limitado a iniciar o backend.
+Use esse comando no Railway para garantir que uma release nunca inicie com um
+Prisma Client mais novo que o schema do banco. Se uma migration falhar, o processo
+termina antes de abrir a porta HTTP e o Railway preserva a falha no log.
 
-Migrations continuam obrigatorias, mas devem rodar como etapa controlada:
+O `start:prod` continua intencionalmente limitado a iniciar o backend, o que permite
+smoke tests sem reaplicar migrations.
 
-```bash
-npm run db:migrate
-```
-
-Rode esse comando pelo terminal/job do Railway ou em um ambiente conectado ao mesmo
-Supabase antes de publicar uma versao que dependa de tabelas novas, como
-`dev_workspaces`.
+Nao configure `NPM_CONFIG_PRODUCTION=true`: essa opcao e obsoleta e gera o warning
+`Use --omit=dev instead`. O build atual precisa de dependencias de desenvolvimento
+como Nest CLI e TypeScript. Portanto, no builder Railway, remova também
+`NPM_CONFIG_OMIT=dev`; omissao de dev dependencies so e adequada em uma imagem
+runtime separada, depois de o build estar pronto.
 
 ## Migrations
 

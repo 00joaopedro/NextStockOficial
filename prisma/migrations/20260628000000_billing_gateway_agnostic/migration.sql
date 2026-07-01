@@ -1,8 +1,5 @@
 -- Gateway-agnostic SaaS billing. Additive, with a one-time tenant trial backfill.
 
-ALTER TYPE "SubscriptionStatus" ADD VALUE IF NOT EXISTS 'payment_pending';
-ALTER TYPE "SubscriptionStatus" ADD VALUE IF NOT EXISTS 'suspended';
-
 DO $$ BEGIN
   CREATE TYPE "PlanInterval" AS ENUM ('MONTHLY', 'YEARLY', 'LIFETIME');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;

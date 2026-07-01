@@ -15,7 +15,7 @@ CREATE INDEX IF NOT EXISTS "expenses_tenant_branch_date_status_idx"
   ON "expenses" ("tenant_id", "branch_id", "date", "status");
 
 CREATE INDEX IF NOT EXISTS "agenda_pets_tenant_branch_start_at_status_idx"
-  ON "agenda_pets" ("tenant_id", "branch_id", "start_at", "status");
+  ON "agenda_pets" ("tenantId", "branch_id", "start_at", "status");
 
 CREATE INDEX IF NOT EXISTS "products_tenant_branch_name_idx"
   ON "products" ("tenant_id", "branch_id", "name");

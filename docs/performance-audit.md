@@ -313,7 +313,9 @@ Para despesas:
 - ExpenseFile por despesa/exclusão/data: anexos ativos ordenados.
 
 Todos são aditivos, preservam índices antigos e a migration usa
-`CREATE INDEX CONCURRENTLY IF NOT EXISTS`. `pg_trgm` não foi ativado sem
+`CREATE INDEX IF NOT EXISTS`. O Prisma executa a migration em transação e não
+aceita `CONCURRENTLY`; em tabelas grandes, aplicar em janela de menor escrita.
+`pg_trgm` não foi ativado sem
 medição; o SQL de medição está em
 `sql/audit/performance_explain_analyze.sql`.
 
