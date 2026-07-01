@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   AgendaPetStatus,
   ExpenseStatus,
@@ -10,6 +10,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
+import { PerformanceCacheService } from '../performance/performance-cache.service';
 import { DashboardFilterDto, DashboardPreset, DashboardStatusMode } from './dto/dashboard-filter.dto';
 
 export type DashboardPeriod = {
@@ -61,6 +62,7 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
+    @Optional() private readonly cache?: PerformanceCacheService,
   ) {}
 
   async getDashboard(
@@ -70,14 +72,41 @@ export class DashboardService {
     devContextMode?: string,
   ) {
     const context = await this.resolveContext(user, selectedBranchId, devContextMode);
-    const [summary, charts, topProducts, alerts] = await Promise.all([
-      this.getSummaryForContext(context, query),
-      this.getChartsForContext(context, query),
-      this.getTopProductsForContext(context, query),
-      this.getAlertsForContext(context),
-    ]);
+    const load = async () => {
+      const [summary, charts, topProducts, alerts] = await Promise.all([
+        this.getSummaryForContext(context, query),
+        this.getChartsForContext(context, query),
+        this.getTopProductsForContext(context, query),
+        this.getAlertsForContext(context),
+      ]);
+      return { summary, charts, topProducts, alerts };
+    };
+    if (!this.cache) return load();
 
-    return { summary, charts, topProducts, alerts };
+    const key = this.cache.dashboardKey({
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      userId: context.userId,
+      role: context.role,
+      systemType: context.systemType,
+      filters: {
+        preset: query.preset ?? 'currentMonth',
+        from: query.from ?? null,
+        to: query.to ?? null,
+        statusMode: query.statusMode ?? 'confirmed',
+      },
+    });
+    const configuredTtl = Number(process.env.DASHBOARD_CACHE_TTL_MS || 5_000);
+    const ttlMs =
+      Number.isFinite(configuredTtl) && configuredTtl >= 1_000
+        ? configuredTtl
+        : 5_000;
+    return this.cache.getOrSet(
+      key,
+      { tenantId: context.tenantId, branchId: context.branchId },
+      ttlMs,
+      load,
+    );
   }
 
   async getSummary(
@@ -203,32 +232,43 @@ export class DashboardService {
   private async getSummaryForContext(context: DashboardContext, query: DashboardFilterDto) {
     const period = resolveDashboardPeriod(query);
     const canSeeFinancial = this.canSeeFinancial(context);
-    const [salesSummary] = await this.prisma.$queryRaw<Array<SummaryRaw>>`
+    const salesSummaryPromise = this.prisma.$queryRaw<Array<SummaryRaw>>`
+      WITH filtered_sales AS (
+        SELECT id, total_cents
+        FROM sales
+        WHERE tenant_id = ${context.tenantId}::uuid
+          AND branch_id = ${context.branchId}::uuid
+          AND deleted_at IS NULL
+          AND status = ${SaleStatus.paid}::"SaleStatus"
+          AND sold_at >= ${period.from}
+          AND sold_at < ${period.to}
+      ),
+      filtered_costs AS (
+        SELECT si.sale_id, SUM(si.total_cost_cents_snapshot) AS total_cost_cents
+        FROM sale_items si
+        INNER JOIN filtered_sales fs ON fs.id = si.sale_id
+        WHERE si.total_cost_cents_snapshot IS NOT NULL
+        GROUP BY si.sale_id
+      )
       SELECT
-        COALESCE(SUM(s.total_cents), 0) AS gross_revenue_cents,
+        COALESCE(SUM(fs.total_cents), 0) AS gross_revenue_cents,
         COUNT(*) AS sales_count,
-        COALESCE(SUM(costs.total_cost_cents), 0) AS total_cost_cents
-      FROM sales s
-      LEFT JOIN (
-        SELECT sale_id, SUM(total_cost_cents_snapshot) AS total_cost_cents
-        FROM sale_items
-        WHERE total_cost_cents_snapshot IS NOT NULL
-        GROUP BY sale_id
-      ) costs ON costs.sale_id = s.id
-      WHERE s.tenant_id = ${context.tenantId}::uuid
-        AND s.branch_id = ${context.branchId}::uuid
-        AND s.deleted_at IS NULL
-        AND s.status = ${SaleStatus.paid}::"SaleStatus"
-        AND s.sold_at >= ${period.from}
-        AND s.sold_at < ${period.to}
+        COALESCE(SUM(fc.total_cost_cents), 0) AS total_cost_cents
+      FROM filtered_sales fs
+      LEFT JOIN filtered_costs fc ON fc.sale_id = fs.id
     `;
+    const expensesPromise = canSeeFinancial
+      ? this.sumExpenses(context, period, query.statusMode ?? 'confirmed')
+      : Promise.resolve(0);
+    const [salesRows, totalExpensesCents] = await Promise.all([
+      salesSummaryPromise,
+      expensesPromise,
+    ]);
+    const [salesSummary] = salesRows;
     const grossRevenueCents = toNumber(salesSummary?.gross_revenue_cents);
     const salesCount = toNumber(salesSummary?.sales_count);
     const totalCostCents = toNumber(salesSummary?.total_cost_cents);
     const grossProfitCents = totalCostCents > 0 ? grossRevenueCents - totalCostCents : grossRevenueCents;
-    const totalExpensesCents = canSeeFinancial
-      ? await this.sumExpenses(context, period, query.statusMode ?? 'confirmed')
-      : 0;
     const netProfitCents = grossProfitCents - totalExpensesCents;
 
     return {

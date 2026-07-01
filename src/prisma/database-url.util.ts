@@ -19,7 +19,12 @@ export function configurePrismaRuntimeUrl(value?: string): string | undefined {
 
   url.searchParams.set('sslmode', 'require');
   url.searchParams.set('pgbouncer', 'true');
-  url.searchParams.set('connection_limit', '1');
+  const configuredLimit = Number(process.env.DATABASE_CONNECTION_LIMIT || 1);
+  const connectionLimit =
+    Number.isSafeInteger(configuredLimit) && configuredLimit > 0
+      ? configuredLimit
+      : 1;
+  url.searchParams.set('connection_limit', String(connectionLimit));
 
   return url.toString();
 }

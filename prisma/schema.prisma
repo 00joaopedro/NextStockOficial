@@ -206,6 +206,7 @@ model Subscription {
   billingEvents        BillingEvent[]
 
   @@index([tenantId, status])
+  @@index([tenantId, updatedAt])
   @@index([planId])
   @@index([gatewayProvider, gatewaySubscriptionId])
   @@map("subscriptions")
@@ -428,6 +429,7 @@ model AgendaPet {
   canceledBy         UserProfile?    @relation("AgendaPetCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
 
   @@index([tenantId, branchId, startAt])
+  @@index([tenantId, branchId, deletedAt, startAt])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, clientId])
   @@index([tenantId, branchId, petId])
@@ -498,19 +500,30 @@ model Pet {
   @@index([tenantId, branchId])
   @@index([clientId])
   @@index([tenantId, clientId])
+  @@index([tenantId, branchId, clientId, deletedAt, createdAt])
   @@index([deletedAt])
   @@map("pets")
 }
 
 model PetPhoto {
-  id          String   @id @default(uuid()) @db.Uuid
-  tenantId    String   @map("tenant_id") @db.Uuid
-  branchId    String?  @map("branch_id") @db.Uuid
-  petId       String   @map("pet_id") @db.Uuid
-  fileName    String   @map("file_name")
-  fileUrl     String?  @map("file_url")
-  storagePath String?  @map("storage_path")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  branchId      String?  @map("branch_id") @db.Uuid
+  petId         String   @map("pet_id") @db.Uuid
+  fileName      String   @map("file_name")
+  fileUrl       String?  @map("file_url")
+  storagePath   String?  @map("storage_path")
+  mediumUrl     String?  @map("medium_url")
+  mediumPath    String?  @map("medium_path")
+  thumbnailUrl  String?  @map("thumbnail_url")
+  thumbnailPath String?  @map("thumbnail_path")
+  mimeType      String?  @map("mime_type")
+  size          Int?
+  originalSize  Int?     @map("original_size")
+  width         Int?
+  height        Int?
+  thumbnailSize Int?     @map("thumbnail_size")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
@@ -519,6 +532,8 @@ model PetPhoto {
   @@index([tenantId])
   @@index([tenantId, branchId])
   @@index([petId])
+  @@index([petId, createdAt])
+  @@index([tenantId, branchId, petId, createdAt])
   @@map("pet_photos")
 }
 
@@ -567,6 +582,7 @@ model Product {
   @@unique([tenantId, branchId, barcode])
   @@index([tenantId, branchId])
   @@index([tenantId, branchId, category])
+  @@index([tenantId, branchId, createdAt])
   @@map("products")
 }
 
@@ -603,6 +619,7 @@ model Order {
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, status, deletedAt, createdAt])
   @@index([tenantId, branchId, customerName])
   @@index([deletedAt])
   @@map("orders")
@@ -672,6 +689,7 @@ model Sale {
   @@index([tenantId, branchId, soldAt])
   @@index([tenantId, branchId, sellerId])
   @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, status, deletedAt, soldAt])
   @@index([orderId])
   @@index([cashSessionId])
   @@map("sales")
@@ -1004,6 +1022,7 @@ model Expense {
 
   @@index([tenantId, branchId, date])
   @@index([tenantId, branchId, status])
+  @@index([tenantId, branchId, status, deletedAt, date])
   @@index([tenantId, branchId, type])
   @@index([tenantId, branchId, supplierId])
   @@index([deletedAt])
@@ -1036,6 +1055,9 @@ model ExpenseFile {
   mimeType    String          @map("mime_type")
   fileType    ExpenseFileType @map("file_type")
   fileSize    Int             @map("file_size")
+  originalSize Int?           @map("original_size")
+  width       Int?
+  height      Int?
   storagePath String          @map("storage_path")
   fileUrl     String?         @map("file_url")
   createdAt   DateTime        @default(now()) @map("created_at")
@@ -1046,21 +1068,33 @@ model ExpenseFile {
   branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
 
   @@index([expenseId])
+  @@index([expenseId, deletedAt, createdAt])
   @@index([tenantId, branchId])
   @@index([deletedAt])
   @@map("expense_files")
 }
 
 model ProductImage {
-  id          String   @id @default(uuid()) @db.Uuid
-  productId   String   @map("product_id") @db.Uuid
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  fileName    String   @map("file_name")
-  fileUrl     String?  @map("file_url")
-  storagePath String?  @map("storage_path")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid()) @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  fileName      String   @map("file_name")
+  fileUrl       String?  @map("file_url")
+  storagePath   String?  @map("storage_path")
+  mediumUrl     String?  @map("medium_url")
+  mediumPath    String?  @map("medium_path")
+  thumbnailUrl  String?  @map("thumbnail_url")
+  thumbnailPath String?  @map("thumbnail_path")
+  mimeType      String?  @map("mime_type")
+  size          Int?
+  originalSize  Int?     @map("original_size")
+  width         Int?
+  height        Int?
+  thumbnailSize Int?     @map("thumbnail_size")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   @@index([productId])
+  @@index([productId, createdAt])
   @@map("product_images")
 }
 

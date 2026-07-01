@@ -133,23 +133,88 @@ export class ProductsService {
       where.category = { contains: query.category.trim(), mode: 'insensitive' };
     }
 
-    const products = await this.prisma.product.findMany({
-      where,
-      include: { images: { orderBy: { createdAt: 'asc' } } },
-      orderBy: { createdAt: 'desc' },
-      take: query.pageSize ?? 20,
+    const page = query.page ?? 1;
+    const limit = Math.min(query.limit ?? query.pageSize ?? 20, 50);
+    const [total, products] = await Promise.all([
+      this.prisma.product.count({ where }),
+      this.prisma.product.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          salePriceCents: true,
+          quantity: true,
+          category: true,
+          sku: true,
+          barcode: true,
+          images: {
+            orderBy: { createdAt: 'asc' },
+            take: 1,
+            select: {
+              fileName: true,
+              fileUrl: true,
+              storagePath: true,
+              mediumUrl: true,
+              mediumPath: true,
+              thumbnailUrl: true,
+              thumbnailPath: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+    ]);
+    const imagePaths = products.map((product) => {
+      const image = product.images[0];
+      return image?.thumbnailPath ?? image?.mediumPath ?? image?.storagePath;
     });
+    const resolvedUrls = this.storage
+      ? await this.storage.getProductImageUrls(imagePaths)
+      : new Map<string, string>();
     await this.recordProductUsage(user, tenant, 'products_list', {
-      dbReadCount: 1,
+      dbReadCount: 2,
       metadata: { count: products.length },
     });
 
     return {
       ok: true,
       mode: tenant.mode,
-      products: await Promise.all(
-        products.map((product) => this.formatProduct(product)),
-      ),
+      products: products.map((product) => {
+        const image = product.images[0];
+        const path =
+          image?.thumbnailPath ?? image?.mediumPath ?? image?.storagePath;
+        const thumbnailUrl =
+          image?.thumbnailUrl ??
+          image?.mediumUrl ??
+          image?.fileUrl ??
+          (path ? resolvedUrls.get(path) : null) ??
+          null;
+        return {
+          id: product.id,
+          nome: product.name,
+          precoVenda: centsToMoney(product.salePriceCents),
+          quantidade: String(product.quantity),
+          categoria: product.category ?? '',
+          sku: product.sku ?? '',
+          codigoBarra: product.barcode ?? '',
+          imagens: thumbnailUrl ? [thumbnailUrl] : [],
+          imageMetadata: image
+            ? [{
+                fileName: image.fileName,
+                fileUrl: thumbnailUrl,
+                storagePath: image.storagePath,
+                thumbnailUrl,
+                thumbnailPath: path,
+              }]
+            : [],
+        };
+      }),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -237,9 +302,13 @@ export class ProductsService {
           const weighed = ['KG', 'KGM', 'G', 'GR'].includes(unit);
           const image = product.images[0];
           const imageUrl = image
-            ? image.fileUrl ||
+            ? image.thumbnailUrl ||
+              image.mediumUrl ||
+              image.fileUrl ||
               (this.storage
-                ? await this.storage.getProductImageUrl(image.storagePath)
+                ? await this.storage.getProductImageUrl(
+                    image.thumbnailPath ?? image.storagePath,
+                  )
                 : null)
             : null;
 
@@ -454,7 +523,11 @@ export class ProductsService {
 
       return { ok: true, image };
     } catch (error) {
-      await this.storage.removeProductImage(uploaded.storagePath);
+      await this.storage.removeProductImage(
+        uploaded.storagePath,
+        uploaded.mediumPath,
+        uploaded.thumbnailPath,
+      );
       throw error;
     }
   }
@@ -471,7 +544,12 @@ export class ProductsService {
 
     const image = await this.prisma.productImage.findFirst({
       where: { id: imageId, productId: id },
-      select: { id: true, storagePath: true },
+      select: {
+        id: true,
+        storagePath: true,
+        mediumPath: true,
+        thumbnailPath: true,
+      },
     });
 
     if (!image) {
@@ -479,7 +557,11 @@ export class ProductsService {
     }
 
     await this.prisma.productImage.delete({ where: { id: imageId } });
-    await this.storage?.removeProductImage(image.storagePath);
+    await this.storage?.removeProductImage(
+      image.storagePath,
+      image.mediumPath,
+      image.thumbnailPath,
+    );
 
     return { ok: true };
   }
@@ -643,14 +725,31 @@ export class ProductsService {
     const imageMetadata = await Promise.all(
       product.images.map(async (image) => {
         const renderUrl =
+          image.mediumUrl ||
           image.fileUrl ||
           (this.storage ? await this.storage.getProductImageUrl(image.storagePath) : null);
+        const thumbnailUrl =
+          image.thumbnailUrl ||
+          (this.storage
+            ? await this.storage.getProductImageUrl(image.thumbnailPath)
+            : null) ||
+          renderUrl;
 
         return {
           id: image.id,
           fileName: image.fileName,
           fileUrl: renderUrl,
           storagePath: image.storagePath,
+          mediumUrl: image.mediumUrl,
+          mediumPath: image.mediumPath,
+          thumbnailUrl,
+          thumbnailPath: image.thumbnailPath,
+          mimeType: image.mimeType,
+          size: image.size,
+          originalSize: image.originalSize,
+          width: image.width,
+          height: image.height,
+          thumbnailSize: image.thumbnailSize,
           createdAt: image.createdAt,
         };
       }),

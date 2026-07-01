@@ -119,7 +119,14 @@ export class ExpensesController {
 
   @Post(':id/files/upload')
   @Roles(Role.Admin, Role.Comprador)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: Number(process.env.EXPENSE_FILE_MAX_SIZE_MB || 10) * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   uploadFile(
     @Req() req: Request,
     @Param('id') id: string,

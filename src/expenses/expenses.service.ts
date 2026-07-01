@@ -273,21 +273,29 @@ export class ExpensesService {
       file,
     });
 
-    const created = await this.prisma.expenseFile.create({
-      data: {
-        expenseId: expense.id,
-        tenantId: context.tenantId,
-        branchId: context.branchId!,
-        fileName: uploaded.fileName,
-        mimeType: uploaded.mimeType,
-        fileType: uploaded.fileType,
-        fileSize: uploaded.fileSize,
-        storagePath: uploaded.storagePath,
-        fileUrl: uploaded.fileUrl,
-      },
-    });
+    try {
+      const created = await this.prisma.expenseFile.create({
+        data: {
+          expenseId: expense.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          fileName: uploaded.fileName,
+          mimeType: uploaded.mimeType,
+          fileType: uploaded.fileType,
+          fileSize: uploaded.fileSize,
+          originalSize: uploaded.originalSize,
+          width: uploaded.width,
+          height: uploaded.height,
+          storagePath: uploaded.storagePath,
+          fileUrl: uploaded.fileUrl,
+        },
+      });
 
-    return { ok: true, file: this.formatFile(created) };
+      return { ok: true, file: this.formatFile(created) };
+    } catch (error) {
+      await this.storage.removeExpenseFile(uploaded.storagePath);
+      throw error;
+    }
   }
 
   async removeFile(
@@ -548,6 +556,9 @@ export class ExpensesService {
       fileType: file.fileType,
       type: file.fileType,
       fileSize: file.fileSize,
+      originalSize: file.originalSize,
+      width: file.width,
+      height: file.height,
       fileUrl: file.fileUrl,
       url: file.fileUrl,
       storagePath: file.storagePath,

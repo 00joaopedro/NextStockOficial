@@ -26,6 +26,7 @@ const tenantBadgeName = document.getElementById("tenant-badge-name");
 let chart = null;
 let selectedProductId = "";
 let autocompleteAbort = null;
+let autocompleteTimer = null;
 function formatCurrencyFromCents(value) {
     if (value === null)
         return "Restrito";
@@ -90,17 +91,8 @@ function appendEmptyRow(message) {
     tr.appendChild(td);
     productsTableBody.appendChild(tr);
 }
-async function fetchDashboardSummary() {
-    return apiGet(`/api/dashboard/summary?${buildQuery()}`);
-}
-async function fetchDashboardCharts() {
-    return apiGet(`/api/dashboard/charts?${buildQuery()}`);
-}
-async function fetchTopProducts() {
-    return apiGet(`/api/dashboard/top-products?${buildQuery()}`);
-}
-async function fetchDashboardAlerts() {
-    return apiGet("/api/dashboard/alerts");
+async function fetchDashboard() {
+    return apiGet(`/api/dashboard?${buildQuery()}`);
 }
 async function fetchProductMetrics(productId) {
     return apiGet(`/api/dashboard/product/${encodeURIComponent(productId)}?${buildQuery(productId)}`);
@@ -225,19 +217,22 @@ async function loadDashboard() {
     applyFiltersButton.disabled = true;
     setState("Carregando dados reais do dashboard...");
     try {
-        const [summary, charts, topProducts, alerts] = await Promise.all([
-            fetchDashboardSummary(),
-            fetchDashboardCharts(),
-            fetchTopProducts(),
-            fetchDashboardAlerts(),
-        ]);
-        const bundle = { summary, charts, topProducts, alerts };
-        renderCards(bundle.summary);
-        renderChart(bundle.charts);
-        renderTopProducts(bundle.topProducts);
-        renderAlerts(bundle.alerts);
+        const bundle = await fetchDashboard();
+        const summary = bundle.summary ?? {
+            grossRevenueCents: 0,
+            totalExpensesCents: null,
+            grossProfitCents: null,
+            netProfitCents: null,
+            averageTicketCents: 0,
+            salesCount: 0,
+            permissions: { canSeeFinancial: false, canSeeProducts: false },
+        };
+        renderCards(summary);
+        renderChart(bundle.charts ?? { labels: [], revenues: [], expenses: null, net: null });
+        renderTopProducts(bundle.topProducts ?? { items: [] });
+        renderAlerts(bundle.alerts ?? { upcomingExpenses: [], upcomingAppointments: [], petshopEnabled: false });
         await renderProductMetrics();
-        setState(bundle.summary.permissions.canSeeFinancial ? "Dashboard atualizado." : "Dashboard atualizado com dados financeiros restritos por permissao.");
+        setState(summary.permissions.canSeeFinancial ? "Dashboard atualizado." : "Dashboard atualizado com dados financeiros restritos por permissao.");
     }
     catch (error) {
         renderCards({ grossRevenueCents: 0, totalExpensesCents: null, grossProfitCents: null, netProfitCents: null, averageTicketCents: 0, salesCount: 0, permissions: { canSeeFinancial: false, canSeeProducts: false } });
@@ -264,6 +259,8 @@ function bindAutocomplete() {
         if (selectedProductLabel)
             selectedProductLabel.textContent = "";
         autocompleteAbort?.abort();
+        if (autocompleteTimer !== null)
+            window.clearTimeout(autocompleteTimer);
         if (!productResults)
             return;
         clearChildren(productResults);
@@ -271,7 +268,7 @@ function bindAutocomplete() {
             return;
         const controller = new AbortController();
         autocompleteAbort = controller;
-        window.setTimeout(async () => {
+        autocompleteTimer = window.setTimeout(async () => {
             if (controller.signal.aborted)
                 return;
             try {

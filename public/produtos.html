@@ -1342,6 +1342,10 @@
     let carouselIndex = 0;
     let clientOrders = [];
     let productsLoadError = "";
+    let productsTotal = products.length;
+    let productsTotalPages = Math.max(1, Math.ceil(products.length / itemsPerPage));
+    let productsRequestController = null;
+    let productsSearchTimer = null;
 
     const sidebarToggle = document.getElementById("sidebarToggle");
     const sidebar = document.getElementById("sidebar");
@@ -1440,6 +1444,8 @@
       if (!shouldUseProductionBackend()) return;
 
       try {
+        productsRequestController?.abort();
+        productsRequestController = new AbortController();
         let selectedBranch = null;
         try {
           selectedBranch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
@@ -1447,8 +1453,15 @@
           selectedBranch = null;
         }
 
-        const response = await fetch("/api/products", {
+        const params = new URLSearchParams({
+          page: String(currentPage),
+          limit: String(itemsPerPage)
+        });
+        const search = searchInput.value.trim();
+        if (search) params.set("search", search);
+        const response = await fetch(`/api/products?${params}`, {
           credentials: "include",
+          signal: productsRequestController.signal,
           headers: selectedBranch?.id
             ? { "x-nextstock-branch-id": selectedBranch.id }
             : {}
@@ -1461,9 +1474,12 @@
 
         if (data.mode !== "visualizacao") {
           products = (data.products || []).map(mapApiProduct);
+          productsTotal = Number(data.total || 0);
+          productsTotalPages = Math.max(1, Number(data.totalPages || 1));
           productsLoadError = "";
         }
       } catch (error) {
+        if (error.name === "AbortError") return;
         products = [];
         productsLoadError = error.message || "Nao foi possivel carregar produtos.";
       }
@@ -1675,14 +1691,17 @@
         return;
       }
 
-      const totalPages = Math.ceil(filtered.length / itemsPerPage);
+      const serverPaginated = shouldUseProductionBackend();
+      const totalPages = serverPaginated
+        ? productsTotalPages
+        : Math.ceil(filtered.length / itemsPerPage);
 
       if (currentPage > totalPages) {
         currentPage = 1;
       }
 
-      const start = (currentPage - 1) * itemsPerPage;
-      const end = start + itemsPerPage;
+      const start = serverPaginated ? 0 : (currentPage - 1) * itemsPerPage;
+      const end = serverPaginated ? filtered.length : start + itemsPerPage;
       const pageItems = filtered.slice(start, end);
 
       pageItems.forEach(product => {
@@ -1691,7 +1710,7 @@
         card.dataset.id = product.id;
 
         card.innerHTML = `
-          <img src="${product.images[0]}" alt="${product.name}" onerror="this.onerror=null;this.src='${productImageFallback()}'">
+          <img src="${product.images[0]}" alt="${product.name}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${productImageFallback()}'">
           <h3>${product.name}</h3>
           <p>${formatMoney(product.price)}</p>
           <small>${product.category} • Estoque: ${product.stock}</small>
@@ -1715,11 +1734,14 @@
         productContainer.appendChild(card);
       });
 
-      renderPagination(filtered.length);
+      renderPagination(serverPaginated ? productsTotal : filtered.length);
     }
 
     function renderPagination(totalItems) {
-      const totalPages = Math.ceil(totalItems / itemsPerPage);
+      const serverPaginated = shouldUseProductionBackend();
+      const totalPages = serverPaginated
+        ? productsTotalPages
+        : Math.ceil(totalItems / itemsPerPage);
       pagination.innerHTML = "";
 
       if (totalPages <= 1) return;
@@ -1727,34 +1749,53 @@
       const prevBtn = document.createElement("button");
       prevBtn.textContent = "Anterior";
       prevBtn.disabled = currentPage === 1;
-      prevBtn.addEventListener("click", () => {
+      prevBtn.addEventListener("click", async () => {
         if (currentPage > 1) {
           currentPage--;
+          if (serverPaginated) await loadProductsFromBackend();
           renderProducts();
         }
       });
 
       pagination.appendChild(prevBtn);
 
-      for (let page = 1; page <= totalPages; page++) {
+      const visiblePages = new Set([1, totalPages]);
+      for (
+        let page = Math.max(1, currentPage - 2);
+        page <= Math.min(totalPages, currentPage + 2);
+        page++
+      ) {
+        visiblePages.add(page);
+      }
+      let previousPage = 0;
+      for (const page of [...visiblePages].sort((a, b) => a - b)) {
+        if (previousPage && page - previousPage > 1) {
+          const gap = document.createElement("span");
+          gap.textContent = "...";
+          gap.setAttribute("aria-hidden", "true");
+          pagination.appendChild(gap);
+        }
         const btn = document.createElement("button");
         btn.textContent = page;
         btn.classList.toggle("active", page === currentPage);
 
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", async () => {
           currentPage = page;
+          if (serverPaginated) await loadProductsFromBackend();
           renderProducts();
         });
 
         pagination.appendChild(btn);
+        previousPage = page;
       }
 
       const nextBtn = document.createElement("button");
       nextBtn.textContent = "Próxima";
       nextBtn.disabled = currentPage === totalPages;
-      nextBtn.addEventListener("click", () => {
+      nextBtn.addEventListener("click", async () => {
         if (currentPage < totalPages) {
           currentPage++;
+          if (serverPaginated) await loadProductsFromBackend();
           renderProducts();
         }
       });
@@ -2085,9 +2126,26 @@
       clientOrderDetailOverlay.classList.remove("active");
     }
 
-    function openProductDetails(productId) {
-      const product = products.find(item => item.id === productId);
+    async function openProductDetails(productId) {
+      let product = products.find(item => item.id === productId);
       if (!product) return;
+      if (shouldUseProductionBackend()) {
+        try {
+          const selectedBranch = JSON.parse(
+            sessionStorage.getItem("nextstockSelectedBranch") || "null"
+          );
+          const response = await fetch(`/api/products/${encodeURIComponent(productId)}`, {
+            credentials: "include",
+            headers: selectedBranch?.id
+              ? { "x-nextstock-branch-id": selectedBranch.id }
+              : {}
+          });
+          const data = await response.json().catch(() => ({}));
+          if (response.ok && data.product) product = mapApiProduct(data.product);
+        } catch {
+          // Mantem o resumo da listagem como fallback.
+        }
+      }
 
       selectedProduct = product;
       carouselIndex = 0;
@@ -2110,7 +2168,7 @@
       const images = selectedProduct.images;
       const image = images[carouselIndex];
 
-      carouselView.innerHTML = `<img src="${image}" alt="${selectedProduct.name}" onerror="this.onerror=null;this.src='${productImageFallback()}'">`;
+      carouselView.innerHTML = `<img src="${image}" alt="${selectedProduct.name}" decoding="async" onerror="this.onerror=null;this.src='${productImageFallback()}'">`;
       carouselCounter.textContent = `${carouselIndex + 1} de ${images.length}`;
 
       prevImageBtn.style.visibility = images.length > 1 ? "visible" : "hidden";
@@ -2328,7 +2386,11 @@
 
     searchInput.addEventListener("input", () => {
       currentPage = 1;
-      renderProducts();
+      clearTimeout(productsSearchTimer);
+      productsSearchTimer = setTimeout(async () => {
+        if (shouldUseProductionBackend()) await loadProductsFromBackend();
+        renderProducts();
+      }, 300);
     });
 
     minPriceInput.addEventListener("input", () => {

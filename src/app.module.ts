@@ -31,6 +31,8 @@ import { PartnersModule } from './partners/partners.module';
 import { BillingModule } from './billing/billing.module';
 import { BillingAccessInterceptor } from './billing/billing-access.interceptor';
 import { APP_INTERCEPTOR } from '@nestjs/core';
+import { PerformanceModule } from './performance/performance.module';
+import { CacheInvalidationInterceptor } from './performance/cache-invalidation.interceptor';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -41,7 +43,22 @@ const publicPath = join(__dirname, '..', 'public');
         ? publicPath
         : join(__dirname, '..', '..', 'public'),
       exclude: ['/api', '/api/*path', '/dev.html', '/parceiros.html'],
+      serveStaticOptions: {
+        etag: true,
+        setHeaders(res, filePath) {
+          if (/\.html$/i.test(filePath)) {
+            res.setHeader('Cache-Control', 'no-cache');
+            return;
+          }
+          if (/\.[a-f0-9]{8,}\.(?:js|css|webp|png|jpg|jpeg|svg|woff2?)$/i.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            return;
+          }
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        },
+      },
     }),
+    PerformanceModule,
     PrismaModule,
     TenancyModule,
     SupabaseModule,
@@ -73,6 +90,10 @@ const publicPath = join(__dirname, '..', 'public');
     {
       provide: APP_INTERCEPTOR,
       useClass: BillingAccessInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheInvalidationInterceptor,
     },
   ],
 })

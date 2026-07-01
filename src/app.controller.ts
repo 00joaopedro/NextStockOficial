@@ -24,12 +24,14 @@ export class AppController {
   @Get('dev.html')
   @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
   devHtml(@Res() res: Response) {
+    res.setHeader('Cache-Control', 'no-cache');
     return res.sendFile(join(this.resolvePublicPath(), 'dev.html'));
   }
 
   @Get('parceiros.html')
   @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
   partnersHtml(@Res() res: Response) {
+    res.setHeader('Cache-Control', 'no-cache');
     return res.sendFile(join(this.resolvePublicPath(), 'parceiros.html'));
   }
 

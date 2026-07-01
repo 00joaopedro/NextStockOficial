@@ -243,7 +243,11 @@ export class PetsService {
 
       return { ok: true, photo };
     } catch (error) {
-      await this.storage.removePetPhoto(uploaded.storagePath);
+      await this.storage.removePetPhotoVariants(
+        uploaded.storagePath,
+        uploaded.mediumPath,
+        uploaded.thumbnailPath,
+      );
       throw error;
     }
   }
@@ -274,7 +278,11 @@ export class PetsService {
       throw new NotFoundException('Foto do animal nao encontrada.');
     }
 
-    await this.storage.removePetPhoto(photo.storagePath);
+    await this.storage.removePetPhotoVariants(
+      photo.storagePath,
+      photo.mediumPath,
+      photo.thumbnailPath,
+    );
     await this.prisma.petPhoto.delete({
       where: {
         id: photo.id,

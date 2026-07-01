@@ -430,7 +430,7 @@
       fotos: (pet.photos || []).map((photo) => ({
         id: photo.id,
         name: photo.fileName,
-        src: photo.fileUrl || '',
+        src: photo.thumbnailUrl || photo.mediumUrl || photo.fileUrl || '',
         storagePath: photo.storagePath || '',
       })),
     };
@@ -700,7 +700,7 @@
       const imageUrl = animal.fotos.length ? animal.fotos[0].src : null;
       card.innerHTML = `
         <div class="pet-card-image">
-          ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="Foto de ${escapeHtml(animal.nome || 'animal')}">` : '<span>Sem foto</span>'}
+          ${imageUrl ? `<img src="${escapeHtml(imageUrl)}" alt="Foto de ${escapeHtml(animal.nome || 'animal')}" loading="lazy" decoding="async">` : '<span>Sem foto</span>'}
         </div>
         <div class="pet-card-body">
           <div class="pet-card-name">${escapeHtml(animal.nome || 'Sem nome')}</div>
@@ -1027,7 +1027,7 @@
       const preview = document.createElement('div');
       preview.className = 'photo-preview-item';
       preview.innerHTML = `
-        ${photo.src ? `<img src="${escapeHtml(photo.src)}" alt="Foto ${index + 1}">` : ''}
+        ${photo.src ? `<img src="${escapeHtml(photo.src)}" alt="Foto ${index + 1}" loading="lazy" decoding="async">` : ''}
         <div>${escapeHtml(photo.name)}</div>
       `;
       photoPreviewGrid.appendChild(preview);

@@ -4,11 +4,28 @@ import { NestFactory } from '@nestjs/core';
 import { RequestMethod } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
 import { json } from 'express';
+import compression from 'compression';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.use(
+    compression({
+      threshold: Number(process.env.COMPRESSION_THRESHOLD_BYTES || 1024),
+      filter(req, res) {
+        const contentType = String(res.getHeader('Content-Type') || '');
+        if (
+          /(?:image\/|application\/(?:pdf|zip)|font\/|application\/octet-stream)/i.test(
+            contentType,
+          )
+        ) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+    }),
+  );
   app.use(cookieParser());
   app.use(json());
   app.use((_req, res, next) => {
@@ -42,6 +59,7 @@ async function bootstrap() {
   });
 
   const port = Number(process.env.PORT || 3000);
+  app.enableShutdownHooks();
   await app.listen(port, '0.0.0.0');
 
   console.log(`Listening on ${port}`);

@@ -3,12 +3,17 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ExpenseFileType } from '@prisma/client';
 import { randomUUID } from 'crypto';
 import { extname } from 'path';
 import { SupabaseService } from '../supabase/supabase.service';
+import {
+  ImageOptimizerService,
+  OptimizedImage,
+} from './image-optimizer.service';
 
 type UploadFile = {
   originalname?: string;
@@ -45,7 +50,11 @@ export class SupabaseStorageService {
   private readonly useSignedUrls =
     process.env.SUPABASE_STORAGE_SIGNED_URLS === 'true';
 
-  constructor(private readonly supabase: SupabaseService) {}
+  constructor(
+    private readonly supabase: SupabaseService,
+    @Optional()
+    private readonly imageOptimizer: ImageOptimizerService = new ImageOptimizerService(),
+  ) {}
 
   async uploadPetPhoto(input: {
     tenantId: string;
@@ -55,28 +64,17 @@ export class SupabaseStorageService {
   }) {
     this.assertImage(input.file, this.petPhotoMaxSizeBytes);
 
-    const originalName = this.cleanFileName(
-      input.file.originalname || 'pet-photo',
-    );
-    const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
-    const storagePath = [
+    const originalName = this.cleanFileName(input.file.originalname || 'pet-photo');
+    const optimized = await this.imageOptimizer.optimize(input.file);
+    const basePath = [
       input.tenantId,
       input.branchId,
       input.petId,
-      `${randomUUID()}${extension}`,
+      randomUUID(),
     ].join('/');
-
-    const fileUrl = await this.uploadToBucket(
-      this.petPhotosBucket,
-      storagePath,
-      input.file,
-    );
-
-    return {
+    return this.uploadImageVariants(this.petPhotosBucket, basePath, optimized, {
       fileName: originalName,
-      fileUrl,
-      storagePath,
-    };
+    });
   }
 
   async uploadProductImage(input: {
@@ -87,26 +85,20 @@ export class SupabaseStorageService {
   }) {
     this.assertImage(input.file, this.productImageMaxSizeBytes);
 
-    const originalName = this.cleanFileName(
-      input.file.originalname || 'product-image',
-    );
-    const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
-    const storagePath = [
+    const originalName = this.cleanFileName(input.file.originalname || 'product-image');
+    const optimized = await this.imageOptimizer.optimize(input.file);
+    const basePath = [
       input.tenantId,
       input.branchId,
       'products',
       input.productId,
-      `${randomUUID()}${extension}`,
+      randomUUID(),
     ].join('/');
 
     const bucket = this.getProductImagesBucket();
-    const fileUrl = await this.uploadToBucket(bucket, storagePath, input.file);
-
-    return {
+    return this.uploadImageVariants(bucket, basePath, optimized, {
       fileName: originalName,
-      fileUrl,
-      storagePath,
-    };
+    });
   }
 
   async uploadExpenseFile(input: {
@@ -117,9 +109,36 @@ export class SupabaseStorageService {
   }) {
     const fileType = this.assertExpenseFile(input.file, this.expenseFileMaxSizeBytes);
 
-    const originalName = this.cleanFileName(
-      input.file.originalname || 'expense-file',
-    );
+    const originalName = this.cleanFileName(input.file.originalname || 'expense-file');
+    if (fileType === ExpenseFileType.image) {
+      const optimized = await this.imageOptimizer.optimize(input.file);
+      const storagePath = [
+        input.tenantId,
+        input.branchId,
+        'expenses',
+        input.expenseId,
+        `${randomUUID()}-optimized.webp`,
+      ].join('/');
+      const fileUrl = await this.uploadBuffer(
+        this.getExpenseFilesBucket(),
+        storagePath,
+        optimized.full.buffer,
+        optimized.full.mimeType,
+      );
+      return {
+        fileName: this.withWebpExtension(originalName),
+        fileUrl,
+        storagePath,
+        mimeType: optimized.full.mimeType,
+        fileType,
+        fileSize: optimized.full.size,
+        originalSize: optimized.originalSize,
+        width: optimized.full.width,
+        height: optimized.full.height,
+      };
+    }
+
+    this.assertFileSignature(input.file, fileType);
     const extension = extname(originalName) || this.extensionFromMime(input.file.mimetype);
     const storagePath = [
       input.tenantId,
@@ -139,6 +158,9 @@ export class SupabaseStorageService {
       mimeType: input.file.mimetype || 'application/octet-stream',
       fileType,
       fileSize: input.file.size ?? input.file.buffer?.length ?? 0,
+      originalSize: input.file.size ?? input.file.buffer?.length ?? 0,
+      width: null,
+      height: null,
     };
   }
 
@@ -167,6 +189,36 @@ export class SupabaseStorageService {
     return this.supabase.admin.storage
       .from(this.getProductImagesBucket())
       .getPublicUrl(storagePath).data.publicUrl;
+  }
+
+  async getProductImageUrls(storagePaths: Array<string | null | undefined>) {
+    const paths = [...new Set(storagePaths.filter((path): path is string => Boolean(path)))];
+    const urls = new Map<string, string>();
+    if (!paths.length) return urls;
+
+    const bucket = this.getProductImagesBucket();
+    if (!this.useSignedUrls) {
+      for (const path of paths) {
+        urls.set(
+          path,
+          this.supabase.admin.storage.from(bucket).getPublicUrl(path).data.publicUrl,
+        );
+      }
+      return urls;
+    }
+
+    const { data, error } = await this.supabase.admin.storage
+      .from(bucket)
+      .createSignedUrls(paths, 60 * 60);
+    if (error) {
+      throw new InternalServerErrorException(
+        `Supabase Storage signed URLs failed: ${error.message}`,
+      );
+    }
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+    }
+    return urls;
   }
 
   async getExpenseFileUrl(storagePath?: string | null) {
@@ -253,8 +305,28 @@ export class SupabaseStorageService {
     await this.removeFromBucket(this.petPhotosBucket, storagePath);
   }
 
-  async removeProductImage(storagePath?: string | null) {
-    await this.removeFromBucket(this.getProductImagesBucket(), storagePath);
+  async removePetPhotoVariants(
+    storagePath?: string | null,
+    mediumPath?: string | null,
+    thumbnailPath?: string | null,
+  ) {
+    await this.removeManyFromBucket(this.petPhotosBucket, [
+      storagePath,
+      mediumPath,
+      thumbnailPath,
+    ]);
+  }
+
+  async removeProductImage(
+    storagePath?: string | null,
+    mediumPath?: string | null,
+    thumbnailPath?: string | null,
+  ) {
+    await this.removeManyFromBucket(this.getProductImagesBucket(), [
+      storagePath,
+      mediumPath,
+      thumbnailPath,
+    ]);
   }
 
   async removeExpenseFile(storagePath?: string | null) {
@@ -282,6 +354,7 @@ export class SupabaseStorageService {
       .from(bucket)
       .upload(storagePath, file.buffer!, {
         contentType: file.mimetype,
+        cacheControl: '31536000',
         upsert: false,
       });
 
@@ -304,6 +377,76 @@ export class SupabaseStorageService {
       ? this.createSignedUrl(bucket, storagePath)
       : this.supabase.admin.storage.from(bucket).getPublicUrl(storagePath)
           .data.publicUrl;
+  }
+
+  private async uploadBuffer(
+    bucket: string,
+    storagePath: string,
+    buffer: Buffer,
+    contentType: string,
+  ) {
+    return this.uploadToBucket(bucket, storagePath, {
+      buffer,
+      size: buffer.length,
+      mimetype: contentType,
+    });
+  }
+
+  private async uploadImageVariants(
+    bucket: string,
+    basePath: string,
+    optimized: OptimizedImage,
+    input: { fileName: string },
+  ) {
+    const paths = {
+      storagePath: `${basePath}-optimized.webp`,
+      mediumPath: `${basePath}-medium.webp`,
+      thumbnailPath: `${basePath}-thumb.webp`,
+    };
+    const uploadedPaths: string[] = [];
+
+    try {
+      const fileUrl = await this.uploadBuffer(
+        bucket,
+        paths.storagePath,
+        optimized.full.buffer,
+        optimized.full.mimeType,
+      );
+      uploadedPaths.push(paths.storagePath);
+      const mediumUrl = await this.uploadBuffer(
+        bucket,
+        paths.mediumPath,
+        optimized.medium.buffer,
+        optimized.medium.mimeType,
+      );
+      uploadedPaths.push(paths.mediumPath);
+      const thumbnailUrl = await this.uploadBuffer(
+        bucket,
+        paths.thumbnailPath,
+        optimized.thumbnail.buffer,
+        optimized.thumbnail.mimeType,
+      );
+      uploadedPaths.push(paths.thumbnailPath);
+
+      return {
+        fileName: this.withWebpExtension(input.fileName),
+        fileUrl,
+        storagePath: paths.storagePath,
+        mediumUrl,
+        mediumPath: paths.mediumPath,
+        thumbnailUrl,
+        thumbnailPath: paths.thumbnailPath,
+        mimeType: optimized.full.mimeType,
+        size: optimized.full.size,
+        originalSize: optimized.originalSize,
+        width: optimized.full.width,
+        height: optimized.full.height,
+        thumbnailSize: optimized.thumbnail.size,
+      };
+    } catch (error) {
+      await this.removeManyFromBucket(bucket, uploadedPaths);
+      throw error;
+    }
   }
 
   private async uploadPrivateBuffer(
@@ -340,6 +483,15 @@ export class SupabaseStorageService {
       .from(bucket)
       .remove([storagePath])
       .catch(() => undefined);
+  }
+
+  private async removeManyFromBucket(
+    bucket: string,
+    paths: Array<string | null | undefined>,
+  ) {
+    const uniquePaths = [...new Set(paths.filter((path): path is string => Boolean(path)))];
+    if (!uniquePaths.length) return;
+    await this.supabase.admin.storage.from(bucket).remove(uniquePaths).catch(() => undefined);
   }
 
   private assertImage(file: UploadFile, maxSizeBytes: number) {
@@ -381,6 +533,29 @@ export class SupabaseStorageService {
     return fileType;
   }
 
+  private assertFileSignature(file: UploadFile, fileType: ExpenseFileType) {
+    const buffer = file.buffer!;
+    const isPdf = buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+    const isLegacyDoc =
+      buffer.length >= 8 &&
+      buffer.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]));
+    const isZip =
+      buffer.length >= 4 &&
+      buffer[0] === 0x50 &&
+      buffer[1] === 0x4b &&
+      [0x03, 0x05, 0x07].includes(buffer[2]) &&
+      [0x04, 0x06, 0x08].includes(buffer[3]);
+
+    const valid =
+      (fileType === ExpenseFileType.pdf && isPdf) ||
+      (fileType === ExpenseFileType.word && (isLegacyDoc || isZip));
+    if (!valid) {
+      throw new BadRequestException(
+        'O conteudo do arquivo nao corresponde ao formato PDF, DOC ou DOCX informado.',
+      );
+    }
+  }
+
   private cleanFileName(value: string) {
     const cleaned = value
       .trim()
@@ -399,6 +574,10 @@ export class SupabaseStorageService {
     if (mime === 'application/msword') return '.doc';
     if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return '.docx';
     return '.jpg';
+  }
+
+  private withWebpExtension(fileName: string) {
+    return `${fileName.replace(/\.[^.]+$/, '') || 'image'}.webp`;
   }
 
   private isBucketNotFoundError(error: { message?: string; statusCode?: string | number; status?: string | number }) {

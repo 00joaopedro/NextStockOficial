@@ -94,7 +94,14 @@ export class PetsController {
 
   @Post('pets/:id/photos')
   @Roles(Role.Admin, Role.Vendedor)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   addPhoto(
     @Req() req: Request,
     @Param('id') id: string,

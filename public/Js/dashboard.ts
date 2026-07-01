@@ -81,6 +81,7 @@ const tenantBadgeName = document.getElementById("tenant-badge-name") as HTMLElem
 let chart: any = null;
 let selectedProductId = "";
 let autocompleteAbort: AbortController | null = null;
+let autocompleteTimer: number | null = null;
 
 function formatCurrencyFromCents(value: number | null): string {
   if (value === null) return "Restrito";
@@ -143,20 +144,8 @@ function appendEmptyRow(message: string): void {
   productsTableBody.appendChild(tr);
 }
 
-async function fetchDashboardSummary(): Promise<SummaryResponse> {
-  return apiGet<SummaryResponse>(`/api/dashboard/summary?${buildQuery()}`);
-}
-
-async function fetchDashboardCharts(): Promise<ChartResponse> {
-  return apiGet<ChartResponse>(`/api/dashboard/charts?${buildQuery()}`);
-}
-
-async function fetchTopProducts(): Promise<TopProductsResponse> {
-  return apiGet<TopProductsResponse>(`/api/dashboard/top-products?${buildQuery()}`);
-}
-
-async function fetchDashboardAlerts(): Promise<AlertsResponse> {
-  return apiGet<AlertsResponse>("/api/dashboard/alerts");
+async function fetchDashboard(): Promise<DashboardBundle> {
+  return apiGet<DashboardBundle>(`/api/dashboard?${buildQuery()}`);
 }
 
 async function fetchProductMetrics(productId: string): Promise<ProductMetricsResponse> {
@@ -298,19 +287,22 @@ async function loadDashboard(): Promise<void> {
   applyFiltersButton.disabled = true;
   setState("Carregando dados reais do dashboard...");
   try {
-    const [summary, charts, topProducts, alerts] = await Promise.all([
-      fetchDashboardSummary(),
-      fetchDashboardCharts(),
-      fetchTopProducts(),
-      fetchDashboardAlerts(),
-    ]);
-    const bundle: DashboardBundle = { summary, charts, topProducts, alerts };
-    renderCards(bundle.summary);
-    renderChart(bundle.charts);
-    renderTopProducts(bundle.topProducts);
-    renderAlerts(bundle.alerts);
+    const bundle = await fetchDashboard();
+    const summary = bundle.summary ?? {
+      grossRevenueCents: 0,
+      totalExpensesCents: null,
+      grossProfitCents: null,
+      netProfitCents: null,
+      averageTicketCents: 0,
+      salesCount: 0,
+      permissions: { canSeeFinancial: false, canSeeProducts: false },
+    };
+    renderCards(summary);
+    renderChart(bundle.charts ?? { labels: [], revenues: [], expenses: null, net: null });
+    renderTopProducts(bundle.topProducts ?? { items: [] });
+    renderAlerts(bundle.alerts ?? { upcomingExpenses: [], upcomingAppointments: [], petshopEnabled: false });
     await renderProductMetrics();
-    setState(bundle.summary.permissions.canSeeFinancial ? "Dashboard atualizado." : "Dashboard atualizado com dados financeiros restritos por permissao.");
+    setState(summary.permissions.canSeeFinancial ? "Dashboard atualizado." : "Dashboard atualizado com dados financeiros restritos por permissao.");
   } catch (error) {
     renderCards({ grossRevenueCents: 0, totalExpensesCents: null, grossProfitCents: null, netProfitCents: null, averageTicketCents: 0, salesCount: 0, permissions: { canSeeFinancial: false, canSeeProducts: false } });
     appendEmptyRow("Nao foi possivel carregar os produtos.");
@@ -334,12 +326,13 @@ function bindAutocomplete(): void {
     selectedProductId = "";
     if (selectedProductLabel) selectedProductLabel.textContent = "";
     autocompleteAbort?.abort();
+    if (autocompleteTimer !== null) window.clearTimeout(autocompleteTimer);
     if (!productResults) return;
     clearChildren(productResults);
     if (search.length < 2) return;
     const controller = new AbortController();
     autocompleteAbort = controller;
-    window.setTimeout(async () => {
+    autocompleteTimer = window.setTimeout(async () => {
       if (controller.signal.aborted) return;
       try {
         const products = await fetchProductAutocomplete(search, controller.signal);

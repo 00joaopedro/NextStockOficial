@@ -59,16 +59,21 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       const hasJwtCookie = tokenLength > 0;
       const code = classifyAuthFailure(err, info, hasJwtCookie);
 
-      this.logger.warn(
-        [
-          `JWT validation failed code=${code}`,
-          `hasCookies=${hasCookies}`,
-          `hasJwtCookie=${hasJwtCookie}`,
-          `tokenLength=${tokenLength}`,
-          `info=${cleanReason(info?.message)}`,
-          `err=${cleanReason(err?.message)}`,
-        ].join(' '),
-      );
+      if (
+        process.env.NODE_ENV !== 'production' ||
+        process.env.JWT_DIAGNOSTIC_LOGS === 'true'
+      ) {
+        this.logger.warn(
+          [
+            `JWT validation failed code=${code}`,
+            `hasCookies=${hasCookies}`,
+            `hasJwtCookie=${hasJwtCookie}`,
+            `tokenLength=${tokenLength}`,
+            `info=${cleanReason(info?.message)}`,
+            `err=${cleanReason(err?.message)}`,
+          ].join(' '),
+        );
+      }
 
       if (err instanceof UnauthorizedException) {
         throw err;

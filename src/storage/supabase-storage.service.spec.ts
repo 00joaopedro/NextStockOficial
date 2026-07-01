@@ -22,6 +22,7 @@ describe('SupabaseStorageService', () => {
 
   function makeSupabase(error?: { message?: string; statusCode?: string | number }) {
     const upload = jest.fn().mockResolvedValue({ error: error ?? null });
+    const remove = jest.fn().mockResolvedValue({ error: null });
     const getPublicUrl = jest.fn().mockReturnValue({
       data: { publicUrl: 'https://storage.test/product.jpg' },
     });
@@ -32,6 +33,7 @@ describe('SupabaseStorageService', () => {
           from: jest.fn().mockReturnValue({
             upload,
             getPublicUrl,
+            remove,
           }),
         },
       },
@@ -40,11 +42,38 @@ describe('SupabaseStorageService', () => {
     };
   }
 
+  const optimizer = {
+    optimize: jest.fn().mockResolvedValue({
+      originalSize: 10,
+      full: {
+        buffer: Buffer.from('full'),
+        width: 1200,
+        height: 800,
+        size: 4,
+        mimeType: 'image/webp',
+      },
+      medium: {
+        buffer: Buffer.from('medium'),
+        width: 960,
+        height: 640,
+        size: 6,
+        mimeType: 'image/webp',
+      },
+      thumbnail: {
+        buffer: Buffer.from('thumb'),
+        width: 320,
+        height: 213,
+        size: 5,
+        mimeType: 'image/webp',
+      },
+    }),
+  };
+
   it('usa SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES para imagens de produto', async () => {
     process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = 'catalog-images';
     process.env.SUPABASE_STORAGE_SIGNED_URLS = 'false';
     const supabase = makeSupabase();
-    const service = new SupabaseStorageService(supabase as any);
+    const service = new SupabaseStorageService(supabase as any, optimizer as any);
 
     await expect(
       service.uploadProductImage({
@@ -59,7 +88,7 @@ describe('SupabaseStorageService', () => {
         },
       }),
     ).resolves.toMatchObject({
-      fileName: 'produto.jpg',
+      fileName: 'produto.webp',
       fileUrl: 'https://storage.test/product.jpg',
       storagePath: expect.stringContaining(
         'tenant-id/branch-id/products/product-id/',
@@ -73,7 +102,7 @@ describe('SupabaseStorageService', () => {
     delete process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
     process.env.SUPABASE_STORAGE_SIGNED_URLS = 'false';
     const supabase = makeSupabase();
-    const service = new SupabaseStorageService(supabase as any);
+    const service = new SupabaseStorageService(supabase as any, optimizer as any);
 
     await service.uploadProductImage({
       tenantId: 'tenant-id',
@@ -93,7 +122,7 @@ describe('SupabaseStorageService', () => {
   it('retorna 503 claro quando o bucket de produto nao existe', async () => {
     process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = 'product-images';
     const supabase = makeSupabase({ message: 'Bucket not found', statusCode: '404' });
-    const service = new SupabaseStorageService(supabase as any);
+    const service = new SupabaseStorageService(supabase as any, optimizer as any);
 
     await expect(
       service.uploadProductImage({

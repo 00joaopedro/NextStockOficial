@@ -10,6 +10,12 @@ import {
 import { normalizeScanCode } from '../scan-code.util';
 
 export class ProductQueryDto {
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
   @IsOptional()
   @IsString()
   @MaxLength(120)
@@ -37,4 +43,11 @@ export class ProductQueryDto {
   @Min(1)
   @Max(100)
   pageSize?: number = 20;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number;
 }

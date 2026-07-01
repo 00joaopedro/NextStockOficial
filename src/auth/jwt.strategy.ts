@@ -138,7 +138,9 @@ function buildJwtOptions() {
       const alg = header?.alg;
       const kid = header?.kid ? `${header.kid.slice(0, 8)}...` : 'none';
 
-      jwtLogger.log(`JWT header decoded alg=${alg ?? 'unknown'} kid=${kid}`);
+      if (process.env.JWT_DIAGNOSTIC_LOGS === 'true') {
+        jwtLogger.log(`JWT header decoded alg=${alg ?? 'unknown'} kid=${kid}`);
+      }
 
       if (alg === 'HS256') {
         if (!legacySecret) {
@@ -183,9 +185,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         ? payload.email.trim().toLowerCase()
         : undefined;
 
-    this.logger.log(
-      `validate executed hasSub=${Boolean(userId)} hasEmail=${Boolean(email)}`,
-    );
+    if (process.env.JWT_DIAGNOSTIC_LOGS === 'true') {
+      this.logger.log(
+        `validate executed hasSub=${Boolean(userId)} hasEmail=${Boolean(email)}`,
+      );
+    }
 
     if (!userId) {
       this.logger.warn('PAYLOAD_INVALID: missing sub in JWT payload.');
@@ -345,16 +349,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
             mode: item.tenant.mode,
           }));
 
-    this.logger.log(
-      [
-        'profile found',
-        `hasTenantId=${Boolean(profile.tenantId)}`,
-        `hasPrimaryTenantId=${Boolean(profile.primaryTenantId)}`,
-        `memberships=${profile.memberships.length}`,
-        `selectedTenant=${selectedWorkspace?.tenantId ?? membership?.tenantId ?? 'none'}`,
-        `isSuperAdmin=${hasFullAccess}`,
-      ].join(' '),
-    );
+    if (process.env.JWT_DIAGNOSTIC_LOGS === 'true') {
+      this.logger.log(
+        [
+          'profile found',
+          `hasTenantId=${Boolean(profile.tenantId)}`,
+          `hasPrimaryTenantId=${Boolean(profile.primaryTenantId)}`,
+          `memberships=${profile.memberships.length}`,
+          `selectedTenant=${selectedWorkspace?.tenantId ?? membership?.tenantId ?? 'none'}`,
+          `isSuperAdmin=${hasFullAccess}`,
+        ].join(' '),
+      );
+    }
 
     if (!membership && !hasFullAccess) {
       this.logger.warn('TENANT_NOT_LINKED: non-superAdmin user has no tenant membership.');

@@ -92,6 +92,7 @@ describe('ProductsService', () => {
       },
       product: {
         create: jest.fn().mockResolvedValue(product),
+        count: jest.fn().mockResolvedValue(1),
         findMany: jest.fn().mockResolvedValue([product]),
         findFirst: jest.fn().mockResolvedValue({ id: 'product-id' }),
         delete: jest.fn().mockResolvedValue(product),

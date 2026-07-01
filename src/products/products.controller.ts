@@ -151,7 +151,14 @@ export class ProductsController {
   @Post(':id/images/upload')
   @Roles(Role.Admin)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024,
+        files: 1,
+      },
+    }),
+  )
   uploadImage(
     @Req() req: Request,
     @Param('id') id: string,
