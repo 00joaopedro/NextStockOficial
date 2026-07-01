@@ -4,6 +4,7 @@ export type FiscalProviderDocument = {
   documentId: string;
   model: string;
   environment: string;
+  tpAmb: 1 | 2;
   series: string;
   number: string;
   payload: Record<string, unknown>;

@@ -71,6 +71,8 @@ PRODUCT_IMAGE_MAX_SIZE_MB="5"
 SUPABASE_STORAGE_BUCKET_EXPENSE_FILES="expense-files"
 EXPENSE_FILE_MAX_SIZE_MB="10"
 SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS="sale-documents"
+SUPABASE_STORAGE_BUCKET_FISCAL_CERTIFICATES="fiscal-certificates"
+CERTIFICATE_MAX_SIZE_MB="5"
 SUPABASE_STORAGE_SIGNED_URLS="false"
 ```
 
@@ -85,6 +87,9 @@ SUPABASE_STORAGE_SIGNED_URLS="false"
   para XML/PDF de NFC-e e NF-e. Se ausente, o backend usa `sale-documents`.
   Downloads fiscais sempre usam signed URL, independentemente da configuracao
   geral de URLs publicas.
+- `SUPABASE_STORAGE_BUCKET_FISCAL_CERTIFICATES` define o bucket privado de
+  certificados A1. O backend nunca cria URL publica ou assinada para esses
+  objetos e usa paths `tenantId/branchId/uuid.pfx`.
 - Com `SUPABASE_STORAGE_SIGNED_URLS` ausente ou `false`, os buckets precisam ser
   publicos para que as URLs retornadas por `getPublicUrl()` renderizem no
   navegador.
@@ -101,8 +106,10 @@ paga para transmissao. `Order` pode apenas preencher um rascunho.
 - O bucket `sale-documents` deve ser privado. XML e DANFE sao entregues somente
   por signed URL apos validacao de tenant e filial.
 - A configuracao fiscal e por filial em `company_fiscal_configs`.
-- Certificados e tokens nao devem ser gravados em `provider_config`; use
-  `certificate_secret_ref` apontando para um secret manager ou cofre do provider.
+- O PFX permanece somente no bucket privado `fiscal-certificates`; o banco
+  guarda o path e metadados. A senha e protegida com AES-256-GCM e nunca e
+  retornada ao frontend. `certificate_secret_ref` continua disponivel apenas
+  para compatibilidade com providers legados.
 - O adapter `mock` existe para desenvolvimento e homologacao interna. Ele nunca
   retorna `authorized` e a API recusa seu uso quando a configuracao fiscal esta
   em ambiente `producao`.
@@ -112,6 +119,27 @@ paga para transmissao. `Order` pode apenas preencher um rascunho.
 Antes de habilitar emissao real, configure o provider, o certificado A1, o
 ambiente correto, a serie fiscal e o bucket privado. Nao exponha o bucket ao
 papel `anon`.
+
+### Certificado A1
+
+O recurso exige estas variaveis no processo do backend:
+
+```env
+CERT_ENCRYPTION_KEY="<base64 de exatamente 32 bytes>"
+CERT_ENCRYPTION_KEY_VERSION="v1"
+SUPABASE_STORAGE_BUCKET_FISCAL_CERTIFICATES="fiscal-certificates"
+CERTIFICATE_MAX_SIZE_MB="5"
+```
+
+Gere uma chave com um gerador criptograficamente seguro e armazene-a somente no
+cofre de secrets do ambiente. A aplicacao falha na inicializacao se a chave ou
+a versao forem invalidas. Alterar a chave sem preservar a versao anterior torna
+as senhas ja gravadas impossiveis de descriptografar.
+
+Os testes criam PKCS#12 autoassinados sinteticos em memoria. Eles servem apenas
+para parser, criptografia e fluxo de upload; nao representam certificado ICP-Brasil
+e nunca devem ser usados para emissao. Nao use certificado real em ambiente local
+sem controles equivalentes aos de producao.
 
 ## Historico de vendas
 

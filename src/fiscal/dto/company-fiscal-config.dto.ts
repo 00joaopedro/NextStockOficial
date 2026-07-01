@@ -1,6 +1,5 @@
 import { Type } from 'class-transformer';
 import {
-  IsDateString,
   IsEnum,
   IsInt,
   IsObject,
@@ -84,17 +83,9 @@ export class CompanyFiscalConfigDto {
   @MaxLength(80)
   country?: string;
 
+  @IsOptional()
   @IsEnum(FiscalEnvironment)
-  environment!: FiscalEnvironment;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(300)
-  certificateSecretRef?: string;
-
-  @IsOptional()
-  @IsDateString()
-  certificateExpiresAt?: string;
+  environment?: FiscalEnvironment;
 
   @IsString()
   @MaxLength(10)

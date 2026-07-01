@@ -57,7 +57,9 @@ const SALE_FISCAL_INCLUDE = {
 type FiscalDocumentWithRelations = Prisma.SaleDocumentGetPayload<{
   include: typeof DOCUMENT_INCLUDE;
 }>;
-type FiscalSale = Prisma.SaleGetPayload<{ include: typeof SALE_FISCAL_INCLUDE }>;
+type FiscalSale = Prisma.SaleGetPayload<{
+  include: typeof SALE_FISCAL_INCLUDE;
+}>;
 
 const READ_ROLES = [Role.Admin, Role.Vendedor];
 const WRITE_ROLES = [Role.Admin];
@@ -253,9 +255,7 @@ export class FiscalService {
           createdById: context.userId,
           updatedById: context.userId,
           items: {
-            create: sale.items.map((item) =>
-              this.buildFiscalItem(item),
-            ),
+            create: sale.items.map((item) => this.buildFiscalItem(item)),
           },
           events: {
             create: {
@@ -329,13 +329,16 @@ export class FiscalService {
       id,
     );
     if (document.status === SaleDocumentStatus.authorized) {
-      return { ok: true, idempotent: true, document: this.formatDocument(document) };
+      return {
+        ok: true,
+        idempotent: true,
+        document: this.formatDocument(document),
+      };
     }
-    if (
-      document.status === SaleDocumentStatus.canceled ||
-      document.deletedAt
-    ) {
-      throw new BadRequestException('Documento cancelado ou removido nao pode ser enviado.');
+    if (document.status === SaleDocumentStatus.canceled || document.deletedAt) {
+      throw new BadRequestException(
+        'Documento cancelado ou removido nao pode ser enviado.',
+      );
     }
 
     const config = await this.loadConfig(context.tenantId, context.branchId!);
@@ -417,10 +420,10 @@ export class FiscalService {
         errorMessage:
           safeStatus === SaleDocumentStatus.authorized
             ? null
-            : result.errorMessage ??
+            : (result.errorMessage ??
               (provider.isRealProvider
                 ? null
-                : 'Provider real nao configurado; autorizacao SEFAZ nao ocorreu.'),
+                : 'Provider real nao configurado; autorizacao SEFAZ nao ocorreu.')),
         accessKey:
           provider.isRealProvider &&
           safeStatus === SaleDocumentStatus.authorized
@@ -487,7 +490,8 @@ export class FiscalService {
       return {
         ok: true,
         queried: false,
-        message: 'Documento ainda esta em rascunho e nao possui numeracao fiscal.',
+        message:
+          'Documento ainda esta em rascunho e nao possui numeracao fiscal.',
         document: this.formatDocument(document),
       };
     }
@@ -647,6 +651,11 @@ export class FiscalService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
+    if (dto.environment === FiscalEnvironment.producao) {
+      throw new BadRequestException(
+        'Ative producao somente pelo fluxo de confirmacao fiscal.',
+      );
+    }
     const context = await this.resolveContext(
       user,
       selectedBranchId,
@@ -674,22 +683,15 @@ export class FiscalService {
       state: dto.state.trim().toUpperCase(),
       zipCode: this.validation.digits(dto.zipCode),
       country: clean(dto.country) || 'Brasil',
-      environment: dto.environment,
-      certificateSecretRef: clean(dto.certificateSecretRef),
-      certificateExpiresAt: dto.certificateExpiresAt
-        ? new Date(dto.certificateExpiresAt)
-        : null,
+      ...(dto.environment ? { environment: dto.environment } : {}),
       nfeSeries: dto.nfeSeries.trim(),
       nfceSeries: dto.nfceSeries.trim(),
-      provider: clean(dto.provider) || 'mock',
-      providerConfig:
-        Object.keys(providerConfig).length > 0
-          ? (providerConfig as Prisma.InputJsonValue)
-          : Prisma.JsonNull,
     };
     this.validation.assertConfig({
       ...data,
-      certificateSecretRef: data.certificateSecretRef,
+      certificateSecretRef: null,
+      environment: dto.environment || FiscalEnvironment.homologacao,
+      provider: clean(dto.provider) || 'mock',
     });
 
     const config = await this.prisma.companyFiscalConfig.upsert({
@@ -703,8 +705,24 @@ export class FiscalService {
         tenantId: context.tenantId,
         branchId: context.branchId!,
         ...data,
+        provider: clean(dto.provider) || 'mock',
+        providerConfig:
+          Object.keys(providerConfig).length > 0
+            ? (providerConfig as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
       },
-      update: data,
+      update: {
+        ...data,
+        ...(dto.provider ? { provider: dto.provider.trim() } : {}),
+        ...(dto.providerConfig
+          ? {
+              providerConfig:
+                Object.keys(providerConfig).length > 0
+                  ? (providerConfig as Prisma.InputJsonValue)
+                  : Prisma.JsonNull,
+            }
+          : {}),
+      },
     });
     return { ok: true, config: this.formatConfig(config) };
   }
@@ -731,11 +749,7 @@ export class FiscalService {
     });
   }
 
-  private async findScopedSale(
-    tenantId: string,
-    branchId: string,
-    id: string,
-  ) {
+  private async findScopedSale(tenantId: string, branchId: string, id: string) {
     const sale = await this.prisma.sale.findFirst({
       where: { id, tenantId, branchId, deletedAt: null },
       include: SALE_FISCAL_INCLUDE,
@@ -937,6 +951,11 @@ export class FiscalService {
       documentId: document.id,
       model: document.model || '55',
       environment: document.environment || FiscalEnvironment.homologacao,
+      tpAmb:
+        (document.environment || FiscalEnvironment.homologacao) ===
+        FiscalEnvironment.producao
+          ? 1
+          : 2,
       series: document.series || '1',
       number,
       payload:
@@ -1015,6 +1034,26 @@ export class FiscalService {
         config.certificateSecretRef || config.certificatePath,
       ),
       certificateExpiresAt: config.certificateExpiresAt,
+      certificate: config.certificatePath
+        ? {
+            present: true,
+            status: config.certificateValidationStatus || 'pending',
+            originalName: config.certificateOriginalName,
+            mimeType: config.certificateMimeType,
+            size: config.certificateSize,
+            uploadedAt: config.certificateUploadedAt,
+            validFrom: config.certificateValidFrom,
+            expiresAt: config.certificateExpiresAt,
+            subject: config.certificateSubject,
+            issuer: config.certificateIssuer,
+            serialNumber: config.certificateSerialNumber,
+            cnpj: config.certificateCnpj,
+            fingerprintSha256: config.certificateFingerprintSha256,
+            validatedAt: config.certificateValidatedAt,
+            validationErrorCode: config.certificateValidationErrorCode,
+          }
+        : { present: false, status: 'absent' },
+      productionEnabledAt: config.productionEnabledAt,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
     };

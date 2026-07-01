@@ -79,6 +79,7 @@ describe('MockFiscalProvider', () => {
       documentId: 'document',
       model: '55',
       environment: FiscalEnvironment.homologacao,
+      tpAmb: 2,
       series: '1',
       number: '1',
       payload: {},

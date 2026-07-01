@@ -167,6 +167,36 @@ Apply `20260613000000_fiscal_nfe_production_structure` before enabling the new
    provider adapter and protected credentials are configured.
 5. Run `sql/audit/fiscal_ntfe_production_audit.sql`.
 
+For the A1 certificate flow, also apply
+`20260701000000_fiscal_a1_certificate` and configure:
+
+```env
+CERT_ENCRYPTION_KEY="<base64 encoding of exactly 32 random bytes>"
+CERT_ENCRYPTION_KEY_VERSION="v1"
+SUPABASE_STORAGE_BUCKET_FISCAL_CERTIFICATES="fiscal-certificates"
+CERTIFICATE_MAX_SIZE_MB="5"
+```
+
+Create `fiscal-certificates` as a private bucket with no `anon` or
+`authenticated` read policy. Only the backend service-role client may upload,
+download, or remove objects. Never enable public or signed certificate URLs.
+
+Railway rollout:
+
+1. Create the private bucket and verify its policies.
+2. Add the four variables above as protected Railway variables.
+3. Deploy the additive migration with `npm run migrate:deploy`.
+4. Deploy the application; invalid encryption configuration intentionally stops
+   boot without printing key material.
+5. Keep every branch in `homologacao` with provider `mock`.
+6. Run the focused certificate/fiscal tests before introducing a real A1.
+
+The current release validates synthetic PKCS#12 fixtures only and does not
+integrate with a real SEFAZ service. A future real-certificate checklist must
+cover password opening, private key presence, ICP-Brasil chain, validity, issuer
+CNPJ match, XML signature/XSD, service status and NF-e issuance in homologation
+before any production activation.
+
 The mock provider is intentionally unable to authorize or cancel a fiscal
 document. Do not switch a branch to fiscal production while its provider is
 `mock`.

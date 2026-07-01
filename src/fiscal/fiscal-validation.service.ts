@@ -1,5 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { FiscalEnvironment, SaleStatus } from '@prisma/client';
+import {
+  CertificateValidationStatus,
+  FiscalEnvironment,
+  SaleStatus,
+} from '@prisma/client';
 import { FiscalRecipientDto } from './dto/create-nfe55-document.dto';
 
 type FiscalConfigInput = {
@@ -15,6 +19,10 @@ type FiscalConfigInput = {
   zipCode: string;
   provider: string;
   certificateSecretRef: string | null;
+  certificatePath?: string | null;
+  certificatePasswordEncrypted?: string | null;
+  certificateValidationStatus?: CertificateValidationStatus | null;
+  certificateExpiresAt?: Date | null;
   environment: FiscalEnvironment;
 };
 
@@ -40,13 +48,19 @@ type FiscalSaleInput = {
 export class FiscalValidationService {
   assertSaleEligible(sale: FiscalSaleInput) {
     if (sale.status !== SaleStatus.paid) {
-      throw new BadRequestException('NF-e exige uma venda com pagamento confirmado.');
+      throw new BadRequestException(
+        'NF-e exige uma venda com pagamento confirmado.',
+      );
     }
     if (sale.order && ['canceled', 'refunded'].includes(sale.order.status)) {
-      throw new BadRequestException('Pedido cancelado ou estornado nao pode emitir NF-e.');
+      throw new BadRequestException(
+        'Pedido cancelado ou estornado nao pode emitir NF-e.',
+      );
     }
     if (!sale.items.length) {
-      throw new BadRequestException('A venda nao possui itens para emissao fiscal.');
+      throw new BadRequestException(
+        'A venda nao possui itens para emissao fiscal.',
+      );
     }
   }
 
@@ -69,38 +83,50 @@ export class FiscalValidationService {
       !/^[A-Z]{2}$/.test(config.state.toUpperCase()) ||
       this.digits(config.zipCode).length !== 8
     ) {
-      throw new BadRequestException('Configuracao fiscal da filial esta incompleta.');
+      throw new BadRequestException(
+        'Configuracao fiscal da filial esta incompleta.',
+      );
     }
     if (
       forSending &&
       config.provider !== 'mock' &&
-      !config.certificateSecretRef
+      !config.certificateSecretRef &&
+      (!config.certificatePath || !config.certificatePasswordEncrypted)
     ) {
       throw new BadRequestException(
         'Provider fiscal real exige referencia segura do certificado.',
+      );
+    }
+    if (
+      forSending &&
+      config.provider !== 'mock' &&
+      config.certificatePath &&
+      (config.certificateValidationStatus !==
+        CertificateValidationStatus.valid ||
+        !config.certificateExpiresAt ||
+        config.certificateExpiresAt <= new Date())
+    ) {
+      throw new BadRequestException(
+        'Provider fiscal real exige certificado A1 valido e dentro da validade.',
       );
     }
   }
 
   assertRecipient(recipient: FiscalRecipientDto) {
     const document = this.digits(recipient.document);
-    if (
-      recipient.documentType === 'cpf' &&
-      !this.isValidCpf(document)
-    ) {
+    if (recipient.documentType === 'cpf' && !this.isValidCpf(document)) {
       throw new BadRequestException('CPF do destinatario e invalido.');
     }
-    if (
-      recipient.documentType === 'cnpj' &&
-      !this.isValidCnpj(document)
-    ) {
+    if (recipient.documentType === 'cnpj' && !this.isValidCnpj(document)) {
       throw new BadRequestException('CNPJ do destinatario e invalido.');
     }
     if (
       recipient.documentType !== 'estrangeiro' &&
       !['1', '2', '9'].includes(recipient.ieIndicator)
     ) {
-      throw new BadRequestException('Indicador de IE do destinatario e invalido.');
+      throw new BadRequestException(
+        'Indicador de IE do destinatario e invalido.',
+      );
     }
     if (
       !recipient.name?.trim() ||
@@ -112,7 +138,9 @@ export class FiscalValidationService {
       !/^[A-Z]{2}$/.test(recipient.state.toUpperCase()) ||
       this.digits(recipient.zipCode).length !== 8
     ) {
-      throw new BadRequestException('Dados fiscais do destinatario estao incompletos.');
+      throw new BadRequestException(
+        'Dados fiscais do destinatario estao incompletos.',
+      );
     }
   }
 
@@ -145,10 +173,7 @@ export class FiscalValidationService {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
         .filter(([key]) => !blocked.test(key))
-        .map(([key, item]) => [
-          key,
-          this.sanitizeProviderValue(item, blocked),
-        ]),
+        .map(([key, item]) => [key, this.sanitizeProviderValue(item, blocked)]),
     );
   }
 
@@ -159,9 +184,9 @@ export class FiscalValidationService {
   private sanitizeProviderValue(value: unknown, blocked: RegExp): unknown {
     if (typeof value === 'string') return value.slice(0, 1000);
     if (Array.isArray(value)) {
-      return value.slice(0, 100).map((item) =>
-        this.sanitizeProviderValue(item, blocked),
-      );
+      return value
+        .slice(0, 100)
+        .map((item) => this.sanitizeProviderValue(item, blocked));
     }
     if (value && typeof value === 'object') {
       return Object.fromEntries(
@@ -205,7 +230,9 @@ export class FiscalValidationService {
       const remainder = sum % 11;
       return remainder < 2 ? 0 : 11 - remainder;
     };
-    return calculate(12) === Number(digits[12]) &&
-      calculate(13) === Number(digits[13]);
+    return (
+      calculate(12) === Number(digits[12]) &&
+      calculate(13) === Number(digits[13])
+    );
   }
 }

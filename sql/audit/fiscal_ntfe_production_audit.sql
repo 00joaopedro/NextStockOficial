@@ -119,7 +119,33 @@ WHERE NULLIF(c.cnpj, '') IS NULL
    OR NULLIF(c.city_code_ibge, '') IS NULL
    OR NULLIF(c.state, '') IS NULL
    OR c.crt NOT BETWEEN 1 AND 3
-   OR (c.provider <> 'mock' AND NULLIF(c.certificate_secret_ref, '') IS NULL);
+   OR (
+     c.provider <> 'mock'
+     AND NULLIF(c.certificate_secret_ref, '') IS NULL
+     AND NULLIF(c.certificate_path, '') IS NULL
+   );
+
+SELECT id, tenant_id, branch_id, environment, provider,
+       certificate_validation_status, certificate_expires_at,
+       certificate_uploaded_at, certificate_validated_at
+FROM company_fiscal_configs
+WHERE deleted_at IS NULL
+  AND (
+    environment::text = 'producao'
+    AND (
+      provider = 'mock'
+      OR NULLIF(certificate_path, '') IS NULL
+      OR NULLIF(certificate_password_encrypted, '') IS NULL
+      OR certificate_validation_status::text <> 'valid'
+      OR certificate_expires_at <= NOW()
+    )
+  );
+
+SELECT tenant_id, branch_id, COUNT(*) AS active_configs
+FROM company_fiscal_configs
+WHERE deleted_at IS NULL
+GROUP BY tenant_id, branch_id
+HAVING COUNT(*) > 1;
 
 SELECT con.conname, cls.relname AS table_name, con.convalidated
 FROM pg_constraint con

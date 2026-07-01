@@ -454,6 +454,84 @@
       line-height: 1.5;
     }
 
+    .fiscal-overview {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .fiscal-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 15px;
+      box-shadow: var(--shadow);
+    }
+
+    .fiscal-card span {
+      display: block;
+      color: var(--muted);
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+
+    .fiscal-card strong {
+      overflow-wrap: anywhere;
+    }
+
+    .environment-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 40px;
+      padding: 9px 13px;
+      border-radius: 999px;
+      background: #fff4df;
+      color: #805200;
+      font-weight: 900;
+      border: 1px solid #ffd797;
+    }
+
+    .environment-badge.production {
+      background: #fdecec;
+      border-color: #f3adad;
+      color: #a92222;
+    }
+
+    .certificate-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+
+    .certificate-actions button {
+      border: none;
+      border-radius: 12px;
+      padding: 11px 14px;
+      color: #fff;
+      background: var(--info);
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .certificate-actions button.danger {
+      background: var(--danger);
+    }
+
+    .certificate-actions button.production {
+      background: #8e2020;
+    }
+
+    .certificate-actions button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .admin-only[hidden] {
+      display: none !important;
+    }
+
     @media (max-width: 1200px) {
       .top-tools {
         grid-template-columns: 1fr;
@@ -464,6 +542,10 @@
       }
 
       .totals-box {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .fiscal-overview {
         grid-template-columns: repeat(2, 1fr);
       }
     }
@@ -517,6 +599,10 @@
       .totals-box {
         grid-template-columns: 1fr;
       }
+
+      .fiscal-overview {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
@@ -548,6 +634,150 @@
         <button class="toolbar-btn btn-secondary" id="btnXml" disabled>Baixar XML</button>
         <button class="toolbar-btn btn-secondary" id="btnPdf" disabled>Baixar DANFE</button>
       </div>
+
+      <section aria-labelledby="fiscalOverviewTitle">
+        <div class="page-header">
+          <h2 id="fiscalOverviewTitle">Situação fiscal da filial</h2>
+        </div>
+        <div class="fiscal-overview">
+          <div class="fiscal-card">
+            <span>Ambiente controlado pelo backend</span>
+            <strong id="fiscalEnvironmentSummary">Carregando...</strong>
+          </div>
+          <div class="fiscal-card">
+            <span>Certificado A1</span>
+            <strong id="certificateStatusSummary">Carregando...</strong>
+          </div>
+          <div class="fiscal-card">
+            <span>Validade</span>
+            <strong id="certificateExpirySummary">—</strong>
+          </div>
+          <div class="fiscal-card">
+            <span>CNPJ do certificado</span>
+            <strong id="certificateCnpjSummary">—</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="note-wrapper admin-only" id="fiscalAdminPanel" hidden>
+        <div class="note-title">
+          <h2>Configuração fiscal e certificado</h2>
+          <div class="status" id="certificateActionStatus" role="status" aria-live="polite">
+            Somente administradores podem alterar estes dados.
+          </div>
+        </div>
+        <div class="grid">
+          <div class="section">
+            <h3>Dados fiscais persistidos da filial</h3>
+            <div class="fields">
+              <div class="field span-6">
+                <label for="configLegalName">Razão social</label>
+                <input id="configLegalName" type="text" maxlength="180" />
+              </div>
+              <div class="field span-3">
+                <label for="configTradeName">Nome fantasia</label>
+                <input id="configTradeName" type="text" maxlength="180" />
+              </div>
+              <div class="field span-3">
+                <label for="configCnpj">CNPJ</label>
+                <input id="configCnpj" type="text" maxlength="20" />
+              </div>
+              <div class="field span-3">
+                <label for="configStateRegistration">Inscrição Estadual</label>
+                <input id="configStateRegistration" type="text" maxlength="30" />
+              </div>
+              <div class="field span-3">
+                <label for="configMunicipalRegistration">Inscrição Municipal</label>
+                <input id="configMunicipalRegistration" type="text" maxlength="30" />
+              </div>
+              <div class="field span-3">
+                <label for="configCrt">CRT</label>
+                <select id="configCrt">
+                  <option value="1">1 - Simples Nacional</option>
+                  <option value="2">2 - Simples excesso sublimite</option>
+                  <option value="3">3 - Regime Normal</option>
+                </select>
+              </div>
+              <div class="field span-3">
+                <label for="configTaxRegime">Regime tributário</label>
+                <input id="configTaxRegime" type="text" maxlength="60" />
+              </div>
+              <div class="field span-5">
+                <label for="configStreet">Logradouro</label>
+                <input id="configStreet" type="text" maxlength="180" />
+              </div>
+              <div class="field span-2">
+                <label for="configNumber">Número</label>
+                <input id="configNumber" type="text" maxlength="30" />
+              </div>
+              <div class="field span-5">
+                <label for="configComplement">Complemento</label>
+                <input id="configComplement" type="text" maxlength="120" />
+              </div>
+              <div class="field span-3">
+                <label for="configDistrict">Bairro</label>
+                <input id="configDistrict" type="text" maxlength="100" />
+              </div>
+              <div class="field span-3">
+                <label for="configCity">Município</label>
+                <input id="configCity" type="text" maxlength="100" />
+              </div>
+              <div class="field span-2">
+                <label for="configCityCode">Código IBGE</label>
+                <input id="configCityCode" type="text" maxlength="7" />
+              </div>
+              <div class="field span-1">
+                <label for="configState">UF</label>
+                <input id="configState" type="text" maxlength="2" />
+              </div>
+              <div class="field span-2">
+                <label for="configZipCode">CEP</label>
+                <input id="configZipCode" type="text" maxlength="12" />
+              </div>
+              <div class="field span-1">
+                <label for="configCountry">País</label>
+                <input id="configCountry" type="text" maxlength="80" value="Brasil" />
+              </div>
+              <div class="field span-2">
+                <label for="configNfeSeries">Série NF-e</label>
+                <input id="configNfeSeries" type="text" maxlength="10" />
+              </div>
+              <div class="field span-2">
+                <label for="configNfceSeries">Série NFC-e</label>
+                <input id="configNfceSeries" type="text" maxlength="10" />
+              </div>
+              <div class="field span-8 certificate-actions">
+                <button type="button" id="btnFiscalConfigSave">Salvar configuração fiscal</button>
+                <span class="hint">O ambiente de produção não pode ser ativado por este formulário.</span>
+              </div>
+            </div>
+          </div>
+          <div class="section">
+            <h3>Certificado digital A1</h3>
+            <div class="fields">
+              <div class="field span-4">
+                <label for="certificateFile">Arquivo .pfx ou .p12</label>
+                <input id="certificateFile" type="file" accept=".pfx,.p12,application/x-pkcs12,application/pkcs12" />
+              </div>
+              <div class="field span-4">
+                <label for="certificatePassword">Senha do certificado</label>
+                <input id="certificatePassword" type="password" maxlength="512" autocomplete="new-password" />
+              </div>
+              <div class="field span-4">
+                <label>Arquivo atual</label>
+                <strong id="certificateFileSummary">Nenhum certificado configurado</strong>
+                <span class="hint" id="certificateMetadataSummary"></span>
+              </div>
+              <div class="field span-12 certificate-actions">
+                <button type="button" id="btnCertificateUpload">Enviar e validar</button>
+                <button type="button" id="btnCertificateValidate">Validar novamente</button>
+                <button type="button" id="btnCertificateRemove" class="danger">Remover certificado</button>
+                <button type="button" id="btnActivateProduction" class="production">Ativar produção</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section class="note-wrapper">
         <div class="note-title">
@@ -633,10 +863,7 @@
 
               <div class="field span-2">
                 <label>Ambiente</label>
-                <select id="ambiente">
-                  <option value="homologacao">Homologação</option>
-                  <option value="producao">Produção</option>
-                </select>
+                <div id="ambiente" class="environment-badge" role="status">HOMOLOGAÇÃO</div>
               </div>
             </div>
           </div>

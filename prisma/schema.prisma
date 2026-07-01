@@ -42,6 +42,7 @@ model UserProfile {
   createdFiscalDocuments  SaleDocument[]                @relation("SaleDocumentCreatedBy")
   updatedFiscalDocuments  SaleDocument[]                @relation("SaleDocumentUpdatedBy")
   fiscalEvents            FiscalDocumentEvent[]         @relation("FiscalEventCreatedBy")
+  fiscalProductionsEnabled CompanyFiscalConfig[]         @relation("FiscalProductionEnabledBy")
   createdPaymentMachines  PaymentMachine[]              @relation("PaymentMachineCreatedBy")
   updatedPaymentMachines  PaymentMachine[]              @relation("PaymentMachineUpdatedBy")
   createdPartners         Partner[]                     @relation("PartnerCreatedBy")
@@ -819,7 +820,25 @@ model CompanyFiscalConfig {
   environment           FiscalEnvironment @default(homologacao)
   certificatePath       String?           @map("certificate_path")
   certificateSecretRef  String?           @map("certificate_secret_ref")
+  certificateOriginalName String?         @map("certificate_original_name")
+  certificateMimeType     String?         @map("certificate_mime_type")
+  certificateSize         Int?            @map("certificate_size")
+  certificatePasswordEncrypted String?    @map("certificate_password_encrypted")
+  certificatePasswordKeyVersion String?   @map("certificate_password_key_version")
+  certificateUploadedAt   DateTime?       @map("certificate_uploaded_at")
+  certificateValidFrom    DateTime?       @map("certificate_valid_from")
   certificateExpiresAt  DateTime?         @map("certificate_expires_at")
+  certificateSubject      String?         @map("certificate_subject")
+  certificateIssuer       String?         @map("certificate_issuer")
+  certificateSerialNumber String?         @map("certificate_serial_number")
+  certificateCnpj         String?         @map("certificate_cnpj")
+  certificateFingerprintSha256 String?    @map("certificate_fingerprint_sha256")
+  certificateValidatedAt  DateTime?       @map("certificate_validated_at")
+  certificateValidationStatus CertificateValidationStatus? @map("certificate_validation_status")
+  certificateValidationErrorCode String?  @map("certificate_validation_error_code")
+  productionEnabledAt     DateTime?       @map("production_enabled_at")
+  productionEnabledById   String?         @map("production_enabled_by_id") @db.Uuid
+  deletedAt               DateTime?       @map("deleted_at")
   nfeSeries             String            @default("1") @map("nfe_series")
   nfceSeries            String            @default("1") @map("nfce_series")
   nextNfeNumber         Int               @default(1) @map("next_nfe_number")
@@ -831,9 +850,13 @@ model CompanyFiscalConfig {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  productionEnabledBy UserProfile? @relation("FiscalProductionEnabledBy", fields: [productionEnabledById], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, branchId])
   @@index([cnpj])
+  @@index([certificateExpiresAt])
+  @@index([certificateFingerprintSha256])
+  @@index([productionEnabledById])
   @@map("company_fiscal_configs")
 }
 
@@ -1415,6 +1438,15 @@ enum SalePaymentStatus {
 enum FiscalEnvironment {
   homologacao
   producao
+}
+
+enum CertificateValidationStatus {
+  pending
+  valid
+  invalid
+  expired
+  cnpj_mismatch
+  decrypt_error
 }
 
 enum EmployeeStatus {

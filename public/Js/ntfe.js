@@ -10,6 +10,8 @@
     orderId: null,
     idempotencyKey: null,
     busy: false,
+    certificateBusy: false,
+    fiscalConfig: null,
   };
 
   const elements = {
@@ -23,6 +25,21 @@
     newDocument: document.getElementById('btnNovo'),
     searchClient: document.getElementById('searchClient'),
     autocomplete: document.getElementById('autocompleteList'),
+    environmentSummary: document.getElementById('fiscalEnvironmentSummary'),
+    certificateSummary: document.getElementById('certificateStatusSummary'),
+    certificateExpiry: document.getElementById('certificateExpirySummary'),
+    certificateCnpj: document.getElementById('certificateCnpjSummary'),
+    certificateFileSummary: document.getElementById('certificateFileSummary'),
+    certificateMetadata: document.getElementById('certificateMetadataSummary'),
+    certificateActionStatus: document.getElementById('certificateActionStatus'),
+    certificateFile: document.getElementById('certificateFile'),
+    certificatePassword: document.getElementById('certificatePassword'),
+    certificateUpload: document.getElementById('btnCertificateUpload'),
+    certificateValidate: document.getElementById('btnCertificateValidate'),
+    certificateRemove: document.getElementById('btnCertificateRemove'),
+    activateProduction: document.getElementById('btnActivateProduction'),
+    adminPanel: document.getElementById('fiscalAdminPanel'),
+    fiscalConfigSave: document.getElementById('btnFiscalConfigSave'),
   };
 
   function selectedBranch() {
@@ -54,11 +71,13 @@
   }
 
   async function api(path, options) {
+    const isFormData =
+      typeof FormData !== 'undefined' && options?.body instanceof FormData;
     const response = await fetch(path, {
       credentials: 'include',
       ...options,
       headers: {
-        ...headers(Boolean(options?.body)),
+        ...headers(Boolean(options?.body) && !isFormData),
         ...(options?.headers || {}),
       },
     });
@@ -107,13 +126,127 @@
     elements.newDocument.disabled = busy;
   }
 
+  function setCertificateBusy(busy) {
+    state.certificateBusy = busy;
+    const certificate = state.fiscalConfig?.certificate;
+    elements.certificateUpload.disabled = busy;
+    elements.certificateValidate.disabled = busy || !certificate?.present;
+    elements.certificateRemove.disabled = busy || !certificate?.present;
+    elements.activateProduction.disabled =
+      busy || state.fiscalConfig?.environment === 'producao';
+    elements.fiscalConfigSave.disabled = busy;
+  }
+
   function value(id) {
     return document.getElementById(id)?.value?.trim() || '';
   }
 
   function setValue(id, nextValue) {
     const field = document.getElementById(id);
-    if (field) field.value = nextValue ?? '';
+    if (!field) return;
+    if ('value' in field) field.value = nextValue ?? '';
+    else field.textContent = nextValue ?? '';
+  }
+
+  function isAdmin() {
+    const user = state.profile?.user || state.profile;
+    return (
+      user?.role === 'Admin' ||
+      user?.role === 'admin' ||
+      user?.roles?.includes('Admin') ||
+      user?.roles?.includes('admin')
+    );
+  }
+
+  function formatDate(valueToFormat) {
+    if (!valueToFormat) return '—';
+    const date = new Date(valueToFormat);
+    return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('pt-BR');
+  }
+
+  function formatFileSize(size) {
+    if (!Number.isFinite(Number(size))) return 'tamanho indisponível';
+    return `${(Number(size) / 1024).toFixed(1)} KB`;
+  }
+
+  function certificateLabel(status) {
+    return (
+      {
+        absent: 'Certificado ausente',
+        pending: 'Validação pendente',
+        valid: 'Certificado válido',
+        invalid: 'Certificado inválido',
+        expired: 'Certificado expirado',
+        cnpj_mismatch: 'CNPJ divergente',
+        decrypt_error: 'Erro ao desbloquear certificado',
+      }[status] || 'Situação desconhecida'
+    );
+  }
+
+  function renderEnvironment(environment) {
+    const production = environment === 'producao';
+    const label = production ? 'PRODUÇÃO (tpAmb=1)' : 'HOMOLOGAÇÃO (tpAmb=2)';
+    elements.environmentSummary.textContent = label;
+    const badge = document.getElementById('ambiente');
+    badge.textContent = production ? 'PRODUÇÃO' : 'HOMOLOGAÇÃO';
+    badge.classList.toggle('production', production);
+  }
+
+  function renderFiscalConfig(config) {
+    state.fiscalConfig = config;
+    renderEnvironment(config?.environment || 'homologacao');
+    const certificate = config?.certificate || {
+      present: false,
+      status: 'absent',
+    };
+    elements.certificateSummary.textContent = certificateLabel(
+      certificate.status,
+    );
+    elements.certificateExpiry.textContent = formatDate(certificate.expiresAt);
+    elements.certificateCnpj.textContent = certificate.cnpj || '—';
+    elements.certificateFileSummary.textContent =
+      certificate.originalName || 'Nenhum certificado configurado';
+    elements.certificateMetadata.textContent = certificate.present
+      ? [
+          formatFileSize(certificate.size),
+          `enviado em ${formatDate(certificate.uploadedAt)}`,
+          certificate.subject ? `titular: ${certificate.subject}` : '',
+          certificate.issuer ? `emissor: ${certificate.issuer}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')
+      : 'O certificado nunca é disponibilizado para download.';
+    elements.adminPanel.hidden = !isAdmin();
+    const configFields = {
+      configLegalName: config?.legalName,
+      configTradeName: config?.tradeName,
+      configCnpj: config?.cnpj,
+      configStateRegistration: config?.stateRegistration,
+      configMunicipalRegistration: config?.municipalRegistration,
+      configCrt: config?.crt || 1,
+      configTaxRegime: config?.taxRegime,
+      configStreet: config?.street,
+      configNumber: config?.number,
+      configComplement: config?.complement,
+      configDistrict: config?.district,
+      configCity: config?.city,
+      configCityCode: config?.cityCodeIbge,
+      configState: config?.state,
+      configZipCode: config?.zipCode,
+      configCountry: config?.country || 'Brasil',
+      configNfeSeries: config?.nfeSeries || '1',
+      configNfceSeries: config?.nfceSeries || '1',
+    };
+    Object.entries(configFields).forEach(([id, fieldValue]) =>
+      setValue(id, fieldValue),
+    );
+    setCertificateBusy(false);
+  }
+
+  async function loadFiscalConfig() {
+    const result = await api('/api/fiscal/config');
+    renderFiscalConfig(result.config);
+    return result.config;
   }
 
   function cents(valueToFormat) {
@@ -202,14 +335,17 @@
     setValue('emitMunicipio', company.city);
     setValue('emitUf', company.state);
     setValue('emitCep', company.zipCode);
-    setValue('ambiente', company.environment);
+    renderEnvironment(company.environment || 'homologacao');
     if (company.nfeSeries) setValue('serieNota', company.nfeSeries);
   }
 
   function fillRecipient(recipient) {
     if (!recipient) return;
     setValue('destNome', recipient.name);
-    setValue('destTipoDoc', recipient.documentType || documentType(recipient.document));
+    setValue(
+      'destTipoDoc',
+      recipient.documentType || documentType(recipient.document),
+    );
     setValue('destDoc', recipient.document);
     setValue('destIe', recipient.stateRegistration);
     setValue('destIndIe', recipient.ieIndicator || '9');
@@ -226,12 +362,12 @@
   }
 
   function fillTotals(totals) {
-    const subtotal = Number(totals?.subtotalCents ?? totals?.productsCents ?? 0);
+    const subtotal = Number(
+      totals?.subtotalCents ?? totals?.productsCents ?? 0,
+    );
     const discount = Number(totals?.discountCents || 0);
     const freight = Number(totals?.freightCents || 0);
-    const total = Number(
-      totals?.totalCents ?? subtotal - discount + freight,
-    );
+    const total = Number(totals?.totalCents ?? subtotal - discount + freight);
     document.getElementById('totalProdutos').textContent = formatMoney(
       cents(subtotal),
     );
@@ -241,7 +377,9 @@
     document.getElementById('totalFrete').textContent = formatMoney(
       cents(freight),
     );
-    document.getElementById('valorNota').textContent = formatMoney(cents(total));
+    document.getElementById('valorNota').textContent = formatMoney(
+      cents(total),
+    );
     setValue('frete', cents(freight).toFixed(2));
     setValue('valorPago', cents(total).toFixed(2));
   }
@@ -261,9 +399,15 @@
         'error',
       );
     } else if (!draft.eligibleForEmission) {
-      setStatus(draft.eligibilityMessage || 'Venda ainda nao elegivel.', 'warning');
+      setStatus(
+        draft.eligibilityMessage || 'Venda ainda nao elegivel.',
+        'warning',
+      );
     } else {
-      setStatus('Rascunho real carregado. A emissao depende de validacao fiscal.', 'success');
+      setStatus(
+        'Rascunho real carregado. A emissao depende de validacao fiscal.',
+        'success',
+      );
     }
   }
 
@@ -273,13 +417,19 @@
     state.orderId = documentData.orderId;
     setValue('numeroNota', documentData.number);
     setValue('serieNota', documentData.series);
-    setValue('ambiente', documentData.environment);
-    setValue('dataEmissao', toLocalDateTime(documentData.issuedAt || documentData.createdAt));
+    renderEnvironment(documentData.environment || 'homologacao');
+    setValue(
+      'dataEmissao',
+      toLocalDateTime(documentData.issuedAt || documentData.createdAt),
+    );
     fillCompany(documentData.payload?.issuer);
     fillRecipient(documentData.payload?.recipient);
     renderItems(documentData.payload?.items || documentData.items || []);
     fillTotals(documentData.payload?.totals);
-    setStatus(statusLabel(documentData.status, documentData.errorMessage), statusTone(documentData.status));
+    setStatus(
+      statusLabel(documentData.status, documentData.errorMessage),
+      statusTone(documentData.status),
+    );
     setBusy(false);
   }
 
@@ -336,7 +486,9 @@
 
   function createPayload() {
     if (!state.saleId) {
-      throw new Error('A emissao exige uma venda paga. Abra a pagina com saleId.');
+      throw new Error(
+        'A emissao exige uma venda paga. Abra a pagina com saleId.',
+      );
     }
     state.idempotencyKey ||= window.crypto?.randomUUID?.() || fallbackUuid();
     return {
@@ -378,7 +530,10 @@
         },
       );
       applyDocument(result.document);
-      setStatus(result.message || statusLabel(result.document.status), result.authorized ? 'success' : 'warning');
+      setStatus(
+        result.message || statusLabel(result.document.status),
+        result.authorized ? 'success' : 'warning',
+      );
     } catch (error) {
       setStatus(error.message || 'Falha no processamento fiscal.', 'error');
     } finally {
@@ -445,6 +600,166 @@
     );
   }
 
+  function setCertificateMessage(message, tone) {
+    elements.certificateActionStatus.textContent = message;
+    elements.certificateActionStatus.style.color =
+      tone === 'error' ? '#a92222' : tone === 'success' ? '#1e6d38' : '#805200';
+  }
+
+  async function saveFiscalConfig() {
+    if (state.certificateBusy) return;
+    const payload = {
+      legalName: value('configLegalName'),
+      tradeName: value('configTradeName') || undefined,
+      cnpj: value('configCnpj'),
+      stateRegistration: value('configStateRegistration') || undefined,
+      municipalRegistration: value('configMunicipalRegistration') || undefined,
+      crt: Number(value('configCrt')),
+      taxRegime: value('configTaxRegime'),
+      street: value('configStreet'),
+      number: value('configNumber'),
+      complement: value('configComplement') || undefined,
+      district: value('configDistrict'),
+      city: value('configCity'),
+      cityCodeIbge: value('configCityCode'),
+      state: value('configState').toUpperCase(),
+      zipCode: value('configZipCode'),
+      country: value('configCountry') || 'Brasil',
+      nfeSeries: value('configNfeSeries'),
+      nfceSeries: value('configNfceSeries'),
+      provider: state.fiscalConfig?.provider || 'mock',
+    };
+    setCertificateBusy(true);
+    setCertificateMessage('Salvando configuração fiscal...', 'warning');
+    try {
+      await api('/api/fiscal/config', {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+      await loadFiscalConfig();
+      setCertificateMessage('Configuração fiscal salva.', 'success');
+    } catch (error) {
+      setCertificateMessage(
+        error.message || 'Não foi possível salvar a configuração.',
+        'error',
+      );
+    } finally {
+      setCertificateBusy(false);
+    }
+  }
+
+  async function uploadCertificate() {
+    if (state.certificateBusy) return;
+    const file = elements.certificateFile.files?.[0];
+    if (!file) {
+      setCertificateMessage('Selecione um arquivo .pfx ou .p12.', 'error');
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('password', elements.certificatePassword.value);
+    setCertificateBusy(true);
+    setCertificateMessage('Enviando e validando o certificado...', 'warning');
+    try {
+      await api('/api/fiscal/certificate/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      await loadFiscalConfig();
+      elements.certificateFile.value = '';
+      setCertificateMessage(
+        'Certificado validado e armazenado com segurança.',
+        'success',
+      );
+    } catch (error) {
+      setCertificateMessage(
+        error.message || 'Falha ao enviar o certificado.',
+        'error',
+      );
+    } finally {
+      elements.certificatePassword.value = '';
+      setCertificateBusy(false);
+    }
+  }
+
+  async function validateCertificate() {
+    if (state.certificateBusy) return;
+    setCertificateBusy(true);
+    setCertificateMessage('Revalidando o certificado armazenado...', 'warning');
+    try {
+      await api('/api/fiscal/certificate/validate', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      await loadFiscalConfig();
+      setCertificateMessage('Certificado revalidado com sucesso.', 'success');
+    } catch (error) {
+      await loadFiscalConfig().catch(() => undefined);
+      setCertificateMessage(
+        error.message || 'Falha ao validar o certificado.',
+        'error',
+      );
+    } finally {
+      elements.certificatePassword.value = '';
+      setCertificateBusy(false);
+    }
+  }
+
+  async function removeCertificate() {
+    if (
+      state.certificateBusy ||
+      !window.confirm(
+        'Remover o certificado desta filial? O ambiente voltará para homologação.',
+      )
+    ) {
+      return;
+    }
+    setCertificateBusy(true);
+    setCertificateMessage('Removendo o certificado...', 'warning');
+    try {
+      await api('/api/fiscal/certificate', { method: 'DELETE' });
+      await loadFiscalConfig();
+      setCertificateMessage('Certificado removido.', 'success');
+    } catch (error) {
+      setCertificateMessage(
+        error.message || 'Falha ao remover o certificado.',
+        'error',
+      );
+    } finally {
+      elements.certificatePassword.value = '';
+      setCertificateBusy(false);
+    }
+  }
+
+  async function activateProduction() {
+    if (state.certificateBusy) return;
+    const confirmation = window.prompt(
+      'Produção emite documentos com validade fiscal. Digite ATIVAR PRODUÇÃO para confirmar:',
+      '',
+    );
+    if (confirmation === null) return;
+    setCertificateBusy(true);
+    setCertificateMessage('Validando requisitos de produção...', 'warning');
+    try {
+      await api('/api/fiscal/environment/production/activate', {
+        method: 'POST',
+        body: JSON.stringify({ confirmation }),
+      });
+      await loadFiscalConfig();
+      setCertificateMessage(
+        'Ambiente de produção ativado para esta filial.',
+        'success',
+      );
+    } catch (error) {
+      setCertificateMessage(
+        error.message || 'Produção não foi ativada.',
+        'error',
+      );
+    } finally {
+      setCertificateBusy(false);
+    }
+  }
+
   async function init() {
     elements.addItem.disabled = true;
     elements.addItem.title =
@@ -453,6 +768,24 @@
     elements.searchClient.placeholder =
       'Cadastro geral de clientes ainda nao disponivel; preencha o destinatario manualmente.';
     elements.autocomplete.replaceChildren();
+    [
+      'emitRazao',
+      'emitFantasia',
+      'emitCnpj',
+      'emitIe',
+      'emitCrt',
+      'emitEndereco',
+      'emitBairro',
+      'emitMunicipio',
+      'emitUf',
+      'emitCep',
+      'emitTelefone',
+    ].forEach((id) => {
+      const field = document.getElementById(id);
+      if (!field) return;
+      field.readOnly = true;
+      if (field.tagName === 'SELECT') field.disabled = true;
+    });
     setValue('dataEmissao', toLocalDateTime());
     setBusy(true);
     try {
@@ -462,9 +795,13 @@
       ]);
       state.profile = profile;
       state.context = context;
+      await loadFiscalConfig();
       await loadInitialSource();
     } catch (error) {
-      setStatus(error.message || 'Nao foi possivel validar o contexto fiscal.', 'error');
+      setStatus(
+        error.message || 'Nao foi possivel validar o contexto fiscal.',
+        'error',
+      );
     } finally {
       setBusy(false);
     }
@@ -482,7 +819,14 @@
   elements.consult.addEventListener('click', consult);
   elements.xml.addEventListener('click', () => download('xml'));
   elements.pdf.addEventListener('click', () => download('pdf'));
-  elements.newDocument.addEventListener('click', () => window.location.reload());
+  elements.newDocument.addEventListener('click', () =>
+    window.location.reload(),
+  );
+  elements.certificateUpload.addEventListener('click', uploadCertificate);
+  elements.certificateValidate.addEventListener('click', validateCertificate);
+  elements.certificateRemove.addEventListener('click', removeCertificate);
+  elements.activateProduction.addEventListener('click', activateProduction);
+  elements.fiscalConfigSave.addEventListener('click', saveFiscalConfig);
 
   init();
 })();

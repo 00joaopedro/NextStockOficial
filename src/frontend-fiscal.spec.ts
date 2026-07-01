@@ -2,10 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 describe('ntfe.html production fiscal integration', () => {
-  const html = readFileSync(
-    join(process.cwd(), 'public', 'ntfe.html'),
-    'utf8',
-  );
+  const html = readFileSync(join(process.cwd(), 'public', 'ntfe.html'), 'utf8');
   const script = readFileSync(
     join(process.cwd(), 'public', 'Js', 'ntfe.js'),
     'utf8',
@@ -41,5 +38,31 @@ describe('ntfe.html production fiscal integration', () => {
     expect(script).toContain('result.authorized');
     expect(script).toContain('result.message');
     expect(script).not.toContain('alert("Frontend pronto');
+  });
+
+  it('configura certificado via FormData sem definir Content-Type manualmente', () => {
+    expect(html).toContain('id="certificateFile"');
+    expect(html).toContain('id="certificatePassword"');
+    expect(script).toContain("formData.append('file', file)");
+    expect(script).toContain(
+      "formData.append('password', elements.certificatePassword.value)",
+    );
+    expect(script).toContain('options?.body instanceof FormData');
+    expect(script).toContain("elements.certificatePassword.value = ''");
+    expect(script).not.toContain('localStorage.setItem');
+  });
+
+  it('mostra ambiente somente leitura e nao envia tpAmb', () => {
+    expect(html).toContain('class="environment-badge"');
+    expect(html).not.toContain('<select id="ambiente">');
+    expect(script).toContain("production ? 'PRODUÇÃO (tpAmb=1)'");
+    expect(script).not.toContain('tpAmb:');
+  });
+
+  it('restringe controles do certificado a administrador e usa textContent', () => {
+    expect(html).toContain('id="fiscalAdminPanel" hidden');
+    expect(script).toContain('elements.adminPanel.hidden = !isAdmin()');
+    expect(script).toContain('certificateActionStatus.textContent');
+    expect(script).not.toContain('.innerHTML');
   });
 });
