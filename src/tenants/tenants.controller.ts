@@ -5,6 +5,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { TenantsService } from './tenants.service';
+import { UpdateCurrentTenantDto } from './dto/update-current-tenant.dto';
 
 @Controller('tenants')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -32,7 +33,7 @@ export class TenantsController {
   @Roles(Role.Admin)
   updateCurrent(
     @Req() req: Request,
-    @Body() body: { name?: string; slug?: string },
+    @Body() body: UpdateCurrentTenantDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.tenantsService.updateCurrent(req.user, body, selectedBranchId);

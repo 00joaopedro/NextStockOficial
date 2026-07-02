@@ -89,7 +89,7 @@ export class WebhookService {
       });
       return { received: true, processed: result.processed };
     } catch (error) {
-      await this.fail(event.id, error instanceof Error ? error.message : 'UNKNOWN');
+      await this.fail(event.id, this.safeErrorCode(error));
       throw error;
     }
   }
@@ -115,6 +115,15 @@ export class WebhookService {
       date_created: body.date_created,
       data: body.data,
     } as Prisma.InputJsonValue;
+  }
+
+  private safeErrorCode(error: unknown) {
+    if (!error || typeof error !== 'object') return 'UNKNOWN';
+    const name =
+      'name' in error && typeof error.name === 'string'
+        ? error.name
+        : 'WebhookProcessingError';
+    return name.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) || 'UNKNOWN';
   }
 
   private string(value: unknown) {

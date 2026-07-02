@@ -4,6 +4,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -60,7 +61,7 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   receipt(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -76,7 +77,7 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   printModel65(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -92,7 +93,7 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   documents(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -108,8 +109,8 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   downloadDocument(
     @Req() req: Request,
-    @Param('id') id: string,
-    @Param('documentId') documentId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
     @Query('format') format?: 'pdf' | 'xml',
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -128,7 +129,7 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   findOne(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -160,7 +161,7 @@ export class SalesController {
   @Roles(Role.Admin, Role.Vendedor)
   createFromOrder(
     @Req() req: Request,
-    @Param('orderId') orderId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
     @Body() body: CreateSaleFromOrderDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -178,7 +179,7 @@ export class SalesController {
   @Roles(Role.Admin)
   cancel(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CancelSaleDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -196,7 +197,7 @@ export class SalesController {
   @Roles(Role.Admin)
   createNfe55(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CreateSaleDocumentDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -216,7 +217,7 @@ export class SalesController {
   @Roles(Role.Admin)
   createNfce65(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CreateSaleDocumentDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,

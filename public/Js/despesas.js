@@ -601,9 +601,10 @@
     const view = document.createElement("div");
     view.className = "carousel-view";
 
-    if (currentFile.fileType === "image" && currentFile.fileUrl) {
+    const safeFileUrl = validateExpenseFileUrl(currentFile.fileUrl);
+    if (currentFile.fileType === "image" && safeFileUrl) {
       const img = document.createElement("img");
-      img.src = currentFile.fileUrl;
+      img.src = safeFileUrl;
       img.alt = currentFile.fileName || "Arquivo da despesa";
       img.onerror = () => {
         img.remove();
@@ -613,9 +614,9 @@
     } else {
       const box = appendText(view, "div", currentFile.fileType === "pdf" ? "Arquivo PDF" : "Arquivo", "file-box");
       appendText(box, "small", currentFile.fileName || currentFile.name);
-      if (currentFile.fileUrl) {
+      if (safeFileUrl) {
         const link = document.createElement("a");
-        link.href = currentFile.fileUrl;
+        link.href = safeFileUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         link.textContent = "Abrir arquivo";
@@ -642,6 +643,20 @@
     controls.append(counter, next);
     carousel.append(view, controls);
     els.detailUploadArea.appendChild(carousel);
+  }
+
+  function validateExpenseFileUrl(value) {
+    if (!value) return null;
+    try {
+      const url = new URL(String(value), window.location.origin);
+      const allowedHost =
+        url.origin === window.location.origin ||
+        url.hostname.endsWith(".supabase.co") ||
+        url.hostname.endsWith(".supabase.in");
+      return url.protocol === "https:" && allowedHost ? url.href : null;
+    } catch {
+      return null;
+    }
   }
 
   function closeDetails() {

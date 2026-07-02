@@ -1,11 +1,12 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'crypto';
 
 function secret() {
-  return (
-    process.env.BILLING_EXTERNAL_REFERENCE_SECRET ||
-    process.env.JWT_SECRET ||
-    'nextstock-local-development'
-  );
+  const configured = process.env.BILLING_EXTERNAL_REFERENCE_SECRET?.trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV !== 'production') {
+    return 'nextstock-local-development-only-change-me';
+  }
+  throw new Error('BILLING_EXTERNAL_REFERENCE_SECRET is required in production.');
 }
 
 export function createBillingExternalReference() {

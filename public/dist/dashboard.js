@@ -34,9 +34,6 @@ function formatCurrencyFromCents(value) {
 }
 function headers() {
     const output = {};
-    const token = sessionStorage.getItem("nextstockAccessToken") || localStorage.getItem("nextstockAccessToken");
-    if (token)
-        output.Authorization = `Bearer ${token}`;
     try {
         const branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
         if (branch?.id)

@@ -168,7 +168,7 @@ export class AuthService {
 
     if (error) {
       if (isConflictError(error.message)) {
-        throw new ConflictException(error.message);
+        throw new ConflictException('E-mail ou nome ja cadastrado.');
       }
 
       throw this.buildSupabaseAuthException(error);
@@ -314,11 +314,8 @@ export class AuthService {
         .deleteUser(authUser.id)
         .catch(() => undefined);
 
-      throw new InternalServerErrorException(
-        error instanceof Error
-          ? `User registration failed while creating tenant/profile: ${error.message}`
-          : 'User registration failed while creating the tenant/profile. The authentication user was rolled back.',
-      );
+      this.logger.error('Registration transaction failed; authentication user rollback requested.');
+      throw new InternalServerErrorException('Nao foi possivel concluir o cadastro.');
     }
 
     const accessToken = await this.signInAfterRegister(email, password);
@@ -557,9 +554,7 @@ export class AuthService {
       redirectTo ? { redirectTo } : undefined,
     );
 
-    if (error) {
-      throw new BadRequestException(error.message);
-    }
+    if (error) this.logger.warn('Password recovery provider request was not completed.');
 
     return {
       ok: true,
@@ -1145,22 +1140,10 @@ export class AuthService {
   }
 
   private buildSupabaseAuthException(error: SupabaseAuthError) {
-    const details = [
-      error.message,
-      error.name ? `name=${error.name}` : null,
-      error.status ? `status=${error.status}` : null,
-      error.code ? `code=${error.code}` : null,
-    ].filter(Boolean);
-
-    return new BadRequestException({
-      message: details.length
-        ? `Supabase Auth createUser failed: ${details.join(' | ')}`
-        : 'Supabase Auth createUser failed.',
-      supabaseMessage: error.message ?? null,
-      supabaseError: error.name ?? null,
-      supabaseStatus: error.status ?? null,
-      supabaseCode: error.code ?? null,
-    });
+    this.logger.warn(
+      `Supabase Auth operation rejected code=${String(error.code ?? 'unknown').replace(/[\r\n]/g, '').slice(0, 40)}`,
+    );
+    return new BadRequestException('Nao foi possivel concluir o cadastro.');
   }
 
   private async signInAfterRegister(email: string, password: string) {

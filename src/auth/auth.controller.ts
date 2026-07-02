@@ -15,7 +15,8 @@ import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
+import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import { CsrfExempt } from '../security/csrf-origin.guard';
 import { BillingExempt } from '../billing/billing-exempt.decorator';
 
 @Controller('auth')
@@ -26,6 +27,8 @@ export class AuthController {
 
   @Post('register')
   @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 8, windowMs: 60_000, includeEmail: true })
+  @CsrfExempt()
   async register(
     @Body() body: RegisterDto,
     @Res({ passthrough: true }) res: Response,
@@ -38,6 +41,9 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 60_000, includeEmail: true })
+  @CsrfExempt()
   async login(
     @Body() body: LoginDto,
     @Res({ passthrough: true }) res: Response,
@@ -50,6 +56,9 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: true })
+  @CsrfExempt()
   async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body);
   }

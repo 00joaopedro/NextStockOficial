@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsEmail,
   IsEnum,
@@ -11,7 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { OrderPaymentMethod, OrderStatus } from '@prisma/client';
+import { OrderPaymentMethod } from '@prisma/client';
 import { CreateOrderItemDto } from './create-order.dto';
 
 export class UpdateOrderDto {
@@ -39,10 +40,6 @@ export class UpdateOrderDto {
   @IsEnum(OrderPaymentMethod)
   paymentMethod?: OrderPaymentMethod;
 
-  @IsOptional()
-  @IsEnum(OrderStatus)
-  status?: OrderStatus;
-
   @Type(() => Number)
   @IsOptional()
   @IsInt()
@@ -57,6 +54,7 @@ export class UpdateOrderDto {
 
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreateOrderItemDto)
   items?: CreateOrderItemDto[];

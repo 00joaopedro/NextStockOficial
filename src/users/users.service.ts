@@ -151,10 +151,10 @@ export class UsersService {
 
     if (error) {
       if (isConflictError(error.message)) {
-        throw new ConflictException(error.message);
+        throw new ConflictException('E-mail ou nome ja cadastrado.');
       }
 
-      throw new BadRequestException(error.message);
+      throw new BadRequestException('Nao foi possivel criar o usuario.');
     }
 
     const authUser = data.user;

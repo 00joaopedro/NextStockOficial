@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -50,7 +51,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   receipt(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -61,7 +62,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   nfeDraft(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -72,7 +73,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   findOne(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -94,7 +95,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   update(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateOrderDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -106,7 +107,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   updateStatus(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateOrderStatusDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -118,7 +119,7 @@ export class OrdersController {
   @Roles(Role.Admin, Role.Vendedor)
   deliver(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -129,7 +130,7 @@ export class OrdersController {
   @Roles(Role.Admin)
   cancel(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CancelOrderDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -141,7 +142,7 @@ export class OrdersController {
   @Roles(Role.Admin)
   remove(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {

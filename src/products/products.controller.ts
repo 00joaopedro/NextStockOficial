@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -30,6 +31,7 @@ import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
+import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
 
 @Controller('products')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -103,7 +105,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   update(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateProductDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -122,7 +124,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   remove(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -134,7 +136,7 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   addImages(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CreateProductImagesDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -151,6 +153,8 @@ export class ProductsController {
   @Post(':id/images/upload')
   @Roles(Role.Admin)
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 20, windowMs: 60_000 })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -161,7 +165,7 @@ export class ProductsController {
   )
   uploadImage(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: any,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -180,8 +184,8 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   removeImage(
     @Req() req: Request,
-    @Param('id') id: string,
-    @Param('imageId') imageId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {

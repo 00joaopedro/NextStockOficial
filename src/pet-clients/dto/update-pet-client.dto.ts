@@ -1,10 +1,12 @@
+import { Type } from 'class-transformer';
 import {
   IsEmail,
-  IsObject,
   IsOptional,
   IsString,
   MaxLength,
+  ValidateNested,
 } from 'class-validator';
+import { PetClientAddressDto } from './pet-client-address.dto';
 
 export class UpdatePetClientDto {
   @IsOptional()
@@ -28,8 +30,9 @@ export class UpdatePetClientDto {
   document?: string;
 
   @IsOptional()
-  @IsObject()
-  address?: Record<string, unknown>;
+  @ValidateNested()
+  @Type(() => PetClientAddressDto)
+  address?: PetClientAddressDto;
 
   @IsOptional()
   @IsString()

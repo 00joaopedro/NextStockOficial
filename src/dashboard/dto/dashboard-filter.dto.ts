@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsIn, IsISO8601, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsIn, IsISO8601, IsOptional, IsUUID } from 'class-validator';
 
 export type DashboardPreset =
   | 'today'
@@ -29,7 +29,6 @@ export class DashboardFilterDto {
 
   @IsOptional()
   @Transform(({ value }) => String(value ?? '').trim())
-  @IsString()
-  @MaxLength(64)
+  @IsUUID()
   productId?: string;
 }

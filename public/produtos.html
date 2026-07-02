@@ -1405,12 +1405,44 @@
         params.get("mode") === "production";
     }
 
+    function safeImageUrl(value) {
+      const raw = String(value || "").trim();
+      if (/^img\/[A-Za-z0-9._/-]+$/.test(raw)) return raw;
+      try {
+        const url = new URL(raw, window.location.origin);
+        const allowedHost =
+          url.origin === window.location.origin ||
+          url.hostname.endsWith(".supabase.co") ||
+          url.hostname.endsWith(".supabase.in");
+        return url.protocol === "https:" && allowedHost ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
     function isRenderableImageUrl(value) {
-      const url = String(value || "").trim();
-      return /^https?:\/\//i.test(url) ||
-        url.startsWith("data:image/") ||
-        url.startsWith("blob:") ||
-        url.startsWith("img/");
+      return Boolean(safeImageUrl(value));
+    }
+
+    function createSafeImage(value, alt) {
+      const image = document.createElement("img");
+      image.src = safeImageUrl(value) || productImageFallback();
+      image.alt = String(alt || "Produto");
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.addEventListener("error", () => {
+        image.src = productImageFallback();
+      }, { once: true });
+      return image;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
     }
 
     function productImageFallback() {
@@ -1629,7 +1661,6 @@
       try {
         const params = new URLSearchParams({
           search: clientEmail,
-          status: "pending",
           page: "1",
           pageSize: String(maxClientOrders)
         });
@@ -1672,11 +1703,10 @@
       productContainer.innerHTML = "";
 
       if (productsLoadError) {
-        productContainer.innerHTML = `
-          <div class="empty-products">
-            ${productsLoadError}
-          </div>
-        `;
+        const message = document.createElement("div");
+        message.className = "empty-products";
+        message.textContent = productsLoadError;
+        productContainer.appendChild(message);
         pagination.innerHTML = "";
         return;
       }
@@ -1709,7 +1739,7 @@
         card.className = "product-card";
         card.dataset.id = product.id;
 
-        card.innerHTML = `
+        /* Legacy template intentionally disabled: persisted data must not enter an HTML sink.
           <img src="${product.images[0]}" alt="${product.name}" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${productImageFallback()}'">
           <h3>${product.name}</h3>
           <p>${formatMoney(product.price)}</p>
@@ -1721,12 +1751,33 @@
             </button>
           </div>
         `;
+        */
+        card.dataset.id = String(product.id || "");
+        card.appendChild(createSafeImage(product.images[0], product.name));
+        const title = document.createElement("h3");
+        title.textContent = String(product.name || "Produto");
+        card.appendChild(title);
+        const price = document.createElement("p");
+        price.textContent = formatMoney(product.price);
+        card.appendChild(price);
+        const summary = document.createElement("small");
+        summary.textContent = `${String(product.category || "Sem categoria")} • Estoque: ${Number(product.stock) || 0}`;
+        card.appendChild(summary);
+        const buttons = document.createElement("div");
+        buttons.className = "buttons";
+        const addButton = document.createElement("button");
+        addButton.type = "button";
+        addButton.className = "btn add";
+        addButton.dataset.action = "add-cart";
+        addButton.textContent = "Adicionar ao carrinho";
+        buttons.appendChild(addButton);
+        card.appendChild(buttons);
 
         card.addEventListener("click", () => {
           openProductDetails(product.id);
         });
 
-        card.querySelector('[data-action="add-cart"]').addEventListener("click", (event) => {
+        addButton.addEventListener("click", (event) => {
           event.stopPropagation();
           addToCart(product.id);
         });
@@ -1826,10 +1877,10 @@
       header.className = "cart-header";
       header.innerHTML = `
         <div class="cart-header-title">
-          Pedido de ${clientName || "cliente não informado"}
+          Pedido de ${escapeHtml(clientName) || "cliente não informado"}
         </div>
         <div class="cart-client-email">
-          Email vinculado: ${clientEmail || "email não informado"}
+          Email vinculado: ${escapeHtml(clientEmail) || "email não informado"}
         </div>
         <button class="btn success" id="finishOrderBtn">Concluído</button>
         <button class="btn cancel" id="cancelOrderBtn">Cancelar pedido</button>
@@ -1849,14 +1900,14 @@
 
           div.innerHTML = `
             <div class="cart-item-info">
-              <strong>${item.name}</strong>
+              <strong>${escapeHtml(item.name)}</strong>
               <span>Quantidade: ${item.qty}</span>
               <span>Preço total: ${formatMoney(item.price * item.qty)}</span>
             </div>
 
             <div class="cart-item-actions">
-              <button class="cart-action-btn" data-action="cart-add" data-id="${item.id}">+</button>
-              <button class="cart-action-btn remove" data-action="cart-remove" data-id="${item.id}">-</button>
+              <button class="cart-action-btn" data-action="cart-add" data-id="${escapeHtml(item.id)}">+</button>
+              <button class="cart-action-btn remove" data-action="cart-remove" data-id="${escapeHtml(item.id)}">-</button>
             </div>
           `;
 
@@ -1899,7 +1950,7 @@
       const header = document.createElement("div");
       header.className = "orders-list-header";
       header.innerHTML = `
-        <div class="orders-list-title">Pedidos de ${clientName || "cliente"}</div>
+        <div class="orders-list-title">Pedidos de ${escapeHtml(clientName) || "cliente"}</div>
         <div class="cart-client-email">Máximo de pedidos ativos: ${clientOrders.length}/${maxClientOrders}</div>
       `;
 
@@ -1916,7 +1967,7 @@
           card.className = "client-order-card";
 
           card.innerHTML = `
-            <button class="delete-order-btn" data-delete-order="${order.id}">X</button>
+            <button class="delete-order-btn" data-delete-order="${escapeHtml(order.id)}">X</button>
             <strong>${formatMoney(order.total)}</strong>
             <span>${formatDateTime(order.createdAt)}</span>
           `;
@@ -2111,13 +2162,17 @@
       orderDetailTotal.textContent = formatMoney(order.total);
       orderDetailDate.textContent = formatDateTime(order.createdAt);
 
-      orderDetailProducts.innerHTML = order.items.map(item => `
-        <div class="order-product-row">
-          <div>${item.name}</div>
-          <div>${formatMoney(item.totalPrice)}</div>
-          <div>${item.quantity}</div>
-        </div>
-      `).join("");
+      orderDetailProducts.textContent = "";
+      order.items.forEach((item) => {
+        const row = document.createElement("div");
+        row.className = "order-product-row";
+        [item.name, formatMoney(item.totalPrice), item.quantity].forEach((value) => {
+          const cell = document.createElement("div");
+          cell.textContent = String(value ?? "");
+          row.appendChild(cell);
+        });
+        orderDetailProducts.appendChild(row);
+      });
 
       clientOrderDetailOverlay.classList.add("active");
     }
@@ -2168,7 +2223,8 @@
       const images = selectedProduct.images;
       const image = images[carouselIndex];
 
-      carouselView.innerHTML = `<img src="${image}" alt="${selectedProduct.name}" decoding="async" onerror="this.onerror=null;this.src='${productImageFallback()}'">`;
+      carouselView.textContent = "";
+      carouselView.appendChild(createSafeImage(image, selectedProduct.name));
       carouselCounter.textContent = `${carouselIndex + 1} de ${images.length}`;
 
       prevImageBtn.style.visibility = images.length > 1 ? "visible" : "hidden";

@@ -119,7 +119,7 @@ export class SupabaseStorageService {
         input.expenseId,
         `${randomUUID()}-optimized.webp`,
       ].join('/');
-      const fileUrl = await this.uploadBuffer(
+      await this.uploadBuffer(
         this.getExpenseFilesBucket(),
         storagePath,
         optimized.full.buffer,
@@ -127,7 +127,10 @@ export class SupabaseStorageService {
       );
       return {
         fileName: this.withWebpExtension(originalName),
-        fileUrl,
+        fileUrl: await this.createSignedUrl(
+          this.getExpenseFilesBucket(),
+          storagePath,
+        ),
         storagePath,
         mimeType: optimized.full.mimeType,
         fileType,
@@ -149,11 +152,11 @@ export class SupabaseStorageService {
     ].join('/');
 
     const bucket = this.getExpenseFilesBucket();
-    const fileUrl = await this.uploadToBucket(bucket, storagePath, input.file);
+    await this.uploadToBucket(bucket, storagePath, input.file);
 
     return {
       fileName: originalName,
-      fileUrl,
+      fileUrl: await this.createSignedUrl(bucket, storagePath),
       storagePath,
       mimeType: input.file.mimetype || 'application/octet-stream',
       fileType,
@@ -226,13 +229,7 @@ export class SupabaseStorageService {
       return null;
     }
 
-    if (this.useSignedUrls) {
-      return this.createSignedUrl(this.getExpenseFilesBucket(), storagePath);
-    }
-
-    return this.supabase.admin.storage
-      .from(this.getExpenseFilesBucket())
-      .getPublicUrl(storagePath).data.publicUrl;
+    return this.createSignedUrl(this.getExpenseFilesBucket(), storagePath);
   }
 
   async createSignedSaleDocumentUrl(storagePath?: string | null) {

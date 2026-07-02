@@ -5,25 +5,31 @@ import {
 	IsOptional,
 	IsString,
 	IsUUID,
+	Max,
 	MaxLength,
+	Min,
 } from 'class-validator';
 import { AgendaPetStatus } from '@prisma/client';
 
 export class UpdateAgendaPetDto {
 	@IsString()
 	@IsOptional()
+	@MaxLength(120)
 	cliente?: string;
 
 	@IsString()
 	@IsOptional()
+	@MaxLength(120)
 	animal?: string;
 
 	@IsString()
 	@IsOptional()
+	@MaxLength(120)
 	atendente?: string;
 
 	@IsString()
 	@IsOptional()
+	@MaxLength(160)
 	servico?: string;
 
 	@IsDateString()
@@ -32,14 +38,18 @@ export class UpdateAgendaPetDto {
 
 	@IsString()
 	@IsOptional()
+	@MaxLength(8)
 	hora?: string;
 
 	@IsNumber()
+	@Min(0)
+	@Max(1_000_000)
 	@IsOptional()
 	preco?: number;
 
 	@IsString()
 	@IsOptional()
+	@MaxLength(1000)
 	descricao?: string;
 
 	@IsUUID()

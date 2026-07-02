@@ -90,8 +90,6 @@ function formatCurrencyFromCents(value: number | null): string {
 
 function headers(): HeadersInit {
   const output: Record<string, string> = {};
-  const token = sessionStorage.getItem("nextstockAccessToken") || localStorage.getItem("nextstockAccessToken");
-  if (token) output.Authorization = `Bearer ${token}`;
   try {
     const branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
     if (branch?.id) output["x-nextstock-branch-id"] = branch.id;

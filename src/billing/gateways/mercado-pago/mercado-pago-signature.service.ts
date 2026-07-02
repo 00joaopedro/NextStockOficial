@@ -22,6 +22,18 @@ export class MercadoPagoSignatureService {
     const timestamp = parts.ts;
     const received = parts.v1;
     if (!timestamp || !received || !/^[a-f0-9]{64}$/i.test(received)) return false;
+    const timestampMs = Number(timestamp) * 1000;
+    const toleranceMs = Number(
+      process.env.MERCADO_PAGO_WEBHOOK_TOLERANCE_SECONDS || 600,
+    ) * 1000;
+    if (
+      !Number.isFinite(timestampMs) ||
+      !Number.isFinite(toleranceMs) ||
+      toleranceMs < 1_000 ||
+      Math.abs(Date.now() - timestampMs) > toleranceMs
+    ) {
+      return false;
+    }
 
     const manifest = `id:${dataId};request-id:${requestId};ts:${timestamp};`;
     const expected = createHmac('sha256', secret).update(manifest).digest('hex');

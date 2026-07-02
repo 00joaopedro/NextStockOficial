@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -29,6 +30,7 @@ import { ExpenseQueryDto } from './dto/expense-query.dto';
 import { UpdateExpenseStatusDto } from './dto/update-expense-status.dto';
 import { UpdateExpenseDto } from './dto/update-expense.dto';
 import { ExpensesService } from './expenses.service';
+import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
 
 @Controller('expenses')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
@@ -52,8 +54,8 @@ export class ExpensesController {
   @Roles(Role.Admin, Role.Vendedor, Role.Comprador)
   downloadFile(
     @Req() req: Request,
-    @Param('id') id: string,
-    @Param('fileId') fileId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -64,7 +66,7 @@ export class ExpensesController {
   @Roles(Role.Admin, Role.Vendedor, Role.Comprador)
   findOne(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -86,7 +88,7 @@ export class ExpensesController {
   @Roles(Role.Admin, Role.Comprador)
   update(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateExpenseDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -98,7 +100,7 @@ export class ExpensesController {
   @Roles(Role.Admin)
   updateStatus(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdateExpenseStatusDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -110,7 +112,7 @@ export class ExpensesController {
   @Roles(Role.Admin)
   remove(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
@@ -119,6 +121,8 @@ export class ExpensesController {
 
   @Post(':id/files/upload')
   @Roles(Role.Admin, Role.Comprador)
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 12, windowMs: 60_000 })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -129,7 +133,7 @@ export class ExpensesController {
   )
   uploadFile(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: any,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
@@ -141,8 +145,8 @@ export class ExpensesController {
   @Roles(Role.Admin, Role.Comprador)
   removeFile(
     @Req() req: Request,
-    @Param('id') id: string,
-    @Param('fileId') fileId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('fileId', ParseUUIDPipe) fileId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {

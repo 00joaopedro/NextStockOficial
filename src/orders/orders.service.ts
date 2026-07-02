@@ -104,7 +104,7 @@ export class OrdersService {
       );
       const discountCents = Math.min(dto.discountCents ?? 0, subtotalCents);
       const totalCents = Math.max(subtotalCents - discountCents, 0);
-      const status = dto.status ?? OrderStatus.pending;
+      const status = OrderStatus.pending;
 
       const created = await tx.order.create({
         data: {
@@ -120,9 +120,9 @@ export class OrdersService {
           discountCents,
           totalCents,
           notes: clean(dto.notes),
-          deliveredAt: status === OrderStatus.delivered ? new Date() : null,
-          canceledAt: status === OrderStatus.canceled ? new Date() : null,
-          cancellationReason: status === OrderStatus.canceled ? 'Criado cancelado' : null,
+          deliveredAt: null,
+          canceledAt: null,
+          cancellationReason: null,
           createdById: user?.id,
           updatedById: user?.id,
           items: {
@@ -168,10 +168,6 @@ export class OrdersService {
         tx,
       );
       this.assertMutable(existing);
-      if (dto.status !== undefined) {
-        throw new BadRequestException('Use o endpoint de status para alterar status do pedido.');
-      }
-
       const data = this.buildUpdateData(dto, user?.id);
 
       if (dto.items) {

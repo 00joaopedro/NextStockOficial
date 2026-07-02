@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Req,
+  ParseUUIDPipe,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -15,6 +16,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UsersService } from './users.service';
+import { CreateTenantUserDto } from './dto/create-tenant-user.dto';
+import { UpdateTenantUserRoleDto } from './dto/update-tenant-user-role.dto';
 
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -35,12 +38,7 @@ export class UsersController {
   async create(
     @Req() req: Request,
     @Body()
-    body: {
-      email?: string;
-      name?: string;
-      password?: string;
-      role?: Role;
-    },
+    body: CreateTenantUserDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.usersService.create(req.user, body, selectedBranchId);
@@ -50,8 +48,8 @@ export class UsersController {
   @Roles(Role.Admin)
   async updateRole(
     @Req() req: Request,
-    @Param('userId') userId: string,
-    @Body() body: { role?: Role },
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @Body() body: UpdateTenantUserRoleDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.usersService.updateRole(req.user, userId, body.role, selectedBranchId);

@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Req,
@@ -25,6 +26,7 @@ import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { PetsService } from './pets.service';
+import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
@@ -36,7 +38,7 @@ export class PetsController {
   @Get('pet-clients/:clientId/pets')
   listByClient(
     @Req() req: Request,
-    @Param('clientId') clientId: string,
+    @Param('clientId', ParseUUIDPipe) clientId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.listByClient(req.user, clientId, selectedBranchId);
@@ -46,7 +48,7 @@ export class PetsController {
   @Roles(Role.Admin, Role.Vendedor)
   create(
     @Req() req: Request,
-    @Param('clientId') clientId: string,
+    @Param('clientId', ParseUUIDPipe) clientId: string,
     @Body() body: CreatePetDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
@@ -56,7 +58,7 @@ export class PetsController {
   @Get('pets/:id')
   findOne(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.findOne(req.user, id, selectedBranchId);
@@ -66,7 +68,7 @@ export class PetsController {
   @Roles(Role.Admin, Role.Vendedor)
   update(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: UpdatePetDto,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
@@ -77,7 +79,7 @@ export class PetsController {
   @Roles(Role.Admin)
   remove(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.remove(req.user, id, selectedBranchId);
@@ -86,7 +88,7 @@ export class PetsController {
   @Get('pets/:id/photos')
   listPhotos(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.listPhotos(req.user, id, selectedBranchId);
@@ -94,6 +96,8 @@ export class PetsController {
 
   @Post('pets/:id/photos')
   @Roles(Role.Admin, Role.Vendedor)
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 20, windowMs: 60_000 })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -104,7 +108,7 @@ export class PetsController {
   )
   addPhoto(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: any,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
@@ -115,8 +119,8 @@ export class PetsController {
   @Roles(Role.Admin, Role.Vendedor)
   removePhoto(
     @Req() req: Request,
-    @Param('id') id: string,
-    @Param('photoId') photoId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('photoId', ParseUUIDPipe) photoId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.removePhoto(req.user, id, photoId, selectedBranchId);
@@ -125,7 +129,7 @@ export class PetsController {
   @Get('pets/:id/appointments')
   listAppointments(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
     return this.petsService.listAppointments(req.user, id, selectedBranchId);

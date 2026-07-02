@@ -439,12 +439,37 @@
       }
       popup.opener = null;
       popup.document.open();
-      popup.document.write(result.html || "<p>Recibo indisponivel.</p>");
+      popup.document.write(sanitizePrintableReceipt(result.html));
       popup.document.close();
       popup.addEventListener("load", () => popup.print());
     } catch (error) {
       window.alert(error.message);
     }
+  }
+
+  function sanitizePrintableReceipt(value) {
+    const parser = new DOMParser();
+    const parsed = parser.parseFromString(
+      typeof value === "string" ? value : "<p>Recibo indisponivel.</p>",
+      "text/html",
+    );
+    parsed
+      .querySelectorAll("script, iframe, object, embed, form, input, button, link")
+      .forEach((node) => node.remove());
+    parsed.querySelectorAll("*").forEach((node) => {
+      [...node.attributes].forEach((attribute) => {
+        const name = attribute.name.toLowerCase();
+        const content = attribute.value.trim().toLowerCase();
+        if (
+          name.startsWith("on") ||
+          ((name === "href" || name === "src") &&
+            (content.startsWith("javascript:") || content.startsWith("data:")))
+        ) {
+          node.removeAttribute(attribute.name);
+        }
+      });
+    });
+    return `<!doctype html>${parsed.documentElement.outerHTML}`;
   }
 
   async function downloadDocument(saleId, documentInfo) {

@@ -169,11 +169,15 @@ export class FiscalValidationService {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {};
     }
+    if (JSON.stringify(value).length > 20_000) {
+      throw new BadRequestException('Configuracao do provider excede o limite permitido.');
+    }
     const blocked = /token|secret|password|certificate|xml/i;
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
+        .slice(0, 50)
         .filter(([key]) => !blocked.test(key))
-        .map(([key, item]) => [key, this.sanitizeProviderValue(item, blocked)]),
+        .map(([key, item]) => [key, this.sanitizeProviderValue(item, blocked, 0)]),
     );
   }
 
@@ -181,20 +185,22 @@ export class FiscalValidationService {
     return (value || '').replace(/\D/g, '');
   }
 
-  private sanitizeProviderValue(value: unknown, blocked: RegExp): unknown {
+  private sanitizeProviderValue(value: unknown, blocked: RegExp, depth: number): unknown {
+    if (depth >= 5) return null;
     if (typeof value === 'string') return value.slice(0, 1000);
     if (Array.isArray(value)) {
       return value
         .slice(0, 100)
-        .map((item) => this.sanitizeProviderValue(item, blocked));
+        .map((item) => this.sanitizeProviderValue(item, blocked, depth + 1));
     }
     if (value && typeof value === 'object') {
       return Object.fromEntries(
         Object.entries(value as Record<string, unknown>)
+          .slice(0, 50)
           .filter(([key]) => !blocked.test(key))
           .map(([key, item]) => [
             key,
-            this.sanitizeProviderValue(item, blocked),
+            this.sanitizeProviderValue(item, blocked, depth + 1),
           ]),
       );
     }

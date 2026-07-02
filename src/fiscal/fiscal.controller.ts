@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -19,6 +20,7 @@ import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PreviewMutationGuard } from '../system/guards/preview-mutation.guard';
@@ -114,6 +116,8 @@ export class FiscalController {
 
   @Post('certificate/upload')
   @Roles(Role.Admin)
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 8, windowMs: 60_000 })
   @UseInterceptors(
     FileInterceptor('file', {
       limits: {
@@ -179,7 +183,7 @@ export class FiscalController {
   @Roles(Role.Admin, Role.Vendedor)
   xml(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
@@ -196,7 +200,7 @@ export class FiscalController {
   @Roles(Role.Admin, Role.Vendedor)
   pdf(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
@@ -213,7 +217,7 @@ export class FiscalController {
   @Roles(Role.Admin, Role.Vendedor)
   findOne(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
@@ -240,7 +244,7 @@ export class FiscalController {
   @Roles(Role.Admin)
   send(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: SendFiscalDocumentDto,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
@@ -258,7 +262,7 @@ export class FiscalController {
   @Roles(Role.Admin, Role.Vendedor)
   status(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
@@ -274,7 +278,7 @@ export class FiscalController {
   @Roles(Role.Admin)
   cancel(
     @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() body: CancelFiscalDocumentDto,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,

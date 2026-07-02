@@ -206,6 +206,48 @@ The mock provider is intentionally unable to authorize or cancel a fiscal
 document. Do not switch a branch to fiscal production while its provider is
 `mock`.
 
+## Security hardening rollout
+
+Production boot validates database/Supabase configuration and additionally
+requires `CORS_ALLOWED_ORIGINS`, `PUBLIC_APP_URL` and a strong
+`BILLING_EXTERNAL_REFERENCE_SECRET`. Use HTTPS origins only. Set
+`MERCADO_PAGO_WEBHOOK_TOLERANCE_SECONDS=600` (or a reviewed lower value).
+Never reuse JWT, Supabase or Mercado Pago secrets for the billing reference
+secret.
+
+Helmet is enabled. CSP starts in report-only mode (`CSP_ENFORCE=false`) because
+legacy pages still contain inline scripts. Review CSP reports and remove the
+remaining inline scripts before enabling enforcement.
+
+Apply the additive migration `20260701020000_security_rls_hardening` with
+`npm run migrate:deploy`. It enables RLS and revokes `anon`/`authenticated`
+table access for orders, employees, suppliers, expenses and plans. Before and
+after deployment, audit the live project:
+
+```sql
+select schemaname, tablename, rowsecurity
+from pg_tables
+where schemaname = 'public'
+order by tablename;
+
+select schemaname, tablename, policyname, roles, cmd
+from pg_policies
+where schemaname = 'public'
+order by tablename, policyname;
+
+select grantee, table_name, privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and grantee in ('anon', 'authenticated', 'service_role')
+order by table_name, grantee;
+```
+
+Expense files must use a private bucket. The backend always returns short-lived
+signed URLs for those files. In-memory rate limiting is an initial safeguard
+only; use a Redis-backed limiter before running multiple Railway replicas.
+Document uploads still require an antimalware pipeline before accepting
+untrusted Office files at scale.
+
 ## Pet photo storage
 
 Pet photo object paths include `tenantId/branchId/petId`, and upload/removal is
