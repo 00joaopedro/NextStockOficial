@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { OrderPaymentMethod, SaleDocumentType } from '@prisma/client';
+import { OrderPaymentMethod } from '@prisma/client';
 
 export class CreateSaleFromOrderDto {
   @IsOptional()
@@ -10,10 +10,6 @@ export class CreateSaleFromOrderDto {
   @IsOptional()
   @IsUUID()
   paymentMachineId?: string;
-
-  @IsOptional()
-  @IsEnum(SaleDocumentType)
-  documentType?: SaleDocumentType;
 
   @Type(() => Number)
   @IsOptional()

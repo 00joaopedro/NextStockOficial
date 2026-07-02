@@ -26,6 +26,7 @@ export interface FiscalProvider {
   readonly isRealProvider: boolean;
   buildXml(document: FiscalProviderDocument): Promise<Buffer | null>;
   sendNfe55(document: FiscalProviderDocument): Promise<FiscalProviderResult>;
+  sendNfce65(document: FiscalProviderDocument): Promise<FiscalProviderResult>;
   queryStatus(document: FiscalProviderDocument): Promise<FiscalProviderResult>;
   cancel(
     document: FiscalProviderDocument,

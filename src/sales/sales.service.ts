@@ -24,6 +24,7 @@ import { CreateSaleDocumentDto } from './dto/create-sale-document.dto';
 import { CreateSaleFromOrderDto } from './dto/create-sale-from-order.dto';
 import { CreateSaleDto, CreateSaleItemDto } from './dto/create-sale.dto';
 import { SaleQueryDto } from './dto/sale-query.dto';
+import { InternalReceiptService } from './internal-receipt.service';
 
 const SALE_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' as const } },
@@ -31,7 +32,9 @@ const SALE_INCLUDE = {
   documents: { orderBy: { createdAt: 'desc' as const } },
 } satisfies Prisma.SaleInclude;
 
-type SaleWithRelations = Prisma.SaleGetPayload<{ include: typeof SALE_INCLUDE }>;
+type SaleWithRelations = Prisma.SaleGetPayload<{
+  include: typeof SALE_INCLUDE;
+}>;
 type PrismaTx = Prisma.TransactionClient;
 
 const READ_ROLES = [Role.Admin, Role.Vendedor];
@@ -43,6 +46,7 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
     private readonly storage: SupabaseStorageService,
+    private readonly internalReceipt: InternalReceiptService,
   ) {}
 
   async findAll(
@@ -93,7 +97,11 @@ export class SalesService {
       devContextMode,
       false,
     );
-    const sale = await this.findScopedSale(context.tenantId, context.branchId!, id);
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     return { sale: this.formatSale(sale) };
   }
 
@@ -165,12 +173,6 @@ export class SalesService {
           pricedItems,
         );
 
-        const documentType = dto.documentType ?? SaleDocumentType.receipt;
-        const documentStatus =
-          documentType === SaleDocumentType.receipt
-            ? SaleDocumentStatus.authorized
-            : SaleDocumentStatus.draft;
-
         return tx.sale.create({
           data: {
             tenantId: context.tenantId,
@@ -182,7 +184,7 @@ export class SalesService {
             paymentMethod: dto.paymentMethod,
             paymentMachineId: paymentMachine?.id,
             paymentMachineNameSnapshot: paymentMachine?.name,
-            documentType,
+            documentType: SaleDocumentType.receipt,
             status: SaleStatus.paid,
             subtotalCents,
             discountType: discount.type,
@@ -226,10 +228,13 @@ export class SalesService {
             },
             documents: {
               create: {
-                type: documentType,
-                status: documentStatus,
-                issuedAt:
-                  documentType === SaleDocumentType.receipt ? new Date() : null,
+                tenantId: context.tenantId,
+                branchId: context.branchId!,
+                type: SaleDocumentType.receipt,
+                status: SaleDocumentStatus.internal_issued,
+                issuedAt: new Date(),
+                createdById: context.userId,
+                updatedById: context.userId,
               },
             },
           },
@@ -338,12 +343,6 @@ export class SalesService {
           order.totalCents,
         );
 
-        const documentType = dto.documentType ?? SaleDocumentType.receipt;
-        const documentStatus =
-          documentType === SaleDocumentType.receipt
-            ? SaleDocumentStatus.authorized
-            : SaleDocumentStatus.draft;
-
         const created = await tx.sale.create({
           data: {
             tenantId: context.tenantId,
@@ -355,7 +354,7 @@ export class SalesService {
             paymentMethod,
             paymentMachineId: paymentMachine?.id,
             paymentMachineNameSnapshot: paymentMachine?.name,
-            documentType,
+            documentType: SaleDocumentType.receipt,
             status: SaleStatus.paid,
             subtotalCents: order.subtotalCents,
             discountCents: order.discountCents,
@@ -377,7 +376,8 @@ export class SalesService {
                 unitPriceCents: item.unitPriceCents,
                 totalPriceCents: item.totalPriceCents,
                 unitCostCentsSnapshot: item.product.costPriceCents,
-                totalCostCentsSnapshot: item.product.costPriceCents * item.quantity,
+                totalCostCentsSnapshot:
+                  item.product.costPriceCents * item.quantity,
               })),
             },
             payments: {
@@ -397,10 +397,14 @@ export class SalesService {
             },
             documents: {
               create: {
-                type: documentType,
-                status: documentStatus,
-                issuedAt:
-                  documentType === SaleDocumentType.receipt ? new Date() : null,
+                tenantId: context.tenantId,
+                branchId: context.branchId!,
+                orderId: order.id,
+                type: SaleDocumentType.receipt,
+                status: SaleDocumentStatus.internal_issued,
+                issuedAt: new Date(),
+                createdById: context.userId,
+                updatedById: context.userId,
               },
             },
           },
@@ -510,8 +514,21 @@ export class SalesService {
       devContextMode,
       false,
     );
-    const sale = await this.findScopedSale(context.tenantId, context.branchId!, id);
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     const formatted = this.formatSale(sale);
+    const printed = await this.internalReceipt.issueAndRender({
+      sale,
+      context: {
+        userId: context.userId,
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+      },
+      origin: 'history',
+    });
 
     return {
       ok: true,
@@ -519,7 +536,12 @@ export class SalesService {
         title: 'NextStock - Recibo de Venda',
         sale: formatted,
       },
-      html: this.buildReceiptHtml(formatted),
+      mode: 'internal_receipt',
+      printable: true,
+      documentId: printed.documentId,
+      printEvent: printed.eventType,
+      printNumber: printed.printNumber,
+      html: printed.html,
     };
   }
 
@@ -549,13 +571,27 @@ export class SalesService {
     }
 
     const formatted = this.formatSale(sale);
+    const printed = await this.internalReceipt.issueAndRender({
+      sale,
+      context: {
+        userId: context.userId,
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+      },
+      origin: 'order',
+    });
     return {
       ok: true,
       receipt: {
         title: 'NextStock - Recibo de Venda',
         sale: formatted,
       },
-      html: this.buildReceiptHtml(formatted),
+      mode: 'internal_receipt',
+      printable: true,
+      documentId: printed.documentId,
+      printEvent: printed.eventType,
+      printNumber: printed.printNumber,
+      html: printed.html,
     };
   }
 
@@ -571,7 +607,11 @@ export class SalesService {
       devContextMode,
       false,
     );
-    const sale = await this.findScopedSale(context.tenantId, context.branchId!, id);
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     return {
       items: sale.documents.map((document) => this.formatDocument(document)),
     };
@@ -597,7 +637,11 @@ export class SalesService {
       true,
       [Role.Admin],
     );
-    const sale = await this.findScopedSale(context.tenantId, context.branchId!, id);
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     if (sale.status !== SaleStatus.paid) {
       throw new BadRequestException(
         'Documento fiscal so pode ser preparado para venda paga.',
@@ -649,7 +693,11 @@ export class SalesService {
       devContextMode,
       false,
     );
-    const sale = await this.findScopedSale(context.tenantId, context.branchId!, id);
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     const document = sale.documents.find((item) => item.id === documentId);
     if (!document) {
       throw new NotFoundException('Documento da venda nao encontrado.');
@@ -660,7 +708,7 @@ export class SalesService {
         ? document.xmlPath
         : format === 'pdf'
           ? document.pdfPath
-          : document.pdfPath ?? document.xmlPath;
+          : (document.pdfPath ?? document.xmlPath);
     if (!storagePath) {
       throw new NotFoundException(
         'Documento ainda nao possui arquivo fiscal armazenado.',
@@ -802,7 +850,9 @@ export class SalesService {
         );
       }
       if (product.quantity < item.quantity) {
-        throw new BadRequestException(`Estoque insuficiente para ${product.name}.`);
+        throw new BadRequestException(
+          `Estoque insuficiente para ${product.name}.`,
+        );
       }
       return {
         productId: product.id,
@@ -993,10 +1043,8 @@ export class SalesService {
       );
     }
     return {
-      type:
-        legacyDiscount > 0 ? SaleDiscountType.fixed : null,
-      value:
-        legacyDiscount > 0 ? new Prisma.Decimal(legacyDiscount) : null,
+      type: legacyDiscount > 0 ? SaleDiscountType.fixed : null,
+      value: legacyDiscount > 0 ? new Prisma.Decimal(legacyDiscount) : null,
       discountCents: legacyDiscount,
     };
   }
@@ -1041,10 +1089,7 @@ export class SalesService {
       discountCents: sale.discountCents,
       totalCents: sale.totalCents,
       paidCents: sale.paidCents ?? sale.totalCents,
-      changeCents:
-        sale.paidCents === null
-          ? 0
-          : sale.changeCents,
+      changeCents: sale.paidCents === null ? 0 : sale.changeCents,
       subtotal: centsToMoneyNumber(sale.subtotalCents),
       discount: centsToMoneyNumber(sale.discountCents),
       total: centsToMoneyNumber(sale.totalCents),
@@ -1127,53 +1172,6 @@ export class SalesService {
       updatedAt: document.updatedAt,
     };
   }
-
-  private buildReceiptHtml(sale: ReturnType<SalesService['formatSale']>) {
-    const rows = sale.items
-      .map(
-        (item) => `
-          <tr>
-            <td>${escapeHtml(item.productNameSnapshot)}</td>
-            <td>${item.quantity}</td>
-            <td>${formatCurrency(item.unitPriceCents)}</td>
-            <td>${formatCurrency(item.totalPriceCents)}</td>
-          </tr>`,
-      )
-      .join('');
-
-    return `<!doctype html>
-<html lang="pt-BR">
-<head>
-  <meta charset="utf-8">
-  <title>Recibo ${escapeHtml(sale.id)}</title>
-  <style>
-    body{font-family:Arial,sans-serif;color:#172536;margin:32px}
-    h1{font-size:22px;margin:0 0 8px}
-    p{margin:4px 0}
-    table{width:100%;border-collapse:collapse;margin-top:20px}
-    th,td{border-bottom:1px solid #dbe4ea;padding:8px;text-align:left}
-    .total{text-align:right;font-size:18px;font-weight:bold;margin-top:18px}
-  </style>
-</head>
-<body>
-  <h1>NextStock - Recibo de Venda</h1>
-  <p>Venda: ${escapeHtml(sale.id)}</p>
-  <p>Vendedor: ${escapeHtml(sale.sellerNameSnapshot)}</p>
-  <p>Data: ${escapeHtml(sale.soldAt.toISOString())}</p>
-  <p>Pagamento: ${escapeHtml(sale.paymentMethod)}</p>
-  ${sale.paymentMachineNameSnapshot ? `<p>Maquininha: ${escapeHtml(sale.paymentMachineNameSnapshot)}</p>` : ''}
-  <table>
-    <thead><tr><th>Produto</th><th>Qtd.</th><th>Unitario</th><th>Total</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <p>Subtotal: ${formatCurrency(sale.subtotalCents)}</p>
-  <p>Desconto: ${formatCurrency(sale.discountCents)}</p>
-  <p class="total">Total: ${formatCurrency(sale.totalCents)}</p>
-  <p>Valor pago: ${formatCurrency(sale.paidCents)}</p>
-  <p>Troco: ${formatCurrency(sale.changeCents)}</p>
-</body>
-</html>`;
-  }
 }
 
 function clean(value?: string | null) {
@@ -1183,20 +1181,4 @@ function clean(value?: string | null) {
 
 function centsToMoneyNumber(value: number) {
   return Number((value / 100).toFixed(2));
-}
-
-function formatCurrency(value: number) {
-  return (value / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  });
-}
-
-function escapeHtml(value: unknown) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }

@@ -34,6 +34,13 @@ describe('historico.html production sales integration', () => {
     expect(script).toContain('x-nextstock-branch-id');
   });
 
+  it('diferencia recibo interno dos status fiscais', () => {
+    expect(script).toContain('Recibo interno — sem validade fiscal');
+    expect(script).toContain('internal_issued: "Recibo interno emitido"');
+    expect(script).toContain('Reimprimir recibo interno');
+    expect(html).toContain('Recibo interno — sem validade fiscal');
+  });
+
   it('renderiza dados de API com textContent', () => {
     expect(script).toContain('element.textContent');
     expect(script).not.toContain('card.innerHTML');

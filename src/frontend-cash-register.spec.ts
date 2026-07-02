@@ -62,10 +62,26 @@ describe('caixa.html production PDV integration', () => {
   });
 
   it('usa saleId para recibo e nota fiscal', () => {
-    expect(script).toContain('/receipt');
+    expect(script).toContain('/model-65/print');
     expect(script).toContain('ntfe.html?saleId=');
     expect(script).not.toContain('nextstockNotaFiscalPendente');
     expect(script).not.toContain('nextstockUltimaVendaPaga');
+  });
+
+  it('nao permite que o navegador escolha tipo ou ambiente fiscal', () => {
+    expect(script).not.toContain('documentType:');
+    expect(script).not.toContain('tpAmb');
+    expect(script).not.toContain('forceInternal');
+    expect(script).not.toContain('isFiscal');
+    expect(script).toContain('state.printing');
+    expect(script).toContain('result.mode === "nfce65"');
+    expect(script).toContain('result.mode !== "internal_receipt"');
+  });
+
+  it('rotula fallback como recibo interno sem validade fiscal', () => {
+    expect(html).toContain('IMPRIMIR RECIBO INTERNO');
+    expect(html).toContain('sem validade fiscal');
+    expect(script).toContain('Recibo interno gerado');
   });
 
   it('renderiza dados de API com DOM seguro e bloqueia granel', () => {

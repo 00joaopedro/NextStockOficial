@@ -12,11 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import {
-  OrderPaymentMethod,
-  SaleDiscountType,
-  SaleDocumentType,
-} from '@prisma/client';
+import { OrderPaymentMethod, SaleDiscountType } from '@prisma/client';
 
 export class CreateSaleItemDto {
   @IsUUID()
@@ -46,10 +42,6 @@ export class CreateSaleDto {
   @IsOptional()
   @IsUUID()
   paymentMachineId?: string;
-
-  @IsOptional()
-  @IsEnum(SaleDocumentType)
-  documentType?: SaleDocumentType;
 
   @Type(() => Number)
   @IsOptional()

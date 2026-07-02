@@ -1424,6 +1424,7 @@ enum SaleDocumentStatus {
   draft
   processing
   authorized
+  internal_issued
   rejected
   canceled
 }

@@ -29,9 +29,18 @@
   };
 
   const DOCUMENT_LABELS = {
-    receipt: "Recibo interno",
+    receipt: "Recibo interno — sem validade fiscal",
     nfce65: "NFC-e 65",
     nfe55: "NF-e 55",
+  };
+
+  const DOCUMENT_STATUS_LABELS = {
+    draft: "Rascunho",
+    processing: "Processamento",
+    authorized: "Autorizada",
+    internal_issued: "Recibo interno emitido",
+    rejected: "Rejeitada",
+    canceled: "Cancelada",
   };
 
   const STATUS_LABELS = {
@@ -106,7 +115,9 @@
       throw new Error("Sessao expirada.");
     }
     if (!response.ok) {
-      throw new Error(body.message || "Nao foi possivel consultar o historico.");
+      throw new Error(
+        body.message || "Nao foi possivel consultar o historico.",
+      );
     }
     return body;
   }
@@ -135,7 +146,9 @@
     const context = await contextResponse.json();
     state.selectedBranch = context.selectedBranch || context.branch || null;
     if (!state.selectedBranch?.id) {
-      throw new Error("Selecione uma filial valida para consultar o historico.");
+      throw new Error(
+        "Selecione uma filial valida para consultar o historico.",
+      );
     }
 
     sessionStorage.setItem("nextstockBackendMode", "production");
@@ -199,10 +212,13 @@
       (documentInfo) =>
         documentInfo.type === "nfe55" || documentInfo.type === "nfce65",
     );
-    return fiscal || (sale.documents || [])[0] || {
-      type: sale.documentType || "receipt",
-      status: "draft",
-    };
+    return (
+      fiscal ||
+      (sale.documents || [])[0] || {
+        type: sale.documentType || "receipt",
+        status: "draft",
+      }
+    );
   }
 
   function createInfoBox(label, value) {
@@ -368,7 +384,14 @@
           "div",
           DOCUMENT_LABELS[documentInfo.type] || documentInfo.type,
         );
-        appendText(row, "div", documentInfo.status);
+        appendText(
+          row,
+          "div",
+          documentInfo.type === "receipt"
+            ? "Recibo interno emitido — sem validade fiscal"
+            : DOCUMENT_STATUS_LABELS[documentInfo.status] ||
+                documentInfo.status,
+        );
         appendText(row, "div", documentInfo.number || "Sem numero");
         if (documentInfo.hasPdf || documentInfo.hasXml) {
           const button = appendText(row, "button", "Baixar", "secondary-btn");
@@ -385,7 +408,7 @@
     }
 
     els.printBtn.classList.add("show");
-    els.printBtn.textContent = "Imprimir recibo";
+    els.printBtn.textContent = "Reimprimir recibo interno";
     els.printBtn.onclick = () => printReceipt(sale.id);
     els.overlay.classList.add("active");
   }

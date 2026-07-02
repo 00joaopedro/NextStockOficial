@@ -47,6 +47,10 @@ const DOCUMENT_INCLUDE = {
 
 const SALE_FISCAL_INCLUDE = {
   order: true,
+  documents: {
+    where: { deletedAt: null },
+    select: { id: true, type: true, status: true },
+  },
   payments: { orderBy: { createdAt: 'asc' as const } },
   items: {
     orderBy: { createdAt: 'asc' as const },
@@ -215,6 +219,15 @@ export class FiscalService {
       context.branchId!,
       dto.saleId,
     );
+    if (
+      sale.documents.some(
+        (document) => document.type === SaleDocumentType.receipt,
+      )
+    ) {
+      throw new BadRequestException(
+        'Venda com recibo interno nao pode gerar NF-e 55 automaticamente.',
+      );
+    }
     const config = await this.loadConfig(context.tenantId, context.branchId!);
     this.validation.assertSaleEligible(sale);
     this.validation.assertConfig(config);

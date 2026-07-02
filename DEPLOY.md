@@ -159,6 +159,11 @@ Do not mass-assign legacy rows to the first branch of a tenant.
 Apply `20260613000000_fiscal_nfe_production_structure` before enabling the new
 `/api/fiscal` routes. Then:
 
+Apply `20260701010000_internal_receipt_status` after the fiscal structure. It
+adds `internal_issued`, backfills legacy `receipt/authorized` rows and installs
+a non-fiscal check for new internal receipts. Run the fiscal and sales-history
+audit SQL after deployment.
+
 1. Create a private Supabase Storage bucket named `sale-documents`.
 2. Set `SUPABASE_STORAGE_BUCKET_SALE_DOCUMENTS=sale-documents` in Railway.
 3. Create the branch fiscal configuration through

@@ -39,6 +39,7 @@ SELECT sd.id, sd.sale_id, sd.status, sd.access_key, sd.protocol,
        sd.xml_path, sd.pdf_path
 FROM sale_documents sd
 WHERE sd.status::text = 'authorized'
+  AND sd.type::text IN ('nfce65', 'nfe55')
   AND (
     NULLIF(sd.access_key, '') IS NULL
     OR NULLIF(sd.protocol, '') IS NULL
@@ -139,6 +140,24 @@ WHERE deleted_at IS NULL
       OR certificate_validation_status::text <> 'valid'
       OR certificate_expires_at <= NOW()
     )
+  );
+
+SELECT id, sale_id, tenant_id, branch_id, status, model, number, series,
+       access_key, protocol, provider, provider_ref, xml_path, pdf_path
+FROM sale_documents
+WHERE type::text = 'receipt'
+  AND deleted_at IS NULL
+  AND (
+    status::text <> 'internal_issued'
+    OR model IS NOT NULL
+    OR number IS NOT NULL
+    OR series IS NOT NULL
+    OR access_key IS NOT NULL
+    OR protocol IS NOT NULL
+    OR provider IS NOT NULL
+    OR provider_ref IS NOT NULL
+    OR xml_path IS NOT NULL
+    OR pdf_path IS NOT NULL
   );
 
 SELECT tenant_id, branch_id, COUNT(*) AS active_configs

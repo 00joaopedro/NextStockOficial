@@ -88,5 +88,20 @@ describe('MockFiscalProvider', () => {
     expect(provider.isRealProvider).toBe(false);
     expect(result.status).toBe(SaleDocumentStatus.processing);
     expect(result.status).not.toBe(SaleDocumentStatus.authorized);
+
+    const nfce = await provider.sendNfce65({
+      documentId: 'document-65',
+      model: '65',
+      environment: FiscalEnvironment.homologacao,
+      tpAmb: 2,
+      series: '1',
+      number: '1',
+      payload: {},
+    });
+    expect(nfce.status).not.toBe(SaleDocumentStatus.authorized);
+    expect(nfce.accessKey).toBeUndefined();
+    expect(nfce.protocol).toBeUndefined();
+    expect(nfce.xml).toBeUndefined();
+    expect(nfce.pdf).toBeUndefined();
   });
 });

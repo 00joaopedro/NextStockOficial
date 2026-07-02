@@ -29,7 +29,9 @@
 
   function getSelectedBranch() {
     try {
-      return JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
+      return JSON.parse(
+        sessionStorage.getItem("nextstockSelectedBranch") || "null",
+      );
     } catch {
       return null;
     }
@@ -39,8 +41,12 @@
     let branch = null;
     let user = null;
     try {
-      branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
-      user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
+      branch = JSON.parse(
+        sessionStorage.getItem("nextstockSelectedBranch") || "null",
+      );
+      user = JSON.parse(
+        sessionStorage.getItem("nextstockAuthenticatedUser") || "null",
+      );
     } catch {
       branch = null;
       user = null;
@@ -99,10 +105,16 @@
 
     sessionStorage.setItem("nextstockBackendMode", "production");
     if (profile.user) {
-      sessionStorage.setItem("nextstockAuthenticatedUser", JSON.stringify(profile.user));
+      sessionStorage.setItem(
+        "nextstockAuthenticatedUser",
+        JSON.stringify(profile.user),
+      );
     }
     if (context.selectedBranch) {
-      sessionStorage.setItem("nextstockSelectedBranch", JSON.stringify(context.selectedBranch));
+      sessionStorage.setItem(
+        "nextstockSelectedBranch",
+        JSON.stringify(context.selectedBranch),
+      );
     }
 
     if (!context.selectedBranch?.id) {
@@ -215,22 +227,30 @@
       `;
 
       card.addEventListener("click", () => openOrderDetails(order.id));
-      card.querySelector('[data-action="delivered"]').addEventListener("click", (event) => {
-        event.stopPropagation();
-        markAsDelivered(order.id);
-      });
-      card.querySelector('[data-action="cancel"]').addEventListener("click", (event) => {
-        event.stopPropagation();
-        cancelOrder(order.id);
-      });
-      card.querySelector('[data-action="print"]').addEventListener("click", (event) => {
-        event.stopPropagation();
-        printReceipt(order.id);
-      });
-      card.querySelector('[data-action="nfe"]').addEventListener("click", (event) => {
-        event.stopPropagation();
-        sendToNfe(order.id);
-      });
+      card
+        .querySelector('[data-action="delivered"]')
+        .addEventListener("click", (event) => {
+          event.stopPropagation();
+          markAsDelivered(order.id);
+        });
+      card
+        .querySelector('[data-action="cancel"]')
+        .addEventListener("click", (event) => {
+          event.stopPropagation();
+          cancelOrder(order.id);
+        });
+      card
+        .querySelector('[data-action="print"]')
+        .addEventListener("click", (event) => {
+          event.stopPropagation();
+          printReceipt(order.id);
+        });
+      card
+        .querySelector('[data-action="nfe"]')
+        .addEventListener("click", (event) => {
+          event.stopPropagation();
+          sendToNfe(order.id);
+        });
 
       ordersContainer.appendChild(card);
     });
@@ -269,13 +289,17 @@
     const data = await apiFetch(`/orders/${orderId}`);
     const order = data.order;
     detailTitle.textContent = `Produtos do pedido - ${order.customerName}`;
-    productsList.innerHTML = order.items.map((item) => `
+    productsList.innerHTML = order.items
+      .map(
+        (item) => `
       <div class="product-row">
         <div><strong>${escapeHtml(item.name)}</strong></div>
         <div>${item.quantity}</div>
         <div>${formatMoney(item.totalPrice)}</div>
       </div>
-    `).join("");
+    `,
+      )
+      .join("");
     orderDetailOverlay.classList.add("active");
   }
 
@@ -287,7 +311,8 @@
   async function cancelOrder(orderId) {
     const confirmCancel = confirm("Deseja cancelar este pedido?");
     if (!confirmCancel) return;
-    const cancellationReason = prompt("Motivo do cancelamento (opcional):") || "";
+    const cancellationReason =
+      prompt("Motivo do cancelamento (opcional):") || "";
     await apiFetch(`/orders/${orderId}/cancel`, {
       method: "PATCH",
       body: JSON.stringify({ cancellationReason }),
@@ -297,14 +322,32 @@
 
   async function printReceipt(orderId) {
     const data = await apiFetch(`/orders/${orderId}/receipt`);
+    if (data.html) {
+      const frame = document.createElement("iframe");
+      frame.hidden = true;
+      document.body.appendChild(frame);
+      frame.contentDocument.open();
+      frame.contentDocument.write(data.html);
+      frame.contentDocument.close();
+      window.setTimeout(() => {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        window.setTimeout(() => frame.remove(), 1000);
+      }, 50);
+      return;
+    }
     const order = data.receipt.order;
-    const rows = order.items.map((item) => `
+    const rows = order.items
+      .map(
+        (item) => `
       <tr>
         <td>${escapeHtml(item.name)}</td>
         <td>${item.quantity}</td>
         <td>${formatMoney(item.totalPrice)}</td>
       </tr>
-    `).join("");
+    `,
+      )
+      .join("");
 
     printArea.innerHTML = `
       <div>
@@ -346,18 +389,24 @@
   }
 
   function formatPayment(value) {
-    return {
-      pix: "PIX",
-      credit_card: "Cartão de crédito",
-      debit_card: "Cartão de débito",
-      cash: "Dinheiro",
-      other: "Outro",
-    }[value] || value || "Outro";
+    return (
+      {
+        pix: "PIX",
+        credit_card: "Cartão de crédito",
+        debit_card: "Cartão de débito",
+        cash: "Dinheiro",
+        other: "Outro",
+      }[value] ||
+      value ||
+      "Outro"
+    );
   }
 
   function resetAndLoad() {
     currentPage = 1;
-    loadOrders().catch((error) => showMessage(error.message || "Não foi possível carregar pedidos."));
+    loadOrders().catch((error) =>
+      showMessage(error.message || "Não foi possível carregar pedidos."),
+    );
   }
 
   searchInput.addEventListener("input", resetAndLoad);
@@ -370,5 +419,7 @@
 
   validateContext()
     .then(loadOrders)
-    .catch((error) => showMessage(error.message || "Não foi possível validar a sessão."));
+    .catch((error) =>
+      showMessage(error.message || "Não foi possível validar a sessão."),
+    );
 })();

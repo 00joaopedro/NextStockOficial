@@ -150,10 +150,20 @@ estoque na propria transacao.
 
 Recibos internos podem ser impressos pela API. NFC-e 65 e NF-e 55 permanecem em
 `draft` ate existir integracao real com um provedor fiscal/SEFAZ; o backend nao
-marca documentos fiscais como autorizados por simulacao. A integracao do
-`caixa.html` com `POST /api/sales` e a criacao de movimentos financeiros ficam
-como etapa separada, pois o caixa atual ainda nao possui um dominio financeiro
-persistido.
+marca documentos fiscais como autorizados por simulacao.
+
+### Recibo interno e modelo 65
+
+`POST /api/sales/:id/model-65/print` decide o modo exclusivamente no backend.
+Sem certificado A1 valido, com provider mock, em falha fiscal ou apos timeout de
+5 segundos, retorna `mode=internal_receipt` e HTML com a tarja
+`RECIBO INTERNO — SEM VALIDADE FISCAL`. Esse documento usa
+`type=receipt/status=internal_issued`, nao consome sequencia fiscal e nunca
+possui chave, protocolo, XML, PDF ou QR Code SEFAZ.
+
+Cada impressao/reimpressao cria um `FiscalDocumentEvent`. O endpoint legado
+`GET /api/sales/:id/receipt` continua disponivel para historico e pedidos.
+O adapter NFC-e real ainda nao existe; o provider mock nunca autoriza modelo 65.
 
 ## Producao
 

@@ -1,4 +1,7 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import {
   FiscalEnvironment,
   OrderStatus,
@@ -212,12 +215,35 @@ describe('FiscalService', () => {
     });
 
     await expect(
-      service.sendDocument(
-        user,
-        '77777777-7777-7777-7777-777777777777',
-        {},
-      ),
+      service.sendDocument(user, '77777777-7777-7777-7777-777777777777', {}),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
     expect(sequence.allocate).not.toHaveBeenCalled();
+  });
+
+  it('nao converte automaticamente venda com recibo interno em NF-e 55', async () => {
+    const { service, prisma } = makeService();
+    prisma.saleDocument.findFirst.mockResolvedValueOnce(null);
+    prisma.sale.findFirst.mockResolvedValueOnce({
+      id: '88888888-8888-8888-8888-888888888888',
+      status: SaleStatus.paid,
+      order: null,
+      payments: [],
+      items: [],
+      documents: [
+        {
+          id: 'receipt-id',
+          type: SaleDocumentType.receipt,
+          status: SaleDocumentStatus.internal_issued,
+        },
+      ],
+    });
+
+    await expect(
+      service.createDocument(user, {
+        saleId: '88888888-8888-8888-8888-888888888888',
+        idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        recipient: {} as any,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

@@ -101,7 +101,7 @@ describe('SalesService', () => {
         number: null,
         series: null,
         accessKey: null,
-        status: SaleDocumentStatus.authorized,
+        status: SaleDocumentStatus.internal_issued,
         xmlPath: null,
         pdfPath: null,
         issuedAt: new Date('2026-06-12T10:00:00.000Z'),
@@ -166,13 +166,27 @@ describe('SalesService', () => {
     const storage = {
       createSignedSaleDocumentUrl: jest.fn(),
     } as any;
+    const internalReceipt = {
+      issueAndRender: jest.fn().mockResolvedValue({
+        documentId: sale.documents[0].id,
+        eventType: 'internal_receipt_printed',
+        printNumber: 1,
+        html: '<html>RECIBO INTERNO — SEM VALIDADE FISCAL</html>',
+      }),
+    } as any;
 
     return {
-      service: new SalesService(prisma, tenantContext, storage),
+      service: new SalesService(
+        prisma,
+        tenantContext,
+        storage,
+        internalReceipt,
+      ),
       prisma,
       tx,
       tenantContext,
       storage,
+      internalReceipt,
     };
   }
 
@@ -195,6 +209,25 @@ describe('SalesService', () => {
     expect(tenantContext.resolve).toHaveBeenCalledWith(
       user,
       expect.not.objectContaining({ expectedSystemType: expect.anything() }),
+    );
+  });
+
+  it('mantem endpoint legado de recibo usando o servico interno auditado', async () => {
+    const { service, prisma, internalReceipt } = makeService();
+    prisma.sale.findFirst.mockResolvedValueOnce(sale);
+    await expect(service.receipt(user, sale.id)).resolves.toMatchObject({
+      mode: 'internal_receipt',
+      printable: true,
+      html: expect.stringContaining('RECIBO INTERNO'),
+    });
+    expect(internalReceipt.issueAndRender).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: 'history',
+        context: expect.objectContaining({
+          tenantId: context.tenantId,
+          branchId: context.branchId,
+        }),
+      }),
     );
   });
 
@@ -265,9 +298,9 @@ describe('SalesService', () => {
       totalCents: 3000,
       items: sale.items.map((item) => ({
         ...item,
-          product: {
-            costPriceCents: 900,
-            ncm: '23091000',
+        product: {
+          costPriceCents: 900,
+          ncm: '23091000',
           cfopDefault: '5102',
           unit: 'UN',
           origin: '0',
@@ -281,10 +314,7 @@ describe('SalesService', () => {
     });
 
     await expect(
-      service.createFromOrder(
-        user,
-        '99999999-9999-9999-9999-999999999999',
-      ),
+      service.createFromOrder(user, '99999999-9999-9999-9999-999999999999'),
     ).resolves.toMatchObject({
       ok: true,
       idempotent: false,
@@ -310,10 +340,7 @@ describe('SalesService', () => {
     });
 
     await expect(
-      service.createFromOrder(
-        user,
-        '99999999-9999-9999-9999-999999999999',
-      ),
+      service.createFromOrder(user, '99999999-9999-9999-9999-999999999999'),
     ).resolves.toMatchObject({ idempotent: true });
     expect(tx.sale.create).not.toHaveBeenCalled();
     expect(tx.product.updateMany).not.toHaveBeenCalled();
@@ -436,6 +463,27 @@ describe('SalesService', () => {
     ).resolves.toMatchObject({
       sale: { paidCents: 5000, changeCents: 2000 },
     });
+    expect(tx.sale.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          documentType: SaleDocumentType.receipt,
+          documents: {
+            create: expect.objectContaining({
+              type: SaleDocumentType.receipt,
+              status: SaleDocumentStatus.internal_issued,
+              tenantId: context.tenantId,
+              branchId: context.branchId,
+            }),
+          },
+        }),
+      }),
+    );
+    const createdDocument =
+      tx.sale.create.mock.calls.at(-1)?.[0]?.data?.documents?.create;
+    expect(createdDocument.accessKey).toBeUndefined();
+    expect(createdDocument.protocol).toBeUndefined();
+    expect(createdDocument.number).toBeUndefined();
+    expect(createdDocument.series).toBeUndefined();
   });
 
   it('exige maquininha ativa para cartao', async () => {

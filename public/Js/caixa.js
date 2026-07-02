@@ -17,6 +17,8 @@
     suggestions: [],
     activeSuggestion: -1,
     scanPending: false,
+    printing: false,
+    fiscalConfig: null,
   };
 
   const els = {
@@ -56,6 +58,7 @@
     discountType: document.getElementById("discountType"),
     discountValue: document.getElementById("discountValue"),
     toasts: document.getElementById("toastContainer"),
+    model65Notice: document.getElementById("model65Notice"),
   };
 
   const PAYMENT_METHODS = {
@@ -377,8 +380,7 @@
 
   function setActiveSuggestion(index) {
     if (!state.suggestions.length) return;
-    const next =
-      (index + state.suggestions.length) % state.suggestions.length;
+    const next = (index + state.suggestions.length) % state.suggestions.length;
     state.activeSuggestion = next;
     const options = Array.from(
       els.searchResults.querySelectorAll('[role="option"]'),
@@ -583,7 +585,6 @@
       })),
       paymentMethod: method,
       paidCents: totals.paid,
-      documentType: "receipt",
     };
     if (isCard) body.paymentMachineId = els.machine.value;
     if (state.discountValue > 0) {
@@ -628,10 +629,24 @@
       toast("Conclua uma venda antes de imprimir o recibo.", "warning");
       return;
     }
+    if (state.printing) return;
+    state.printing = true;
+    els.receipt.disabled = true;
     try {
       const result = await api(
-        `/api/sales/${encodeURIComponent(state.lastSale.id)}/receipt`,
+        `/api/sales/${encodeURIComponent(state.lastSale.id)}/model-65/print`,
+        { method: "POST" },
       );
+      if (result.mode === "nfce65" && !result.html) {
+        toast(
+          "NFC-e autorizada. A impressão fiscal ficará disponível no histórico.",
+          "success",
+        );
+        return;
+      }
+      if (result.mode !== "internal_receipt" || !result.html) {
+        throw new Error("Nenhum documento imprimível foi retornado.");
+      }
       const frame = document.createElement("iframe");
       frame.hidden = true;
       document.body.appendChild(frame);
@@ -643,9 +658,31 @@
         frame.contentWindow.print();
         window.setTimeout(() => frame.remove(), 1000);
       }, 50);
+      toast(
+        "Recibo interno gerado — documento sem validade fiscal.",
+        "warning",
+      );
     } catch (error) {
       toast(error.message, "error");
+    } finally {
+      state.printing = false;
+      els.receipt.disabled = !state.lastSale;
     }
+  }
+
+  function renderModel65Mode(config) {
+    state.fiscalConfig = config;
+    const certificate = config?.certificate;
+    const certificateValid =
+      certificate?.status === "valid" &&
+      certificate?.expiresAt &&
+      new Date(certificate.expiresAt) > new Date();
+    els.receipt.textContent = certificateValid
+      ? "EMITIR NFC-e"
+      : "IMPRIMIR RECIBO INTERNO";
+    els.model65Notice.textContent = certificateValid
+      ? "Certificado A1 válido — o backend tentará a NFC-e por até 5 segundos; em caso de indisponibilidade, imprimirá recibo interno sem validade fiscal."
+      : "Sem certificado A1 válido — será impresso recibo interno, sem validade fiscal.";
   }
 
   function openFiscal() {
@@ -673,16 +710,14 @@
   }
 
   function applyDiscount() {
-    const type =
-      els.discountType.value === "fixo" ? "fixed" : "percentage";
+    const type = els.discountType.value === "fixo" ? "fixed" : "percentage";
     const entered = Number(els.discountValue.value || 0);
     if (!Number.isFinite(entered) || entered < 0) {
       toast("Informe um desconto valido.", "warning");
       return;
     }
     const isAdmin =
-      state.profile?.user?.role === "Admin" ||
-      state.profile?.role === "Admin";
+      state.profile?.user?.role === "Admin" || state.profile?.role === "Admin";
     const maxPercentage = isAdmin ? 100 : 10;
     if (type === "percentage" && entered > maxPercentage) {
       toast(`Seu limite de desconto e ${maxPercentage}%.`, "warning");
@@ -738,6 +773,8 @@
         "nextstockTenantId",
         state.selectedBranch.tenantId || "",
       );
+      const fiscal = await api("/api/fiscal/config");
+      renderModel65Mode(fiscal.config);
       await loadMachines();
       renderCart();
     } catch (error) {
@@ -808,10 +845,7 @@
   els.receipt.addEventListener("click", printReceipt);
   els.fiscal.addEventListener("click", openFiscal);
   els.closeCash.addEventListener("click", () =>
-    toast(
-      "Fechamento de caixa ainda nao esta configurado no backend.",
-      "info",
-    ),
+    toast("Fechamento de caixa ainda nao esta configurado no backend.", "info"),
   );
   els.toggleSidebar.addEventListener("click", () => {
     document.body.classList.toggle("sidebar-hidden");

@@ -30,6 +30,22 @@ export class MockFiscalProvider implements FiscalProvider {
     };
   }
 
+  async sendNfce65(
+    _document: FiscalProviderDocument,
+  ): Promise<FiscalProviderResult> {
+    return {
+      status: SaleDocumentStatus.processing,
+      response: {
+        simulated: true,
+        authorized: false,
+        message:
+          'Provider mock nao transmite NFC-e e nunca produz autorizacao SEFAZ.',
+      },
+      errorMessage:
+        'NFC-e fiscal indisponivel; nenhuma autorizacao foi simulada.',
+    };
+  }
+
   async queryStatus(
     document: FiscalProviderDocument,
   ): Promise<FiscalProviderResult> {

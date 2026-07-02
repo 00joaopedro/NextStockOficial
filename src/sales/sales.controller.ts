@@ -27,6 +27,7 @@ import { CreateSaleDto } from './dto/create-sale.dto';
 import { SaleQueryDto } from './dto/sale-query.dto';
 import { SalesService } from './sales.service';
 import { FiscalService } from '../fiscal/fiscal.service';
+import { Model65DecisionService } from './model65-decision.service';
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
@@ -36,6 +37,7 @@ export class SalesController {
   constructor(
     private readonly salesService: SalesService,
     private readonly fiscalService: FiscalService,
+    private readonly model65Decision: Model65DecisionService,
   ) {}
 
   @Get()
@@ -46,7 +48,12 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.findAll(req.user, query, selectedBranchId, devContextMode);
+    return this.salesService.findAll(
+      req.user,
+      query,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get(':id/receipt')
@@ -57,7 +64,28 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.receipt(req.user, id, selectedBranchId, devContextMode);
+    return this.salesService.receipt(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
+  }
+
+  @Post(':id/model-65/print')
+  @Roles(Role.Admin, Role.Vendedor)
+  printModel65(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+  ) {
+    return this.model65Decision.print(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get(':id/documents')
@@ -68,7 +96,12 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.listDocuments(req.user, id, selectedBranchId, devContextMode);
+    return this.salesService.listDocuments(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get(':id/documents/:documentId/download')
@@ -99,7 +132,12 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.findOne(req.user, id, selectedBranchId, devContextMode);
+    return this.salesService.findOne(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post()
@@ -110,7 +148,12 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.create(req.user, body, selectedBranchId, devContextMode);
+    return this.salesService.create(
+      req.user,
+      body,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post('from-order/:orderId')
@@ -140,7 +183,13 @@ export class SalesController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.salesService.cancel(req.user, id, body, selectedBranchId, devContextMode);
+    return this.salesService.cancel(
+      req.user,
+      id,
+      body,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post(':id/documents/nfe55')
