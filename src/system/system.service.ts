@@ -2,15 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import { SystemContextResponseDto } from './dto/system-context-response.dto';
-import {
-  canAccessDev,
-  isSuperAdmin,
-} from '../auth/super-admin.util';
+import { canAccessDev, isSuperAdmin } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { SystemMode } from './enums/system-mode.enum';
 import { TenantType } from './enums/tenant-type.enum';
-import { SystemContext, TenantSystemSettings } from './interfaces/system-context.interface';
+import {
+  SystemContext,
+  TenantSystemSettings,
+} from './interfaces/system-context.interface';
 
 @Injectable()
 export class SystemService {
@@ -67,6 +67,7 @@ export class SystemService {
       tenantType: this.resolveTenantType(operationalContext.systemType),
       isSuperAdmin: isSuperAdmin(currentUser),
       isDevSuperAdmin: canAccessDev(currentUser),
+      role: operationalContext.role,
       allowedSystemTypes: canAccessDev(currentUser)
         ? [operationalContext.systemType]
         : undefined,
@@ -110,7 +111,10 @@ export class SystemService {
   }
 
   isPreviewMode(context?: Pick<SystemContext, 'systemMode'>): boolean {
-    return (context?.systemMode ?? this.readSystemModeFromEnv()) === SystemMode.Preview;
+    return (
+      (context?.systemMode ?? this.readSystemModeFromEnv()) ===
+      SystemMode.Preview
+    );
   }
 
   private resolveTenantSettings(
@@ -135,7 +139,8 @@ export class SystemService {
   }
 
   private readSystemModeFromEnv(): SystemMode {
-    const rawMode = process.env.NEXTSTOCK_SYSTEM_MODE ?? process.env.SYSTEM_MODE;
+    const rawMode =
+      process.env.NEXTSTOCK_SYSTEM_MODE ?? process.env.SYSTEM_MODE;
     const normalizedMode = rawMode?.trim().toUpperCase();
 
     if (normalizedMode === SystemMode.Preview) {

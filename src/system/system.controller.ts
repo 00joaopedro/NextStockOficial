@@ -20,7 +20,11 @@ export class SystemController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ): Promise<SystemContextResponseDto> | SystemContextResponseDto {
-    return this.systemService.getContext(request.user, selectedBranchId, devContextMode);
+    return this.systemService.getContext(
+      request.user,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get('pages')

@@ -4,9 +4,10 @@ import { SupabaseModule } from '../supabase/supabase.module';
 import { UsersController } from './users.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { UsersService } from './users.service';
+import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, SupabaseModule],
+  imports: [PrismaModule, AuthModule, SupabaseModule, SessionsModule],
   controllers: [UsersController],
   providers: [UsersService],
 })

@@ -6,11 +6,11 @@ import type { Request } from 'express';
 import { EmployeeStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
-import {
-  canAccessDev,
-  isSuperAdmin,
-} from './super-admin.util';
+import { canAccessDev, isSuperAdmin } from './super-admin.util';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
+import { Optional } from '@nestjs/common';
+import { SessionsService } from '../sessions/sessions.service';
+import { SESSION_COOKIE_NAME } from '../sessions/session-cookie';
 
 const jwtLogger = new Logger('JwtStrategy');
 
@@ -81,7 +81,12 @@ function sanitizeMessage(value?: string | null) {
   return value?.replace(/[\r\n]/g, ' ').slice(0, 220) || 'none';
 }
 
-function chooseMembership(profile: Pick<JwtProfile, 'memberships' | 'primaryTenantId' | 'tenantId' | 'systemType'>) {
+function chooseMembership(
+  profile: Pick<
+    JwtProfile,
+    'memberships' | 'primaryTenantId' | 'tenantId' | 'systemType'
+  >,
+) {
   const memberships = profile.memberships.filter(
     (membership) => membership.branch?.isActive === true,
   );
@@ -126,6 +131,7 @@ function buildJwtOptions() {
   }
 
   return {
+    passReqToCallback: true,
     jwtFromRequest,
     ignoreExpiration: false,
     algorithms: ['HS256', 'ES256'] as const,
@@ -144,7 +150,11 @@ function buildJwtOptions() {
 
       if (alg === 'HS256') {
         if (!legacySecret) {
-          done(new Error('INVALID_ALGORITHM: HS256 token requires SUPABASE_JWT_SECRET.'));
+          done(
+            new Error(
+              'INVALID_ALGORITHM: HS256 token requires SUPABASE_JWT_SECRET.',
+            ),
+          );
           return;
         }
 
@@ -154,7 +164,11 @@ function buildJwtOptions() {
 
       if (alg === 'ES256') {
         if (!jwksProvider) {
-          done(new Error('INVALID_ALGORITHM: ES256 token requires SUPABASE_URL/JWKS.'));
+          done(
+            new Error(
+              'INVALID_ALGORITHM: ES256 token requires SUPABASE_URL/JWKS.',
+            ),
+          );
           return;
         }
 
@@ -162,7 +176,11 @@ function buildJwtOptions() {
         return;
       }
 
-      done(new Error(`INVALID_ALGORITHM: Unsupported JWT alg=${sanitizeMessage(alg)}.`));
+      done(
+        new Error(
+          `INVALID_ALGORITHM: Unsupported JWT alg=${sanitizeMessage(alg)}.`,
+        ),
+      );
     },
   };
 }
@@ -174,11 +192,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     private readonly prisma: PrismaService,
     private readonly devWorkspaces: DevWorkspaceService,
+    @Optional() private readonly sessions?: SessionsService,
   ) {
     super(buildJwtOptions());
   }
 
-  async validate(payload: any) {
+  async validate(requestOrPayload: any, maybePayload?: any) {
+    const request = maybePayload ? requestOrPayload : undefined;
+    const payload = maybePayload ?? requestOrPayload;
     const userId = payload?.sub;
     const email =
       typeof payload?.email === 'string'
@@ -193,56 +214,58 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     if (!userId) {
       this.logger.warn('PAYLOAD_INVALID: missing sub in JWT payload.');
-      throw new UnauthorizedException('PAYLOAD_INVALID: Invalid token payload (missing sub).');
+      throw new UnauthorizedException(
+        'PAYLOAD_INVALID: Invalid token payload (missing sub).',
+      );
     }
 
     const profileSelect = Prisma.validator<Prisma.UserProfileSelect>()({
-        id: true,
-        supabaseUserId: true,
-        email: true,
-        name: true,
-        fullName: true,
-        role: true,
-        systemType: true,
-        allowedSystemTypes: true,
-        isSuperAdmin: true,
-        tenantId: true,
-        primaryTenantId: true,
-        employee: {
-          select: {
-            status: true,
-            dismissalDate: true,
-            deletedAt: true,
-          },
+      id: true,
+      supabaseUserId: true,
+      email: true,
+      name: true,
+      fullName: true,
+      role: true,
+      systemType: true,
+      allowedSystemTypes: true,
+      isSuperAdmin: true,
+      tenantId: true,
+      primaryTenantId: true,
+      employee: {
+        select: {
+          status: true,
+          dismissalDate: true,
+          deletedAt: true,
         },
-        memberships: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: {
-            id: true,
-            tenantId: true,
-            branchId: true,
-            role: true,
-            createdAt: true,
-            tenant: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                systemType: true,
-                mode: true,
-              },
-            },
-            branch: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                isActive: true,
-              },
+      },
+      memberships: {
+        orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          tenantId: true,
+          branchId: true,
+          role: true,
+          createdAt: true,
+          tenant: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              systemType: true,
+              mode: true,
             },
           },
+          branch: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              isActive: true,
+            },
+          },
         },
-      });
+      },
+    });
 
     let profile = await this.prisma.userProfile.findFirst({
       where: { supabaseUserId: userId },
@@ -267,7 +290,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.warn(
         `PROFILE_NOT_FOUND: no profile for sub=${String(userId).slice(0, 8)} email=${email ? 'present' : 'missing'}`,
       );
-      throw new UnauthorizedException('PROFILE_NOT_FOUND: User profile not found.');
+      throw new UnauthorizedException(
+        'PROFILE_NOT_FOUND: User profile not found.',
+      );
     }
 
     if (profile.supabaseUserId && profile.supabaseUserId !== userId) {
@@ -279,14 +304,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    if (!profile.supabaseUserId && email && profile.email?.toLowerCase() === email) {
+    if (
+      !profile.supabaseUserId &&
+      email &&
+      profile.email?.toLowerCase() === email
+    ) {
       await this.prisma.userProfile.update({
         where: { id: profile.id },
         data: { supabaseUserId: userId },
         select: { id: true },
       });
       profile.supabaseUserId = userId;
-      this.logger.warn('Profile linked to Supabase user id from safe unbound email match.');
+      this.logger.warn(
+        'Profile linked to Supabase user id from safe unbound email match.',
+      );
     } else if (!profile.supabaseUserId && profile.id !== userId) {
       this.logger.error(
         `PROFILE_BINDING_MISMATCH: unbound profile=${profile.id.slice(0, 8)} has no verified email match`,
@@ -310,7 +341,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.warn(
         `EMPLOYEE_ACCESS_BLOCKED profile=${profile.id.slice(0, 8)} status=${profile.employee?.status}`,
       );
-      throw new UnauthorizedException('EMPLOYEE_INACTIVE: Funcionario inativo ou demitido.');
+      throw new UnauthorizedException(
+        'EMPLOYEE_INACTIVE: Funcionario inativo ou demitido.',
+      );
     }
 
     const hasFullAccess = isSuperAdmin(profile);
@@ -319,9 +352,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ? await this.devWorkspaces.listDefaultWorkspaces(profile.id)
       : [];
     const selectedWorkspace = hasDevAccess
-      ? workspaceRecords.find(
+      ? (workspaceRecords.find(
           (workspace: any) => workspace.systemType === profile.systemType,
-        ) ?? workspaceRecords[0]
+        ) ?? workspaceRecords[0])
       : null;
     const membership = hasDevAccess ? null : chooseMembership(profile);
     const branches = hasDevAccess
@@ -362,13 +395,24 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
+    await this.sessions?.assertActive(
+      request?.cookies?.[SESSION_COOKIE_NAME],
+      profile.id,
+    );
+
     if (!membership && !hasFullAccess) {
-      this.logger.warn('TENANT_NOT_LINKED: non-superAdmin user has no tenant membership.');
-      throw new UnauthorizedException('TENANT_NOT_LINKED: User is not linked to a tenant.');
+      this.logger.warn(
+        'TENANT_NOT_LINKED: non-superAdmin user has no tenant membership.',
+      );
+      throw new UnauthorizedException(
+        'TENANT_NOT_LINKED: User is not linked to a tenant.',
+      );
     }
 
     const allowedSystemTypes = hasDevAccess
-      ? [selectedWorkspace?.systemType ?? profile.systemType ?? 'padrao'].filter(Boolean)
+      ? [
+          selectedWorkspace?.systemType ?? profile.systemType ?? 'padrao',
+        ].filter(Boolean)
       : profile.allowedSystemTypes?.length > 0
         ? profile.allowedSystemTypes
         : [
@@ -382,8 +426,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       profile.systemType ??
       allowedSystemTypes[0] ??
       null;
-    const selectedTenant = selectedWorkspace?.tenant ?? membership?.tenant ?? null;
-    const selectedBranch = selectedWorkspace?.branch ?? membership?.branch ?? null;
+    const selectedTenant =
+      selectedWorkspace?.tenant ?? membership?.tenant ?? null;
+    const selectedBranch =
+      selectedWorkspace?.branch ?? membership?.branch ?? null;
 
     return {
       id: profile.id,

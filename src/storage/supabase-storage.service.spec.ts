@@ -1,15 +1,20 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { SupabaseStorageService } from './supabase-storage.service';
 
 describe('SupabaseStorageService', () => {
-  const previousProductBucket = process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
+  const previousProductBucket =
+    process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
   const previousSignedUrls = process.env.SUPABASE_STORAGE_SIGNED_URLS;
 
   afterEach(() => {
     if (previousProductBucket === undefined) {
       delete process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
     } else {
-      process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = previousProductBucket;
+      process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES =
+        previousProductBucket;
     }
 
     if (previousSignedUrls === undefined) {
@@ -20,7 +25,10 @@ describe('SupabaseStorageService', () => {
     jest.restoreAllMocks();
   });
 
-  function makeSupabase(error?: { message?: string; statusCode?: string | number }) {
+  function makeSupabase(error?: {
+    message?: string;
+    statusCode?: string | number;
+  }) {
     const upload = jest.fn().mockResolvedValue({ error: error ?? null });
     const remove = jest.fn().mockResolvedValue({ error: null });
     const getPublicUrl = jest.fn().mockReturnValue({
@@ -73,7 +81,10 @@ describe('SupabaseStorageService', () => {
     process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = 'catalog-images';
     process.env.SUPABASE_STORAGE_SIGNED_URLS = 'false';
     const supabase = makeSupabase();
-    const service = new SupabaseStorageService(supabase as any, optimizer as any);
+    const service = new SupabaseStorageService(
+      supabase as any,
+      optimizer as any,
+    );
 
     await expect(
       service.uploadProductImage({
@@ -102,7 +113,10 @@ describe('SupabaseStorageService', () => {
     delete process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES;
     process.env.SUPABASE_STORAGE_SIGNED_URLS = 'false';
     const supabase = makeSupabase();
-    const service = new SupabaseStorageService(supabase as any, optimizer as any);
+    const service = new SupabaseStorageService(
+      supabase as any,
+      optimizer as any,
+    );
 
     await service.uploadProductImage({
       tenantId: 'tenant-id',
@@ -121,8 +135,14 @@ describe('SupabaseStorageService', () => {
 
   it('retorna 503 claro quando o bucket de produto nao existe', async () => {
     process.env.SUPABASE_STORAGE_BUCKET_PRODUCT_IMAGES = 'product-images';
-    const supabase = makeSupabase({ message: 'Bucket not found', statusCode: '404' });
-    const service = new SupabaseStorageService(supabase as any, optimizer as any);
+    const supabase = makeSupabase({
+      message: 'Bucket not found',
+      statusCode: '404',
+    });
+    const service = new SupabaseStorageService(
+      supabase as any,
+      optimizer as any,
+    );
 
     await expect(
       service.uploadProductImage({
@@ -137,5 +157,36 @@ describe('SupabaseStorageService', () => {
         },
       }),
     ).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('bloqueia antes do Storage quando a quota e excedida', async () => {
+    const supabase = makeSupabase();
+    const quotas = {
+      assertAllowed: jest
+        .fn()
+        .mockRejectedValue(new BadRequestException('quota exceeded')),
+    };
+    const service = new SupabaseStorageService(
+      supabase as any,
+      optimizer as any,
+      undefined,
+      quotas as any,
+    );
+
+    await expect(
+      service.uploadProductImage({
+        tenantId: 'tenant-id',
+        branchId: 'branch-id',
+        productId: 'product-id',
+        ownerProfileId: 'profile-id',
+        file: {
+          originalname: 'produto.jpg',
+          mimetype: 'image/jpeg',
+          size: 10,
+          buffer: Buffer.from('ok'),
+        },
+      }),
+    ).rejects.toThrow('quota exceeded');
+    expect(supabase.admin.storage.from).not.toHaveBeenCalled();
   });
 });

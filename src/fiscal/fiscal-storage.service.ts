@@ -10,6 +10,7 @@ export class FiscalStorageService {
     branchId: string;
     saleId: string;
     documentId: string;
+    ownerProfileId?: string | null;
     content: Buffer;
   }) {
     return this.storage.uploadFiscalXml(input);
@@ -20,6 +21,7 @@ export class FiscalStorageService {
     branchId: string;
     saleId: string;
     documentId: string;
+    ownerProfileId?: string | null;
     content: Buffer;
   }) {
     return this.storage.uploadFiscalPdf(input);

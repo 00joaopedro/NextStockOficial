@@ -1,5 +1,11 @@
 import { ConflictException } from '@nestjs/common';
-import { EmployeeRole, EmployeeStatus, Role, SystemMode, SystemType } from '@prisma/client';
+import {
+  EmployeeRole,
+  EmployeeStatus,
+  Role,
+  SystemMode,
+  SystemType,
+} from '@prisma/client';
 import { EmployeesService } from './employees.service';
 
 const authUser = {
@@ -21,7 +27,9 @@ const context = {
 function makeService(overrides: Record<string, any> = {}) {
   const tx = {
     userProfile: {
-      create: jest.fn().mockResolvedValue({ id: authUser.id, role: Role.Vendedor }),
+      create: jest
+        .fn()
+        .mockResolvedValue({ id: authUser.id, role: Role.Vendedor }),
     },
     employee: {
       create: jest.fn().mockImplementation(({ data }) =>
@@ -64,7 +72,9 @@ function makeService(overrides: Record<string, any> = {}) {
     admin: {
       auth: {
         admin: {
-          createUser: jest.fn().mockResolvedValue({ data: { user: authUser }, error: null }),
+          createUser: jest
+            .fn()
+            .mockResolvedValue({ data: { user: authUser }, error: null }),
           deleteUser: jest.fn().mockResolvedValue({ error: null }),
           updateUserById: jest.fn().mockResolvedValue({ error: null }),
         },
@@ -77,17 +87,54 @@ function makeService(overrides: Record<string, any> = {}) {
     resolve: jest.fn().mockResolvedValue(context),
     ...overrides.tenantContext,
   };
+  const sessions = {
+    revokeAllForProfile: jest.fn().mockResolvedValue(1),
+    ...overrides.sessions,
+  };
 
   return {
-    service: new EmployeesService(prisma as any, supabase as any, tenantContext as any),
+    service: new EmployeesService(
+      prisma as any,
+      supabase as any,
+      tenantContext as any,
+      sessions as any,
+    ),
     prisma,
     supabase,
     tenantContext,
     tx,
+    sessions,
   };
 }
 
 describe('EmployeesService', () => {
+  it('revoga sessoes quando funcionario e inativado', async () => {
+    const employee = {
+      id: 'employee-id',
+      profileId: authUser.id,
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      status: EmployeeStatus.active,
+      dismissalDate: null,
+      profile: { id: authUser.id, role: Role.Vendedor },
+      createdBy: null,
+      updatedBy: null,
+    };
+    const { service, prisma, sessions } = makeService();
+    prisma.employee.findFirst.mockResolvedValue(employee);
+    prisma.employee.update.mockResolvedValue({
+      ...employee,
+      status: EmployeeStatus.inactive,
+    });
+    await service.updateStatus({ id: 'admin-id' } as any, employee.id, {
+      status: EmployeeStatus.inactive,
+    });
+    expect(sessions.revokeAllForProfile).toHaveBeenCalledWith(
+      authUser.id,
+      'employee_inactive',
+    );
+  });
+
   it('cria funcionario logavel vinculado ao tenant e branch do contexto sem retornar senha', async () => {
     const { service, supabase, tx, tenantContext } = makeService();
 
@@ -156,19 +203,18 @@ describe('EmployeesService', () => {
     tx.userProfile.create.mockRejectedValueOnce(new Error('db failed'));
 
     await expect(
-      service.create(
-        { id: 'admin-id', email: 'admin@example.com' } as any,
-        {
-          fullName: 'Operador Caixa',
-          email: 'caixa@example.com',
-          password: 'SenhaForte123',
-          employeeRole: EmployeeRole.caixa,
-          jobTitle: 'Operador de Caixa',
-        },
-      ),
+      service.create({ id: 'admin-id', email: 'admin@example.com' } as any, {
+        fullName: 'Operador Caixa',
+        email: 'caixa@example.com',
+        password: 'SenhaForte123',
+        employeeRole: EmployeeRole.caixa,
+        jobTitle: 'Operador de Caixa',
+      }),
     ).rejects.toThrow('Employee creation failed');
 
-    expect(supabase.admin.auth.admin.deleteUser).toHaveBeenCalledWith(authUser.id);
+    expect(supabase.admin.auth.admin.deleteUser).toHaveBeenCalledWith(
+      authUser.id,
+    );
   });
 
   it('falha com email duplicado antes de criar usuario no Supabase', async () => {
@@ -182,16 +228,13 @@ describe('EmployeesService', () => {
     });
 
     await expect(
-      service.create(
-        { id: 'admin-id', email: 'admin@example.com' } as any,
-        {
-          fullName: 'Operador Caixa',
-          email: 'caixa@example.com',
-          password: 'SenhaForte123',
-          employeeRole: EmployeeRole.caixa,
-          jobTitle: 'Operador de Caixa',
-        },
-      ),
+      service.create({ id: 'admin-id', email: 'admin@example.com' } as any, {
+        fullName: 'Operador Caixa',
+        email: 'caixa@example.com',
+        password: 'SenhaForte123',
+        employeeRole: EmployeeRole.caixa,
+        jobTitle: 'Operador de Caixa',
+      }),
     ).rejects.toBeInstanceOf(ConflictException);
 
     expect(prisma.userProfile.findFirst).toHaveBeenCalled();

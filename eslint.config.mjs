@@ -32,4 +32,28 @@ export default tseslint.config(
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
+  {
+    files: [
+      'src/audit/**/*.ts',
+      'src/config/environment.ts',
+      'src/auth/roles.guard.ts',
+      'src/auth/jwt-auth.guard.ts',
+      'src/security/public-rate-limit.guard.ts',
+      'src/sessions/**/*.ts',
+      'src/observability/**/*.ts',
+      'src/privacy/**/*.ts',
+      'src/storage/stored-files.service.ts',
+      'src/storage/upload-quota.service.ts',
+      'src/storage/file-scanner.interface.ts',
+      'scripts/**/*.ts',
+      'test/{security,helpers,factories}/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      '@typescript-eslint/no-base-to-string': 'off',
+    },
+  },
 );

@@ -5,6 +5,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { EmployeeRole, EmployeeStatus, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,6 +16,7 @@ import { EmployeeQueryDto } from './dto/employee-query.dto';
 import { ResetEmployeePasswordDto } from './dto/reset-employee-password.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
+import { SessionsService } from '../sessions/sessions.service';
 
 const EMPLOYEE_ROLE_TO_RBAC: Record<EmployeeRole, Role> = {
   [EmployeeRole.admin]: Role.Admin,
@@ -40,6 +42,7 @@ export class EmployeesService {
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseService,
     private readonly tenantContext: TenantContextService,
+    @Optional() private readonly sessions?: SessionsService,
   ) {}
 
   async findAll(
@@ -48,7 +51,12 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, false);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      false,
+    );
     const page = Math.max(1, Number(query.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 20)));
     const where = this.buildWhere(context.tenantId, context.branchId!, query);
@@ -83,8 +91,17 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, false);
-    const employee = await this.findScopedEmployeeOrThrow(id, context.tenantId, context.branchId!);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      false,
+    );
+    const employee = await this.findScopedEmployeeOrThrow(
+      id,
+      context.tenantId,
+      context.branchId!,
+    );
 
     return { employee: this.formatEmployee(employee) };
   }
@@ -95,7 +112,12 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
     const fullName = this.cleanRequired(dto.fullName, 'fullName');
     const email = this.normalizeEmail(dto.email);
     const password = this.normalizePassword(dto.password);
@@ -132,7 +154,9 @@ export class EmployeesService {
     const authUser = data.user;
 
     if (!authUser?.id) {
-      throw new InternalServerErrorException('Supabase did not return the created employee user.');
+      throw new InternalServerErrorException(
+        'Supabase did not return the created employee user.',
+      );
     }
 
     try {
@@ -174,7 +198,9 @@ export class EmployeesService {
             birthDate: this.parseOptionalDate(dto.birthDate),
             admissionDate: this.parseOptionalDate(dto.admissionDate),
             dismissalDate: this.parseOptionalDate(dto.dismissalDate),
-            status: dto.dismissalDate ? EmployeeStatus.dismissed : EmployeeStatus.active,
+            status: dto.dismissalDate
+              ? EmployeeStatus.dismissed
+              : EmployeeStatus.active,
             createdById: context.userId,
             updatedById: context.userId,
           },
@@ -188,9 +214,14 @@ export class EmployeesService {
 
       return { employee: this.formatEmployee(employee) };
     } catch (error) {
-      await this.supabase.admin.auth.admin.deleteUser(authUser.id).catch(() => undefined);
+      await this.supabase.admin.auth.admin
+        .deleteUser(authUser.id)
+        .catch(() => undefined);
 
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         throw new ConflictException('employee profile already exists');
       }
 
@@ -207,20 +238,35 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const current = await this.findScopedEmployeeOrThrow(id, context.tenantId, context.branchId!);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const current = await this.findScopedEmployeeOrThrow(
+      id,
+      context.tenantId,
+      context.branchId!,
+    );
 
     const nextFullName =
-      dto.fullName !== undefined ? this.cleanRequired(dto.fullName, 'fullName') : undefined;
+      dto.fullName !== undefined
+        ? this.cleanRequired(dto.fullName, 'fullName')
+        : undefined;
     const nextEmployeeRole = dto.employeeRole;
-    const nextRbacRole = nextEmployeeRole ? this.mapEmployeeRole(nextEmployeeRole) : undefined;
+    const nextRbacRole = nextEmployeeRole
+      ? this.mapEmployeeRole(nextEmployeeRole)
+      : undefined;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (nextFullName || nextRbacRole) {
         await tx.userProfile.update({
           where: { id: current.profileId },
           data: {
-            ...(nextFullName ? { name: nextFullName, fullName: nextFullName } : {}),
+            ...(nextFullName
+              ? { name: nextFullName, fullName: nextFullName }
+              : {}),
             ...(nextRbacRole ? { role: nextRbacRole } : {}),
           },
         });
@@ -241,12 +287,20 @@ export class EmployeesService {
         where: { id: current.id },
         data: {
           ...(nextFullName ? { fullName: nextFullName } : {}),
-          ...(dto.jobTitle !== undefined ? { jobTitle: this.cleanRequired(dto.jobTitle, 'jobTitle') } : {}),
+          ...(dto.jobTitle !== undefined
+            ? { jobTitle: this.cleanRequired(dto.jobTitle, 'jobTitle') }
+            : {}),
           ...(nextEmployeeRole ? { employeeRole: nextEmployeeRole } : {}),
           ...(dto.status ? { status: dto.status } : {}),
-          ...(dto.birthDate !== undefined ? { birthDate: this.parseNullableDate(dto.birthDate) } : {}),
-          ...(dto.admissionDate !== undefined ? { admissionDate: this.parseNullableDate(dto.admissionDate) } : {}),
-          ...(dto.dismissalDate !== undefined ? { dismissalDate: this.parseNullableDate(dto.dismissalDate) } : {}),
+          ...(dto.birthDate !== undefined
+            ? { birthDate: this.parseNullableDate(dto.birthDate) }
+            : {}),
+          ...(dto.admissionDate !== undefined
+            ? { admissionDate: this.parseNullableDate(dto.admissionDate) }
+            : {}),
+          ...(dto.dismissalDate !== undefined
+            ? { dismissalDate: this.parseNullableDate(dto.dismissalDate) }
+            : {}),
           updatedById: context.userId,
         },
         include: {
@@ -256,6 +310,13 @@ export class EmployeesService {
         },
       });
     });
+
+    if (nextRbacRole) {
+      await this.sessions?.revokeAllForProfile(
+        current.profileId,
+        'employee_role_changed',
+      );
+    }
 
     return { employee: this.formatEmployee(updated) };
   }
@@ -267,16 +328,30 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const current = await this.findScopedEmployeeOrThrow(id, context.tenantId, context.branchId!);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const current = await this.findScopedEmployeeOrThrow(
+      id,
+      context.tenantId,
+      context.branchId!,
+    );
 
-    if (current.profileId === context.userId && dto.status !== EmployeeStatus.active) {
-      throw new ForbiddenException('Voce nao pode desativar o proprio usuario.');
+    if (
+      current.profileId === context.userId &&
+      dto.status !== EmployeeStatus.active
+    ) {
+      throw new ForbiddenException(
+        'Voce nao pode desativar o proprio usuario.',
+      );
     }
 
     const dismissalDate =
       dto.status === EmployeeStatus.dismissed
-        ? this.parseOptionalDate(dto.dismissalDate) ?? new Date()
+        ? (this.parseOptionalDate(dto.dismissalDate) ?? new Date())
         : dto.dismissalDate
           ? this.parseOptionalDate(dto.dismissalDate)
           : null;
@@ -295,6 +370,13 @@ export class EmployeesService {
       },
     });
 
+    if (dto.status !== EmployeeStatus.active) {
+      await this.sessions?.revokeAllForProfile(
+        current.profileId,
+        `employee_${dto.status}`,
+      );
+    }
+
     return { employee: this.formatEmployee(updated) };
   }
 
@@ -304,8 +386,17 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const current = await this.findScopedEmployeeOrThrow(id, context.tenantId, context.branchId!);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const current = await this.findScopedEmployeeOrThrow(
+      id,
+      context.tenantId,
+      context.branchId!,
+    );
 
     if (current.profileId === context.userId) {
       throw new ForbiddenException('Voce nao pode remover o proprio usuario.');
@@ -326,6 +417,11 @@ export class EmployeesService {
       },
     });
 
+    await this.sessions?.revokeAllForProfile(
+      current.profileId,
+      'employee_dismissed',
+    );
+
     return { employee: this.formatEmployee(updated) };
   }
 
@@ -336,8 +432,17 @@ export class EmployeesService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const employee = await this.findScopedEmployeeOrThrow(id, context.tenantId, context.branchId!);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const employee = await this.findScopedEmployeeOrThrow(
+      id,
+      context.tenantId,
+      context.branchId!,
+    );
     const password = this.normalizePassword(dto.password);
     const profile = await this.prisma.userProfile.findUnique({
       where: { id: employee.profileId },
@@ -345,7 +450,9 @@ export class EmployeesService {
     });
 
     if (!profile?.supabaseUserId) {
-      throw new BadRequestException('Funcionario nao possui usuario de autenticacao vinculado.');
+      throw new BadRequestException(
+        'Funcionario nao possui usuario de autenticacao vinculado.',
+      );
     }
 
     const { error } = await this.supabase.admin.auth.admin.updateUserById(
@@ -361,6 +468,10 @@ export class EmployeesService {
       where: { id: employee.id },
       data: { updatedById: context.userId },
     });
+    await this.sessions?.revokeAllForProfile(
+      employee.profileId,
+      'employee_password_reset',
+    );
 
     return { ok: true };
   }
@@ -405,7 +516,11 @@ export class EmployeesService {
     };
   }
 
-  private async findScopedEmployeeOrThrow(id: string, tenantId: string, branchId: string) {
+  private async findScopedEmployeeOrThrow(
+    id: string,
+    tenantId: string,
+    branchId: string,
+  ) {
     const employee = await this.prisma.employee.findFirst({
       where: { id, tenantId, branchId, deletedAt: null },
       include: {
@@ -432,7 +547,8 @@ export class EmployeesService {
       email: employee.email,
       jobTitle: employee.jobTitle,
       employeeRole: employee.employeeRole,
-      role: employee.profile?.role ?? this.mapEmployeeRole(employee.employeeRole),
+      role:
+        employee.profile?.role ?? this.mapEmployeeRole(employee.employeeRole),
       status: employee.status,
       birthDate: employee.birthDate,
       admissionDate: employee.admissionDate,
@@ -441,10 +557,18 @@ export class EmployeesService {
       createdAt: employee.createdAt,
       updatedAt: employee.updatedAt,
       createdBy: employee.createdBy
-        ? { id: employee.createdBy.id, name: employee.createdBy.name, email: employee.createdBy.email }
+        ? {
+            id: employee.createdBy.id,
+            name: employee.createdBy.name,
+            email: employee.createdBy.email,
+          }
         : null,
       updatedBy: employee.updatedBy
-        ? { id: employee.updatedBy.id, name: employee.updatedBy.name, email: employee.updatedBy.email }
+        ? {
+            id: employee.updatedBy.id,
+            name: employee.updatedBy.name,
+            email: employee.updatedBy.email,
+          }
         : null,
     };
   }

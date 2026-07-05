@@ -36,6 +36,12 @@ import { CsrfOriginGuard } from './security/csrf-origin.guard';
 import { validateEnvironment } from './config/environment';
 import { PerformanceModule } from './performance/performance.module';
 import { CacheInvalidationInterceptor } from './performance/cache-invalidation.interceptor';
+import { AuditModule } from './audit/audit.module';
+import { AuditInterceptor } from './audit/audit.interceptor';
+import { SessionsModule } from './sessions/sessions.module';
+import { ObservabilityModule } from './observability/observability.module';
+import { ObservabilityInterceptor } from './observability/observability.interceptor';
+import { PrivacyModule } from './privacy/privacy.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -66,6 +72,10 @@ const publicPath = join(__dirname, '..', 'public');
       },
     }),
     PerformanceModule,
+    AuditModule,
+    SessionsModule,
+    ObservabilityModule,
+    PrivacyModule,
     PrismaModule,
     TenancyModule,
     SupabaseModule,
@@ -105,6 +115,14 @@ const publicPath = join(__dirname, '..', 'public');
     {
       provide: APP_INTERCEPTOR,
       useClass: CacheInvalidationInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ObservabilityInterceptor,
     },
   ],
 })

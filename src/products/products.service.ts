@@ -506,6 +506,7 @@ export class ProductsService {
       tenantId: tenant.id,
       branchId: tenant.branchId,
       productId: id,
+      ownerProfileId: user?.id,
       file,
     });
 

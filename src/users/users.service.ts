@@ -5,6 +5,7 @@ import {
   Injectable,
   InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -12,6 +13,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import { TenantAccessService } from '../tenancy/tenant-access.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { toTenantSummary } from '../tenancy/tenant.utils';
+import { SessionsService } from '../sessions/sessions.service';
 
 type CreateTenantUserInput = {
   email?: string;
@@ -44,6 +46,7 @@ export class UsersService {
     private readonly supabase: SupabaseService,
     private readonly tenantAccess: TenantAccessService,
     private readonly tenantContext: TenantContextService,
+    @Optional() private readonly sessions?: SessionsService,
   ) {}
 
   async list(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
@@ -314,6 +317,8 @@ export class UsersService {
         },
       },
     });
+
+    await this.sessions?.revokeAllForProfile(profileId, 'role_changed');
 
     return {
       ok: true,

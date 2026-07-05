@@ -14,6 +14,7 @@ import { CertificateCryptoService } from './certificate-crypto.service';
 import { CertificateParserService } from './certificate-parser.service';
 import { CertificateService } from './certificate.service';
 import { CertificateStorageService } from './certificate-storage.service';
+import { SupabaseModule } from '../supabase/supabase.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CertificateStorageService } from './certificate-storage.service';
     TenancyModule,
     SystemModule,
     StorageModule,
+    SupabaseModule,
   ],
   controllers: [FiscalController],
   providers: [

@@ -94,13 +94,12 @@ npm run start:railway
 Esse script executa:
 
 ```bash
-npm run migrate:deploy
 npm run start:prod
 ```
 
-Use esse comando no Railway para garantir que uma release nunca inicie com um
-Prisma Client mais novo que o schema do banco. Se uma migration falhar, o processo
-termina antes de abrir a porta HTTP e o Railway preserva a falha no log.
+Migrations nao fazem parte do start normal. Execute `npm run railway:migrate`
+uma unica vez em um job controlado, depois de backup, validacao em staging e
+aprovacao. Somente entao promova/inicie a release compativel.
 
 O `start:prod` continua intencionalmente limitado a iniciar o backend, o que permite
 smoke tests sem reaplicar migrations.
@@ -119,13 +118,15 @@ Toda mudanca estrutural de banco deve ser commitada em:
 prisma/migrations/<timestamp_nome>/migration.sql
 ```
 
-Para aplicar migrations em producao:
+Para aplicar migrations em staging ou producao por job unico:
 
 ```bash
-npm run db:migrate
+npm run railway:migrate
 ```
 
-Rode esse comando quando houver migration nova, antes ou depois do deploy, conforme a mudanca exigir. Em Railway, prefira executar como etapa manual/controlada ou job separado. Evite pre-deploy automatico se ele puder travar a publicacao.
+Rode primeiro em staging, execute smoke tests e produza/valide o backup antes
+do job de producao. Rollback da aplicacao nao desfaz schema: para banco, prefira
+uma migration aditiva de roll-forward revisada.
 
 O Prisma CLI prioriza `DIRECT_URL`. Se a Session Pooler `:5432` nao estiver acessivel e `npm run db:migrate` falhar, aplique o conteudo do `migration.sql` pendente pelo Supabase SQL Editor somente como plano B. Depois, reconcilie o historico da migration antes do proximo deploy.
 
@@ -247,6 +248,18 @@ signed URLs for those files. In-memory rate limiting is an initial safeguard
 only; use a Redis-backed limiter before running multiple Railway replicas.
 Document uploads still require an antimalware pipeline before accepting
 untrusted Office files at scale.
+
+## Sessions and stored-file rollout
+
+Apply `20260705000000_sessions_and_stored_files` first in staging. Keep
+`SESSION_ENFORCEMENT_ENABLED=false` and `UPLOAD_ENABLE_QUOTAS=false` during the
+first deploy. Confirm that new logins create `user_sessions`, uploads create
+`stored_files`, logout revokes the current row and `/api/health/ready` succeeds.
+
+After the coordinated login rollout, enable session enforcement. Generate
+`npm run uploads:quota-report`, review plan/default limits and only then enable
+quotas. Office/PDF files are inventoried as `PENDING`; a real antimalware
+adapter remains required before enforcing scan status.
 
 ## Pet photo storage
 

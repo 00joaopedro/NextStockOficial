@@ -47,6 +47,7 @@ describe('JwtStrategy', () => {
     process.env.SUPABASE_JWT_SECRET = 'test-secret';
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
     process.env.DEV_SUPER_ADMIN_USER_IDS = '';
+    process.env.SESSION_ENFORCEMENT_ENABLED = 'false';
   });
 
   const createDevWorkspaces = (workspaces: any[] = []) =>
@@ -61,8 +62,9 @@ describe('JwtStrategy', () => {
   });
 
   it('decodeJwtHeader le algoritmo sem expor token completo', () => {
-    const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
-      .toString('base64url');
+    const header = Buffer.from(
+      JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
+    ).toString('base64url');
 
     expect(decodeJwtHeader(`${header}.payload.signature`)).toMatchObject({
       alg: 'HS256',
@@ -89,8 +91,34 @@ describe('JwtStrategy', () => {
     });
   });
 
+  it('consulta a sessao opaca antes de autorizar o JWT', async () => {
+    const prisma = {
+      userProfile: {
+        findFirst: jest.fn().mockResolvedValue(profile),
+        update: jest.fn(),
+      },
+    };
+    const sessions = {
+      assertActive: jest.fn().mockResolvedValue({ id: 'session-1' }),
+    };
+    const strategy = new JwtStrategy(
+      prisma as any,
+      createDevWorkspaces(),
+      sessions as any,
+    );
+    await strategy.validate(
+      { cookies: { nextstock_session: 'opaque' } },
+      { sub: 'auth-user-id', email: 'user@test.com' },
+    );
+    expect(sessions.assertActive).toHaveBeenCalledWith('opaque', profile.id);
+  });
+
   it('validate escolhe membership coerente com systemType em vez do primeiro vinculo', async () => {
-    const standardTenant = { ...tenant, id: 'tenant-standard', systemType: SystemType.padrao };
+    const standardTenant = {
+      ...tenant,
+      id: 'tenant-standard',
+      systemType: SystemType.padrao,
+    };
     const petTenant = {
       ...tenant,
       id: 'tenant-pet',

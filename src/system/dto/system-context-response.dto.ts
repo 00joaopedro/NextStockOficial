@@ -7,6 +7,7 @@ export class SystemContextResponseDto {
   isSuperAdmin?: boolean;
   isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
+  role?: string;
   selectedBranch?: {
     id: string;
     name: string;

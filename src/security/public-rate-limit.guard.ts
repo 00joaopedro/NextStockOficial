@@ -4,11 +4,14 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  Optional,
   SetMetadata,
 } from '@nestjs/common';
+import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import type { Request } from 'express';
 import { Reflector } from '@nestjs/core';
 import { createHash } from 'crypto';
+import { AuditService } from '../audit/audit.service';
 
 type RateBucket = { count: number; resetAt: number };
 type RateLimitOptions = {
@@ -24,15 +27,17 @@ export const RateLimit = (options: RateLimitOptions) =>
 export class PublicRateLimitGuard implements CanActivate {
   private readonly buckets = new Map<string, RateBucket>();
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    @Optional() private readonly audit?: AuditService,
+  ) {}
 
   canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<Request>();
-    const options =
-      this.reflector.getAllAndOverride<RateLimitOptions>(RATE_LIMIT_KEY, [
-        context.getHandler(),
-        context.getClass(),
-      ]) ?? { max: 20, windowMs: 60_000 };
+    const options = this.reflector.getAllAndOverride<RateLimitOptions>(
+      RATE_LIMIT_KEY,
+      [context.getHandler(), context.getClass()],
+    ) ?? { max: 20, windowMs: 60_000 };
     const ip = request.ip || request.socket.remoteAddress || 'unknown';
     const email =
       options.includeEmail && typeof request.body?.email === 'string'
@@ -50,6 +55,14 @@ export class PublicRateLimitGuard implements CanActivate {
     }
 
     if (current.count >= options.max) {
+      void this.audit?.record({
+        ...this.audit.fromRequest(request),
+        eventType: 'security.rate_limit',
+        action: `${request.method} ${request.route?.path ?? request.path}`,
+        outcome: AuditOutcome.DENIED,
+        severity: AuditSeverity.MEDIUM,
+        reasonCode: 'RATE_LIMIT_EXCEEDED',
+      });
       throw new HttpException(
         'Muitas tentativas. Aguarde um minuto e tente novamente.',
         HttpStatus.TOO_MANY_REQUESTS,

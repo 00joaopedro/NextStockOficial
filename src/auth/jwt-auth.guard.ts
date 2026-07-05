@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { clearAuthCookies } from '../sessions/session-cookie';
 
 function cleanReason(value?: string | null) {
   return value?.replace(/[\r\n]/g, ' ').slice(0, 220) || 'none';
@@ -20,20 +21,39 @@ function classifyAuthFailure(
   if (!hasJwtCookie) return 'NO_COOKIE';
   if (reason.includes('expired')) return 'TOKEN_EXPIRED';
   if (reason.includes('invalid signature')) return 'INVALID_SIGNATURE';
-  if (reason.includes('invalid algorithm') || reason.includes('invalid_alg') || reason.includes('invalid algorithm')) {
+  if (
+    reason.includes('invalid algorithm') ||
+    reason.includes('invalid_alg') ||
+    reason.includes('invalid algorithm')
+  ) {
     return 'INVALID_ALGORITHM';
   }
-  if (reason.includes('unsupported jwt alg') || reason.includes('invalid_algorithm')) {
+  if (
+    reason.includes('unsupported jwt alg') ||
+    reason.includes('invalid_algorithm')
+  ) {
     return 'INVALID_ALGORITHM';
   }
   if (reason.includes('payload_invalid') || reason.includes('missing sub')) {
     return 'PAYLOAD_INVALID';
   }
-  if (reason.includes('profile_not_found') || reason.includes('profile not found')) {
+  if (
+    reason.includes('profile_not_found') ||
+    reason.includes('profile not found')
+  ) {
     return 'PROFILE_NOT_FOUND';
   }
-  if (reason.includes('tenant_not_linked') || reason.includes('not linked to a tenant')) {
+  if (
+    reason.includes('tenant_not_linked') ||
+    reason.includes('not linked to a tenant')
+  ) {
     return 'TENANT_NOT_LINKED';
+  }
+  if (
+    reason.includes('session_revoked') ||
+    reason.includes('session_required')
+  ) {
+    return 'SESSION_REVOKED';
   }
 
   return 'AUTH_INVALID';
@@ -50,7 +70,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     context?: ExecutionContext,
   ): TUser {
     if (err || !user) {
-      const request = context?.switchToHttp().getRequest();
+      const httpContext = context?.switchToHttp();
+      const request = httpContext?.getRequest();
+      const response =
+        typeof httpContext?.getResponse === 'function'
+          ? httpContext.getResponse()
+          : undefined;
       const hasCookies = Boolean(request?.cookies);
       const tokenLength =
         typeof request?.cookies?.jwt === 'string'
@@ -58,6 +83,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
           : 0;
       const hasJwtCookie = tokenLength > 0;
       const code = classifyAuthFailure(err, info, hasJwtCookie);
+      if (code === 'SESSION_REVOKED' && response) {
+        clearAuthCookies(response);
+      }
 
       if (
         process.env.NODE_ENV !== 'production' ||

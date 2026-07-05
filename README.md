@@ -207,7 +207,8 @@ composite foreign keys.
 
 Current ownership rules:
 
-- products and payment machines are tenant-wide and shared between the tenant branches;
+- products and payment machines are branch-wide; every operational query must include
+  both `tenantId` and `branchId`, and legacy rows without a branch remain hidden;
 - Pet Shop clients, pets, photos and appointments are branch-wide;
 - the current `TenantMember` model grants one branch per user/tenant. Supporting
   multiple branches per user requires a separate access-model decision and migration;
@@ -216,3 +217,39 @@ Current ownership rules:
 Esse comando pode ser executado manualmente pelo terminal da Railway, por job separado, ou no pipeline antes/depois do deploy, desde que nao bloqueie a inicializacao normal do backend.
 
 Veja tambem [DEPLOY.md](./DEPLOY.md).
+
+Runbooks de producao:
+
+- `docs/operations/staging.md`
+- `docs/operations/deploy-checklist.md`
+- `docs/operations/backup-restore.md`
+- `docs/operations/incident-response.md`
+- `docs/security/rbac-matrix.md`
+- `docs/operations/monitoring-alerts.md`
+- `docs/security/data-inventory.md`
+- `docs/security/data-retention.md`
+- `docs/security/lgpd-technical-plan.md`
+
+## Sessoes revogaveis e inventario de arquivos
+
+Novos logins recebem `jwt` e `nextstock_session`, ambos HttpOnly. A aplicacao
+armazena somente HMAC do identificador opaco. Ative
+`SESSION_ENFORCEMENT_ENABLED=true` apenas depois da migration e de um rollout
+validado em staging. `POST /api/auth/logout` revoga a sessao atual e
+`POST /api/auth/logout-all` revoga todas as sessoes do profile.
+
+Uploads aceitos passam a compor `stored_files`. Quotas ficam desabilitadas por
+padrao e podem ser ativadas com `UPLOAD_ENABLE_QUOTAS=true`. Imagens
+reprocessadas sao `NOT_REQUIRED`; PDF/DOC/DOCX ficam `PENDING` para a futura
+integracao antimalware, sem enforcement de download nesta fase.
+
+Relatorios seguros:
+
+```bash
+npm run sessions:cleanup
+npm run audit:retention-report
+npm run storage:orphan-report
+npm run uploads:quota-report
+npm run privacy:report-pii
+npm run privacy:report-retention
+```

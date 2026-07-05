@@ -7,6 +7,7 @@ export interface SystemContext {
   isSuperAdmin?: boolean;
   isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
+  role?: string;
 }
 
 export interface TenantSystemSettings {

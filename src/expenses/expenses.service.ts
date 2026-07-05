@@ -270,6 +270,7 @@ export class ExpensesService {
       tenantId: context.tenantId,
       branchId: context.branchId!,
       expenseId: expense.id,
+      ownerProfileId: context.userId,
       file,
     });
 

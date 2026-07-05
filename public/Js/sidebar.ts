@@ -1,6 +1,6 @@
-type SystemMode = "PRODUCTION" | "PREVIEW";
-type TenantType = "STANDARD" | "PETSHOP";
-type ModuleKey = "core" | "petshop" | "dev";
+type SystemMode = 'PRODUCTION' | 'PREVIEW';
+type TenantType = 'STANDARD' | 'PETSHOP';
+type ModuleKey = 'core' | 'petshop' | 'dev';
 
 interface SystemContextResponse {
   systemMode: SystemMode;
@@ -10,6 +10,7 @@ interface SystemContextResponse {
   isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
   billingAllowed?: boolean;
+  role?: 'superAdmin' | 'Admin' | 'Vendedor' | 'Comprador';
 }
 
 interface SidebarItem {
@@ -20,40 +21,85 @@ interface SidebarItem {
   disabled?: boolean;
 }
 
-const SYSTEM_CONTEXT_ENDPOINT = "/api/system/context";
+const SYSTEM_CONTEXT_ENDPOINT = '/api/system/context';
 const PAGE_VIEW_ENDPOINT = "/api/usage/page-view";
 
 const FALLBACK_CONTEXT: SystemContextResponse = {
-  systemMode: "PREVIEW",
-  tenantType: "STANDARD",
+  systemMode: 'PREVIEW',
+  tenantType: 'STANDARD',
 };
 
 const TENANT_MODULES: Record<TenantType, ModuleKey[]> = {
-  STANDARD: ["core"],
-  PETSHOP: ["core", "petshop"],
+  STANDARD: ['core'],
+  PETSHOP: ['core', 'petshop'],
 };
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
-  { label: "Parceiros", href: "parceiros.html", key: "parceiros", module: "dev" },
-  { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
-  { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
-  { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },
-  { label: "Clientes", href: "clientePet.html", key: "clientePet", module: "petshop" },
-  { label: "Guia", href: "guia.html", key: "guia", module: "core" },
-  { label: "Produtos", href: "produtos.html", key: "produtos", module: "core" },
-  { label: "Pedidos", href: "pedido.html", key: "pedido", module: "core" },
-  { label: "Fornecedores", href: "fornecedor.html", key: "fornecedor", module: "core" },
-  { label: "Cadastro", href: "cadastro.html", key: "cadastro", module: "core" },
-  { label: "Migração", href: "migracao.html", key: "migracao", module: "core" },
-  { label: "Despesas", href: "despesas.html", key: "despesas", module: "core" },
-  { label: "Histórico", href: "historico.html", key: "historico", module: "core" },
-  { label: "Fechamento", href: "fechamento.html", key: "fechamento", module: "core" },
-  { label: "Dashboard", href: "dashboard.html", key: "dashboard", module: "core" },
-  { label: "Pagamento", href: "pagamentos.html", key: "pagamentos", module: "core" },
-  { label: "Funcionários", href: "funcionario.html", key: "funcionario", module: "core" },
-  { label: "NTF-e", href: "ntfe.html", key: "ntfe", module: "core" },
-  { label: "Suporte", href: "#", key: "suporte", module: "core" },
+  {
+    label: 'Parceiros',
+    href: 'parceiros.html',
+    key: 'parceiros',
+    module: 'dev',
+  },
+  { label: 'Caixa', href: 'caixa.html', key: 'caixa', module: 'core' },
+  { label: 'Perfil', href: 'perfil.html', key: 'perfil', module: 'core' },
+  {
+    label: 'Agenda',
+    href: 'agendaPet.html',
+    key: 'agendaPet',
+    module: 'petshop',
+  },
+  {
+    label: 'Clientes',
+    href: 'clientePet.html',
+    key: 'clientePet',
+    module: 'petshop',
+  },
+  { label: 'Guia', href: 'guia.html', key: 'guia', module: 'core' },
+  { label: 'Produtos', href: 'produtos.html', key: 'produtos', module: 'core' },
+  { label: 'Pedidos', href: 'pedido.html', key: 'pedido', module: 'core' },
+  {
+    label: 'Fornecedores',
+    href: 'fornecedor.html',
+    key: 'fornecedor',
+    module: 'core',
+  },
+  { label: 'Cadastro', href: 'cadastro.html', key: 'cadastro', module: 'core' },
+  { label: 'Migração', href: 'migracao.html', key: 'migracao', module: 'core' },
+  { label: 'Despesas', href: 'despesas.html', key: 'despesas', module: 'core' },
+  {
+    label: 'Histórico',
+    href: 'historico.html',
+    key: 'historico',
+    module: 'core',
+  },
+  {
+    label: 'Fechamento',
+    href: 'fechamento.html',
+    key: 'fechamento',
+    module: 'core',
+  },
+  {
+    label: 'Dashboard',
+    href: 'dashboard.html',
+    key: 'dashboard',
+    module: 'core',
+  },
+  {
+    label: 'Pagamento',
+    href: 'pagamentos.html',
+    key: 'pagamentos',
+    module: 'core',
+  },
+  {
+    label: 'Funcionários',
+    href: 'funcionario.html',
+    key: 'funcionario',
+    module: 'core',
+  },
+  { label: 'NTF-e', href: 'ntfe.html', key: 'ntfe', module: 'core' },
+  { label: 'Suporte', href: '#', key: 'suporte', module: 'core' },
 ];
 
 declare global {
@@ -79,8 +125,8 @@ function isSuperAdminUser(user?: unknown): boolean {
     | undefined;
 
   return (
-    candidate?.role === "superAdmin" ||
-    candidate?.roles?.includes("superAdmin") === true ||
+    candidate?.role === 'superAdmin' ||
+    candidate?.roles?.includes('superAdmin') === true ||
     candidate?.isSuperAdmin === true ||
     candidate?.is_super_admin === true
   );
@@ -105,12 +151,12 @@ window.NextStockAccess = {
 };
 
 function injectSidebarStyles(): void {
-  if (document.getElementById("nextstock-sidebar-runtime-styles")) {
+  if (document.getElementById('nextstock-sidebar-runtime-styles')) {
     return;
   }
 
-  const style = document.createElement("style");
-  style.id = "nextstock-sidebar-runtime-styles";
+  const style = document.createElement('style');
+  style.id = 'nextstock-sidebar-runtime-styles';
   style.textContent = `
     .sidebar-brand {
       display: flex;
@@ -169,11 +215,11 @@ function injectSidebarStyles(): void {
 }
 
 function isSystemMode(value: unknown): value is SystemMode {
-  return value === "PRODUCTION" || value === "PREVIEW";
+  return value === 'PRODUCTION' || value === 'PREVIEW';
 }
 
 function isTenantType(value: unknown): value is TenantType {
-  return value === "STANDARD" || value === "PETSHOP";
+  return value === 'STANDARD' || value === 'PETSHOP';
 }
 
 function normalizeContext(value: unknown): SystemContextResponse {
@@ -192,6 +238,7 @@ function normalizeContext(value: unknown): SystemContextResponse {
     allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
       ? candidate.allowedSystemTypes
       : [],
+    role: candidate?.role,
   };
 }
 
@@ -202,27 +249,32 @@ function getRuntimeFallbackContext(): SystemContextResponse {
 function getSelectedBranchId(): string | null {
   try {
     const branch = JSON.parse(
-      sessionStorage.getItem("nextstockSelectedBranch") || "null",
+      sessionStorage.getItem('nextstockSelectedBranch') || 'null',
     ) as { id?: string } | null;
 
-    return branch?.id || sessionStorage.getItem("nextstockBranchId");
+    return branch?.id || sessionStorage.getItem('nextstockBranchId');
   } catch {
-    return sessionStorage.getItem("nextstockBranchId");
+    return sessionStorage.getItem('nextstockBranchId');
   }
 }
 
-function getDevContextHeader(selectedBranchId: string | null): Record<string, string> {
+function getDevContextHeader(
+  selectedBranchId: string | null,
+): Record<string, string> {
   if (!selectedBranchId) {
     return {};
   }
 
   try {
     const supportContext = JSON.parse(
-      sessionStorage.getItem("nextstockDevSupportContext") || "null",
+      sessionStorage.getItem('nextstockDevSupportContext') || 'null',
     ) as { branchId?: string; mode?: string } | null;
 
-    if (supportContext?.branchId === selectedBranchId && supportContext.mode === "support") {
-      return { "x-nextstock-dev-context": "support" };
+    if (
+      supportContext?.branchId === selectedBranchId &&
+      supportContext.mode === 'support'
+    ) {
+      return { 'x-nextstock-dev-context': 'support' };
     }
   } catch {
     return {};
@@ -233,16 +285,16 @@ function getDevContextHeader(selectedBranchId: string | null): Record<string, st
 
 function getCurrentPageFileName(): string {
   const currentPath = window.location.pathname;
-  const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
+  const fileName = currentPath.substring(currentPath.lastIndexOf('/') + 1);
 
-  return fileName || "dashboard.html";
+  return fileName || 'dashboard.html';
 }
 
 function getActiveKey(menu: SidebarItem[]): string {
   const currentFile = getCurrentPageFileName();
   const currentItem = menu.find((item) => item.href === currentFile);
 
-  return currentItem?.key ?? "";
+  return currentItem?.key ?? '';
 }
 
 function getMenuByTenantType(tenantType: TenantType): SidebarItem[] {
@@ -252,16 +304,60 @@ function getMenuByTenantType(tenantType: TenantType): SidebarItem[] {
 }
 
 function getMenuByContext(context: SystemContextResponse): SidebarItem[] {
-  const contextMenu = getMenuByTenantType(context.tenantType);
+  const roleItems: Record<string, Set<string>> = {
+    Admin: new Set([
+      'caixa',
+      'perfil',
+      'agendaPet',
+      'clientePet',
+      'guia',
+      'produtos',
+      'pedido',
+      'fornecedor',
+      'cadastro',
+      'migracao',
+      'despesas',
+      'historico',
+      'fechamento',
+      'dashboard',
+      'funcionario',
+      'ntfe',
+    ]),
+    Vendedor: new Set([
+      'caixa',
+      'perfil',
+      'agendaPet',
+      'clientePet',
+      'guia',
+      'produtos',
+      'pedido',
+      'fornecedor',
+      'historico',
+      'dashboard',
+      'ntfe',
+    ]),
+    Comprador: new Set([
+      'perfil',
+      'guia',
+      'produtos',
+      'fornecedor',
+      'despesas',
+      'dashboard',
+    ]),
+  };
+  const allowed = context.role ? roleItems[context.role] : undefined;
+  const contextMenu = getMenuByTenantType(context.tenantType).filter(
+    (item) => !allowed || allowed.has(item.key),
+  );
 
   if (context.billingAllowed === false && !isDevSuperAdminUser(context)) {
-    return contextMenu.filter((item) => item.key === "perfil");
+    return contextMenu.filter((item) => item.key === 'perfil');
   }
 
   if (isDevSuperAdminUser(context)) {
     return [
       ...contextMenu,
-      ...SIDEBAR_ITEMS.filter((item) => item.module === "dev"),
+      ...SIDEBAR_ITEMS.filter((item) => item.module === 'dev'),
     ];
   }
 
@@ -270,27 +366,27 @@ function getMenuByContext(context: SystemContextResponse): SidebarItem[] {
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function buildPreviewBadge(context: SystemContextResponse): string {
-  if (context.systemMode !== "PREVIEW") {
-    return "";
+  if (context.systemMode !== 'PREVIEW') {
+    return '';
   }
 
   return '<span class="system-mode-badge" aria-label="Modo preview">PREVIEW</span>';
 }
 
 function buildSidebarItemHtml(item: SidebarItem, activeKey: string): string {
-  const activeClass = item.key === activeKey ? " active" : "";
-  const disabledClass = item.disabled ? " disabled" : "";
-  const ariaCurrent = item.key === activeKey ? ' aria-current="page"' : "";
-  const ariaDisabled = item.disabled ? ' aria-disabled="true"' : "";
-  const href = item.disabled ? "#" : item.href;
+  const activeClass = item.key === activeKey ? ' active' : '';
+  const disabledClass = item.disabled ? ' disabled' : '';
+  const ariaCurrent = item.key === activeKey ? ' aria-current="page"' : '';
+  const ariaDisabled = item.disabled ? ' aria-disabled="true"' : '';
+  const href = item.disabled ? '#' : item.href;
 
   return `
     <li class="menu-item${activeClass}${disabledClass}">
@@ -308,7 +404,7 @@ function buildSidebarHtml(
   const activeKey = getActiveKey(menu);
   const menuHtml = menu
     .map((item) => buildSidebarItemHtml(item, activeKey))
-    .join("");
+    .join('');
 
   return `
     <aside id="sidebar" class="sidebar" data-system-mode="${context.systemMode}" data-tenant-type="${context.tenantType}">
@@ -327,13 +423,15 @@ function buildSidebarHtml(
 async function fetchSystemContext(): Promise<SystemContextResponse> {
   const selectedBranchId = getSelectedBranchId();
   const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
-    method: "GET",
+    method: 'GET',
     headers: {
-      Accept: "application/json",
-      ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+      Accept: 'application/json',
+      ...(selectedBranchId
+        ? { 'x-nextstock-branch-id': selectedBranchId }
+        : {}),
       ...getDevContextHeader(selectedBranchId),
     },
-    credentials: "include",
+    credentials: 'include',
   });
 
   if (!response.ok) {
@@ -341,14 +439,16 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
   }
 
   const context = normalizeContext(await response.json());
-  const billingResponse = await fetch("/api/billing/subscription", {
-    method: "GET",
+  const billingResponse = await fetch('/api/billing/subscription', {
+    method: 'GET',
     headers: {
-      Accept: "application/json",
-      ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+      Accept: 'application/json',
+      ...(selectedBranchId
+        ? { 'x-nextstock-branch-id': selectedBranchId }
+        : {}),
       ...getDevContextHeader(selectedBranchId),
     },
-    credentials: "include",
+    credentials: 'include',
   });
 
   if (billingResponse.ok) {
@@ -374,18 +474,18 @@ function renderSidebar(
 }
 
 function recordPageView(context: SystemContextResponse): void {
-  if (context.systemMode !== "PRODUCTION") {
+  if (context.systemMode !== 'PRODUCTION') {
     return;
   }
 
   void fetch(PAGE_VIEW_ENDPOINT, {
-    method: "POST",
-    credentials: "include",
+    method: 'POST',
+    credentials: 'include',
     keepalive: true,
     headers: {
-      "Content-Type": "application/json",
+      'Content-Type': 'application/json',
       ...(getSelectedBranchId()
-        ? { "x-nextstock-branch-id": getSelectedBranchId() as string }
+        ? { 'x-nextstock-branch-id': getSelectedBranchId() as string }
         : {}),
       ...getDevContextHeader(getSelectedBranchId()),
     },
@@ -397,7 +497,7 @@ function recordPageView(context: SystemContextResponse): void {
 }
 
 async function loadSidebar(): Promise<void> {
-  const container = document.getElementById("sidebar-container");
+  const container = document.getElementById('sidebar-container');
 
   if (!container) {
     return;
@@ -408,7 +508,7 @@ async function loadSidebar(): Promise<void> {
     renderSidebar(container, context);
     recordPageView(context);
   } catch (error) {
-    console.warn("Using fallback sidebar context.", error);
+    console.warn('Using fallback sidebar context.', error);
     (window as any).clearNextStockSessionState?.();
     const context = getRuntimeFallbackContext();
     renderSidebar(container, context);
@@ -416,8 +516,8 @@ async function loadSidebar(): Promise<void> {
   }
 }
 
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", loadSidebar);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadSidebar);
 } else {
   void loadSidebar();
 }

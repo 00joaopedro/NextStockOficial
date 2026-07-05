@@ -3,6 +3,7 @@ import { INestApplication } from '@nestjs/common';
 import * as request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
+import { PrismaService } from './../src/prisma/prisma.service';
 
 jest.setTimeout(120_000);
 
@@ -16,7 +17,13 @@ describe('AppController (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(PrismaService)
+      .useValue({
+        $connect: jest.fn(),
+        $disconnect: jest.fn(),
+      })
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
@@ -24,13 +31,10 @@ describe('AppController (e2e)', () => {
   });
 
   it('/api (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/api')
-      .expect(200)
-      .expect({
-        status: 'ok',
-        app: 'NextStock',
-        message: 'API online',
-      });
+    return request(app.getHttpServer()).get('/api').expect(200).expect({
+      status: 'ok',
+      app: 'NextStock',
+      message: 'API online',
+    });
   });
 });

@@ -15,6 +15,7 @@ import { RolesGuard } from './roles.guard';
 import { ReferralModule } from '../partners/referral.module';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
 import { BillingCoreModule } from '../billing/billing-core.module';
+import { SessionsModule } from '../sessions/sessions.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { BillingCoreModule } from '../billing/billing-core.module';
     TenancyModule,
     ReferralModule,
     BillingCoreModule,
+    SessionsModule,
   ],
   providers: [
     AuthService,

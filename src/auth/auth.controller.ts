@@ -8,22 +8,38 @@ import {
   UseGuards,
   UsePipes,
   ValidationPipe,
+  Optional,
 } from '@nestjs/common';
+import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 import { CsrfExempt } from '../security/csrf-origin.guard';
 import { BillingExempt } from '../billing/billing-exempt.decorator';
+import { AuditService } from '../audit/audit.service';
+import { SessionsService } from '../sessions/sessions.service';
+import {
+  clearAuthCookies,
+  SESSION_COOKIE_NAME,
+  setSessionCookie,
+} from '../sessions/session-cookie';
 
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    @Optional() private readonly audit?: AuditService,
+    @Optional() private readonly sessions?: SessionsService,
+  ) {}
 
   @Post('register')
   @UseGuards(PublicRateLimitGuard)
@@ -32,10 +48,23 @@ export class AuthController {
   async register(
     @Body() body: RegisterDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req?: Request,
   ) {
     const { accessToken, payload } = await this.authService.register(body);
 
+    res.setHeader('Cache-Control', 'no-store');
+    await this.createSession(req, res, accessToken, payload.user);
     this.setJwtCookie(res, accessToken);
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.register.succeeded',
+      action: 'register',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.MEDIUM,
+      actorProfileId: payload.user?.id,
+      tenantId: payload.selectedBranch?.tenantId,
+      branchId: payload.selectedBranch?.id,
+    });
 
     return payload;
   }
@@ -47,31 +76,96 @@ export class AuthController {
   async login(
     @Body() body: LoginDto,
     @Res({ passthrough: true }) res: Response,
+    @Req() req?: Request,
   ) {
-    const { accessToken, payload } = await this.authService.login(body);
+    try {
+      const { accessToken, payload } = await this.authService.login(body);
 
-    this.setJwtCookie(res, accessToken);
+      res.setHeader('Cache-Control', 'no-store');
+      await this.createSession(req, res, accessToken, payload.user);
+      this.setJwtCookie(res, accessToken);
+      void this.audit?.record({
+        ...this.audit.fromRequest(req),
+        eventType: 'auth.login.succeeded',
+        action: 'login',
+        outcome: AuditOutcome.SUCCESS,
+        severity: AuditSeverity.LOW,
+        actorProfileId: payload.user?.id,
+        actorRole: payload.user?.role,
+        tenantId: payload.selectedBranch?.tenantId,
+        branchId: payload.selectedBranch?.id,
+      });
 
-    return payload;
+      return payload;
+    } catch (error) {
+      void this.audit?.record({
+        ...this.audit.fromRequest(req),
+        eventType: 'auth.login.failed',
+        action: 'login',
+        outcome: AuditOutcome.DENIED,
+        severity: AuditSeverity.MEDIUM,
+        reasonCode: 'INVALID_CREDENTIALS_OR_PROVIDER_FAILURE',
+        metadata: { emailHashOnly: true },
+      });
+      throw error;
+    }
   }
 
   @Post('forgot-password')
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: true })
   @CsrfExempt()
-  async forgotPassword(@Body() body: ForgotPasswordDto) {
-    return this.authService.forgotPassword(body);
+  async forgotPassword(@Body() body: ForgotPasswordDto, @Req() req: Request) {
+    const result = await this.authService.forgotPassword(body);
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.password_recovery.requested',
+      action: 'forgot_password',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.MEDIUM,
+    });
+    return result;
   }
 
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('jwt', { path: '/' });
+  async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
+    await this.sessions?.revokeCurrent(
+      req.cookies?.[SESSION_COOKIE_NAME],
+      'logout',
+      this.sessions.metadataFromRequest(req),
+    );
+    clearAuthCookies(res);
+    res.setHeader('Cache-Control', 'no-store');
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.logout',
+      action: 'logout',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.LOW,
+    });
     return { ok: true };
+  }
+
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  async logoutAll(
+    @Res({ passthrough: true }) res: Response,
+    @Req() req: Request,
+  ) {
+    const revoked = await this.sessions?.revokeAllForProfile(
+      req.user!.id,
+      'logout_all',
+      this.sessions.metadataFromRequest(req),
+    );
+    clearAuthCookies(res);
+    res.setHeader('Cache-Control', 'no-store');
+    return { ok: true, revoked: revoked ?? 0 };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  profile(@Req() req: Request) {
+  profile(@Req() req: Request, @Res({ passthrough: true }) res?: Response) {
+    res?.setHeader('Cache-Control', 'no-store');
     return this.authService.getProfile(req.user);
   }
 
@@ -88,6 +182,25 @@ export class AuthController {
     });
   }
 
+  private async createSession(
+    req: Request | undefined,
+    res: Response,
+    accessToken: string,
+    user: { id: string; tenantId?: string | null },
+  ) {
+    if (!this.sessions) return;
+    const token = this.sessions.expiresAtFromJwt(accessToken);
+    const session = await this.sessions.create({
+      profileId: user.id,
+      tenantId: user.tenantId,
+      jwtSubject: token.subject,
+      expiresAt: token.expiresAt,
+      metadata: this.sessions.metadataFromRequest(req),
+    });
+    setSessionCookie(res, session.token, session.expiresAt);
+    res.setHeader('Cache-Control', 'no-store');
+  }
+
   private getJwtMaxAgeMs(accessToken: string) {
     try {
       const [, payload] = accessToken.split('.');
@@ -101,7 +214,9 @@ export class AuthController {
         normalized.length + ((4 - (normalized.length % 4)) % 4),
         '=',
       );
-      const decoded = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
+      const decoded = JSON.parse(
+        Buffer.from(padded, 'base64').toString('utf8'),
+      ) as {
         exp?: number;
       };
 

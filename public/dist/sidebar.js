@@ -1,39 +1,84 @@
-const SYSTEM_CONTEXT_ENDPOINT = "/api/system/context";
+const SYSTEM_CONTEXT_ENDPOINT = '/api/system/context';
 const PAGE_VIEW_ENDPOINT = "/api/usage/page-view";
 const FALLBACK_CONTEXT = {
-    systemMode: "PREVIEW",
-    tenantType: "STANDARD",
+    systemMode: 'PREVIEW',
+    tenantType: 'STANDARD',
 };
 const TENANT_MODULES = {
-    STANDARD: ["core"],
-    PETSHOP: ["core", "petshop"],
+    STANDARD: ['core'],
+    PETSHOP: ['core', 'petshop'],
 };
 const SIDEBAR_ITEMS = [
     { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
-    { label: "Parceiros", href: "parceiros.html", key: "parceiros", module: "dev" },
-    { label: "Caixa", href: "caixa.html", key: "caixa", module: "core" },
-    { label: "Perfil", href: "perfil.html", key: "perfil", module: "core" },
-    { label: "Agenda", href: "agendaPet.html", key: "agendaPet", module: "petshop" },
-    { label: "Clientes", href: "clientePet.html", key: "clientePet", module: "petshop" },
-    { label: "Guia", href: "guia.html", key: "guia", module: "core" },
-    { label: "Produtos", href: "produtos.html", key: "produtos", module: "core" },
-    { label: "Pedidos", href: "pedido.html", key: "pedido", module: "core" },
-    { label: "Fornecedores", href: "fornecedor.html", key: "fornecedor", module: "core" },
-    { label: "Cadastro", href: "cadastro.html", key: "cadastro", module: "core" },
-    { label: "Migração", href: "migracao.html", key: "migracao", module: "core" },
-    { label: "Despesas", href: "despesas.html", key: "despesas", module: "core" },
-    { label: "Histórico", href: "historico.html", key: "historico", module: "core" },
-    { label: "Fechamento", href: "fechamento.html", key: "fechamento", module: "core" },
-    { label: "Dashboard", href: "dashboard.html", key: "dashboard", module: "core" },
-    { label: "Pagamento", href: "pagamentos.html", key: "pagamentos", module: "core" },
-    { label: "Funcionários", href: "funcionario.html", key: "funcionario", module: "core" },
-    { label: "NTF-e", href: "ntfe.html", key: "ntfe", module: "core" },
-    { label: "Suporte", href: "#", key: "suporte", module: "core" },
+    {
+        label: 'Parceiros',
+        href: 'parceiros.html',
+        key: 'parceiros',
+        module: 'dev',
+    },
+    { label: 'Caixa', href: 'caixa.html', key: 'caixa', module: 'core' },
+    { label: 'Perfil', href: 'perfil.html', key: 'perfil', module: 'core' },
+    {
+        label: 'Agenda',
+        href: 'agendaPet.html',
+        key: 'agendaPet',
+        module: 'petshop',
+    },
+    {
+        label: 'Clientes',
+        href: 'clientePet.html',
+        key: 'clientePet',
+        module: 'petshop',
+    },
+    { label: 'Guia', href: 'guia.html', key: 'guia', module: 'core' },
+    { label: 'Produtos', href: 'produtos.html', key: 'produtos', module: 'core' },
+    { label: 'Pedidos', href: 'pedido.html', key: 'pedido', module: 'core' },
+    {
+        label: 'Fornecedores',
+        href: 'fornecedor.html',
+        key: 'fornecedor',
+        module: 'core',
+    },
+    { label: 'Cadastro', href: 'cadastro.html', key: 'cadastro', module: 'core' },
+    { label: 'Migração', href: 'migracao.html', key: 'migracao', module: 'core' },
+    { label: 'Despesas', href: 'despesas.html', key: 'despesas', module: 'core' },
+    {
+        label: 'Histórico',
+        href: 'historico.html',
+        key: 'historico',
+        module: 'core',
+    },
+    {
+        label: 'Fechamento',
+        href: 'fechamento.html',
+        key: 'fechamento',
+        module: 'core',
+    },
+    {
+        label: 'Dashboard',
+        href: 'dashboard.html',
+        key: 'dashboard',
+        module: 'core',
+    },
+    {
+        label: 'Pagamento',
+        href: 'pagamentos.html',
+        key: 'pagamentos',
+        module: 'core',
+    },
+    {
+        label: 'Funcionários',
+        href: 'funcionario.html',
+        key: 'funcionario',
+        module: 'core',
+    },
+    { label: 'NTF-e', href: 'ntfe.html', key: 'ntfe', module: 'core' },
+    { label: 'Suporte', href: '#', key: 'suporte', module: 'core' },
 ];
 function isSuperAdminUser(user) {
     const candidate = user;
-    return (candidate?.role === "superAdmin" ||
-        candidate?.roles?.includes("superAdmin") === true ||
+    return (candidate?.role === 'superAdmin' ||
+        candidate?.roles?.includes('superAdmin') === true ||
         candidate?.isSuperAdmin === true ||
         candidate?.is_super_admin === true);
 }
@@ -48,11 +93,11 @@ window.NextStockAccess = {
     canAccessDev: isDevSuperAdminUser,
 };
 function injectSidebarStyles() {
-    if (document.getElementById("nextstock-sidebar-runtime-styles")) {
+    if (document.getElementById('nextstock-sidebar-runtime-styles')) {
         return;
     }
-    const style = document.createElement("style");
-    style.id = "nextstock-sidebar-runtime-styles";
+    const style = document.createElement('style');
+    style.id = 'nextstock-sidebar-runtime-styles';
     style.textContent = `
     .sidebar-brand {
       display: flex;
@@ -109,10 +154,10 @@ function injectSidebarStyles() {
     document.head.appendChild(style);
 }
 function isSystemMode(value) {
-    return value === "PRODUCTION" || value === "PREVIEW";
+    return value === 'PRODUCTION' || value === 'PREVIEW';
 }
 function isTenantType(value) {
-    return value === "STANDARD" || value === "PETSHOP";
+    return value === 'STANDARD' || value === 'PETSHOP';
 }
 function normalizeContext(value) {
     const candidate = value;
@@ -129,6 +174,7 @@ function normalizeContext(value) {
         allowedSystemTypes: Array.isArray(candidate?.allowedSystemTypes)
             ? candidate.allowedSystemTypes
             : [],
+        role: candidate?.role,
     };
 }
 function getRuntimeFallbackContext() {
@@ -136,11 +182,11 @@ function getRuntimeFallbackContext() {
 }
 function getSelectedBranchId() {
     try {
-        const branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
-        return branch?.id || sessionStorage.getItem("nextstockBranchId");
+        const branch = JSON.parse(sessionStorage.getItem('nextstockSelectedBranch') || 'null');
+        return branch?.id || sessionStorage.getItem('nextstockBranchId');
     }
     catch {
-        return sessionStorage.getItem("nextstockBranchId");
+        return sessionStorage.getItem('nextstockBranchId');
     }
 }
 function getDevContextHeader(selectedBranchId) {
@@ -148,9 +194,10 @@ function getDevContextHeader(selectedBranchId) {
         return {};
     }
     try {
-        const supportContext = JSON.parse(sessionStorage.getItem("nextstockDevSupportContext") || "null");
-        if (supportContext?.branchId === selectedBranchId && supportContext.mode === "support") {
-            return { "x-nextstock-dev-context": "support" };
+        const supportContext = JSON.parse(sessionStorage.getItem('nextstockDevSupportContext') || 'null');
+        if (supportContext?.branchId === selectedBranchId &&
+            supportContext.mode === 'support') {
+            return { 'x-nextstock-dev-context': 'support' };
         }
     }
     catch {
@@ -160,51 +207,93 @@ function getDevContextHeader(selectedBranchId) {
 }
 function getCurrentPageFileName() {
     const currentPath = window.location.pathname;
-    const fileName = currentPath.substring(currentPath.lastIndexOf("/") + 1);
-    return fileName || "dashboard.html";
+    const fileName = currentPath.substring(currentPath.lastIndexOf('/') + 1);
+    return fileName || 'dashboard.html';
 }
 function getActiveKey(menu) {
     const currentFile = getCurrentPageFileName();
     const currentItem = menu.find((item) => item.href === currentFile);
-    return currentItem?.key ?? "";
+    return currentItem?.key ?? '';
 }
 function getMenuByTenantType(tenantType) {
     const enabledModules = new Set(TENANT_MODULES[tenantType]);
     return SIDEBAR_ITEMS.filter((item) => enabledModules.has(item.module));
 }
 function getMenuByContext(context) {
-    const contextMenu = getMenuByTenantType(context.tenantType);
+    const roleItems = {
+        Admin: new Set([
+            'caixa',
+            'perfil',
+            'agendaPet',
+            'clientePet',
+            'guia',
+            'produtos',
+            'pedido',
+            'fornecedor',
+            'cadastro',
+            'migracao',
+            'despesas',
+            'historico',
+            'fechamento',
+            'dashboard',
+            'funcionario',
+            'ntfe',
+        ]),
+        Vendedor: new Set([
+            'caixa',
+            'perfil',
+            'agendaPet',
+            'clientePet',
+            'guia',
+            'produtos',
+            'pedido',
+            'fornecedor',
+            'historico',
+            'dashboard',
+            'ntfe',
+        ]),
+        Comprador: new Set([
+            'perfil',
+            'guia',
+            'produtos',
+            'fornecedor',
+            'despesas',
+            'dashboard',
+        ]),
+    };
+    const allowed = context.role ? roleItems[context.role] : undefined;
+    const contextMenu = getMenuByTenantType(context.tenantType).filter((item) => !allowed || allowed.has(item.key));
     if (context.billingAllowed === false && !isDevSuperAdminUser(context)) {
-        return contextMenu.filter((item) => item.key === "perfil");
+        return contextMenu.filter((item) => item.key === 'perfil');
     }
     if (isDevSuperAdminUser(context)) {
         return [
             ...contextMenu,
-            ...SIDEBAR_ITEMS.filter((item) => item.module === "dev"),
+            ...SIDEBAR_ITEMS.filter((item) => item.module === 'dev'),
         ];
     }
     return contextMenu;
 }
 function escapeHtml(value) {
     return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
 }
 function buildPreviewBadge(context) {
-    if (context.systemMode !== "PREVIEW") {
-        return "";
+    if (context.systemMode !== 'PREVIEW') {
+        return '';
     }
     return '<span class="system-mode-badge" aria-label="Modo preview">PREVIEW</span>';
 }
 function buildSidebarItemHtml(item, activeKey) {
-    const activeClass = item.key === activeKey ? " active" : "";
-    const disabledClass = item.disabled ? " disabled" : "";
-    const ariaCurrent = item.key === activeKey ? ' aria-current="page"' : "";
-    const ariaDisabled = item.disabled ? ' aria-disabled="true"' : "";
-    const href = item.disabled ? "#" : item.href;
+    const activeClass = item.key === activeKey ? ' active' : '';
+    const disabledClass = item.disabled ? ' disabled' : '';
+    const ariaCurrent = item.key === activeKey ? ' aria-current="page"' : '';
+    const ariaDisabled = item.disabled ? ' aria-disabled="true"' : '';
+    const href = item.disabled ? '#' : item.href;
     return `
     <li class="menu-item${activeClass}${disabledClass}">
       <a href="${escapeHtml(href)}"${ariaCurrent}${ariaDisabled} data-sidebar-key="${escapeHtml(item.key)}">
@@ -217,7 +306,7 @@ function buildSidebarHtml(menu, context) {
     const activeKey = getActiveKey(menu);
     const menuHtml = menu
         .map((item) => buildSidebarItemHtml(item, activeKey))
-        .join("");
+        .join('');
     return `
     <aside id="sidebar" class="sidebar" data-system-mode="${context.systemMode}" data-tenant-type="${context.tenantType}">
       <div class="sidebar-brand">
@@ -234,26 +323,30 @@ function buildSidebarHtml(menu, context) {
 async function fetchSystemContext() {
     const selectedBranchId = getSelectedBranchId();
     const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
-        method: "GET",
+        method: 'GET',
         headers: {
-            Accept: "application/json",
-            ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+            Accept: 'application/json',
+            ...(selectedBranchId
+                ? { 'x-nextstock-branch-id': selectedBranchId }
+                : {}),
             ...getDevContextHeader(selectedBranchId),
         },
-        credentials: "include",
+        credentials: 'include',
     });
     if (!response.ok) {
         throw new Error(`System context failed with status ${response.status}`);
     }
     const context = normalizeContext(await response.json());
-    const billingResponse = await fetch("/api/billing/subscription", {
-        method: "GET",
+    const billingResponse = await fetch('/api/billing/subscription', {
+        method: 'GET',
         headers: {
-            Accept: "application/json",
-            ...(selectedBranchId ? { "x-nextstock-branch-id": selectedBranchId } : {}),
+            Accept: 'application/json',
+            ...(selectedBranchId
+                ? { 'x-nextstock-branch-id': selectedBranchId }
+                : {}),
             ...getDevContextHeader(selectedBranchId),
         },
-        credentials: "include",
+        credentials: 'include',
     });
     if (billingResponse.ok) {
         const billing = await billingResponse.json();
@@ -271,17 +364,17 @@ function renderSidebar(container, context) {
     document.documentElement.dataset.tenantType = context.tenantType;
 }
 function recordPageView(context) {
-    if (context.systemMode !== "PRODUCTION") {
+    if (context.systemMode !== 'PRODUCTION') {
         return;
     }
     void fetch(PAGE_VIEW_ENDPOINT, {
-        method: "POST",
-        credentials: "include",
+        method: 'POST',
+        credentials: 'include',
         keepalive: true,
         headers: {
-            "Content-Type": "application/json",
+            'Content-Type': 'application/json',
             ...(getSelectedBranchId()
-                ? { "x-nextstock-branch-id": getSelectedBranchId() }
+                ? { 'x-nextstock-branch-id': getSelectedBranchId() }
                 : {}),
             ...getDevContextHeader(getSelectedBranchId()),
         },
@@ -292,7 +385,7 @@ function recordPageView(context) {
     }).catch(() => undefined);
 }
 async function loadSidebar() {
-    const container = document.getElementById("sidebar-container");
+    const container = document.getElementById('sidebar-container');
     if (!container) {
         return;
     }
@@ -302,15 +395,15 @@ async function loadSidebar() {
         recordPageView(context);
     }
     catch (error) {
-        console.warn("Using fallback sidebar context.", error);
+        console.warn('Using fallback sidebar context.', error);
         window.clearNextStockSessionState?.();
         const context = getRuntimeFallbackContext();
         renderSidebar(container, context);
         recordPageView(context);
     }
 }
-if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadSidebar);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', loadSidebar);
 }
 else {
     void loadSidebar();

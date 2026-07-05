@@ -410,6 +410,7 @@ export class FiscalService {
         branchId: context.branchId!,
         saleId: document.saleId,
         documentId: document.id,
+        ownerProfileId: context.userId,
         content: result.xml,
       });
     }
@@ -419,6 +420,7 @@ export class FiscalService {
         branchId: context.branchId!,
         saleId: document.saleId,
         documentId: document.id,
+        ownerProfileId: context.userId,
         content: result.pdf,
       });
     }

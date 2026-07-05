@@ -223,6 +223,7 @@ export class PetsService {
       tenantId: context.tenantId,
       branchId: context.branchId!,
       petId: id,
+      ownerProfileId: user?.id,
       file,
     });
 
