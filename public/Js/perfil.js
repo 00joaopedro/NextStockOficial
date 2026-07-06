@@ -80,6 +80,7 @@
     state.user = auth.user;
     state.selectedBranch = selectedBranch() || auth.selectedBranch || state.user?.branch;
     const context = await api("/api/system/context");
+    window.setNextStockBackendContext?.(context);
     state.selectedBranch = context.selectedBranch || state.selectedBranch;
     if (!state.selectedBranch?.id) throw new Error("Selecione uma filial válida.");
     state.canManage = state.user?.role === "Admin" || state.user?.isDevSuperAdmin === true;
@@ -120,7 +121,8 @@
       const description = document.createElement("span"); description.textContent = plan.description || "";
       const price = document.createElement("span"); price.className = "price"; price.textContent = money(plan.priceCents, plan.currency);
       const action = document.createElement("button"); action.textContent = "Escolher plano";
-      action.disabled = !state.canManage || !plan.checkoutAvailable;
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable;
+      if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       action.addEventListener("click", () => startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }

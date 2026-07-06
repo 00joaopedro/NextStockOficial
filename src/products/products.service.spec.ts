@@ -141,7 +141,10 @@ describe('ProductsService', () => {
     const { service } = makeService(SystemMode.petshop);
 
     await expect(
-      service.create({ ...user, systemType: 'petshop', mode: SystemMode.petshop }, dto),
+      service.create(
+        { ...user, systemType: 'petshop', mode: SystemMode.petshop },
+        dto,
+      ),
     ).resolves.toMatchObject({
       ok: true,
       product: { id: 'product-id' },
@@ -153,6 +156,27 @@ describe('ProductsService', () => {
 
     await expect(service.create(user, dto)).rejects.toBeInstanceOf(
       ForbiddenException,
+    );
+  });
+
+  it('lista dados reais escopados do tenant em modo visualizacao', async () => {
+    const { service, prisma } = makeService(SystemMode.visualizacao);
+
+    await expect(
+      service.findAll(user, { page: 1, pageSize: 20 }, 'branch-id'),
+    ).resolves.toMatchObject({
+      ok: true,
+      mode: SystemMode.visualizacao,
+      products: [{ id: 'product-id', nome: 'Produto teste' }],
+      total: 1,
+    });
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+        }),
+      }),
     );
   });
 
@@ -248,9 +272,7 @@ describe('ProductsService', () => {
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          OR: expect.arrayContaining([
-            { sku: { in: ['SKU-20', raw] } },
-          ]),
+          OR: expect.arrayContaining([{ sku: { in: ['SKU-20', raw] } }]),
         }),
       }),
     );
@@ -298,9 +320,9 @@ describe('ProductsService', () => {
       isSuperAdmin: true,
     };
 
-    await expect(service.create(superAdmin, dto, 'branch-id')).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    await expect(
+      service.create(superAdmin, dto, 'branch-id'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('nao remove produto de outro tenant', async () => {
@@ -317,9 +339,9 @@ describe('ProductsService', () => {
     const { service, prisma } = makeService(SystemMode.padrao);
     prisma.product.findFirst.mockResolvedValueOnce(null);
 
-    await expect(service.remove(user, 'product-branch-b')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.remove(user, 'product-branch-b'),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.product.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -342,7 +364,12 @@ describe('ProductsService', () => {
       removeProductImage: jest.fn(),
       getProductImageUrl: jest.fn(),
     };
-    const service = new ProductsService(prisma, undefined, undefined, storage as any);
+    const service = new ProductsService(
+      prisma,
+      undefined,
+      undefined,
+      storage as any,
+    );
 
     const result = await service.uploadImage(user, 'product-id', {
       originalname: 'produto.jpg',
@@ -351,7 +378,9 @@ describe('ProductsService', () => {
       buffer: Buffer.from('ok'),
     });
 
-    expect(result.image).toMatchObject({ fileUrl: 'https://storage.test/produto.jpg' });
+    expect(result.image).toMatchObject({
+      fileUrl: 'https://storage.test/produto.jpg',
+    });
     expect(storage.uploadProductImage).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-id',

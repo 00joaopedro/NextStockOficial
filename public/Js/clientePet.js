@@ -199,9 +199,11 @@
   }
 
   function persistContext(profile, selectedBranch, systemType) {
-    sessionStorage.removeItem('nextstockPreviewMode');
-    sessionStorage.removeItem('nextstockIsPreview');
-    sessionStorage.setItem('nextstockBackendMode', 'production');
+    window.setNextStockBackendContext?.({
+      systemMode: authContext.systemMode,
+      systemType,
+      tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+    });
     sessionStorage.setItem('nextstockSystemType', systemType);
     sessionStorage.setItem('nextstockSelectedSystemType', systemType);
 
@@ -262,6 +264,20 @@
 
   async function loadAuthContext() {
     clientesList.innerHTML = '<div class="list-empty">Validando sessao...</div>';
+    if (window.isNextStockDemoMode?.()) {
+      authContext = {
+        profile: null,
+        selectedBranch: null,
+        systemType: 'petshop',
+        systemMode: 'PREVIEW',
+        isPreview: true,
+        isReady: true,
+      };
+      clientesList.innerHTML =
+        '<div class="list-empty">Preview publico: entre em um tenant Pet Shop em visualizacao para consultar dados reais.</div>';
+      setWriteControls();
+      return false;
+    }
     const profile = await apiFetch('/api/auth/profile');
     const systemContext = await apiFetch('/api/system/context').catch(() => null);
     const user = profile.user || {};
@@ -1170,7 +1186,6 @@
         setWriteControls();
       }
     } catch (error) {
-      window.clearNextStockSessionState?.();
       blockPage(error.message || 'Sessao expirada ou invalida. Faca login novamente.');
     }
   }

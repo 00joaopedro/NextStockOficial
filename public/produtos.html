@@ -1162,11 +1162,12 @@
   <script>
     function isDemoMode() {
       const params = new URLSearchParams(window.location.search);
-      return sessionStorage.getItem("nextstockIsPreview") === "true" ||
+      const previewRequested = sessionStorage.getItem("nextstockIsPreview") === "true" ||
         sessionStorage.getItem("nextstockPreviewMode") === "true" ||
-        sessionStorage.getItem("nextstockBackendMode") === "preview" ||
         params.get("mode") === "preview" ||
         params.get("mode") === "visualizacao";
+      return previewRequested &&
+        !sessionStorage.getItem("nextstockAuthenticatedUser");
     }
 
     const DEMO_PRODUCTS = [

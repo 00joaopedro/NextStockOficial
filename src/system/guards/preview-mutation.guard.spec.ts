@@ -1,4 +1,4 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ExecutionContext } from '@nestjs/common';
 import { PreviewMutationGuard } from './preview-mutation.guard';
 
 function httpContext(request: Record<string, unknown>) {
@@ -10,45 +10,27 @@ function httpContext(request: Record<string, unknown>) {
 }
 
 describe('PreviewMutationGuard', () => {
-  it('bloqueia mutation em preview inclusive para Dev SuperAdmin', () => {
+  it('delega a decisão tenant-aware para a política', async () => {
+    const assertMutationAllowed = jest.fn().mockResolvedValue(undefined);
     const guard = new PreviewMutationGuard({
-      isPreviewMode: () => true,
+      assertMutationAllowed,
     } as any);
+    const request = { method: 'POST', path: '/api/products' };
 
-    expect(() =>
-      guard.canActivate(
-        httpContext({
-          method: 'POST',
-          path: '/api/products',
-          user: {
-            id: 'dev-id',
-            email: 'dev@example.com',
-            role: 'superAdmin',
-            isSuperAdmin: true,
-            isDevSuperAdmin: true,
-          },
-        }),
-      ),
-    ).toThrow(ForbiddenException);
+    await expect(guard.canActivate(httpContext(request))).resolves.toBe(true);
+    expect(assertMutationAllowed).toHaveBeenCalledWith(request);
   });
 
-  it('permite leitura e mutation fora de preview', () => {
-    const previewGuard = new PreviewMutationGuard({
-      isPreviewMode: () => true,
-    } as any);
-    const productionGuard = new PreviewMutationGuard({
-      isPreviewMode: () => false,
+  it('propaga o bloqueio produzido pela política', async () => {
+    const blocked = new Error('blocked');
+    const guard = new PreviewMutationGuard({
+      assertMutationAllowed: jest.fn().mockRejectedValue(blocked),
     } as any);
 
-    expect(
-      previewGuard.canActivate(
-        httpContext({ method: 'GET', path: '/api/products' }),
+    await expect(
+      guard.canActivate(
+        httpContext({ method: 'PATCH', path: '/api/products/1' }),
       ),
-    ).toBe(true);
-    expect(
-      productionGuard.canActivate(
-        httpContext({ method: 'POST', path: '/api/products' }),
-      ),
-    ).toBe(true);
+    ).rejects.toBe(blocked);
   });
 });

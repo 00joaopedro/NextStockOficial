@@ -5,12 +5,20 @@ type ModuleKey = 'core' | 'petshop' | 'dev';
 interface SystemContextResponse {
   systemMode: SystemMode;
   tenantType: TenantType;
+  mode?: string;
+  systemType?: string;
   isSuperAdmin?: boolean;
   is_super_admin?: boolean;
   isDevSuperAdmin?: boolean;
   allowedSystemTypes?: string[];
   billingAllowed?: boolean;
   role?: 'superAdmin' | 'Admin' | 'Vendedor' | 'Comprador';
+  selectedBranch?: {
+    id: string;
+    name: string;
+    tenantId: string;
+    systemType: string;
+  };
 }
 
 interface SidebarItem {
@@ -22,7 +30,7 @@ interface SidebarItem {
 }
 
 const SYSTEM_CONTEXT_ENDPOINT = '/api/system/context';
-const PAGE_VIEW_ENDPOINT = "/api/usage/page-view";
+const PAGE_VIEW_ENDPOINT = '/api/usage/page-view';
 
 const FALLBACK_CONTEXT: SystemContextResponse = {
   systemMode: 'PREVIEW',
@@ -35,7 +43,7 @@ const TENANT_MODULES: Record<TenantType, ModuleKey[]> = {
 };
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
-  { label: "Dev", href: "dev.html", key: "dev", module: "dev" },
+  { label: 'Dev', href: 'dev.html', key: 'dev', module: 'dev' },
   {
     label: 'Parceiros',
     href: 'parceiros.html',
@@ -188,6 +196,17 @@ function injectSidebarStyles(): void {
       line-height: 1;
     }
 
+    .preview-mode-notice {
+      margin: -4px 12px 16px;
+      padding: 9px;
+      border-radius: 8px;
+      background: rgba(255, 209, 102, 0.16);
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: center;
+    }
+
     .sidebar .menu-item > a {
       display: block;
       color: inherit;
@@ -232,6 +251,8 @@ function normalizeContext(value: unknown): SystemContextResponse {
     tenantType: isTenantType(candidate?.tenantType)
       ? candidate.tenantType
       : FALLBACK_CONTEXT.tenantType,
+    mode: candidate?.mode,
+    systemType: candidate?.systemType,
     isSuperAdmin: isSuperAdminUser(candidate),
     is_super_admin: isSuperAdminUser(candidate),
     isDevSuperAdmin: isDevSuperAdminUser(candidate),
@@ -239,6 +260,7 @@ function normalizeContext(value: unknown): SystemContextResponse {
       ? candidate.allowedSystemTypes
       : [],
     role: candidate?.role,
+    selectedBranch: candidate?.selectedBranch,
   };
 }
 
@@ -378,7 +400,7 @@ function buildPreviewBadge(context: SystemContextResponse): string {
     return '';
   }
 
-  return '<span class="system-mode-badge" aria-label="Modo preview">PREVIEW</span>';
+  return '<span class="system-mode-badge" aria-label="Modo visualização">VISUALIZAÇÃO</span>';
 }
 
 function buildSidebarItemHtml(item: SidebarItem, activeKey: string): string {
@@ -412,6 +434,11 @@ function buildSidebarHtml(
         <h2>NextStock</h2>
         ${buildPreviewBadge(context)}
       </div>
+      ${
+        context.systemMode === 'PREVIEW'
+          ? '<p class="preview-mode-notice">Você pode navegar e consultar dados, mas alterações estão bloqueadas.</p>'
+          : ''
+      }
 
       <ul class="menu">
         ${menuHtml}
@@ -439,6 +466,18 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
   }
 
   const context = normalizeContext(await response.json());
+  if (
+    context.systemMode === 'PREVIEW' &&
+    !context.systemType &&
+    !context.selectedBranch &&
+    (window as any).isNextStockDemoMode?.()
+  ) {
+    const selected = sessionStorage.getItem('nextstockSelectedSystemType');
+    if (selected === 'petshop') {
+      context.tenantType = 'PETSHOP';
+      context.systemType = 'petshop';
+    }
+  }
   const billingResponse = await fetch('/api/billing/subscription', {
     method: 'GET',
     headers: {
@@ -471,7 +510,60 @@ function renderSidebar(
   container.innerHTML = buildSidebarHtml(menu, context);
   document.documentElement.dataset.systemMode = context.systemMode;
   document.documentElement.dataset.tenantType = context.tenantType;
+  (window as any).setNextStockBackendContext?.(context);
+  applyPreviewUi(context);
 }
+
+function applyPreviewUi(context: SystemContextResponse): void {
+  if (context.systemMode !== 'PREVIEW') return;
+
+  const mutationId =
+    /(save|salvar|create|criar|add|adicionar|edit|editar|delete|deletar|remove|apagar|upload|import|emit|finalizar|checkout|sync|reset|ativar|desativar|generate|gerar|vender)/i;
+  document
+    .querySelectorAll<HTMLElement>(
+      'button, input[type="submit"], input[type="file"]',
+    )
+    .forEach((element) => {
+      const marker = `${element.id} ${element.getAttribute('name') || ''} ${
+        element.getAttribute('data-action') || ''
+      }`;
+      if (!mutationId.test(marker)) return;
+      (element as HTMLButtonElement | HTMLInputElement).disabled = true;
+      element.setAttribute('aria-disabled', 'true');
+      element.setAttribute('title', 'Modo visualização: ação bloqueada.');
+    });
+}
+
+function showPreviewToast(message: string): void {
+  let toast = document.getElementById('nextstock-preview-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'nextstock-preview-toast';
+    Object.assign(toast.style, {
+      position: 'fixed',
+      right: '20px',
+      bottom: '20px',
+      zIndex: '100000',
+      maxWidth: '360px',
+      padding: '12px 16px',
+      borderRadius: '10px',
+      background: '#071b31',
+      color: '#fff',
+      boxShadow: '0 8px 30px rgba(0,0,0,.28)',
+    });
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.hidden = false;
+  window.setTimeout(() => {
+    if (toast) toast.hidden = true;
+  }, 4500);
+}
+
+window.addEventListener('nextstock:preview-blocked', (event) => {
+  const detail = (event as CustomEvent<{ message?: string }>).detail;
+  showPreviewToast(detail?.message || 'Modo visualização: ação bloqueada.');
+});
 
 function recordPageView(context: SystemContextResponse): void {
   if (context.systemMode !== 'PRODUCTION') {
@@ -491,7 +583,7 @@ function recordPageView(context: SystemContextResponse): void {
     },
     body: JSON.stringify({
       page: getCurrentPageFileName(),
-      eventType: "page_view",
+      eventType: 'page_view',
     }),
   }).catch(() => undefined);
 }
@@ -509,8 +601,12 @@ async function loadSidebar(): Promise<void> {
     recordPageView(context);
   } catch (error) {
     console.warn('Using fallback sidebar context.', error);
-    (window as any).clearNextStockSessionState?.();
     const context = getRuntimeFallbackContext();
+    const selected = sessionStorage.getItem('nextstockSelectedSystemType');
+    if ((window as any).isNextStockDemoMode?.() && selected === 'petshop') {
+      context.tenantType = 'PETSHOP';
+      context.systemType = 'petshop';
+    }
     renderSidebar(container, context);
     recordPageView(context);
   }

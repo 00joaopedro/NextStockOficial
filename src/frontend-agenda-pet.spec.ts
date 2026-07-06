@@ -20,7 +20,7 @@ describe('agendaPet frontend production flow', () => {
     expect(script).toContain('/api/auth/profile');
     expect(script).toContain('/api/system/context');
     expect(script).toContain('/api/agenda-pet');
-    expect(script).toContain('tenantType !== "PETSHOP"');
+    expect(script).toMatch(/tenantType !== ['"]PETSHOP['"]/);
     expect(script).toContain('Modo visualizacao: alteracao bloqueada.');
     expect(script).not.toContain('DEMO_ATENDIMENTOS');
   });

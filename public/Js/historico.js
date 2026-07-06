@@ -127,9 +127,13 @@
       credentials: "include",
       headers: { Accept: "application/json" },
     });
-    if (profileResponse.status === 401 || profileResponse.status === 403) {
+    if (profileResponse.status === 401) {
+      window.clearNextStockSessionState?.();
       window.location.href = "index.html";
       return false;
+    }
+    if (profileResponse.status === 403) {
+      throw new Error("Usuario sem permissao para acessar o historico.");
     }
     if (!profileResponse.ok) {
       throw new Error("Nao foi possivel validar a sessao.");
@@ -144,6 +148,7 @@
     }
 
     const context = await contextResponse.json();
+    window.setNextStockBackendContext?.(context);
     state.selectedBranch = context.selectedBranch || context.branch || null;
     if (!state.selectedBranch?.id) {
       throw new Error(
@@ -151,7 +156,6 @@
       );
     }
 
-    sessionStorage.setItem("nextstockBackendMode", "production");
     sessionStorage.setItem(
       "nextstockSelectedBranch",
       JSON.stringify(state.selectedBranch),

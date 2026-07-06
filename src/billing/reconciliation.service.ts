@@ -22,6 +22,7 @@ export class ReconciliationService {
   ) {
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
+      writable: true,
       allowedRoles: [Role.Admin],
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });

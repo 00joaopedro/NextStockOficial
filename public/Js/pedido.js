@@ -5,6 +5,7 @@
   let currentPage = 1;
   let currentOrders = [];
   let totalPages = 0;
+  let previewMode = false;
 
   const ordersContainer = document.getElementById("ordersContainer");
   const pagination = document.getElementById("pagination");
@@ -102,8 +103,8 @@
   async function validateContext() {
     const profile = await apiFetch("/auth/profile");
     const context = await apiFetch("/system/context");
-
-    sessionStorage.setItem("nextstockBackendMode", "production");
+    previewMode = String(context.systemMode).toUpperCase() === "PREVIEW";
+    window.setNextStockBackendContext?.(context);
     if (profile.user) {
       sessionStorage.setItem(
         "nextstockAuthenticatedUser",
@@ -217,10 +218,10 @@
           </div>
         </div>
         <div class="card-actions">
-          <button class="btn success" data-action="delivered" ${isDelivered || isCanceled ? "disabled" : ""}>
+          <button class="btn success" data-action="delivered" ${previewMode || isDelivered || isCanceled ? "disabled" : ""}>
             ${isDelivered ? "Pedido entregue" : "Marcar como entregue"}
           </button>
-          <button class="btn cancel" data-action="cancel" ${isCanceled ? "disabled" : ""}>Cancelar pedido</button>
+          <button class="btn cancel" data-action="cancel" ${previewMode || isCanceled ? "disabled" : ""}>Cancelar pedido</button>
           <button class="btn success" data-action="print">Imprimir recibo</button>
           <button class="btn info" data-action="nfe">NF-e</button>
         </div>

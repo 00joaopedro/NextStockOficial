@@ -6,7 +6,13 @@ import {
   Optional,
   UnauthorizedException,
 } from '@nestjs/common';
-import { Prisma, Product, ProductImage, Role, SystemMode } from '@prisma/client';
+import {
+  Prisma,
+  Product,
+  ProductImage,
+  Role,
+  SystemMode,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
@@ -17,17 +23,15 @@ import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import {
-  extractScanCodeCandidates,
-  normalizeScanCode,
-} from './scan-code.util';
+import { extractScanCodeCandidates, normalizeScanCode } from './scan-code.util';
 
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
 const SESSION_EXPIRED_MESSAGE = 'Sessao expirada. Faca login novamente.';
 const MISSING_TENANT_MESSAGE = 'Usuario sem tenant/empresa vinculado.';
 const MISSING_BRANCH_MESSAGE = 'Usuario sem filial selecionada.';
 const TENANT_NOT_FOUND_MESSAGE = 'Tenant/empresa nao encontrado.';
-const BRANCH_NOT_FOUND_MESSAGE = 'Filial nao encontrada para o tenant selecionado.';
+const BRANCH_NOT_FOUND_MESSAGE =
+  'Filial nao encontrada para o tenant selecionado.';
 
 const DEMO_PRODUCTS = [
   {
@@ -97,9 +101,13 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.getReadableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.getReadableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
 
-    if (!tenant || tenant.mode === SystemMode.visualizacao) {
+    if (!tenant) {
       return {
         ok: true,
         mode: SystemMode.visualizacao,
@@ -201,13 +209,15 @@ export class ProductsService {
           codigoBarra: product.barcode ?? '',
           imagens: thumbnailUrl ? [thumbnailUrl] : [],
           imageMetadata: image
-            ? [{
-                fileName: image.fileName,
-                fileUrl: thumbnailUrl,
-                storagePath: image.storagePath,
-                thumbnailUrl,
-                thumbnailPath: path,
-              }]
+            ? [
+                {
+                  fileName: image.fileName,
+                  fileUrl: thumbnailUrl,
+                  storagePath: image.storagePath,
+                  thumbnailUrl,
+                  thumbnailPath: path,
+                },
+              ]
             : [],
         };
       }),
@@ -238,9 +248,7 @@ export class ProductsService {
       );
     }
 
-    const scanCandidates = scanCode
-      ? extractScanCodeCandidates(scanCode)
-      : [];
+    const scanCandidates = scanCode ? extractScanCodeCandidates(scanCode) : [];
 
     const context = await this.contextResolver().resolve(user, {
       selectedBranchId,
@@ -334,9 +342,13 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.getReadableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.getReadableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
 
-    if (!tenant || tenant.mode === SystemMode.visualizacao) {
+    if (!tenant) {
       const product = DEMO_PRODUCTS.find((item) => item.id === id);
 
       if (!product) {
@@ -355,7 +367,11 @@ export class ProductsService {
       throw new NotFoundException('Product not found.');
     }
 
-    return { ok: true, mode: tenant.mode, product: await this.formatProduct(product) };
+    return {
+      ok: true,
+      mode: tenant.mode,
+      product: await this.formatProduct(product),
+    };
   }
 
   async create(
@@ -364,7 +380,11 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
 
     try {
       const product = await this.prisma.product.create({
@@ -393,7 +413,11 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     try {
@@ -419,7 +443,11 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     await this.prisma.product.delete({
@@ -440,7 +468,11 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const existingCount = await this.prisma.productImage.count({
@@ -491,7 +523,11 @@ export class ProductsService {
       throw new BadRequestException('Product image storage is not configured.');
     }
 
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const existingCount = await this.prisma.productImage.count({
@@ -540,7 +576,11 @@ export class ProductsService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const tenant = await this.requireWritableTenant(user, selectedBranchId, devContextMode);
+    const tenant = await this.requireWritableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
     await this.assertTenantProduct(tenant.id, tenant.branchId, id);
 
     const image = await this.prisma.productImage.findFirst({
@@ -610,7 +650,11 @@ export class ProductsService {
     };
   }
 
-  private async assertTenantProduct(tenantId: string, branchId: string, id: string) {
+  private async assertTenantProduct(
+    tenantId: string,
+    branchId: string,
+    id: string,
+  ) {
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId, branchId },
       select: { id: true },
@@ -624,7 +668,10 @@ export class ProductsService {
   private contextResolver() {
     return (
       this.tenantContext ??
-      new TenantContextService(this.prisma, new DevWorkspaceService(this.prisma))
+      new TenantContextService(
+        this.prisma,
+        new DevWorkspaceService(this.prisma),
+      )
     );
   }
 
@@ -636,7 +683,10 @@ export class ProductsService {
       name: dto.nome.trim(),
       costPriceCents,
       profitPercent,
-      salePriceCents: calculateSalePriceCents(costPriceCents, dto.percentualLucro),
+      salePriceCents: calculateSalePriceCents(
+        costPriceCents,
+        dto.percentualLucro,
+      ),
       quantity: dto.quantidade,
       brand: clean(dto.marca),
       category: clean(dto.categoria),
@@ -662,7 +712,9 @@ export class ProductsService {
       pisRate:
         dto.pisRate === undefined ? null : new Prisma.Decimal(dto.pisRate),
       cofinsRate:
-        dto.cofinsRate === undefined ? null : new Prisma.Decimal(dto.cofinsRate),
+        dto.cofinsRate === undefined
+          ? null
+          : new Prisma.Decimal(dto.cofinsRate),
     };
   }
 
@@ -687,18 +739,27 @@ export class ProductsService {
     if (dto.peso !== undefined) data.weight = clean(dto.peso);
     if (dto.altura !== undefined) data.height = clean(dto.altura);
     if (dto.largura !== undefined) data.width = clean(dto.largura);
-    if (dto.linkExterno !== undefined) data.externalLink = clean(dto.linkExterno);
-    if (dto.tamanhoRoupa !== undefined) data.clothingSize = clean(dto.tamanhoRoupa);
-    if (dto.tamanhoVestimenta !== undefined) data.apparelSize = clean(dto.tamanhoVestimenta);
+    if (dto.linkExterno !== undefined)
+      data.externalLink = clean(dto.linkExterno);
+    if (dto.tamanhoRoupa !== undefined)
+      data.clothingSize = clean(dto.tamanhoRoupa);
+    if (dto.tamanhoVestimenta !== undefined)
+      data.apparelSize = clean(dto.tamanhoVestimenta);
     if (dto.ncm !== undefined) data.ncm = fiscalDigits(dto.ncm);
-    if (dto.cfopDefault !== undefined) data.cfopDefault = fiscalDigits(dto.cfopDefault);
+    if (dto.cfopDefault !== undefined)
+      data.cfopDefault = fiscalDigits(dto.cfopDefault);
     if (dto.cest !== undefined) data.cest = fiscalDigits(dto.cest);
     if (dto.origin !== undefined) data.origin = clean(dto.origin);
-    if (dto.unit !== undefined) data.unit = clean(dto.unit)?.toUpperCase() ?? null;
-    if (dto.icmsRate !== undefined) data.icmsRate = new Prisma.Decimal(dto.icmsRate);
-    if (dto.ipiRate !== undefined) data.ipiRate = new Prisma.Decimal(dto.ipiRate);
-    if (dto.pisRate !== undefined) data.pisRate = new Prisma.Decimal(dto.pisRate);
-    if (dto.cofinsRate !== undefined) data.cofinsRate = new Prisma.Decimal(dto.cofinsRate);
+    if (dto.unit !== undefined)
+      data.unit = clean(dto.unit)?.toUpperCase() ?? null;
+    if (dto.icmsRate !== undefined)
+      data.icmsRate = new Prisma.Decimal(dto.icmsRate);
+    if (dto.ipiRate !== undefined)
+      data.ipiRate = new Prisma.Decimal(dto.ipiRate);
+    if (dto.pisRate !== undefined)
+      data.pisRate = new Prisma.Decimal(dto.pisRate);
+    if (dto.cofinsRate !== undefined)
+      data.cofinsRate = new Prisma.Decimal(dto.cofinsRate);
 
     if (dto.precoCusto !== undefined || dto.percentualLucro !== undefined) {
       const current = await this.prisma.product.findUniqueOrThrow({
@@ -716,7 +777,10 @@ export class ProductsService {
 
       data.costPriceCents = costPriceCents;
       data.profitPercent = new Prisma.Decimal(profitPercent);
-      data.salePriceCents = calculateSalePriceCents(costPriceCents, profitPercent);
+      data.salePriceCents = calculateSalePriceCents(
+        costPriceCents,
+        profitPercent,
+      );
     }
 
     return data;
@@ -728,7 +792,9 @@ export class ProductsService {
         const renderUrl =
           image.mediumUrl ||
           image.fileUrl ||
-          (this.storage ? await this.storage.getProductImageUrl(image.storagePath) : null);
+          (this.storage
+            ? await this.storage.getProductImageUrl(image.storagePath)
+            : null);
         const thumbnailUrl =
           image.thumbnailUrl ||
           (this.storage
@@ -783,7 +849,8 @@ export class ProductsService {
       icmsRate: product.icmsRate === null ? null : Number(product.icmsRate),
       ipiRate: product.ipiRate === null ? null : Number(product.ipiRate),
       pisRate: product.pisRate === null ? null : Number(product.pisRate),
-      cofinsRate: product.cofinsRate === null ? null : Number(product.cofinsRate),
+      cofinsRate:
+        product.cofinsRate === null ? null : Number(product.cofinsRate),
       imagens: imageMetadata.map((image) => image.fileUrl).filter(Boolean),
       imageMetadata,
       createdAt: product.createdAt,
@@ -800,8 +867,10 @@ export class ProductsService {
     return DEMO_PRODUCTS.filter((product) => {
       if (search && !product.nome.toLowerCase().includes(search)) return false;
       if (sku && product.sku.toLowerCase() !== sku) return false;
-      if (barcode && product.codigoBarra.toLowerCase() !== barcode) return false;
-      if (category && !product.categoria.toLowerCase().includes(category)) return false;
+      if (barcode && product.codigoBarra.toLowerCase() !== barcode)
+        return false;
+      if (category && !product.categoria.toLowerCase().includes(category))
+        return false;
       return true;
     });
   }
@@ -839,7 +908,9 @@ export class ProductsService {
   private handlePrismaError(error: unknown): never {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === 'P2002') {
-        throw new BadRequestException('SKU or barcode already exists for this branch.');
+        throw new BadRequestException(
+          'SKU or barcode already exists for this branch.',
+        );
       }
     }
 
@@ -921,6 +992,9 @@ function centsToMoney(value: number) {
   return (value / 100).toFixed(2);
 }
 
-function calculateSalePriceCents(costPriceCents: number, profitPercent: number) {
+function calculateSalePriceCents(
+  costPriceCents: number,
+  profitPercent: number,
+) {
   return Math.round(costPriceCents + costPriceCents * (profitPercent / 100));
 }

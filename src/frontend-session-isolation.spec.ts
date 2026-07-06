@@ -29,7 +29,9 @@ describe('Frontend session and demo isolation', () => {
     const products = publicFile('produtos.html');
     const agenda = publicFile('agendaPet.html');
 
-    expect(products).toContain('let products = isDemoMode() ? DEMO_PRODUCTS : []');
+    expect(products).toContain(
+      'let products = isDemoMode() ? DEMO_PRODUCTS : []',
+    );
     expect(agenda).toContain('id="legacy-agenda-demo-disabled"');
     expect(agenda).toContain('src="./dist/agendaPet.js"');
 
@@ -43,5 +45,37 @@ describe('Frontend session and demo isolation', () => {
     ]) {
       expect(publicFile(file)).toContain('window.isNextStockDemoMode?.()');
     }
+  });
+
+  it('preview autenticado nao e confundido com demo publico', () => {
+    const helper = publicFile('Js/session-state.ts');
+    const products = publicFile('produtos.html');
+
+    expect(helper).toContain('previewRequested && !authenticatedUser');
+    expect(products).toContain(
+      '!sessionStorage.getItem("nextstockAuthenticatedUser")',
+    );
+  });
+
+  it('preview block nao limpa sessao nem redireciona', () => {
+    const helper = publicFile('Js/session-state.ts');
+
+    expect(helper).toContain('PREVIEW_MODE_MUTATION_BLOCKED');
+    expect(helper).toContain('showNextStockPreviewBlocked');
+    expect(helper).toContain('response.status === 403');
+    expect(helper).not.toMatch(
+      /body\?\.code === PREVIEW_BLOCK_CODE[\s\S]{0,220}clearNextStockSessionState/,
+    );
+    expect(helper).not.toMatch(
+      /body\?\.code === PREVIEW_BLOCK_CODE[\s\S]{0,220}location\.href/,
+    );
+  });
+
+  it('sidebar mantem navegacao e aviso em visualizacao', () => {
+    const sidebar = publicFile('Js/sidebar.ts');
+
+    expect(sidebar).toContain('Você pode navegar e consultar dados');
+    expect(sidebar).toContain('applyPreviewUi(context)');
+    expect(sidebar).not.toContain('clearNextStockSessionState?.();');
   });
 });

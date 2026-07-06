@@ -12,6 +12,7 @@
     busy: false,
     certificateBusy: false,
     fiscalConfig: null,
+    preview: false,
   };
 
   const elements = {
@@ -119,22 +120,24 @@
 
   function setBusy(busy) {
     state.busy = busy;
-    elements.send.disabled = busy || !state.saleId;
-    elements.consult.disabled = busy || !state.document;
+    elements.send.disabled = state.preview || busy || !state.saleId;
+    elements.consult.disabled = state.preview || busy || !state.document;
     elements.xml.disabled = busy || !state.document?.hasXml;
     elements.pdf.disabled = busy || !state.document?.hasPdf;
-    elements.newDocument.disabled = busy;
+    elements.newDocument.disabled = state.preview || busy;
   }
 
   function setCertificateBusy(busy) {
     state.certificateBusy = busy;
     const certificate = state.fiscalConfig?.certificate;
-    elements.certificateUpload.disabled = busy;
-    elements.certificateValidate.disabled = busy || !certificate?.present;
-    elements.certificateRemove.disabled = busy || !certificate?.present;
+    elements.certificateUpload.disabled = state.preview || busy;
+    elements.certificateValidate.disabled =
+      state.preview || busy || !certificate?.present;
+    elements.certificateRemove.disabled =
+      state.preview || busy || !certificate?.present;
     elements.activateProduction.disabled =
-      busy || state.fiscalConfig?.environment === 'producao';
-    elements.fiscalConfigSave.disabled = busy;
+      state.preview || busy || state.fiscalConfig?.environment === 'producao';
+    elements.fiscalConfigSave.disabled = state.preview || busy;
   }
 
   function value(id) {
@@ -795,6 +798,8 @@
       ]);
       state.profile = profile;
       state.context = context;
+      state.preview = String(context.systemMode).toUpperCase() === 'PREVIEW';
+      window.setNextStockBackendContext?.(context);
       await loadFiscalConfig();
       await loadInitialSource();
     } catch (error) {

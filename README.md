@@ -265,3 +265,10 @@ npm run uploads:quota-report
 npm run privacy:report-pii
 npm run privacy:report-retention
 ```
+# Modo visualização
+
+O NextStock suporta operação read-only por tenant. Em
+`Tenant.mode = visualizacao`, leituras autorizadas continuam disponíveis e
+mutações autenticadas retornam `PREVIEW_MODE_MUTATION_BLOCKED`. A política e o
+checklist para novas rotas estão em
+[`docs/security/preview-mode.md`](docs/security/preview-mode.md).

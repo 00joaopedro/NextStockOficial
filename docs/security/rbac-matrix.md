@@ -25,3 +25,9 @@ Nao existem capabilities nesta fase.
 `superAdmin` nunca pode ser atribuido por DTO de tenant. Alteracoes de role
 propria sao negadas. A manutencao futura deve manter controller, service,
 sidebar e testes de matriz sincronizados.
+# Modo visualização
+
+As permissões desta matriz continuam válidas em modo visualização. O modo não
+amplia roles: ele apenas acrescenta uma restrição read-only após autenticação,
+tenant, branch, systemType, billing e RBAC. Consulte
+[`preview-mode.md`](./preview-mode.md).

@@ -1,12 +1,12 @@
-type SystemMode = "PRODUCTION" | "PREVIEW";
-type TenantType = "STANDARD" | "PETSHOP";
+type SystemMode = 'PRODUCTION' | 'PREVIEW';
+type TenantType = 'STANDARD' | 'PETSHOP';
 type AgendaStatus =
-  | "scheduled"
-  | "confirmed"
-  | "in_progress"
-  | "completed"
-  | "canceled"
-  | "no_show";
+  | 'scheduled'
+  | 'confirmed'
+  | 'in_progress'
+  | 'completed'
+  | 'canceled'
+  | 'no_show';
 
 type SelectedBranch = {
   id: string;
@@ -70,12 +70,12 @@ type AppointmentListResponse = {
 };
 
 const STATUS_LABELS: Record<AgendaStatus, string> = {
-  scheduled: "Agendado",
-  confirmed: "Confirmado",
-  in_progress: "Em atendimento",
-  completed: "Concluido",
-  canceled: "Cancelado",
-  no_show: "Nao compareceu",
+  scheduled: 'Agendado',
+  confirmed: 'Confirmado',
+  in_progress: 'Em atendimento',
+  completed: 'Concluido',
+  canceled: 'Cancelado',
+  no_show: 'Nao compareceu',
 };
 
 const pageSize = 12;
@@ -88,45 +88,47 @@ let canWrite = false;
 let editingAppointmentId: string | null = null;
 let appointmentIdToDelete: string | null = null;
 
-const agendaContainer = element<HTMLDivElement>("agendaContainer");
-const pagination = element<HTMLDivElement>("pagination");
-const resultsCount = element<HTMLDivElement>("resultsCount");
-const sessionBadge = element<HTMLDivElement>("sessionBadge");
-const atendenteSearch = element<HTMLInputElement>("atendenteSearch");
-const dateFilterType = element<HTMLSelectElement>("dateFilterType");
-const startDateFrom = element<HTMLInputElement>("startDateFrom");
-const startDateTo = element<HTMLInputElement>("startDateTo");
-const dateDay = element<HTMLInputElement>("dateDay");
-const dateWeek = element<HTMLInputElement>("dateWeek");
-const dateMonth = element<HTMLInputElement>("dateMonth");
-const dateYear = element<HTMLSelectElement>("dateYear");
-const dayField = element<HTMLDivElement>("dayField");
-const weekField = element<HTMLDivElement>("weekField");
-const monthField = element<HTMLDivElement>("monthField");
-const yearField = element<HTMLDivElement>("yearField");
-const statusFilter = element<HTMLSelectElement>("statusFilter");
-const clientFilter = element<HTMLSelectElement>("clientFilter");
-const petFilter = element<HTMLSelectElement>("petFilter");
-const applyFiltersBtn = element<HTMLButtonElement>("applyFiltersBtn");
-const clearFiltersBtn = element<HTMLButtonElement>("clearFiltersBtn");
-const openCreateAgendaBtn = element<HTMLButtonElement>("openCreateAgendaBtn");
-const confirmOverlay = element<HTMLDivElement>("confirmOverlay");
-const confirmDeleteYes = element<HTMLButtonElement>("confirmDeleteYes");
-const confirmDeleteNo = element<HTMLButtonElement>("confirmDeleteNo");
-const agendaModal = element<HTMLDivElement>("agendaModal");
-const agendaModalTitle = element<HTMLHeadingElement>("agendaModalTitle");
-const agendaClient = element<HTMLSelectElement>("agendaClient");
-const agendaPet = element<HTMLSelectElement>("agendaPet");
-const agendaService = element<HTMLInputElement>("agendaService");
-const agendaAttendant = element<HTMLInputElement>("agendaAttendant");
-const agendaStartAt = element<HTMLInputElement>("agendaStartAt");
-const agendaEndAt = element<HTMLInputElement>("agendaEndAt");
-const agendaStatus = element<HTMLSelectElement>("agendaStatus");
-const agendaPrice = element<HTMLInputElement>("agendaPrice");
-const agendaNotes = element<HTMLInputElement>("agendaNotes");
-const agendaCancellationReason = element<HTMLInputElement>("agendaCancellationReason");
-const saveAgendaBtn = element<HTMLButtonElement>("saveAgendaBtn");
-const closeAgendaModalBtn = element<HTMLButtonElement>("closeAgendaModalBtn");
+const agendaContainer = element<HTMLDivElement>('agendaContainer');
+const pagination = element<HTMLDivElement>('pagination');
+const resultsCount = element<HTMLDivElement>('resultsCount');
+const sessionBadge = element<HTMLDivElement>('sessionBadge');
+const atendenteSearch = element<HTMLInputElement>('atendenteSearch');
+const dateFilterType = element<HTMLSelectElement>('dateFilterType');
+const startDateFrom = element<HTMLInputElement>('startDateFrom');
+const startDateTo = element<HTMLInputElement>('startDateTo');
+const dateDay = element<HTMLInputElement>('dateDay');
+const dateWeek = element<HTMLInputElement>('dateWeek');
+const dateMonth = element<HTMLInputElement>('dateMonth');
+const dateYear = element<HTMLSelectElement>('dateYear');
+const dayField = element<HTMLDivElement>('dayField');
+const weekField = element<HTMLDivElement>('weekField');
+const monthField = element<HTMLDivElement>('monthField');
+const yearField = element<HTMLDivElement>('yearField');
+const statusFilter = element<HTMLSelectElement>('statusFilter');
+const clientFilter = element<HTMLSelectElement>('clientFilter');
+const petFilter = element<HTMLSelectElement>('petFilter');
+const applyFiltersBtn = element<HTMLButtonElement>('applyFiltersBtn');
+const clearFiltersBtn = element<HTMLButtonElement>('clearFiltersBtn');
+const openCreateAgendaBtn = element<HTMLButtonElement>('openCreateAgendaBtn');
+const confirmOverlay = element<HTMLDivElement>('confirmOverlay');
+const confirmDeleteYes = element<HTMLButtonElement>('confirmDeleteYes');
+const confirmDeleteNo = element<HTMLButtonElement>('confirmDeleteNo');
+const agendaModal = element<HTMLDivElement>('agendaModal');
+const agendaModalTitle = element<HTMLHeadingElement>('agendaModalTitle');
+const agendaClient = element<HTMLSelectElement>('agendaClient');
+const agendaPet = element<HTMLSelectElement>('agendaPet');
+const agendaService = element<HTMLInputElement>('agendaService');
+const agendaAttendant = element<HTMLInputElement>('agendaAttendant');
+const agendaStartAt = element<HTMLInputElement>('agendaStartAt');
+const agendaEndAt = element<HTMLInputElement>('agendaEndAt');
+const agendaStatus = element<HTMLSelectElement>('agendaStatus');
+const agendaPrice = element<HTMLInputElement>('agendaPrice');
+const agendaNotes = element<HTMLInputElement>('agendaNotes');
+const agendaCancellationReason = element<HTMLInputElement>(
+  'agendaCancellationReason',
+);
+const saveAgendaBtn = element<HTMLButtonElement>('saveAgendaBtn');
+const closeAgendaModalBtn = element<HTMLButtonElement>('closeAgendaModalBtn');
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -138,30 +140,31 @@ function element<T extends HTMLElement>(id: string): T {
 
 function isDemoMode(): boolean {
   const params = new URLSearchParams(window.location.search);
+  const previewRequested =
+    sessionStorage.getItem('nextstockIsPreview') === 'true' ||
+    sessionStorage.getItem('nextstockPreviewMode') === 'true' ||
+    params.get('mode') === 'preview' ||
+    params.get('mode') === 'visualizacao';
   return (
-    sessionStorage.getItem("nextstockIsPreview") === "true" ||
-    sessionStorage.getItem("nextstockPreviewMode") === "true" ||
-    sessionStorage.getItem("nextstockBackendMode") === "preview" ||
-    params.get("mode") === "preview" ||
-    params.get("mode") === "visualizacao"
+    previewRequested && !sessionStorage.getItem('nextstockAuthenticatedUser')
   );
 }
 
 function branchHeaders(): Record<string, string> {
   const headers: Record<string, string> = {};
   if (selectedBranch?.id) {
-    headers["x-nextstock-branch-id"] = selectedBranch.id;
+    headers['x-nextstock-branch-id'] = selectedBranch.id;
   }
 
   try {
     const supportContext = JSON.parse(
-      sessionStorage.getItem("nextstockDevSupportContext") || "null",
+      sessionStorage.getItem('nextstockDevSupportContext') || 'null',
     ) as { branchId?: string; mode?: string } | null;
     if (
       supportContext?.branchId === selectedBranch?.id &&
-      supportContext?.mode === "support"
+      supportContext?.mode === 'support'
     ) {
-      headers["x-nextstock-dev-context"] = "support";
+      headers['x-nextstock-dev-context'] = 'support';
     }
   } catch {
     // Ignore malformed storage; backend authorization remains authoritative.
@@ -173,9 +176,9 @@ function branchHeaders(): Record<string, string> {
 async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(url, {
     ...init,
-    credentials: "include",
+    credentials: 'include',
     headers: {
-      Accept: "application/json",
+      Accept: 'application/json',
       ...branchHeaders(),
       ...(init.headers || {}),
     },
@@ -183,8 +186,8 @@ async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 
   if (response.status === 401) {
     (window as any).clearNextStockSessionState?.();
-    window.location.href = "index.html";
-    throw new Error("Sessao expirada ou invalida.");
+    window.location.href = 'index.html';
+    throw new Error('Sessao expirada ou invalida.');
   }
 
   const payload = await response.json().catch(() => null);
@@ -196,32 +199,34 @@ async function apiFetch<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function init(): Promise<void> {
-  setLoading("Validando sessao...");
+  setLoading('Validando sessao...');
 
   if (isDemoMode()) {
     canWrite = false;
     openCreateAgendaBtn.disabled = true;
-    sessionBadge.textContent = "Modo visualizacao";
-    renderEmpty("Modo visualizacao: agenda real indisponivel nesta pagina.");
+    sessionBadge.textContent = 'Modo visualizacao';
+    renderEmpty(
+      'Preview público: navegação disponível. Entre em um tenant em visualização para consultar dados reais.',
+    );
     return;
   }
 
   try {
-    const profile = await apiFetch<ProfileResponse>("/api/auth/profile");
+    const profile = await apiFetch<ProfileResponse>('/api/auth/profile');
     selectedBranch = profile.selectedBranch || null;
     const context = await loadSystemContext();
 
     selectedBranch = context.selectedBranch || selectedBranch;
-    if (context.tenantType !== "PETSHOP") {
-      blockPage("Pagina exclusiva do modo Pet Shop.");
+    if (context.tenantType !== 'PETSHOP') {
+      blockPage('Pagina exclusiva do modo Pet Shop.');
       return;
     }
 
-    canWrite = context.systemMode === "PRODUCTION";
+    canWrite = context.systemMode === 'PRODUCTION';
     openCreateAgendaBtn.disabled = !canWrite;
     sessionBadge.textContent = canWrite
-      ? "Agenda em producao"
-      : "Modo visualizacao";
+      ? 'Agenda em producao'
+      : 'Modo visualizacao';
 
     persistBackendContext(context);
     await loadClients();
@@ -233,64 +238,69 @@ async function init(): Promise<void> {
 
 async function loadSystemContext(): Promise<SystemContextResponse> {
   const queryBranch = selectedBranch?.id;
-  const response = await fetch("/api/system/context", {
-    method: "GET",
-    credentials: "include",
+  const response = await fetch('/api/system/context', {
+    method: 'GET',
+    credentials: 'include',
     headers: {
-      Accept: "application/json",
-      ...(queryBranch ? { "x-nextstock-branch-id": queryBranch } : {}),
+      Accept: 'application/json',
+      ...(queryBranch ? { 'x-nextstock-branch-id': queryBranch } : {}),
       ...branchHeaders(),
     },
   });
 
   if (response.status === 401) {
     (window as any).clearNextStockSessionState?.();
-    window.location.href = "index.html";
-    throw new Error("Sessao expirada ou invalida.");
+    window.location.href = 'index.html';
+    throw new Error('Sessao expirada ou invalida.');
   }
 
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(payload?.message || "Contexto do sistema invalido.");
+    throw new Error(payload?.message || 'Contexto do sistema invalido.');
   }
 
   return payload as SystemContextResponse;
 }
 
 function persistBackendContext(context: SystemContextResponse): void {
-  sessionStorage.setItem("nextstockBackendMode", "production");
+  (window as any).setNextStockBackendContext?.(context);
   sessionStorage.setItem(
-    "nextstockSystemType",
-    context.tenantType === "PETSHOP" ? "petshop" : "padrao",
+    'nextstockSystemType',
+    context.tenantType === 'PETSHOP' ? 'petshop' : 'padrao',
   );
   sessionStorage.setItem(
-    "nextstockSelectedSystemType",
-    context.tenantType === "PETSHOP" ? "petshop" : "padrao",
+    'nextstockSelectedSystemType',
+    context.tenantType === 'PETSHOP' ? 'petshop' : 'padrao',
   );
 
   if (selectedBranch) {
-    sessionStorage.setItem("nextstockSelectedBranch", JSON.stringify(selectedBranch));
-    sessionStorage.setItem("nextstockBranchId", selectedBranch.id);
-    sessionStorage.setItem("nextstockTenantId", selectedBranch.tenantId);
+    sessionStorage.setItem(
+      'nextstockSelectedBranch',
+      JSON.stringify(selectedBranch),
+    );
+    sessionStorage.setItem('nextstockBranchId', selectedBranch.id);
+    sessionStorage.setItem('nextstockTenantId', selectedBranch.tenantId);
   }
 }
 
 async function loadClients(): Promise<void> {
   const response = await apiFetch<{ clients?: PetClient[] }>(
-    "/api/pet-clients?page=1&pageSize=100",
+    '/api/pet-clients?page=1&pageSize=100',
   );
   clients = response.clients || [];
   populateClientSelects();
 }
 
 async function loadAppointments(): Promise<void> {
-  setLoading("Carregando agenda...");
+  setLoading('Carregando agenda...');
   const params = buildQueryParams();
   const response = await apiFetch<AppointmentListResponse>(
     `/api/agenda-pet?${params.toString()}`,
   );
 
-  appointments = (response.items || response.data || []).map(normalizeAppointment);
+  appointments = (response.items || response.data || []).map(
+    normalizeAppointment,
+  );
   currentPage = response.page || currentPage;
   totalPages = response.totalPages || 0;
   resultsCount.textContent = `${response.total || appointments.length} agendamento(s) encontrado(s)`;
@@ -306,12 +316,12 @@ function buildQueryParams(): URLSearchParams {
   const search = atendenteSearch.value.trim();
   const range = resolveDateRange();
 
-  if (search) params.set("search", search);
-  if (statusFilter.value) params.set("status", statusFilter.value);
-  if (clientFilter.value) params.set("clientId", clientFilter.value);
-  if (petFilter.value) params.set("petId", petFilter.value);
-  if (range?.from) params.set("startAtFrom", range.from);
-  if (range?.to) params.set("startAtTo", range.to);
+  if (search) params.set('search', search);
+  if (statusFilter.value) params.set('status', statusFilter.value);
+  if (clientFilter.value) params.set('clientId', clientFilter.value);
+  if (petFilter.value) params.set('petId', petFilter.value);
+  if (range?.from) params.set('startAtFrom', range.from);
+  if (range?.to) params.set('startAtTo', range.to);
 
   return params;
 }
@@ -327,18 +337,18 @@ function resolveDateRange(): { from: string; to: string } | null {
 
     return {
       from: (start || new Date(0)).toISOString(),
-      to: (end || new Date("9999-12-31T23:59:59.999Z")).toISOString(),
+      to: (end || new Date('9999-12-31T23:59:59.999Z')).toISOString(),
     };
   }
 
-  if (dateFilterType.value === "day" && dateDay.value) {
+  if (dateFilterType.value === 'day' && dateDay.value) {
     const start = new Date(`${dateDay.value}T00:00:00`);
     const end = new Date(`${dateDay.value}T23:59:59.999`);
     return { from: start.toISOString(), to: end.toISOString() };
   }
 
-  if (dateFilterType.value === "week" && dateWeek.value) {
-    const [year, week] = dateWeek.value.split("-W").map(Number);
+  if (dateFilterType.value === 'week' && dateWeek.value) {
+    const [year, week] = dateWeek.value.split('-W').map(Number);
     const start = isoWeekStart(year, week);
     const end = new Date(start);
     end.setDate(start.getDate() + 6);
@@ -346,14 +356,14 @@ function resolveDateRange(): { from: string; to: string } | null {
     return { from: start.toISOString(), to: end.toISOString() };
   }
 
-  if (dateFilterType.value === "month" && dateMonth.value) {
-    const [year, month] = dateMonth.value.split("-").map(Number);
+  if (dateFilterType.value === 'month' && dateMonth.value) {
+    const [year, month] = dateMonth.value.split('-').map(Number);
     const start = new Date(year, month - 1, 1, 0, 0, 0, 0);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
     return { from: start.toISOString(), to: end.toISOString() };
   }
 
-  if (dateFilterType.value === "year" && dateYear.value) {
+  if (dateFilterType.value === 'year' && dateYear.value) {
     const year = Number(dateYear.value);
     const start = new Date(year, 0, 1, 0, 0, 0, 0);
     const end = new Date(year, 11, 31, 23, 59, 59, 999);
@@ -374,10 +384,15 @@ function isoWeekStart(year: number, week: number): Date {
 
 function populateClientSelects(): void {
   const options = ['<option value="">Todos</option>']
-    .concat(clients.map((client) => `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}</option>`))
-    .join("");
+    .concat(
+      clients.map(
+        (client) =>
+          `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}</option>`,
+      ),
+    )
+    .join('');
   clientFilter.innerHTML = options;
-  agendaClient.innerHTML = options.replace("Todos", "Selecione");
+  agendaClient.innerHTML = options.replace('Todos', 'Selecione');
   populatePetSelects();
   populateYearOptions();
 }
@@ -388,11 +403,16 @@ function populatePetSelects(): void {
     ? clients.find((client) => client.id === selectedClientId)?.pets || []
     : clients.flatMap((client) => client.pets || []);
   const options = ['<option value="">Todos</option>']
-    .concat(availablePets.map((pet) => `<option value="${escapeHtml(pet.id)}">${escapeHtml(pet.name)}</option>`))
-    .join("");
+    .concat(
+      availablePets.map(
+        (pet) =>
+          `<option value="${escapeHtml(pet.id)}">${escapeHtml(pet.name)}</option>`,
+      ),
+    )
+    .join('');
 
   petFilter.innerHTML = options;
-  agendaPet.innerHTML = options.replace("Todos", "Selecione");
+  agendaPet.innerHTML = options.replace('Todos', 'Selecione');
 }
 
 function populateYearOptions(): void {
@@ -400,7 +420,7 @@ function populateYearOptions(): void {
   const years = [currentYear - 1, currentYear, currentYear + 1];
   dateYear.innerHTML = '<option value="">Selecione</option>';
   years.forEach((year) => {
-    const option = document.createElement("option");
+    const option = document.createElement('option');
     option.value = String(year);
     option.textContent = String(year);
     dateYear.appendChild(option);
@@ -408,18 +428,18 @@ function populateYearOptions(): void {
 }
 
 function renderAgenda(): void {
-  agendaContainer.innerHTML = "";
+  agendaContainer.innerHTML = '';
 
   if (!appointments.length) {
-    renderEmpty("Nenhum agendamento encontrado com os filtros selecionados.");
+    renderEmpty('Nenhum agendamento encontrado com os filtros selecionados.');
     return;
   }
 
   appointments.forEach((item) => {
-    const card = document.createElement("div");
-    card.className = "agenda-card";
+    const card = document.createElement('div');
+    card.className = 'agenda-card';
     card.innerHTML = `
-      ${canWrite ? `<button class="delete-card-btn" type="button" data-delete-id="${escapeHtml(item.id)}">X</button>` : ""}
+      ${canWrite ? `<button class="delete-card-btn" type="button" data-delete-id="${escapeHtml(item.id)}">X</button>` : ''}
       <div class="agenda-card-header">
         <div class="badge">${escapeHtml(STATUS_LABELS[item.status] || item.status)}</div>
       </div>
@@ -430,38 +450,42 @@ function renderAgenda(): void {
         <div class="agenda-meta-row"><span>Inicio</span><span>${escapeHtml(formatDateTime(item.startAt || item.data, item.hora))}</span></div>
         <div class="agenda-meta-row"><span>Valor</span><span>${escapeHtml(formatCurrency(item.preco))}</span></div>
       </div>
-      <div class="agenda-desc">${escapeHtml(item.notes || item.descricao || "Sem observacoes.")}</div>
-      ${canWrite ? `<button class="btn btn-secondary" type="button" data-edit-id="${escapeHtml(item.id)}">Editar</button>` : ""}
+      <div class="agenda-desc">${escapeHtml(item.notes || item.descricao || 'Sem observacoes.')}</div>
+      ${canWrite ? `<button class="btn btn-secondary" type="button" data-edit-id="${escapeHtml(item.id)}">Editar</button>` : ''}
     `;
 
-    card.querySelector("[data-edit-id]")?.addEventListener("click", () => openEditModal(item.id));
-    card.querySelector("[data-delete-id]")?.addEventListener("click", () => openDeleteConfirm(item.id));
+    card
+      .querySelector('[data-edit-id]')
+      ?.addEventListener('click', () => openEditModal(item.id));
+    card
+      .querySelector('[data-delete-id]')
+      ?.addEventListener('click', () => openDeleteConfirm(item.id));
     agendaContainer.appendChild(card);
   });
 }
 
 function renderPagination(): void {
-  pagination.innerHTML = "";
+  pagination.innerHTML = '';
   if (totalPages <= 1) return;
 
-  const previous = document.createElement("button");
-  previous.textContent = "Anterior";
+  const previous = document.createElement('button');
+  previous.textContent = 'Anterior';
   previous.disabled = currentPage <= 1;
-  previous.addEventListener("click", () => changePage(currentPage - 1));
+  previous.addEventListener('click', () => changePage(currentPage - 1));
   pagination.appendChild(previous);
 
   for (let page = 1; page <= totalPages; page += 1) {
-    const button = document.createElement("button");
+    const button = document.createElement('button');
     button.textContent = String(page);
-    button.classList.toggle("active", page === currentPage);
-    button.addEventListener("click", () => changePage(page));
+    button.classList.toggle('active', page === currentPage);
+    button.addEventListener('click', () => changePage(page));
     pagination.appendChild(button);
   }
 
-  const next = document.createElement("button");
-  next.textContent = "Proxima";
+  const next = document.createElement('button');
+  next.textContent = 'Proxima';
   next.disabled = currentPage >= totalPages;
-  next.addEventListener("click", () => changePage(currentPage + 1));
+  next.addEventListener('click', () => changePage(currentPage + 1));
   pagination.appendChild(next);
 }
 
@@ -473,9 +497,9 @@ async function changePage(page: number): Promise<void> {
 function openCreateModal(): void {
   if (!ensureCanWrite()) return;
   editingAppointmentId = null;
-  agendaModalTitle.textContent = "Novo agendamento";
+  agendaModalTitle.textContent = 'Novo agendamento';
   resetForm();
-  agendaModal.classList.add("active");
+  agendaModal.classList.add('active');
 }
 
 function openEditModal(id: string): void {
@@ -484,39 +508,41 @@ function openEditModal(id: string): void {
   if (!appointment) return;
 
   editingAppointmentId = id;
-  agendaModalTitle.textContent = "Editar agendamento";
+  agendaModalTitle.textContent = 'Editar agendamento';
   agendaClient.value = appointment.clientId;
   populatePetSelects();
   agendaPet.value = appointment.petId;
   agendaService.value = appointment.servico;
   agendaAttendant.value = appointment.atendente;
-  agendaStartAt.value = toDateTimeLocal(appointment.startAt || appointment.data);
-  agendaEndAt.value = toDateTimeLocal(appointment.endAt || "");
+  agendaStartAt.value = toDateTimeLocal(
+    appointment.startAt || appointment.data,
+  );
+  agendaEndAt.value = toDateTimeLocal(appointment.endAt || '');
   agendaStatus.value = appointment.status;
-  agendaPrice.value = String(appointment.preco ?? "");
-  agendaNotes.value = appointment.notes || appointment.descricao || "";
-  agendaCancellationReason.value = appointment.cancellationReason || "";
-  agendaModal.classList.add("active");
+  agendaPrice.value = String(appointment.preco ?? '');
+  agendaNotes.value = appointment.notes || appointment.descricao || '';
+  agendaCancellationReason.value = appointment.cancellationReason || '';
+  agendaModal.classList.add('active');
 }
 
 function closeModal(): void {
-  agendaModal.classList.remove("active");
+  agendaModal.classList.remove('active');
   editingAppointmentId = null;
   resetForm();
 }
 
 function resetForm(): void {
-  agendaClient.value = "";
+  agendaClient.value = '';
   populatePetSelects();
-  agendaPet.value = "";
-  agendaService.value = "";
-  agendaAttendant.value = "";
-  agendaStartAt.value = "";
-  agendaEndAt.value = "";
-  agendaStatus.value = "scheduled";
-  agendaPrice.value = "";
-  agendaNotes.value = "";
-  agendaCancellationReason.value = "";
+  agendaPet.value = '';
+  agendaService.value = '';
+  agendaAttendant.value = '';
+  agendaStartAt.value = '';
+  agendaEndAt.value = '';
+  agendaStatus.value = 'scheduled';
+  agendaPrice.value = '';
+  agendaNotes.value = '';
+  agendaCancellationReason.value = '';
 }
 
 async function saveAppointment(): Promise<void> {
@@ -527,7 +553,7 @@ async function saveAppointment(): Promise<void> {
   const end = agendaEndAt.value ? new Date(agendaEndAt.value) : null;
 
   if (!client || !pet || !start || Number.isNaN(start.getTime())) {
-    alert("Preencha cliente, animal e inicio do agendamento.");
+    alert('Preencha cliente, animal e inicio do agendamento.');
     return;
   }
 
@@ -536,7 +562,7 @@ async function saveAppointment(): Promise<void> {
   const price = Number(agendaPrice.value || 0);
 
   if (!service || !attendant || !Number.isFinite(price)) {
-    alert("Preencha servico, atendente e valor.");
+    alert('Preencha servico, atendente e valor.');
     return;
   }
 
@@ -560,92 +586,96 @@ async function saveAppointment(): Promise<void> {
 
   const url = editingAppointmentId
     ? `/api/agenda-pet/${editingAppointmentId}`
-    : "/api/agenda-pet";
-  const method = editingAppointmentId ? "PATCH" : "POST";
+    : '/api/agenda-pet';
+  const method = editingAppointmentId ? 'PATCH' : 'POST';
 
   await apiFetch<Appointment>(url, {
     method,
-    headers: { "Content-Type": "application/json" },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
   closeModal();
   await loadAppointments();
-  alert("Agendamento salvo com sucesso.");
+  alert('Agendamento salvo com sucesso.');
 }
 
 function openDeleteConfirm(id: string): void {
   if (!ensureCanWrite()) return;
   appointmentIdToDelete = id;
-  confirmOverlay.classList.add("active");
+  confirmOverlay.classList.add('active');
 }
 
 function closeDeleteConfirm(): void {
   appointmentIdToDelete = null;
-  confirmOverlay.classList.remove("active");
+  confirmOverlay.classList.remove('active');
 }
 
 async function deleteAppointment(): Promise<void> {
   if (!ensureCanWrite() || !appointmentIdToDelete) return;
   await apiFetch<{ ok: boolean }>(`/api/agenda-pet/${appointmentIdToDelete}`, {
-    method: "DELETE",
+    method: 'DELETE',
   });
   closeDeleteConfirm();
   await loadAppointments();
-  alert("Agendamento excluido com sucesso.");
+  alert('Agendamento excluido com sucesso.');
 }
 
 function ensureCanWrite(): boolean {
   if (!canWrite) {
-    alert("Modo visualizacao: alteracao bloqueada.");
+    alert('Modo visualizacao: alteracao bloqueada.');
     return false;
   }
   return true;
 }
 
 function updateDateFields(): void {
-  dayField.classList.add("hidden");
-  weekField.classList.add("hidden");
-  monthField.classList.add("hidden");
-  yearField.classList.add("hidden");
+  dayField.classList.add('hidden');
+  weekField.classList.add('hidden');
+  monthField.classList.add('hidden');
+  yearField.classList.add('hidden');
 
-  if (dateFilterType.value === "day") dayField.classList.remove("hidden");
-  if (dateFilterType.value === "week") weekField.classList.remove("hidden");
-  if (dateFilterType.value === "month") monthField.classList.remove("hidden");
-  if (dateFilterType.value === "year") yearField.classList.remove("hidden");
+  if (dateFilterType.value === 'day') dayField.classList.remove('hidden');
+  if (dateFilterType.value === 'week') weekField.classList.remove('hidden');
+  if (dateFilterType.value === 'month') monthField.classList.remove('hidden');
+  if (dateFilterType.value === 'year') yearField.classList.remove('hidden');
 }
 
 function setLoading(message: string): void {
   resultsCount.textContent = message;
   agendaContainer.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
-  pagination.innerHTML = "";
+  pagination.innerHTML = '';
 }
 
 function blockPage(message: string): void {
   openCreateAgendaBtn.disabled = true;
-  sessionBadge.textContent = "Acesso bloqueado";
+  sessionBadge.textContent = 'Acesso bloqueado';
   renderEmpty(message);
 }
 
 function renderEmpty(message: string): void {
   agendaContainer.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
-  pagination.innerHTML = "";
+  pagination.innerHTML = '';
 }
 
 function renderError(error: unknown): void {
-  const message = error instanceof Error ? error.message : "Erro ao carregar agenda.";
-  sessionBadge.textContent = "Erro";
+  const message =
+    error instanceof Error ? error.message : 'Erro ao carregar agenda.';
+  sessionBadge.textContent = 'Erro';
   renderEmpty(message);
 }
 
 function formatDateTime(value?: string | null, fallbackTime?: string): string {
-  if (!value) return fallbackTime || "Nao informado";
+  if (!value) return fallbackTime || 'Nao informado';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return fallbackTime || value;
-  return `${date.toLocaleDateString("pt-BR")} ${date.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
+  return `${date.toLocaleDateString('pt-BR')} ${date.toLocaleTimeString(
+    'pt-BR',
+    {
+      hour: '2-digit',
+      minute: '2-digit',
+    },
+  )}`;
 }
 
 function normalizeAppointment(item: Appointment): Appointment {
@@ -654,16 +684,16 @@ function normalizeAppointment(item: Appointment): Appointment {
 }
 
 function formatCurrency(value: number): string {
-  return Number(value || 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
+  return Number(value || 0).toLocaleString('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
   });
 }
 
 function toDateTimeLocal(value?: string | null): string {
-  if (!value) return "";
+  if (!value) return '';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  if (Number.isNaN(date.getTime())) return '';
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
@@ -673,57 +703,57 @@ function toDateInput(date: Date): string {
 }
 
 function toTimeInput(date: Date): string {
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 function escapeHtml(value: string): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
-dateFilterType.addEventListener("change", updateDateFields);
-applyFiltersBtn.addEventListener("click", () => {
+dateFilterType.addEventListener('change', updateDateFields);
+applyFiltersBtn.addEventListener('click', () => {
   currentPage = 1;
   void loadAppointments();
 });
-clearFiltersBtn.addEventListener("click", () => {
-  atendenteSearch.value = "";
-  dateFilterType.value = "";
-  dateDay.value = "";
-  dateWeek.value = "";
-  dateMonth.value = "";
-  dateYear.value = "";
-  startDateFrom.value = "";
-  startDateTo.value = "";
-  statusFilter.value = "";
-  clientFilter.value = "";
-  petFilter.value = "";
+clearFiltersBtn.addEventListener('click', () => {
+  atendenteSearch.value = '';
+  dateFilterType.value = '';
+  dateDay.value = '';
+  dateWeek.value = '';
+  dateMonth.value = '';
+  dateYear.value = '';
+  startDateFrom.value = '';
+  startDateTo.value = '';
+  statusFilter.value = '';
+  clientFilter.value = '';
+  petFilter.value = '';
   updateDateFields();
   populatePetSelects();
   currentPage = 1;
   void loadAppointments();
 });
-clientFilter.addEventListener("change", () => {
-  petFilter.value = "";
+clientFilter.addEventListener('change', () => {
+  petFilter.value = '';
   populatePetSelects();
 });
-agendaClient.addEventListener("change", () => {
-  agendaPet.value = "";
+agendaClient.addEventListener('change', () => {
+  agendaPet.value = '';
   populatePetSelects();
 });
-openCreateAgendaBtn.addEventListener("click", openCreateModal);
-saveAgendaBtn.addEventListener("click", () => void saveAppointment());
-closeAgendaModalBtn.addEventListener("click", closeModal);
-confirmDeleteYes.addEventListener("click", () => void deleteAppointment());
-confirmDeleteNo.addEventListener("click", closeDeleteConfirm);
-confirmOverlay.addEventListener("click", (event) => {
+openCreateAgendaBtn.addEventListener('click', openCreateModal);
+saveAgendaBtn.addEventListener('click', () => void saveAppointment());
+closeAgendaModalBtn.addEventListener('click', closeModal);
+confirmDeleteYes.addEventListener('click', () => void deleteAppointment());
+confirmDeleteNo.addEventListener('click', closeDeleteConfirm);
+confirmOverlay.addEventListener('click', (event) => {
   if (event.target === confirmOverlay) closeDeleteConfirm();
 });
-agendaModal.addEventListener("click", (event) => {
+agendaModal.addEventListener('click', (event) => {
   if (event.target === agendaModal) closeModal();
 });
 

@@ -17,9 +17,9 @@ describe('parceiros frontend production integration', () => {
   });
 
   it('usa sessao httpOnly e endpoints reais', () => {
-    expect(script).toContain('credentials: "include"');
-    expect(script).toContain('"/auth/profile"');
-    expect(script).toContain('"/partners"');
+    expect(script).toMatch(/credentials: ['"]include['"]/);
+    expect(script).toMatch(/['"]\/auth\/profile['"]/);
+    expect(script).toMatch(/['"]\/partners['"]/);
     expect(script).toContain('/referral-link/status');
     expect(script).toContain('/payment-status');
   });

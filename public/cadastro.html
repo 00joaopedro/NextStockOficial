@@ -665,7 +665,7 @@
     let produtoSelecionadoConsulta = null;
     let produtoEmEdicaoId = null;
     let produtosConsulta = [];
-    let modoSistema = detectarPreviewExplicito() ? "visualizacao" : "pendente";
+    let modoSistema = "pendente";
     let usuarioSuperAdmin = sessionStorage.getItem("nextstockIsSuperAdmin") === "true";
     let sessaoAutenticada = false;
     let selectedBranch = lerSelectedBranch();
@@ -701,11 +701,9 @@
       sessionStorage.setItem("nextstockSelectedBranch", JSON.stringify(branch));
       sessionStorage.setItem("nextstockSystemType", systemTypeAtual);
       sessionStorage.setItem("nextstockSelectedSystemType", systemTypeAtual);
-      sessionStorage.setItem("nextstockBackendMode", "production");
+      sessionStorage.setItem("nextstockBackendMode", modoSistema === "visualizacao" ? "preview" : "production");
       sessionStorage.setItem("nextstockTenantId", branch.tenantId || "");
       sessionStorage.setItem("nextstockBranchId", branch.id || "");
-      sessionStorage.removeItem("nextstockPreviewMode");
-      sessionStorage.removeItem("nextstockIsPreview");
     }
 
     function obterMensagemErro(response, data) {
@@ -740,11 +738,6 @@
     }
 
     async function validarSessaoReal() {
-      if (detectarPreviewExplicito()) {
-        modoSistema = "visualizacao";
-        throw new Error(mensagemModoVisualizacao);
-      }
-
       let profile;
 
       try {
@@ -774,9 +767,6 @@
 
       salvarContextoProducao(branch);
       await carregarContextoSistema();
-      if (modoSistema === "visualizacao") {
-        throw new Error(mensagemModoVisualizacao);
-      }
       return branch;
     }
 
@@ -784,6 +774,7 @@
       const context = await apiFetch("/system/context");
       if (context.systemMode === "PREVIEW") {
         modoSistema = "visualizacao";
+        window.setNextStockBackendContext?.(context);
         return context;
       }
 
@@ -801,17 +792,12 @@
     }
 
     async function inicializarContextoAutenticado() {
-      if (detectarPreviewExplicito()) {
-        modoSistema = "visualizacao";
-        return;
-      }
-
       try {
         await validarSessaoReal();
       } catch (error) {
         sessaoAutenticada = false;
         modoSistema = "pendente";
-        window.clearNextStockSessionState?.();
+        if (!detectarPreviewExplicito()) window.clearNextStockSessionState?.();
         console.warn(error.message);
       }
     }

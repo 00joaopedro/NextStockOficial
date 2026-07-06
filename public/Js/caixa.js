@@ -19,6 +19,7 @@
     scanPending: false,
     printing: false,
     fiscalConfig: null,
+    preview: false,
   };
 
   const els = {
@@ -176,7 +177,10 @@
       els.barcodeInput,
       els.searchInput,
     ].forEach((element) => {
-      element.disabled = busy;
+      element.disabled =
+        busy ||
+        (state.preview &&
+          [els.pay, els.confirmPayment, els.closeCash].includes(element));
     });
   }
 
@@ -759,7 +763,9 @@
     try {
       const profile = await api("/api/auth/profile");
       const context = await api("/api/system/context");
+      window.setNextStockBackendContext?.(context);
       state.profile = profile;
+      state.preview = String(context.systemMode).toUpperCase() === "PREVIEW";
       state.selectedBranch = context.selectedBranch || context.branch || null;
       if (!state.selectedBranch?.id) {
         throw new Error("Selecione uma filial valida para operar o caixa.");
@@ -777,6 +783,12 @@
       renderModel65Mode(fiscal.config);
       await loadMachines();
       renderCart();
+      if (state.preview) {
+        toast(
+          "Modo visualização: consultas liberadas e ações de venda bloqueadas.",
+          "info",
+        );
+      }
     } catch (error) {
       setStatus("Caixa indisponivel", ` ${error.message}`);
       toast(error.message, "error");

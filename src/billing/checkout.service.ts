@@ -37,6 +37,7 @@ export class CheckoutService {
     }
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
+      writable: true,
       allowedRoles: [Role.Admin],
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
@@ -56,7 +57,8 @@ export class CheckoutService {
     });
     if (!plan) throw new NotFoundException('Plano nao encontrado.');
     const mapping = plan.gatewayMappings[0];
-    if (!mapping) throw new ConflictException('Plano sem checkout configurado.');
+    if (!mapping)
+      throw new ConflictException('Plano sem checkout configurado.');
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -117,8 +119,7 @@ export class CheckoutService {
       checkoutId: checkout.id,
       checkoutUrl: checkout.checkoutUrl,
       status: checkout.status,
-      automaticConfirmationAvailable:
-        gatewayCheckout.supportsExternalReference,
+      automaticConfirmationAvailable: gatewayCheckout.supportsExternalReference,
     };
   }
 

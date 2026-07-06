@@ -34,6 +34,8 @@ describe('SystemService', () => {
     await expect(service.getContext()).resolves.toMatchObject({
       systemMode: SystemMode.Preview,
       tenantType: TenantType.Standard,
+      mode: 'visualizacao',
+      systemType: 'padrao',
     });
   });
 
@@ -60,6 +62,8 @@ describe('SystemService', () => {
       tenantType: TenantType.Standard,
       isSuperAdmin: true,
       isDevSuperAdmin: false,
+      mode: 'padrao',
+      systemType: SystemType.padrao,
     });
     expect(tenantContext.resolve).toHaveBeenCalled();
   });

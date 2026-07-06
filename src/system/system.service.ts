@@ -45,6 +45,8 @@ export class SystemService {
       return {
         systemMode: SystemMode.Preview,
         tenantType: TenantType.Standard,
+        mode: 'visualizacao',
+        systemType: 'padrao',
       };
     }
 
@@ -65,6 +67,8 @@ export class SystemService {
           ? SystemMode.Preview
           : SystemMode.Production,
       tenantType: this.resolveTenantType(operationalContext.systemType),
+      mode: operationalContext.mode,
+      systemType: operationalContext.systemType,
       isSuperAdmin: isSuperAdmin(currentUser),
       isDevSuperAdmin: canAccessDev(currentUser),
       role: operationalContext.role,

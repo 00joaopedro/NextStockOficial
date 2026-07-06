@@ -42,6 +42,7 @@ import { SessionsModule } from './sessions/sessions.module';
 import { ObservabilityModule } from './observability/observability.module';
 import { ObservabilityInterceptor } from './observability/observability.interceptor';
 import { PrivacyModule } from './privacy/privacy.module';
+import { PreviewMutationInterceptor } from './system/interceptors/preview-mutation.interceptor';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -63,8 +64,15 @@ const publicPath = join(__dirname, '..', 'public');
             res.setHeader('Cache-Control', 'no-cache');
             return;
           }
-          if (/\.[a-f0-9]{8,}\.(?:js|css|webp|png|jpg|jpeg|svg|woff2?)$/i.test(filePath)) {
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          if (
+            /\.[a-f0-9]{8,}\.(?:js|css|webp|png|jpg|jpeg|svg|woff2?)$/i.test(
+              filePath,
+            )
+          ) {
+            res.setHeader(
+              'Cache-Control',
+              'public, max-age=31536000, immutable',
+            );
             return;
           }
           res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -107,6 +115,10 @@ const publicPath = join(__dirname, '..', 'public');
     {
       provide: APP_GUARD,
       useClass: CsrfOriginGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PreviewMutationInterceptor,
     },
     {
       provide: APP_INTERCEPTOR,

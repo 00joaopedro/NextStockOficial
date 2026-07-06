@@ -5,6 +5,7 @@
     selectedBranch: null,
     loading: false,
     searchTimer: null,
+    preview: false,
   };
 
   const supplierForm = document.getElementById("supplierForm");
@@ -52,7 +53,7 @@
 
   function setBusy(isBusy) {
     [btnNovo, btnApagar, btnSalvar].forEach((button) => {
-      button.disabled = isBusy;
+      button.disabled = isBusy || state.preview;
     });
   }
 
@@ -133,9 +134,13 @@
       headers: { Accept: "application/json" },
     });
 
-    if (profileResponse.status === 401 || profileResponse.status === 403) {
+    if (profileResponse.status === 401) {
+      window.clearNextStockSessionState?.();
       window.location.href = "index.html";
       return false;
+    }
+    if (profileResponse.status === 403) {
+      throw new Error("Usuario sem permissao para acessar fornecedores.");
     }
 
     if (!profileResponse.ok) {
@@ -152,13 +157,14 @@
     }
 
     const context = await contextResponse.json();
+    state.preview = String(context.systemMode).toUpperCase() === "PREVIEW";
+    window.setNextStockBackendContext?.(context);
     state.selectedBranch = context.selectedBranch || context.branch || null;
 
     if (!state.selectedBranch?.id) {
       throw new Error("Selecione uma filial valida para gerenciar fornecedores.");
     }
 
-    sessionStorage.setItem("nextstockBackendMode", "production");
     sessionStorage.setItem("nextstockSelectedBranch", JSON.stringify(state.selectedBranch));
     sessionStorage.setItem("nextstockBranchId", state.selectedBranch.id);
     sessionStorage.setItem("nextstockTenantId", state.selectedBranch.tenantId || "");

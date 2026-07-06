@@ -80,13 +80,17 @@ describe('frontend auth pages', () => {
     const source = publicFile('Js/sidebar.ts');
     const dist = publicFile('dist/sidebar.js');
 
-    expect(source).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
+    expect(source).toMatch(
+      /\{ label: ['"]Dev['"], href: ['"]dev\.html['"], key: ['"]dev['"], module: ['"]dev['"] \}/,
+    );
     expect(source).toContain('function isDevSuperAdminUser');
     expect(source).toContain('if (isDevSuperAdminUser(context))');
     expect(source).toContain('function getRuntimeFallbackContext');
     expect(source).toContain('return FALLBACK_CONTEXT');
 
-    expect(dist).toContain('{ label: "Dev", href: "dev.html", key: "dev", module: "dev" }');
+    expect(dist).toMatch(
+      /\{ label: ['"]Dev['"], href: ['"]dev\.html['"], key: ['"]dev['"], module: ['"]dev['"] \}/,
+    );
     expect(dist).toContain('function isDevSuperAdminUser');
     expect(dist).toContain('if (isDevSuperAdminUser(context))');
   });
@@ -94,9 +98,11 @@ describe('frontend auth pages', () => {
   it('sidebar registra page_view em modo production sem expor tokens', () => {
     const source = publicFile('Js/sidebar.ts');
 
-    expect(source).toContain('const PAGE_VIEW_ENDPOINT = "/api/usage/page-view"');
+    expect(source).toMatch(
+      /const PAGE_VIEW_ENDPOINT = ['"]\/api\/usage\/page-view['"]/,
+    );
     expect(source).toContain('function recordPageView');
-    expect(source).toContain('eventType: "page_view"');
+    expect(source).toMatch(/eventType: ['"]page_view['"]/);
     expect(source).not.toContain('RAILWAY_API_TOKEN');
     expect(source).not.toContain('SUPABASE_ACCESS_TOKEN');
   });

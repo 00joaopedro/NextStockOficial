@@ -8,6 +8,10 @@ import { Role, SystemMode, SystemType } from '@prisma/client';
 import { canAccessDev } from '../auth/super-admin.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { DevWorkspaceService } from './dev-workspace.service';
+import {
+  PREVIEW_MODE_MUTATION_BLOCKED,
+  PREVIEW_MODE_MUTATION_MESSAGE,
+} from '../system/preview-mode.constants';
 
 export type TenantContext = {
   userId: string;
@@ -72,7 +76,9 @@ export class TenantContextService {
       : null;
 
     if (branchId && !branch) {
-      throw new ForbiddenException('Filial selecionada nao existe ou esta inativa.');
+      throw new ForbiddenException(
+        'Filial selecionada nao existe ou esta inativa.',
+      );
     }
 
     let contextKind: TenantContext['contextKind'] = 'normal';
@@ -103,15 +109,17 @@ export class TenantContextService {
 
     const authenticatedTenantId = user.tenantId ?? user.primaryTenantId ?? null;
     const tenantId = devAccess
-      ? branch?.tenantId ?? null
-      : branch?.tenantId ?? authenticatedTenantId;
+      ? (branch?.tenantId ?? null)
+      : (branch?.tenantId ?? authenticatedTenantId);
 
     if (!tenantId) {
       throw new UnauthorizedException('Usuario sem tenant/empresa vinculado.');
     }
 
     if (options.requireBranch && !branch) {
-      throw new BadRequestException('Selecione uma filial valida para continuar.');
+      throw new BadRequestException(
+        'Selecione uma filial valida para continuar.',
+      );
     }
 
     const liveMembership = devAccess
@@ -177,7 +185,10 @@ export class TenantContextService {
       );
     }
 
-    if (options.expectedSystemType && tenant.systemType !== options.expectedSystemType) {
+    if (
+      options.expectedSystemType &&
+      tenant.systemType !== options.expectedSystemType
+    ) {
       throw new ForbiddenException(
         options.expectedSystemType === SystemType.petshop
           ? 'Pagina exclusiva do modo Pet Shop.'
@@ -186,7 +197,10 @@ export class TenantContextService {
     }
 
     if (options.writable && tenant.mode === SystemMode.visualizacao) {
-      throw new ForbiddenException('Modo visualizacao: alteracao bloqueada.');
+      throw new ForbiddenException({
+        code: PREVIEW_MODE_MUTATION_BLOCKED,
+        message: PREVIEW_MODE_MUTATION_MESSAGE,
+      });
     }
 
     if (
@@ -208,5 +222,4 @@ export class TenantContextService {
       contextKind,
     };
   }
-
 }
