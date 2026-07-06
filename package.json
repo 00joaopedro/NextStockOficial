@@ -30,7 +30,7 @@
     "test:ci": "npm run lint:check && npm run build && npm run build:frontend && npm test -- --runInBand",
     "migrate:deploy": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy",
-    "railway:migrate": "prisma migrate deploy",
+    "railway:migrate": "ts-node scripts/migrations/validate-target.ts && prisma migrate deploy",
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
     "storage:orphan-report": "ts-node scripts/maintenance/storage-orphan-report.ts",

@@ -22,6 +22,19 @@ DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supab
 
 O backend tambem normaliza URLs runtime na porta `6543` para garantir `sslmode=require`, `pgbouncer=true` e `connection_limit=1`.
 
+## Railway em producao
+
+Use `.env.production.example` como inventario das variaveis protegidas do
+servico; nao envie um `.env` preenchido. O healthcheck versionado no
+`railway.json` usa `GET /api/health`, e o readiness com banco esta em
+`GET /api/health/ready`.
+
+Billing desativado deve declarar explicitamente
+`BILLING_CHECKOUT_ENABLED=false`, `BILLING_WEBHOOK_ENABLED=false` e
+`BILLING_ENFORCEMENT_ENABLED=false`. Credenciais Mercado Pago somente se tornam
+obrigatorias quando checkout/webhook sao habilitados. A lista completa, os
+comandos de geracao de secrets e o fluxo seguro de deploy estao em `DEPLOY.md`.
+
 ## Banco de dados
 
 Todas as alteracoes estruturais de banco devem viver em `prisma/migrations`.
@@ -178,7 +191,7 @@ Nao coloque `prisma migrate deploy` dentro do `start:prod` nem em um pre-deploy 
 Quando houver migration nova, rode:
 
 ```bash
-npm run db:migrate
+npm run railway:migrate
 ```
 
 No Railway, este repositorio versiona `railway.json` para usar:
@@ -188,9 +201,8 @@ npm run start:railway
 ```
 
 Esse script apenas chama `npm run start:prod`. Migrations continuam sendo aplicadas por
-`npm run db:migrate` como etapa manual/controlada ou job separado. Isso impede que
-uma migration lenta/travada bloqueie o healthcheck da Railway e derrube a API com
-502.
+`npm run railway:migrate` como etapa manual/controlada ou job separado. Isso impede que
+uma migration lenta/travada bloqueie o healthcheck da Railway e derrube a API com 502.
 
 ### Multi-tenant integrity
 

@@ -4,6 +4,8 @@
     "buildCommand": "npm run build && npm run build:frontend"
   },
   "deploy": {
-    "startCommand": "npm run start:railway"
+    "startCommand": "npm run start:railway",
+    "healthcheckPath": "/api/health",
+    "healthcheckTimeout": 30
   }
 }

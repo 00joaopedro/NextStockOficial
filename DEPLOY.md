@@ -18,6 +18,81 @@ DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supab
 
 Ambas devem apontar para o mesmo projeto Supabase do ambiente. Copie os hosts/usuarios exatos exibidos em `Connect` no dashboard Supabase.
 
+## Variaveis obrigatorias no Railway
+
+Use `.env.production.example` como inventario, sem enviar esse arquivo preenchido
+ao Git. O bootstrap de producao exige:
+
+- banco/Supabase: `DATABASE_URL`, `SUPABASE_URL`,
+  `SUPABASE_ANON_KEY` ou `SUPABASE_PUBLISHABLE_KEY`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_PROJECT_REF` e
+  `PRODUCTION_SUPABASE_PROJECT_REF`;
+- web: `CORS_ALLOWED_ORIGINS` (somente origens HTTPS) e `PUBLIC_APP_URL`;
+- auditoria/sessao: `AUDIT_HASH_SECRET` com ao menos 32 caracteres;
+- fiscal: `CERT_ENCRYPTION_KEY` (base64 de exatos 32 bytes) e
+  `CERT_ENCRYPTION_KEY_VERSION`;
+- billing: as flags explicitas `BILLING_CHECKOUT_ENABLED`,
+  `BILLING_WEBHOOK_ENABLED` e `BILLING_ENFORCEMENT_ENABLED`.
+
+`DIRECT_URL` e recomendado e necessario para o job controlado de migrations,
+mas nao e usado para iniciar o servidor HTTP. `SESSION_HASH_SECRET` pode ser
+separado; quando ausente, o backend usa `AUDIT_HASH_SECRET`.
+
+Se checkout e webhook estiverem ambos `false`, credenciais Mercado Pago e
+`BILLING_EXTERNAL_REFERENCE_SECRET` nao bloqueiam o boot. Se checkout ou webhook
+for habilitado, o secret de referencia passa a ser obrigatorio. Webhook habilitado
+tambem exige access token, webhook secret e collector id.
+Em producao, webhook habilitado exige `MERCADO_PAGO_MODE=production`.
+
+O modulo fiscal esta carregado no processo e valida sua chave no bootstrap. Use
+uma chave nova por ambiente e nao reutilize chaves de JWT, Supabase, billing ou
+auditoria.
+
+## Incidente HTTP 502 por bootstrap
+
+O incidente diagnosticado na Railway era um encerramento do processo durante
+`ConfigModule.forRoot`, antes de o Nest abrir a porta. As primeiras variaveis
+ausentes eram `CORS_ALLOWED_ORIGINS`, `PUBLIC_APP_URL` e
+`BILLING_EXTERNAL_REFERENCE_SECRET`. A revisao tambem encontrou um segundo
+crash: o modulo fiscal e carregado no bootstrap e rejeita
+`CERT_ENCRYPTION_KEY` ausente ou invalida.
+
+O validador agora apresenta somente os nomes ausentes/invalidos, sem imprimir
+valores. Para gerar secrets independentes no terminal, execute cada comando
+separadamente e salve a saida diretamente nas variaveis protegidas da Railway:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+```
+
+Use esse comando três vezes, sem reutilizar resultados, para
+`AUDIT_HASH_SECRET`, `SESSION_HASH_SECRET` e
+`BILLING_EXTERNAL_REFERENCE_SECRET`.
+
+Para a chave fiscal, que exige base64 convencional de exatamente 32 bytes:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Cadastre o resultado como `CERT_ENCRYPTION_KEY` e defina
+`CERT_ENCRYPTION_KEY_VERSION=v1`. Nao registre essas saidas em tickets, logs,
+commits ou arquivos `.env` versionados.
+
+## Checklist Railway
+
+1. Cadastre as variaveis de `.env.production.example` como variaveis protegidas.
+2. Gere secrets unicos por ambiente e mantenha logs de diagnostico JWT desligados.
+3. Confirme que `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL` e project refs
+   pertencem ao mesmo projeto de producao.
+4. Configure as três flags de billing explicitamente; so adicione credenciais
+   Mercado Pago quando checkout/webhook forem habilitados.
+5. Gere e cadastre a chave fiscal A1 no formato documentado.
+6. Produza e valide um backup.
+7. Execute `npm run railway:migrate` uma unica vez em job controlado.
+8. Execute o deploy normal com `npm run start:railway`.
+9. Confirme `GET /api/health` e depois `GET /api/health/ready`.
+
 O runtime normaliza automaticamente URLs `:6543` para garantir os parametros PgBouncer. Mesmo assim, configure a URL completa no Railway para deixar a infraestrutura explicita.
 
 ## Scripts importantes
@@ -100,6 +175,11 @@ npm run start:prod
 Migrations nao fazem parte do start normal. Execute `npm run railway:migrate`
 uma unica vez em um job controlado, depois de backup, validacao em staging e
 aprovacao. Somente entao promova/inicie a release compativel.
+
+Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` existe nos
+ambientes controlados, que seu host/usuario corresponde a
+`SUPABASE_PROJECT_REF` e que staging nao reutiliza o project ref de producao.
+O script nao imprime URL nem credenciais.
 
 O `start:prod` continua intencionalmente limitado a iniciar o backend, o que permite
 smoke tests sem reaplicar migrations.
@@ -210,8 +290,9 @@ document. Do not switch a branch to fiscal production while its provider is
 ## Security hardening rollout
 
 Production boot validates database/Supabase configuration and additionally
-requires `CORS_ALLOWED_ORIGINS`, `PUBLIC_APP_URL` and a strong
-`BILLING_EXTERNAL_REFERENCE_SECRET`. Use HTTPS origins only. Set
+requires `CORS_ALLOWED_ORIGINS`, `PUBLIC_APP_URL`, audit/fiscal secrets and
+explicit billing feature flags. A strong `BILLING_EXTERNAL_REFERENCE_SECRET`
+is conditional on checkout/webhook being enabled. Use HTTPS origins only. Set
 `MERCADO_PAGO_WEBHOOK_TOLERANCE_SECONDS=600` (or a reviewed lower value).
 Never reuse JWT, Supabase or Mercado Pago secrets for the billing reference
 secret.

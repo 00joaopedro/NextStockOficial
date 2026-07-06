@@ -51,7 +51,11 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          styleSrc: [
+            "'self'",
+            "'unsafe-inline'",
+            'https://fonts.googleapis.com',
+          ],
           imgSrc: ["'self'", 'data:', 'https:'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
           connectSrc: ["'self'", ...allowedOrigins()],
@@ -73,7 +77,8 @@ async function bootstrap() {
     }),
   );
   app.use((req, res, next) => {
-    const requestId = sanitizeRequestId(req.header('x-request-id')) ?? randomUUID();
+    const requestId =
+      sanitizeRequestId(req.header('x-request-id')) ?? randomUUID();
     res.setHeader('X-Request-Id', requestId);
     (req as typeof req & { requestId?: string }).requestId = requestId;
     next();
@@ -103,10 +108,15 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   console.log(`Listening on ${port}`);
-  console.log(`Health: /api`);
+  console.log(`Health: /api/health`);
+  console.log(`Readiness: /api/health/ready`);
   console.log(`Public: /`);
 }
-bootstrap();
+void bootstrap().catch((error: unknown) => {
+  const message = sanitizeBootstrapError(error);
+  console.error(`Bootstrap failed: ${message}`);
+  process.exitCode = 1;
+});
 
 function allowedOrigins() {
   return (process.env.CORS_ALLOWED_ORIGINS || '')
@@ -120,4 +130,32 @@ function sanitizeRequestId(value?: string) {
   return normalized && /^[A-Za-z0-9._-]{8,128}$/.test(normalized)
     ? normalized
     : undefined;
+}
+
+function sanitizeBootstrapError(error: unknown) {
+  let message =
+    error instanceof Error ? error.message : 'Unknown bootstrap failure';
+  const sensitiveNames = [
+    'DATABASE_URL',
+    'DIRECT_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'SUPABASE_JWT_SECRET',
+    'MERCADO_PAGO_ACCESS_TOKEN',
+    'MERCADO_PAGO_WEBHOOK_SECRET',
+    'BILLING_EXTERNAL_REFERENCE_SECRET',
+    'AUDIT_HASH_SECRET',
+    'SESSION_HASH_SECRET',
+    'CERT_ENCRYPTION_KEY',
+  ];
+  for (const name of sensitiveNames) {
+    const value = process.env[name];
+    if (value && value.length >= 8) {
+      message = message.split(value).join('[REDACTED]');
+    }
+  }
+  return message
+    .replace(/\b(?:postgres(?:ql)?):\/\/[^\s]+/gi, '[REDACTED_DATABASE_URL]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 500);
 }

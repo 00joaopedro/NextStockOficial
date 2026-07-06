@@ -12,7 +12,8 @@ const schema = Joi.object({
   SUPABASE_URL: Joi.string()
     .uri({ scheme: ['https', 'http'] })
     .required(),
-  SUPABASE_ANON_KEY: Joi.string().min(20).required(),
+  SUPABASE_ANON_KEY: Joi.string().min(20).allow('').optional(),
+  SUPABASE_PUBLISHABLE_KEY: Joi.string().min(20).allow('').optional(),
   SUPABASE_SERVICE_ROLE_KEY: Joi.string().min(20).required(),
   SUPABASE_JWT_SECRET: Joi.string().min(20).allow('').optional(),
   SUPABASE_PROJECT_REF: Joi.string().allow('').optional(),
@@ -25,6 +26,9 @@ const schema = Joi.object({
     .allow('')
     .optional(),
   BILLING_EXTERNAL_REFERENCE_SECRET: Joi.string().min(32).allow('').optional(),
+  BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
+  BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
+  BILLING_WEBHOOK_ENABLED: Joi.string().valid('true', 'false').optional(),
   MERCADO_PAGO_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
   MERCADO_PAGO_ACCESS_TOKEN: Joi.string().allow('').optional(),
   MERCADO_PAGO_COLLECTOR_ID: Joi.string().allow('').optional(),
@@ -50,13 +54,48 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       `Invalid environment configuration: ${error.details.map((d) => d.path.join('.')).join(', ')}`,
     );
   }
+  if (
+    !String(value.SUPABASE_ANON_KEY || '').trim() &&
+    !String(value.SUPABASE_PUBLISHABLE_KEY || '').trim()
+  ) {
+    throw new Error(
+      'Missing required environment variable: SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY',
+    );
+  }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
-  if (value.NODE_ENV === 'production') {
+  const deployedRuntime =
+    value.NODE_ENV === 'production' ||
+    appEnv === 'production' ||
+    appEnv === 'staging';
+  if (deployedRuntime) {
     const required = [
       'CORS_ALLOWED_ORIGINS',
       'PUBLIC_APP_URL',
-      'BILLING_EXTERNAL_REFERENCE_SECRET',
+      'AUDIT_HASH_SECRET',
+      'CERT_ENCRYPTION_KEY',
+      'CERT_ENCRYPTION_KEY_VERSION',
+      'BILLING_CHECKOUT_ENABLED',
+      'BILLING_WEBHOOK_ENABLED',
+      'BILLING_ENFORCEMENT_ENABLED',
+      'SUPABASE_PROJECT_REF',
+      'PRODUCTION_SUPABASE_PROJECT_REF',
     ].filter((name) => !String(value[name] ?? '').trim());
+    if (appEnv === 'staging') {
+      requireWhenEmpty(required, value, 'STAGING_SUPABASE_PROJECT_REF');
+    }
+    const checkoutEnabled =
+      String(value.BILLING_CHECKOUT_ENABLED ?? '').toLowerCase() === 'true';
+    const webhookEnabled =
+      String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
+    if (checkoutEnabled || webhookEnabled) {
+      requireWhenEmpty(required, value, 'BILLING_EXTERNAL_REFERENCE_SECRET');
+    }
+    if (webhookEnabled) {
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_WEBHOOK_SECRET');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_COLLECTOR_ID');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_MODE');
+    }
     if (required.length) {
       throw new Error(
         `Missing required production environment variables: ${required.join(', ')}`,
@@ -74,10 +113,33 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
         'CORS_ALLOWED_ORIGINS must contain only HTTPS origins in production.',
       );
     }
+    validateCertificateKey(String(value.CERT_ENCRYPTION_KEY || ''));
   }
   validateEnvironmentIsolation(value, appEnv);
   Object.assign(process.env, value);
   return value;
+}
+
+function requireWhenEmpty(
+  required: string[],
+  value: Record<string, unknown>,
+  name: string,
+) {
+  if (!String(value[name] ?? '').trim() && !required.includes(name)) {
+    required.push(name);
+  }
+}
+
+function validateCertificateKey(value: string) {
+  const decoded = Buffer.from(value, 'base64');
+  if (
+    decoded.length !== 32 ||
+    decoded.toString('base64').replace(/=+$/, '') !== value.replace(/=+$/, '')
+  ) {
+    throw new Error(
+      'CERT_ENCRYPTION_KEY must be valid base64 containing exactly 32 bytes.',
+    );
+  }
 }
 
 function validateEnvironmentIsolation(
@@ -143,12 +205,14 @@ function validateEnvironmentIsolation(
     }
   }
   if (appEnv === 'production') {
-    if (productionRef && projectRef !== productionRef) {
+    if (projectRef !== productionRef) {
       throw new Error(
         'Production SUPABASE_PROJECT_REF does not match the approved production project.',
       );
     }
-    if (mercadoPagoMode && mercadoPagoMode !== 'production') {
+    const webhookEnabled =
+      String(value.BILLING_WEBHOOK_ENABLED || '').toLowerCase() === 'true';
+    if (webhookEnabled && mercadoPagoMode !== 'production') {
       throw new Error('Production cannot use Mercado Pago sandbox/test mode.');
     }
   }
