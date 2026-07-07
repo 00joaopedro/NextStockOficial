@@ -374,6 +374,15 @@
       return JSON.stringify(data, null, 2);
     }
 
+    function extractApiErrorMessage(status, data) {
+      if (status === 401) return 'E-mail ou senha invalidos.';
+      if (status === 409) return extractMessage(data) || 'Cadastro ou login incompleto. Solicite suporte.';
+      if (status === 422) return extractMessage(data) || 'Dados invalidos. Revise as informacoes e tente novamente.';
+      if (status === 503) return 'Sistema temporariamente indisponivel. Tente novamente em instantes.';
+      if (status >= 500) return 'Erro interno. Tente novamente em instantes.';
+      return extractMessage(data);
+    }
+
     function isSuperAdminUser(user) {
       return user?.role === 'superAdmin' ||
         user?.roles?.includes?.('superAdmin') === true ||
@@ -433,7 +442,7 @@
       const data = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(extractMessage(data));
+        throw new Error(extractApiErrorMessage(res.status, data));
       }
 
       return { res, data };

@@ -10,7 +10,13 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { EmployeeStatus, Role, SystemMode, SystemType } from '@prisma/client';
+import {
+  EmployeeStatus,
+  Prisma,
+  Role,
+  SystemMode,
+  SystemType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseService } from '../supabase/supabase.service';
 import {
@@ -138,12 +144,14 @@ export class AuthService {
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName);
     const accessNameNormalized = normalizeAccessName(name);
 
-    const existingProfile = await this.prisma.userProfile.findFirst({
-      where: {
-        OR: [{ email }, { accessNameNormalized }],
-      },
-      select: { id: true },
-    });
+    const existingProfile = await this.prisma.userProfile
+      .findFirst({
+        where: {
+          OR: [{ email }, { accessNameNormalized }],
+        },
+        select: { id: true },
+      })
+      .catch((error) => this.handleKnownPrismaAuthError(error, 'register.lookup'));
 
     if (existingProfile) {
       throw new ConflictException('email or name is already registered');
@@ -315,6 +323,7 @@ export class AuthService {
         .catch(() => undefined);
 
       this.logger.error('Registration transaction failed; authentication user rollback requested.');
+      this.handleKnownPrismaAuthError(error, 'register.transaction');
       throw new InternalServerErrorException('Nao foi possivel concluir o cadastro.');
     }
 
@@ -400,9 +409,11 @@ export class AuthService {
       supabaseUserId: data.user.id,
       email,
       metadata: data.user.user_metadata,
-    });
+    }).catch((error) => this.handleKnownPrismaAuthError(error, 'login.profile'));
     this.assertEmployeeCanAuthenticate(profile);
-    const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    const { user, selectedBranch } = await this.prepareLoginContext(profile).catch(
+      (error) => this.handleKnownPrismaAuthError(error, 'login.context'),
+    );
     const billingState = this.billingEntitlement
       ? await this.billingEntitlement.forUser(user)
       : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
@@ -583,33 +594,12 @@ export class AuthService {
       return profile;
     }
 
-    const name = this.normalizeName(
-      input.metadata?.name ||
-        input.metadata?.full_name ||
-        input.email.split('@')[0],
+    this.logger.warn(
+      `LOGIN_PROFILE_MISSING auth=${input.supabaseUserId.slice(0, 8)}`,
     );
-    // Supabase user_metadata is user-controlled and must never grant authorization.
-    const role = Role.Comprador;
-    const systemType = SystemType.padrao;
-    const createdProfile = await this.prisma.userProfile.create({
-      data: {
-        id: input.supabaseUserId,
-        supabaseUserId: input.supabaseUserId,
-        email: input.email,
-        name,
-        fullName: name,
-        role,
-        systemType,
-        allowedSystemTypes: [systemType],
-        isSuperAdmin: false,
-        accessNameNormalized: normalizeAccessName(name),
-      },
-      select: { id: true },
-    });
-
-    return this.findProfileRecord({
-      profileId: createdProfile.id,
-    });
+    throw new ConflictException(
+      'Cadastro incompleto: usuario sem perfil vinculado. Solicite suporte.',
+    );
   }
 
   private async findProfileForSupabaseIdentity(input: {
@@ -876,14 +866,14 @@ export class AuthService {
       this.logger.warn(
         `LOGIN_MEMBERSHIP_MISSING profile=${profile.id.slice(0, 8)} tenant=${profile.primaryTenantId ?? profile.tenantId ?? 'none'}`,
       );
-      throw new UnauthorizedException('Usuario sem empresa/filial vinculada.');
+      throw new ConflictException('Usuario sem empresa/filial vinculada.');
     }
 
     if (!membership.branchId || !membership.branch?.isActive) {
       this.logger.warn(
         `LOGIN_BRANCH_INVALID profile=${profile.id.slice(0, 8)} membership=${membership.id.slice(0, 8)} branch=${membership.branchId ?? 'none'}`,
       );
-      throw new UnauthorizedException(
+      throw new ConflictException(
         'Usuario sem filial ativa vinculada. Solicite acesso ao administrador.',
       );
     }
@@ -1144,6 +1134,53 @@ export class AuthService {
       `Supabase Auth operation rejected code=${String(error.code ?? 'unknown').replace(/[\r\n]/g, '').slice(0, 40)}`,
     );
     return new BadRequestException('Nao foi possivel concluir o cadastro.');
+  }
+
+  private handleKnownPrismaAuthError(error: unknown, phase: string): never {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      this.logger.warn(
+        `AUTH_PRISMA_KNOWN phase=${phase} code=${error.code} meta=${this.sanitizePrismaMeta(error.meta)}`,
+      );
+
+      if (error.code === 'P2002') {
+        throw new ConflictException('E-mail ou nome ja cadastrado.');
+      }
+
+      if (error.code === 'P2003' || error.code === 'P2025') {
+        throw new ConflictException(
+          'Cadastro inconsistente: empresa, filial ou perfil vinculado nao encontrado.',
+        );
+      }
+
+      if (error.code === 'P2021' || error.code === 'P2022' || error.code === 'P2010') {
+        throw new ServiceUnavailableException(
+          'Banco de dados indisponivel ou desatualizado. Execute as migrations pendentes.',
+          { cause: error },
+        );
+      }
+
+      throw new ServiceUnavailableException(
+        'Falha conhecida de banco de dados durante autenticacao.',
+        { cause: error },
+      );
+    }
+
+    throw error;
+  }
+
+  private sanitizePrismaMeta(meta: unknown) {
+    if (!meta || typeof meta !== 'object') {
+      return '{}';
+    }
+
+    const allowedKeys = new Set(['modelName', 'target', 'field_name', 'column', 'table']);
+    const sanitized = Object.fromEntries(
+      Object.entries(meta as Record<string, unknown>)
+        .filter(([key]) => allowedKeys.has(key))
+        .map(([key, value]) => [key, String(value).replace(/[\r\n\t]/g, ' ').slice(0, 120)]),
+    );
+
+    return JSON.stringify(sanitized);
   }
 
   private async signInAfterRegister(email: string, password: string) {

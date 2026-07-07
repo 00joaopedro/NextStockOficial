@@ -19,19 +19,37 @@ describe('frontend auth pages', () => {
 
     expect(html).toContain("await requestJson('/dev/health')");
     expect(html).toContain('Acesso restrito ao Dev SuperAdmin.');
-    expect(html).toContain('Os valores de Railway e Supabase s&atilde;o estimativas');
-    expect(html).toContain('<option value="day">Dia atual at&eacute; agora</option>');
+    expect(html).toContain(
+      'Os valores de Railway e Supabase s&atilde;o estimativas',
+    );
+    expect(html).toContain(
+      '<option value="day">Dia atual at&eacute; agora</option>',
+    );
     expect(html).toContain('<option value="week">Semana</option>');
     expect(html).toContain('<option value="month">M&ecirc;s</option>');
     expect(html).toContain('Carregando uso estimado dos usuarios');
-    expect(html).toContain("sessionStorage.setItem('nextstockBackendMode', 'production')");
-    expect(html).toContain("sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))");
-    expect(html).toContain("sessionStorage.setItem('nextstockSelectedSystemType', selectedType)");
-    expect(html).toContain("sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true')");
-    expect(html).toContain("const workspaceResponse = await requestJson('/dev/workspaces')");
-    expect(html).toContain('item.systemType === selectedType && item.isDevWorkspace === true');
+    expect(html).toContain(
+      "sessionStorage.setItem('nextstockBackendMode', 'production')",
+    );
+    expect(html).toContain(
+      "sessionStorage.setItem('nextstockSelectedBranch', JSON.stringify(selectedBranch))",
+    );
+    expect(html).toContain(
+      "sessionStorage.setItem('nextstockSelectedSystemType', selectedType)",
+    );
+    expect(html).toContain(
+      "sessionStorage.setItem('nextstockIsDevSuperAdmin', 'true')",
+    );
+    expect(html).toContain(
+      "const workspaceResponse = await requestJson('/dev/workspaces')",
+    );
+    expect(html).toContain(
+      'item.systemType === selectedType && item.isDevWorkspace === true',
+    );
     expect(html).toContain('Workspace Dev Pet Shop nao encontrado');
-    expect(html).toContain('clientePet.html?systemType=petshop&mode=production');
+    expect(html).toContain(
+      'clientePet.html?systemType=petshop&mode=production',
+    );
     expect(html).toContain('produtos.html?systemType=padrao&mode=production');
     expect(html).not.toContain("sessionStorage.setItem('nextstockPreviewMode'");
     expect(html).not.toContain("sessionStorage.setItem('nextstockIsPreview'");
@@ -62,6 +80,20 @@ describe('frontend auth pages', () => {
     expect(html).toContain('mode") === "production"');
   });
 
+  it('index.html trata erros de auth sem expor detalhes internos', () => {
+    const html = publicFile('index.html');
+
+    expect(html).toContain('function extractApiErrorMessage(status, data)');
+    expect(html).toContain('status === 401');
+    expect(html).toContain('status === 409');
+    expect(html).toContain('status === 422');
+    expect(html).toContain('status === 503');
+    expect(html).toContain('Sistema temporariamente indisponivel');
+    expect(html).toContain('Erro interno. Tente novamente em instantes.');
+    expect(html).not.toContain('profiles.allowed_system_types');
+    expect(html).not.toContain('PrismaClientKnownRequestError');
+  });
+
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
     const pages = ['produtos.html', 'caixa.html', 'pedido.html'];
 
@@ -73,7 +105,9 @@ describe('frontend auth pages', () => {
     }
 
     expect(publicFile('dashboard.html')).toContain('getLocalStorageScope');
-    expect(publicFile('dashboard.html')).toContain('`${chave}:${storageScope}`');
+    expect(publicFile('dashboard.html')).toContain(
+      '`${chave}:${storageScope}`',
+    );
   });
 
   it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {

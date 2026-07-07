@@ -1,4 +1,4 @@
-import { Role, SystemMode, SystemType } from '@prisma/client';
+import { Prisma, Role, SystemMode, SystemType } from '@prisma/client';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -108,7 +108,7 @@ describe('AuthService', () => {
               },
               error: null,
             }),
-            deleteUser: jest.fn(),
+            deleteUser: jest.fn().mockResolvedValue({ data: {}, error: null }),
           },
         },
       },
@@ -306,6 +306,76 @@ describe('AuthService', () => {
     );
   });
 
+  it('cadastro com email ou nome duplicado retorna 409 antes de criar auth', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue({ id: 'existing-profile' });
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.register({
+        email: profile.email,
+        name: profile.name,
+        companyName: tenant.name,
+        password: 'Senha123',
+        systemType: 'padrao',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(supabase.admin.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+
+  it('cadastro mapeia erro Prisma P2002 para 409 e solicita rollback do Auth', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(null);
+    prisma.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { modelName: 'UserProfile', target: ['email'] },
+      }),
+    );
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.register({
+        email: profile.email,
+        name: profile.name,
+        companyName: tenant.name,
+        password: 'Senha123',
+        systemType: 'padrao',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(supabase.admin.auth.admin.deleteUser).toHaveBeenCalledWith(profile.id);
+  });
+
+  it('cadastro mapeia Prisma P2022 para 503 operacional, nao 500', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Column does not exist', {
+        code: 'P2022',
+        clientVersion: '6.19.3',
+        meta: {
+          modelName: 'UserProfile',
+          column: 'profiles.allowed_system_types',
+        },
+      }),
+    );
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.register({
+        email: profile.email,
+        name: profile.name,
+        companyName: tenant.name,
+        password: 'Senha123',
+        systemType: 'padrao',
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(supabase.admin.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+
   it('login comum usa apenas email/senha e retorna a primeira filial automaticamente', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
@@ -464,7 +534,7 @@ describe('AuthService', () => {
     expect(prisma.tx.tenantMember.upsert).not.toHaveBeenCalled();
   });
 
-  it('user_metadata nunca concede superAdmin em profile criado automaticamente', async () => {
+  it('login com usuario Supabase sem profile retorna conflito e nunca concede superAdmin por metadata', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
     supabase.anon.auth.signInWithPassword.mockResolvedValue({
@@ -503,17 +573,38 @@ describe('AuthService', () => {
 
     await expect(
       service.login({ email: 'metadata@test.com', password: 'Senha123' }),
-    ).rejects.toThrow('Usuario sem empresa/filial vinculada.');
-    expect(prisma.userProfile.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          role: Role.Comprador,
-          isSuperAdmin: false,
-          systemType: SystemType.padrao,
-          allowedSystemTypes: [SystemType.padrao],
-        }),
-      }),
-    );
+    ).rejects.toMatchObject({ status: 409 });
+    expect(prisma.userProfile.create).not.toHaveBeenCalled();
+  });
+
+  it('login com senha errada retorna 401', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    supabase.anon.auth.signInWithPassword.mockResolvedValue({
+      data: { user: null, session: null },
+      error: { message: 'Invalid login credentials' },
+    });
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.login({ email: profile.email, password: 'Senha123' }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('login com profile sem tenant/branch/member retorna 409', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue({
+      ...profile,
+      tenantId: null,
+      primaryTenantId: null,
+      memberships: [],
+    });
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.login({ email: profile.email, password: 'Senha123' }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it('login superAdmin retorna filial dev padrao e redireciona para dev.html', async () => {
