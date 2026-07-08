@@ -94,3 +94,34 @@ npx ts-node scripts/auth/audit-schema.ts
 npm run railway:migrate
 npx ts-node scripts/auth/audit-user.ts --email usuario@email.com --dry-run
 ```
+
+## Recuperacao de migration com enum PostgreSQL
+
+Se `npm run railway:migrate` falhar com:
+
+```text
+P3018
+ERROR: unsafe use of new value "internal_issued" of enum type "SaleDocumentStatus"
+```
+
+e as proximas execucoes retornarem:
+
+```text
+P3009 migrate found failed migrations in the target database
+```
+
+nao use `db push` e nao marque a migration como aplicada. Depois de publicar a
+correcao que separa `ALTER TYPE ... ADD VALUE` do `UPDATE` que usa o novo valor,
+rode:
+
+```bash
+npx prisma migrate resolve --rolled-back 20260701010000_internal_receipt_status
+npm run railway:migrate
+npx ts-node scripts/auth/audit-schema.ts
+```
+
+A migration `20260701010000_internal_receipt_status` deve apenas adicionar o
+valor do enum. A migration posterior
+`20260708000000_apply_internal_receipt_status` aplica o backfill de recibos
+internos e a constraint `NOT VALID`, depois que o valor do enum ja foi
+commitado pelo PostgreSQL.
