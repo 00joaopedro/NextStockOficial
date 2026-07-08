@@ -9,12 +9,16 @@ Configure no Railway:
 ```env
 DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1"
 DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
+ADMIN_DATABASE_URL=""
 ```
 
 - `DATABASE_URL`: conexao runtime pela Supabase Transaction Pooler, porta `6543`.
 - `pgbouncer=true`: impede prepared statements incompativeis com Transaction Pooler.
 - `connection_limit=1`: limita o pool interno do Prisma por instancia.
-- `DIRECT_URL`: conexao do Prisma CLI para migrations. Sem plano Pro/IPv4 Add-On, use preferencialmente a Supabase Session Pooler na porta `5432`.
+- `DIRECT_URL`: conexao do Prisma CLI para migrations e scripts administrativos. Sem plano Pro/IPv4 Add-On, use preferencialmente a Supabase Session Pooler na porta `5432`.
+- `ADMIN_DATABASE_URL`: opcional; quando configurada, sobrescreve `DIRECT_URL` apenas para scripts/migrations administrativos.
+
+`DIRECT_URL`/`ADMIN_DATABASE_URL` nunca devem apontar para a Supabase Transaction Pooler na porta `6543`. Esse pooler e adequado para runtime com `pgbouncer=true`, mas causa erros de prepared statement em `prisma migrate deploy`, `audit-schema` e `audit-user`.
 
 Ambas devem apontar para o mesmo projeto Supabase do ambiente. Copie os hosts/usuarios exatos exibidos em `Connect` no dashboard Supabase.
 
@@ -34,7 +38,7 @@ ao Git. O bootstrap de producao exige:
 - billing: as flags explicitas `BILLING_CHECKOUT_ENABLED`,
   `BILLING_WEBHOOK_ENABLED` e `BILLING_ENFORCEMENT_ENABLED`.
 
-`DIRECT_URL` e recomendado e necessario para o job controlado de migrations,
+`DIRECT_URL` ou `ADMIN_DATABASE_URL` e necessario para o job controlado de migrations,
 mas nao e usado para iniciar o servidor HTTP. `SESSION_HASH_SECRET` pode ser
 separado; quando ausente, o backend usa `AUDIT_HASH_SECRET`.
 
@@ -83,8 +87,8 @@ commits ou arquivos `.env` versionados.
 
 1. Cadastre as variaveis de `.env.production.example` como variaveis protegidas.
 2. Gere secrets unicos por ambiente e mantenha logs de diagnostico JWT desligados.
-3. Confirme que `DATABASE_URL`, `DIRECT_URL`, `SUPABASE_URL` e project refs
-   pertencem ao mesmo projeto de producao.
+3. Confirme que `DATABASE_URL`, `DIRECT_URL`/`ADMIN_DATABASE_URL`, `SUPABASE_URL` e project refs
+   pertencem ao mesmo projeto de producao. A URL administrativa nao pode usar `pooler.supabase.com:6543`.
 4. Configure as três flags de billing explicitamente; so adicione credenciais
    Mercado Pago quando checkout/webhook forem habilitados.
 5. Gere e cadastre a chave fiscal A1 no formato documentado.
@@ -176,8 +180,9 @@ Migrations nao fazem parte do start normal. Execute `npm run railway:migrate`
 uma unica vez em um job controlado, depois de backup, validacao em staging e
 aprovacao. Somente entao promova/inicie a release compativel.
 
-Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` existe nos
-ambientes controlados, que seu host/usuario corresponde a
+Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` ou
+`ADMIN_DATABASE_URL` existe nos ambientes controlados, rejeita
+`pooler.supabase.com:6543`, confere que host/usuario corresponde a
 `SUPABASE_PROJECT_REF` e que staging nao reutiliza o project ref de producao.
 O script nao imprime URL nem credenciais.
 
@@ -208,7 +213,13 @@ Rode primeiro em staging, execute smoke tests e produza/valide o backup antes
 do job de producao. Rollback da aplicacao nao desfaz schema: para banco, prefira
 uma migration aditiva de roll-forward revisada.
 
-O Prisma CLI prioriza `DIRECT_URL`. Se a Session Pooler `:5432` nao estiver acessivel e `npm run db:migrate` falhar, aplique o conteudo do `migration.sql` pendente pelo Supabase SQL Editor somente como plano B. Depois, reconcilie o historico da migration antes do proximo deploy.
+O Prisma CLI prioriza `ADMIN_DATABASE_URL` e depois `DIRECT_URL` para `migrate`. Se a Session Pooler `:5432` nao estiver acessivel e `npm run railway:migrate` falhar, aplique o conteudo do `migration.sql` pendente pelo Supabase SQL Editor somente como plano B. Depois, reconcilie o historico da migration antes do proximo deploy.
+
+Para verificar host/porta sem vazar senha:
+
+```bash
+npx ts-node -e "const { describeDatabaseUrl } = require('./scripts/lib/admin-database-url'); console.log(describeDatabaseUrl(process.env.ADMIN_DATABASE_URL || process.env.DIRECT_URL || ''))"
+```
 
 ## Validacao antes do deploy
 

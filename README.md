@@ -13,12 +13,14 @@ Configure `.env` com as variaveis do projeto. Para Prisma com Supabase/PostgreSQ
 ```env
 DATABASE_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true&connection_limit=1"
 DIRECT_URL="postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:5432/postgres?sslmode=require"
+# Optional override for migrations/admin scripts.
+ADMIN_DATABASE_URL=""
 ```
 
 - `DATABASE_URL`: runtime no Railway usando Supabase Transaction Pooler na porta `6543`.
 - `pgbouncer=true`: desativa prepared statements incompativeis com Transaction Pooler.
 - `connection_limit=1`: evita que uma instancia da aplicacao consuma conexoes demais.
-- `DIRECT_URL`: Prisma CLI/migrations usando preferencialmente Supabase Session Pooler na porta `5432`, que nao exige o IPv4 Add-On/Pro.
+- `DIRECT_URL`/`ADMIN_DATABASE_URL`: Prisma CLI, migrations e auditorias administrativas. Nunca use a Supabase Transaction Pooler na porta `6543` aqui; use conexao direta ou Session Pooler na porta `5432`.
 
 O backend tambem normaliza URLs runtime na porta `6543` para garantir `sslmode=require`, `pgbouncer=true` e `connection_limit=1`.
 

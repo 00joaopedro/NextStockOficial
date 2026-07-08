@@ -55,3 +55,42 @@ npm run railway:migrate
 ```
 
 Esse comando valida o alvo com `scripts/migrations/validate-target.ts` antes de aplicar `prisma migrate deploy`.
+
+## Erros de prepared statement no pooler Supabase
+
+Se `audit-schema`, `audit-user` ou `npm run railway:migrate` retornar mensagens
+como:
+
+```text
+prepared statement "s0" already exists
+prepared statement "s3" does not exist
+```
+
+o comando administrativo esta usando a Supabase Transaction Pooler
+(`pooler.supabase.com:6543`). Esse pooler e adequado para o runtime quando
+`DATABASE_URL` contem `pgbouncer=true`, mas nao e a conexao correta para Prisma
+Migrate nem auditorias administrativas.
+
+Regras:
+
+- `DATABASE_URL`: runtime da API; pode usar Transaction Pooler `:6543` com
+  `pgbouncer=true&connection_limit=1`.
+- `DIRECT_URL`: obrigatoria para migrations/scripts em `production` e `staging`,
+  salvo quando `ADMIN_DATABASE_URL` estiver configurada.
+- `ADMIN_DATABASE_URL`: override opcional para migrations/scripts.
+- `DIRECT_URL`/`ADMIN_DATABASE_URL`: nunca devem apontar para
+  `pooler.supabase.com:6543`; use conexao direta ou Session Pooler `:5432`.
+
+Para conferir host/porta sem vazar senha:
+
+```bash
+npx ts-node -e "const { describeDatabaseUrl } = require('./scripts/lib/admin-database-url'); console.log(describeDatabaseUrl(process.env.ADMIN_DATABASE_URL || process.env.DIRECT_URL || ''))"
+```
+
+Depois de corrigir as variaveis na Railway, rode:
+
+```bash
+npx ts-node scripts/auth/audit-schema.ts
+npm run railway:migrate
+npx ts-node scripts/auth/audit-user.ts --email usuario@email.com --dry-run
+```

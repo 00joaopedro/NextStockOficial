@@ -12,9 +12,7 @@ describe('auth audit scripts', () => {
       "argv.includes('--dry-run') || !argv.includes('--apply')",
     );
     expect(source).toContain('dryRun: options.dryRun');
-    expect(source).toContain(
-      'process.env.DIRECT_URL || process.env.DATABASE_URL',
-    );
+    expect(source).toContain('selectAdministrativeDatabaseUrl(process.env)');
     expect(source).not.toContain('--fix');
     expect(source).not.toContain('deleteUser');
     expect(source).not.toContain('updateMany');
@@ -27,8 +25,18 @@ describe('auth audit scripts', () => {
     expect(source).toContain('allowed_system_types');
     expect(source).toContain('tenant_members');
     expect(source).toContain('REQUIRED_ENUM_VALUES');
+    expect(source).toContain('selectAdministrativeDatabaseUrl(process.env)');
     expect(source).toContain('requiredByCurrentSchema: false');
     expect(source).not.toContain('db push');
     expect(source).not.toContain('$executeRaw');
+  });
+
+  it('schema.prisma declara directUrl para Prisma migrate', () => {
+    const source = readFileSync(
+      join(__dirname, '..', 'prisma', 'schema.prisma'),
+      'utf8',
+    );
+
+    expect(source).toContain('directUrl = env("DIRECT_URL")');
   });
 });

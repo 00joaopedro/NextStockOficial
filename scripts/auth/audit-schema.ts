@@ -1,5 +1,9 @@
 import 'dotenv/config';
 import { Prisma, PrismaClient } from '@prisma/client';
+import {
+  describeDatabaseUrl,
+  selectAdministrativeDatabaseUrl,
+} from '../lib/admin-database-url';
 
 const REQUIRED_MIGRATIONS = [
   '20260520000000_auth_multitenant_alignment',
@@ -58,10 +62,14 @@ type EnumRow = {
 };
 
 async function main() {
+  const administrativeUrl = selectAdministrativeDatabaseUrl(process.env);
+  console.log(
+    `Using administrative database connection (${describeDatabaseUrl(administrativeUrl)}).`,
+  );
   const prisma = new PrismaClient({
     datasources: {
       db: {
-        url: process.env.DIRECT_URL || process.env.DATABASE_URL,
+        url: administrativeUrl,
       },
     },
   });

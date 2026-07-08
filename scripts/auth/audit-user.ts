@@ -1,6 +1,10 @@
 import 'dotenv/config';
 import { PrismaClient, SystemType } from '@prisma/client';
 import { createClient } from '@supabase/supabase-js';
+import {
+  describeDatabaseUrl,
+  selectAdministrativeDatabaseUrl,
+} from '../lib/admin-database-url';
 
 type CliOptions = {
   email: string;
@@ -93,10 +97,14 @@ async function findSupabaseUserByEmail(email: string) {
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
+  const administrativeUrl = selectAdministrativeDatabaseUrl(process.env);
+  console.log(
+    `Using administrative database connection (${describeDatabaseUrl(administrativeUrl)}).`,
+  );
   const prisma = new PrismaClient({
     datasources: {
       db: {
-        url: process.env.DIRECT_URL || process.env.DATABASE_URL,
+        url: administrativeUrl,
       },
     },
   });
