@@ -559,6 +559,9 @@ model PetClient {
 
   @@index([tenantId])
   @@index([tenantId, branchId])
+  @@index([tenantId, branchId, deletedAt, createdAt])
+  @@index([tenantId, branchId, deletedAt, name])
+  @@index([tenantId, branchId, deletedAt, phone])
   @@index([tenantId, name])
   @@index([tenantId, phone])
   @@index([deletedAt])
@@ -715,6 +718,7 @@ model Order {
   fiscalDocuments SaleDocument[]
 
   @@index([tenantId, branchId, createdAt])
+  @@index([tenantId, branchId, deletedAt, createdAt])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, createdAt])
   @@index([tenantId, branchId, customerName])
@@ -784,6 +788,8 @@ model Sale {
 
   @@unique([tenantId, branchId, idempotencyKey])
   @@index([tenantId, branchId, soldAt])
+  @@index([tenantId, branchId, deletedAt, soldAt])
+  @@index([tenantId, branchId, documentType, deletedAt, soldAt])
   @@index([tenantId, branchId, sellerId])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, soldAt])
@@ -888,6 +894,7 @@ model SaleDocument {
 
   @@index([saleId, type, status])
   @@index([tenantId, branchId, status, type])
+  @@index([tenantId, branchId, type, status, createdAt])
   @@index([orderId])
   @@index([idempotencyKey])
   @@map("sale_documents")
@@ -1140,6 +1147,7 @@ model Expense {
   files     ExpenseFile[]
 
   @@index([tenantId, branchId, date])
+  @@index([tenantId, branchId, deletedAt, date])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, date])
   @@index([tenantId, branchId, type])

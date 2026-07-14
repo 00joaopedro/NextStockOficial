@@ -29,7 +29,23 @@ import { InternalReceiptService } from './internal-receipt.service';
 const SALE_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' as const } },
   payments: { orderBy: { createdAt: 'asc' as const } },
-  documents: { orderBy: { createdAt: 'desc' as const } },
+  documents: {
+    orderBy: { createdAt: 'desc' as const },
+    select: {
+      id: true,
+      type: true,
+      number: true,
+      series: true,
+      accessKey: true,
+      status: true,
+      xmlPath: true,
+      pdfPath: true,
+      issuedAt: true,
+      canceledAt: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  },
 } satisfies Prisma.SaleInclude;
 
 type SaleWithRelations = Prisma.SaleGetPayload<{

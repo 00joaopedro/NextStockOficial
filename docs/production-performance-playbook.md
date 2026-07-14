@@ -20,13 +20,16 @@ O `PrismaService` do projeto já configura o `DATABASE_URL` runtime e registra q
 
 ```env
 PRISMA_SLOW_QUERY_THRESHOLD_MS=500
+HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
 ```
 
-O log sai somente quando a query passa do limite:
+O log de Prisma sai somente quando a query passa do limite:
 
 ```text
 [Prisma slow query] 1234ms SELECT "public"."Product"... params=[...]
 ```
+
+`HTTP_SLOW_REQUEST_THRESHOLD_MS` reduz ruído no log HTTP e marca como `warn` apenas rotas lentas, além de continuar registrando erros.
 
 Use esse log para capturar:
 - rota chamada;
@@ -79,6 +82,7 @@ Regras rápidas:
 - use `@@unique` quando a regra de negócio exigir unicidade por tenant/filial;
 - não crie índice para toda coluna: índices aceleram leitura, mas custam escrita e storage;
 - em Supabase Free, storage/CPU são limitados; priorize os 5-10 endpoints mais lentos.
+- Este repositório já inclui uma migration append-only com índices direcionados para listagens de clientes Pet, pedidos, vendas, documentos fiscais e despesas: `prisma/migrations/20260714000000_targeted_performance_indexes/`.
 
 ## 2. Pool de conexões Supabase/Supavisor
 
@@ -284,6 +288,7 @@ export default defineConfig({
 ## Checklist para atacar os 11s
 
 - [ ] Habilitar `PRISMA_SLOW_QUERY_THRESHOLD_MS=500` no Railway.
+- [ ] Habilitar `HTTP_SLOW_REQUEST_THRESHOLD_MS=1000` no Railway para encontrar rotas lentas sem poluir logs.
 - [ ] Coletar 20 logs lentos reais e agrupar por rota/query.
 - [ ] Rodar `EXPLAIN (ANALYZE, BUFFERS)` nas 5 queries mais lentas.
 - [ ] Criar migrations append-only com índices compostos tenant/branch/filtros/ordenação.
