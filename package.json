@@ -55,6 +55,9 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.0",
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.2.0",
     "joi": "^18.2.3",
     "jwks-rsa": "^4.0.1",
     "node-forge": "^1.4.0",
@@ -63,11 +66,7 @@
     "prisma": "^6.19.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "sharp": "^0.35.2",
-    "@fastify/compress": "^8.1.0",
-    "@fastify/cookie": "^11.0.2",
-    "@fastify/helmet": "^13.0.2",
-    "@nestjs/platform-fastify": "^11.0.1"
+    "sharp": "^0.35.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -75,6 +74,8 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/compression": "^1.8.1",
+    "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",

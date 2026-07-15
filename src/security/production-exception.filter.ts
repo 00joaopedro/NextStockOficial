@@ -7,7 +7,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Request, Response } from 'express';
 
 const SENSITIVE_META_KEYS = new Set([
@@ -23,8 +22,19 @@ const SENSITIVE_META_KEYS = new Set([
   'token',
 ]);
 
-type RequestContext = (Request | FastifyRequest) & { requestId?: string };
-type ExpressOrFastifyResponse = Response | FastifyReply;
+type FastifyLikeRequest = {
+  method?: string;
+  url?: string;
+  requestId?: string;
+};
+
+type FastifyLikeReply = {
+  status(statusCode: number): FastifyLikeReply;
+  send(body: object): void;
+};
+
+type RequestContext = (Request | FastifyLikeRequest) & { requestId?: string };
+type ExpressOrFastifyResponse = Response | FastifyLikeReply;
 
 function reply(
   response: ExpressOrFastifyResponse,
