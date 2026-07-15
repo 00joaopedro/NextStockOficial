@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import type { Request, Response } from 'express';
+import { setReplyCookie, setReplyHeader } from '../common/http-reply.util';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -52,7 +53,7 @@ export class AuthController {
   ) {
     const { accessToken, payload } = await this.authService.register(body);
 
-    res.setHeader('Cache-Control', 'no-store');
+    setReplyHeader(res, 'Cache-Control', 'no-store');
     await this.createSession(req, res, accessToken, payload.user);
     this.setJwtCookie(res, accessToken);
     void this.audit?.record({
@@ -81,7 +82,7 @@ export class AuthController {
     try {
       const { accessToken, payload } = await this.authService.login(body);
 
-      res.setHeader('Cache-Control', 'no-store');
+      setReplyHeader(res, 'Cache-Control', 'no-store');
       await this.createSession(req, res, accessToken, payload.user);
       this.setJwtCookie(res, accessToken);
       void this.audit?.record({
@@ -135,7 +136,7 @@ export class AuthController {
       this.sessions.metadataFromRequest(req),
     );
     clearAuthCookies(res);
-    res.setHeader('Cache-Control', 'no-store');
+    setReplyHeader(res, 'Cache-Control', 'no-store');
     void this.audit?.record({
       ...this.audit.fromRequest(req),
       eventType: 'auth.logout',
@@ -158,14 +159,14 @@ export class AuthController {
       this.sessions.metadataFromRequest(req),
     );
     clearAuthCookies(res);
-    res.setHeader('Cache-Control', 'no-store');
+    setReplyHeader(res, 'Cache-Control', 'no-store');
     return { ok: true, revoked: revoked ?? 0 };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
   profile(@Req() req: Request, @Res({ passthrough: true }) res?: Response) {
-    res?.setHeader('Cache-Control', 'no-store');
+    setReplyHeader(res, 'Cache-Control', 'no-store');
     return this.authService.getProfile(req.user);
   }
 
@@ -173,7 +174,7 @@ export class AuthController {
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = this.getJwtMaxAgeMs(accessToken);
 
-    res.cookie('jwt', accessToken, {
+    setReplyCookie(res, 'jwt', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
@@ -198,7 +199,7 @@ export class AuthController {
       metadata: this.sessions.metadataFromRequest(req),
     });
     setSessionCookie(res, session.token, session.expiresAt);
-    res.setHeader('Cache-Control', 'no-store');
+    setReplyHeader(res, 'Cache-Control', 'no-store');
   }
 
   private getJwtMaxAgeMs(accessToken: string) {
