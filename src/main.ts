@@ -1,18 +1,24 @@
 import 'dotenv/config';
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
+import fastifyCookie from '@fastify/cookie';
+import fastifyCompress from '@fastify/compress';
+import fastifyHelmet from '@fastify/helmet';
+import fastifyMultipart from '@fastify/multipart';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
-import * as cookieParser from 'cookie-parser';
-import { json } from 'express';
-import compression = require('compression');
-import helmet from 'helmet';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ trustProxy: true }),
+  );
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -25,63 +31,47 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new ProductionExceptionFilter());
 
-  app.use(
-    compression({
-      threshold: Number(process.env.COMPRESSION_THRESHOLD_BYTES || 1024),
-      filter(req, res) {
-        const contentType = String(res.getHeader('Content-Type') || '');
-        if (
-          /(?:image\/|application\/(?:pdf|zip)|font\/|application\/octet-stream)/i.test(
-            contentType,
-          )
-        ) {
-          return false;
-        }
-        return compression.filter(req, res);
+  await app.register(fastifyCompress, {
+    threshold: Number(process.env.COMPRESSION_THRESHOLD_BYTES || 1024),
+    encodings: ['gzip', 'deflate', 'br'],
+  });
+  await app.register(fastifyCookie);
+  await app.register(fastifyMultipart, { attachFieldsToBody: false });
+  await app.register(fastifyHelmet, {
+    contentSecurityPolicy: {
+      useDefaults: true,
+      reportOnly: process.env.CSP_ENFORCE !== 'true',
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        imgSrc: ["'self'", 'data:', 'https:'],
+        fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
+        connectSrc: ["'self'", ...allowedOrigins()],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+        upgradeInsecureRequests:
+          process.env.NODE_ENV === 'production' ? [] : null,
       },
-    }),
-  );
-  app.use(cookieParser());
-  app.use(json());
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        useDefaults: true,
-        reportOnly: process.env.CSP_ENFORCE !== 'true',
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: [
-            "'self'",
-            "'unsafe-inline'",
-            'https://fonts.googleapis.com',
-          ],
-          imgSrc: ["'self'", 'data:', 'https:'],
-          fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-          connectSrc: ["'self'", ...allowedOrigins()],
-          objectSrc: ["'none'"],
-          baseUri: ["'self'"],
-          frameAncestors: ["'none'"],
-          formAction: ["'self'"],
-          upgradeInsecureRequests:
-            process.env.NODE_ENV === 'production' ? [] : null,
-        },
-      },
-      crossOriginResourcePolicy: { policy: 'cross-origin' },
-      crossOriginOpenerPolicy: { policy: 'same-origin' },
-      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
-      strictTransportSecurity:
-        process.env.NODE_ENV === 'production'
-          ? { maxAge: 15_552_000, includeSubDomains: true }
-          : false,
-    }),
-  );
-  app.use((req, res, next) => {
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginOpenerPolicy: { policy: 'same-origin' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    strictTransportSecurity:
+      process.env.NODE_ENV === 'production'
+        ? { maxAge: 15_552_000, includeSubDomains: true }
+        : false,
+  });
+  app.addHook('onRequest', (request, reply, done) => {
+    const header = request.headers['x-request-id'];
     const requestId =
-      sanitizeRequestId(req.header('x-request-id')) ?? randomUUID();
-    res.setHeader('X-Request-Id', requestId);
-    (req as typeof req & { requestId?: string }).requestId = requestId;
-    next();
+      sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
+      randomUUID();
+    reply.header('X-Request-Id', requestId);
+    (request as typeof request & { requestId?: string }).requestId = requestId;
+    done();
   });
 
   app.enableCors({
