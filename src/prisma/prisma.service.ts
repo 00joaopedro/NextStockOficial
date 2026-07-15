@@ -51,7 +51,7 @@ export class PrismaService
         [
           `[Prisma slow query] ${event.duration}ms`,
           sanitizeQueryForLog(event.query),
-          `params=${sanitizeParamsForLog(event.params)}`,
+          'params=[OMITTED]',
         ].join(' '),
       );
     });
@@ -68,11 +68,4 @@ function parseSlowQueryThreshold(value?: string): number {
 
 function sanitizeQueryForLog(query: string): string {
   return query.replace(/\s+/g, ' ').trim().slice(0, 2_000);
-}
-
-function sanitizeParamsForLog(params: string): string {
-  return params
-    .replace(/\b(?:postgres(?:ql)?):\/\/[^\s"]+/gi, '[REDACTED_DATABASE_URL]')
-    .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
-    .slice(0, 1_000);
 }
