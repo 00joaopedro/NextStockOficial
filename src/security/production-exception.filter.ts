@@ -100,7 +100,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     if (process.env.NODE_ENV === 'production' && status >= 500) {
-      response.status(status).json({
+      response.status(status).send({
         statusCode: status,
         message: 'Erro interno do servidor.',
         requestId: request.requestId,
@@ -109,8 +109,10 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     const body =
-      typeof safeResponse === 'string' ? { message: safeResponse } : safeResponse;
-    response.status(status).json({
+      typeof safeResponse === 'string'
+        ? { message: safeResponse }
+        : safeResponse;
+    response.status(status).send({
       ...(body as object),
       statusCode: status,
       requestId: request.requestId,
