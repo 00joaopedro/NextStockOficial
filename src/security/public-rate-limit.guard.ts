@@ -38,7 +38,7 @@ export class PublicRateLimitGuard implements CanActivate {
       RATE_LIMIT_KEY,
       [context.getHandler(), context.getClass()],
     ) ?? { max: 20, windowMs: 60_000 };
-    const ip = request.ip || request.socket.remoteAddress || 'unknown';
+    const ip = request.ip || request.socket?.remoteAddress || 'unknown';
     const email =
       options.includeEmail && typeof request.body?.email === 'string'
         ? request.body.email.trim().toLowerCase()

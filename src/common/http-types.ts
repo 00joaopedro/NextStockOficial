@@ -1,7 +1,6 @@
 export type Request = {
   body?: Record<string, unknown>;
   cookies?: Record<string, string | undefined>;
-  header(name: string): string | undefined;
   headers?: Record<string, string | string[] | undefined>;
   ip?: string;
   method: string;
@@ -9,7 +8,7 @@ export type Request = {
   path?: string;
   requestId?: string;
   route?: { path?: string };
-  socket: { remoteAddress?: string };
+  socket?: { remoteAddress?: string };
   url?: string;
   user?: AuthenticatedUser;
 };
@@ -33,5 +32,22 @@ export type CompatibleReply = {
 
 export type Response = {
   status(statusCode: number): Response;
-  json(payload: unknown): unknown;
+  send(payload: unknown): unknown;
 };
+
+export function getRequestHeader(
+  request: Pick<Request, 'headers'> | undefined,
+  name: string,
+): string | undefined {
+  const headers = request?.headers;
+  if (!headers) return undefined;
+
+  const normalizedName = name.toLowerCase();
+  const value =
+    headers[normalizedName] ??
+    Object.entries(headers).find(
+      ([key]) => key.toLowerCase() === normalizedName,
+    )?.[1];
+
+  return Array.isArray(value) ? value[0] : value;
+}

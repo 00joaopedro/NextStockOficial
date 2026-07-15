@@ -6,7 +6,7 @@ describe('ProductionExceptionFilter', () => {
   const createHost = (error?: unknown) => {
     const response = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
+      send: jest.fn(),
     };
     const request = {
       requestId: 'request-1',

@@ -1,4 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { getRequestHeader } from '../../src/common/http-types';
 
 @Injectable()
 export class DeterministicTestAuthGuard implements CanActivate {
@@ -7,7 +8,7 @@ export class DeterministicTestAuthGuard implements CanActivate {
       throw new Error('DeterministicTestAuthGuard is test-only.');
     }
     const request = context.switchToHttp().getRequest();
-    const testUserId = request.header?.('x-test-user-id');
+    const testUserId = getRequestHeader(request, 'x-test-user-id');
     const users = request.app?.locals?.securityTestUsers as
       | Map<string, AuthenticatedUser>
       | undefined;
