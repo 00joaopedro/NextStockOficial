@@ -3,16 +3,25 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import * as cookieParser from 'cookie-parser';
-import { json } from 'express';
 import compression = require('compression');
 import helmet from 'helmet';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
 
+const { FastifyAdapter } = require('@nestjs/platform-fastify') as {
+  FastifyAdapter: new (options?: Record<string, unknown>) => unknown;
+};
+const fastifyMultipart = require('@fastify/multipart') as unknown;
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  const app = await NestFactory.create<any>(
+    AppModule,
+    new FastifyAdapter({ trustProxy: 1 }) as any,
+  );
+  await app.register(fastifyMultipart, {
+    limits: { fileSize: maxMultipartFileSizeBytes(), files: 1 },
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -42,7 +51,6 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
-  app.use(json());
   app.use(
     helmet({
       contentSecurityPolicy: {
@@ -117,6 +125,20 @@ void bootstrap().catch((error: unknown) => {
   console.error(`Bootstrap failed: ${message}`);
   process.exitCode = 1;
 });
+
+function maxMultipartFileSizeBytes() {
+  const limits = [
+    Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5),
+    Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5),
+    Number(process.env.CERTIFICATE_MAX_SIZE_MB || 5),
+    Number(process.env.EXPENSE_FILE_MAX_SIZE_MB || 10),
+  ];
+  const maxMb = Math.max(
+    1,
+    ...limits.filter((value) => Number.isFinite(value)),
+  );
+  return maxMb * 1024 * 1024;
+}
 
 function allowedOrigins() {
   return (process.env.CORS_ALLOWED_ORIGINS || '')

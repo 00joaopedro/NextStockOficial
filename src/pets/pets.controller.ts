@@ -9,13 +9,10 @@ import {
   Patch,
   Post,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { Role, SystemType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -26,11 +23,18 @@ import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { CreatePetDto } from './dto/create-pet.dto';
 import { UpdatePetDto } from './dto/update-pet.dto';
 import { PetsService } from './pets.service';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import { readFastifyUpload } from '../storage/fastify-upload.util';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 
 @Controller()
 @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
-@RequireTenantContext({ requireBranch: true, expectedSystemType: SystemType.petshop })
+@RequireTenantContext({
+  requireBranch: true,
+  expectedSystemType: SystemType.petshop,
+})
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class PetsController {
   constructor(private readonly petsService: PetsService) {}
@@ -98,20 +102,12 @@ export class PetsController {
   @Roles(Role.Admin, Role.Vendedor)
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 20, windowMs: 60_000 })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize: Number(process.env.PET_PHOTO_MAX_SIZE_MB || 5) * 1024 * 1024,
-        files: 1,
-      },
-    }),
-  )
-  addPhoto(
+  async addPhoto(
     @Req() req: Request,
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: any,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
+    const { file } = await readFastifyUpload(req);
     return this.petsService.addPhoto(req.user, id, file, selectedBranchId);
   }
 
@@ -123,7 +119,12 @@ export class PetsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
   ) {
-    return this.petsService.removePhoto(req.user, id, photoId, selectedBranchId);
+    return this.petsService.removePhoto(
+      req.user,
+      id,
+      photoId,
+      selectedBranchId,
+    );
   }
 
   @Get('pets/:id/appointments')
