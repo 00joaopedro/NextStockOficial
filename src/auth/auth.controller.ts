@@ -30,6 +30,7 @@ import {
   setSessionCookie,
 } from '../sessions/session-cookie';
 
+import { setCompatibleCookie } from '../common/http-types';
 import type {
   AuthenticatedHttpRequest,
   CompatibleReply,
@@ -186,7 +187,7 @@ export class AuthController {
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = this.getJwtMaxAgeMs(accessToken);
 
-    reply.setCookie('jwt', accessToken, {
+    setCompatibleCookie(reply, 'jwt', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',

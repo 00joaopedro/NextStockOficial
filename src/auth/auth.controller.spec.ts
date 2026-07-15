@@ -7,7 +7,7 @@ describe('AuthController', () => {
   } as any;
   const response = () =>
     ({
-      setCookie: jest.fn(),
+      cookie: jest.fn(),
       clearCookie: jest.fn(),
       header: jest.fn(),
     }) as any;
@@ -32,7 +32,7 @@ describe('AuthController', () => {
       res,
     );
 
-    expect(res.setCookie).toHaveBeenCalledWith(
+    expect(res.cookie).toHaveBeenCalledWith(
       'jwt',
       'token',
       expect.objectContaining({
@@ -65,7 +65,7 @@ describe('AuthController', () => {
       res,
     );
 
-    expect(res.setCookie).toHaveBeenCalledWith(
+    expect(res.cookie).toHaveBeenCalledWith(
       'jwt',
       'token',
       expect.objectContaining({
@@ -110,7 +110,7 @@ describe('AuthController', () => {
     expect(sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({ profileId: 'profile-1' }),
     );
-    expect(res.setCookie).toHaveBeenCalledWith(
+    expect(res.cookie).toHaveBeenCalledWith(
       'nextstock_session',
       'opaque-session',
       expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),

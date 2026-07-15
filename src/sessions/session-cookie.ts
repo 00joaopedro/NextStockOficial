@@ -1,4 +1,4 @@
-import type { CompatibleReply } from '../common/http-types';
+import { setCompatibleCookie, type CompatibleReply } from '../common/http-types';
 
 export const SESSION_COOKIE_NAME = 'nextstock_session';
 
@@ -16,7 +16,7 @@ export function setSessionCookie(
   token: string,
   expiresAt: Date,
 ) {
-  reply.setCookie(SESSION_COOKIE_NAME, token, {
+  setCompatibleCookie(reply, SESSION_COOKIE_NAME, token, {
     ...sessionCookieOptions(),
     expires: expiresAt,
   });
