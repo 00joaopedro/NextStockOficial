@@ -15,6 +15,7 @@ import {
   PREVIEW_MODE_MUTATION_MESSAGE,
   SAFE_PREVIEW_METHODS,
 } from './preview-mode.constants';
+import { getHeader } from '../http/http-adapter.utils';
 
 type RequestWithTenantContext = Request & {
   tenantContext?: TenantContext;
@@ -32,8 +33,8 @@ export class PreviewModePolicyService {
       return;
     }
 
-    const selectedBranchId = request.header('x-nextstock-branch-id');
-    const devContextMode = request.header('x-nextstock-dev-context');
+    const selectedBranchId = getHeader(request, 'x-nextstock-branch-id');
+    const devContextMode = getHeader(request, 'x-nextstock-dev-context');
     let context = request.tenantContext;
 
     if (!context) {

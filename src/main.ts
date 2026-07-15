@@ -9,6 +9,7 @@ import helmet from 'helmet';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
+import { getHeader, setHeader } from './http/http-adapter.utils';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -78,8 +79,8 @@ async function bootstrap() {
   );
   app.use((req, res, next) => {
     const requestId =
-      sanitizeRequestId(req.header('x-request-id')) ?? randomUUID();
-    res.setHeader('X-Request-Id', requestId);
+      sanitizeRequestId(getHeader(req, 'x-request-id')) ?? randomUUID();
+    setHeader(res, 'X-Request-Id', requestId);
     (req as typeof req & { requestId?: string }).requestId = requestId;
     next();
   });
