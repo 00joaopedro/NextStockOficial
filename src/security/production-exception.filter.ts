@@ -7,7 +7,6 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Request, Response } from 'express';
 
 const SENSITIVE_META_KEYS = new Set([
@@ -22,26 +21,6 @@ const SENSITIVE_META_KEYS = new Set([
   'supabase_service_role_key',
   'token',
 ]);
-
-type RequestContext = (Request | FastifyRequest) & { requestId?: string };
-type ExpressOrFastifyResponse = Response | FastifyReply;
-
-function reply(
-  response: ExpressOrFastifyResponse,
-  status: number,
-  body: object,
-) {
-  if ('json' in response && typeof response.json === 'function') {
-    response.status(status).json(body);
-    return;
-  }
-
-  response.status(status).send(body);
-}
-
-function requestPath(request: RequestContext) {
-  return 'path' in request && request.path ? request.path : request.url;
-}
 
 function sanitizeMessage(value: string): string {
   return value
@@ -97,8 +76,8 @@ export class ProductionExceptionFilter implements ExceptionFilter {
 
   catch(error: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
-    const response = context.getResponse<ExpressOrFastifyResponse>();
-    const request = context.getRequest<RequestContext>();
+    const response = context.getResponse<Response>();
+    const request = context.getRequest<Request & { requestId?: string }>();
     const status =
       error instanceof HttpException
         ? error.getStatus()
@@ -116,12 +95,12 @@ export class ProductionExceptionFilter implements ExceptionFilter {
         : '';
 
       this.logger.error(
-        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${requestPath(request)} status=${status} error=${name}${prismaDetails}`,
+        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${request.path} status=${status} error=${name}${prismaDetails}`,
       );
     }
 
     if (process.env.NODE_ENV === 'production' && status >= 500) {
-      reply(response, status, {
+      response.status(status).json({
         statusCode: status,
         message: 'Erro interno do servidor.',
         requestId: request.requestId,
@@ -130,10 +109,8 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     const body =
-      typeof safeResponse === 'string'
-        ? { message: safeResponse }
-        : safeResponse;
-    reply(response, status, {
+      typeof safeResponse === 'string' ? { message: safeResponse } : safeResponse;
+    response.status(status).json({
       ...(body as object),
       statusCode: status,
       requestId: request.requestId,

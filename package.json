@@ -64,10 +64,9 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.35.2",
-    "@fastify/compress": "^8.1.0",
-    "@fastify/cookie": "^11.0.2",
-    "@fastify/helmet": "^13.0.2",
-    "@nestjs/platform-fastify": "^11.0.1"
+    "compression": "^1.8.1",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.2.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -93,7 +92,9 @@
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "@types/compression": "^1.8.1",
+    "@types/cookie-parser": "^1.4.10"
   },
   "jest": {
     "moduleFileExtensions": [
