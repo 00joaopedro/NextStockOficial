@@ -11,7 +11,6 @@ import {
   Optional,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
-import type { Request, Response } from 'express';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -31,6 +30,11 @@ import {
   setSessionCookie,
 } from '../sessions/session-cookie';
 
+import type {
+  AuthenticatedHttpRequest,
+  CompatibleReply,
+} from '../common/http-types';
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -47,14 +51,14 @@ export class AuthController {
   @CsrfExempt()
   async register(
     @Body() body: RegisterDto,
-    @Res({ passthrough: true }) res: Response,
-    @Req() req?: Request,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+    @Req() req?: AuthenticatedHttpRequest,
   ) {
     const { accessToken, payload } = await this.authService.register(body);
 
-    res.setHeader('Cache-Control', 'no-store');
-    await this.createSession(req, res, accessToken, payload.user);
-    this.setJwtCookie(res, accessToken);
+    reply.header('Cache-Control', 'no-store');
+    await this.createSession(req, reply, accessToken, payload.user);
+    this.setJwtCookie(reply, accessToken);
     void this.audit?.record({
       ...this.audit.fromRequest(req),
       eventType: 'auth.register.succeeded',
@@ -75,15 +79,15 @@ export class AuthController {
   @CsrfExempt()
   async login(
     @Body() body: LoginDto,
-    @Res({ passthrough: true }) res: Response,
-    @Req() req?: Request,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+    @Req() req?: AuthenticatedHttpRequest,
   ) {
     try {
       const { accessToken, payload } = await this.authService.login(body);
 
-      res.setHeader('Cache-Control', 'no-store');
-      await this.createSession(req, res, accessToken, payload.user);
-      this.setJwtCookie(res, accessToken);
+      reply.header('Cache-Control', 'no-store');
+      await this.createSession(req, reply, accessToken, payload.user);
+      this.setJwtCookie(reply, accessToken);
       void this.audit?.record({
         ...this.audit.fromRequest(req),
         eventType: 'auth.login.succeeded',
@@ -115,7 +119,10 @@ export class AuthController {
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: true })
   @CsrfExempt()
-  async forgotPassword(@Body() body: ForgotPasswordDto, @Req() req: Request) {
+  async forgotPassword(
+    @Body() body: ForgotPasswordDto,
+    @Req() req: AuthenticatedHttpRequest,
+  ) {
     const result = await this.authService.forgotPassword(body);
     void this.audit?.record({
       ...this.audit.fromRequest(req),
@@ -128,14 +135,17 @@ export class AuthController {
   }
 
   @Post('logout')
-  async logout(@Res({ passthrough: true }) res: Response, @Req() req: Request) {
+  async logout(
+    @Res({ passthrough: true }) reply: CompatibleReply,
+    @Req() req: AuthenticatedHttpRequest,
+  ) {
     await this.sessions?.revokeCurrent(
       req.cookies?.[SESSION_COOKIE_NAME],
       'logout',
       this.sessions.metadataFromRequest(req),
     );
-    clearAuthCookies(res);
-    res.setHeader('Cache-Control', 'no-store');
+    clearAuthCookies(reply);
+    reply.header('Cache-Control', 'no-store');
     void this.audit?.record({
       ...this.audit.fromRequest(req),
       eventType: 'auth.logout',
@@ -149,31 +159,34 @@ export class AuthController {
   @Post('logout-all')
   @UseGuards(JwtAuthGuard)
   async logoutAll(
-    @Res({ passthrough: true }) res: Response,
-    @Req() req: Request,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+    @Req() req: AuthenticatedHttpRequest,
   ) {
     const revoked = await this.sessions?.revokeAllForProfile(
       req.user!.id,
       'logout_all',
       this.sessions.metadataFromRequest(req),
     );
-    clearAuthCookies(res);
-    res.setHeader('Cache-Control', 'no-store');
+    clearAuthCookies(reply);
+    reply.header('Cache-Control', 'no-store');
     return { ok: true, revoked: revoked ?? 0 };
   }
 
   @UseGuards(JwtAuthGuard)
   @Get('profile')
-  profile(@Req() req: Request, @Res({ passthrough: true }) res?: Response) {
-    res?.setHeader('Cache-Control', 'no-store');
+  profile(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) reply?: CompatibleReply,
+  ) {
+    reply?.header('Cache-Control', 'no-store');
     return this.authService.getProfile(req.user);
   }
 
-  private setJwtCookie(res: Response, accessToken: string) {
+  private setJwtCookie(reply: CompatibleReply, accessToken: string) {
     const isProd = process.env.NODE_ENV === 'production';
     const maxAge = this.getJwtMaxAgeMs(accessToken);
 
-    res.cookie('jwt', accessToken, {
+    reply.setCookie('jwt', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
@@ -183,8 +196,8 @@ export class AuthController {
   }
 
   private async createSession(
-    req: Request | undefined,
-    res: Response,
+    req: AuthenticatedHttpRequest | undefined,
+    reply: CompatibleReply,
     accessToken: string,
     user: { id: string; tenantId?: string | null },
   ) {
@@ -197,8 +210,8 @@ export class AuthController {
       expiresAt: token.expiresAt,
       metadata: this.sessions.metadataFromRequest(req),
     });
-    setSessionCookie(res, session.token, session.expiresAt);
-    res.setHeader('Cache-Control', 'no-store');
+    setSessionCookie(reply, session.token, session.expiresAt);
+    reply.header('Cache-Control', 'no-store');
   }
 
   private getJwtMaxAgeMs(accessToken: string) {

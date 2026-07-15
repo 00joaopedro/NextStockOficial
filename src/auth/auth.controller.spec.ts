@@ -7,9 +7,9 @@ describe('AuthController', () => {
   } as any;
   const response = () =>
     ({
-      cookie: jest.fn(),
+      setCookie: jest.fn(),
       clearCookie: jest.fn(),
-      setHeader: jest.fn(),
+      header: jest.fn(),
     }) as any;
 
   beforeEach(() => {
@@ -27,9 +27,12 @@ describe('AuthController', () => {
       },
     });
 
-    await controller.login({ email: 'user@test.com', password: 'Senha123' }, res);
+    await controller.login(
+      { email: 'user@test.com', password: 'Senha123' },
+      res,
+    );
 
-    expect(res.cookie).toHaveBeenCalledWith(
+    expect(res.setCookie).toHaveBeenCalledWith(
       'jwt',
       'token',
       expect.objectContaining({
@@ -62,7 +65,7 @@ describe('AuthController', () => {
       res,
     );
 
-    expect(res.cookie).toHaveBeenCalledWith(
+    expect(res.setCookie).toHaveBeenCalledWith(
       'jwt',
       'token',
       expect.objectContaining({
@@ -107,7 +110,7 @@ describe('AuthController', () => {
     expect(sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({ profileId: 'profile-1' }),
     );
-    expect(res.cookie).toHaveBeenCalledWith(
+    expect(res.setCookie).toHaveBeenCalledWith(
       'nextstock_session',
       'opaque-session',
       expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
