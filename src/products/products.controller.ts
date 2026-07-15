@@ -10,13 +10,10 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -30,8 +27,12 @@ import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
+import { readFastifyUpload } from '../storage/fastify-upload.util';
 import { ProductsService } from './products.service';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 
 @Controller('products')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -80,7 +81,12 @@ export class ProductsController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.findOne(req.user, id, selectedBranchId, devContextMode);
+    return this.productsService.findOne(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post()
@@ -128,7 +134,12 @@ export class ProductsController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.remove(req.user, id, selectedBranchId, devContextMode);
+    return this.productsService.remove(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post(':id/images')
@@ -155,21 +166,13 @@ export class ProductsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 20, windowMs: 60_000 })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize: Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024,
-        files: 1,
-      },
-    }),
-  )
-  uploadImage(
+  async uploadImage(
     @Req() req: Request,
     @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() file: any,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
+    const { file } = await readFastifyUpload(req);
     return this.productsService.uploadImage(
       req.user,
       id,

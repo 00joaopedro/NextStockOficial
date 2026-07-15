@@ -10,17 +10,17 @@ import {
   Post,
   Query,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PreviewMutationGuard } from '../system/guards/preview-mutation.guard';
@@ -35,6 +35,7 @@ import { FiscalService } from './fiscal.service';
 import { CertificateService } from './certificate.service';
 import { UploadCertificateDto } from './dto/upload-certificate.dto';
 import { ActivateProductionDto } from './dto/activate-production.dto';
+import { readFastifyUpload } from '../storage/fastify-upload.util';
 
 @Controller('fiscal')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
@@ -118,22 +119,13 @@ export class FiscalController {
   @Roles(Role.Admin)
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 8, windowMs: 60_000 })
-  @UseInterceptors(
-    FileInterceptor('file', {
-      limits: {
-        fileSize:
-          Number(process.env.CERTIFICATE_MAX_SIZE_MB || 5) * 1024 * 1024,
-        files: 1,
-      },
-    }),
-  )
-  uploadCertificate(
+  async uploadCertificate(
     @Req() req: Request,
-    @UploadedFile() file: any,
-    @Body() body: UploadCertificateDto,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
+    const { file, fields } = await readFastifyUpload(req);
+    const body = fields as unknown as UploadCertificateDto;
     return this.certificateService.upload(
       req.user,
       file,
