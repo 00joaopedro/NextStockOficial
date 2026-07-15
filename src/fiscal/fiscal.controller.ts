@@ -19,8 +19,11 @@ import {
 import { Role } from '@prisma/client';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import { FastifyFileInterceptor } from '../common/fastify-file.interceptor';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { PreviewMutationGuard } from '../system/guards/preview-mutation.guard';
@@ -119,7 +122,7 @@ export class FiscalController {
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 8, windowMs: 60_000 })
   @UseInterceptors(
-    FileInterceptor('file', {
+    FastifyFileInterceptor('file', {
       limits: {
         fileSize:
           Number(process.env.CERTIFICATE_MAX_SIZE_MB || 5) * 1024 * 1024,

@@ -16,7 +16,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FastifyFileInterceptor } from '../common/fastify-file.interceptor';
 import type { Request } from 'express';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -31,7 +31,10 @@ import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { ProductQueryDto } from './dto/product-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { ProductsService } from './products.service';
-import { PublicRateLimitGuard, RateLimit } from '../security/public-rate-limit.guard';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 
 @Controller('products')
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -80,7 +83,12 @@ export class ProductsController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.findOne(req.user, id, selectedBranchId, devContextMode);
+    return this.productsService.findOne(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post()
@@ -128,7 +136,12 @@ export class ProductsController {
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
-    return this.productsService.remove(req.user, id, selectedBranchId, devContextMode);
+    return this.productsService.remove(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Post(':id/images')
@@ -156,9 +169,10 @@ export class ProductsController {
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 20, windowMs: 60_000 })
   @UseInterceptors(
-    FileInterceptor('file', {
+    FastifyFileInterceptor('file', {
       limits: {
-        fileSize: Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024,
+        fileSize:
+          Number(process.env.PRODUCT_IMAGE_MAX_SIZE_MB || 5) * 1024 * 1024,
         files: 1,
       },
     }),
