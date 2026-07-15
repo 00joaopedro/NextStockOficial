@@ -5,6 +5,7 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { catchError, tap, throwError } from 'rxjs';
+import { getResponseStatusCode } from '../common/http-adapter.util';
 import { ObservabilityService } from './observability.service';
 
 @Injectable()
@@ -16,7 +17,9 @@ export class ObservabilityInterceptor implements NestInterceptor {
   constructor(private readonly observability: ObservabilityService) {}
 
   intercept(context: ExecutionContext, next: CallHandler) {
-    const request = context.switchToHttp().getRequest();
+    const http = context.switchToHttp();
+    const request = http.getRequest();
+    const response = http.getResponse();
     const startedAt = Date.now();
     const base = () => ({
       requestId: request.requestId,
@@ -33,7 +36,7 @@ export class ObservabilityInterceptor implements NestInterceptor {
       (statusCode ?? 200) >= 400;
     return next.handle().pipe(
       tap(() => {
-        const statusCode = request.res?.statusCode;
+        const statusCode = getResponseStatusCode(response, request);
         const data = base();
         if (!shouldLog(data.durationMs, statusCode)) {
           return;

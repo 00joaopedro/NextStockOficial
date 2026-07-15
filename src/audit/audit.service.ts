@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AuditContextKind, AuditSeverity, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { auditFingerprint, sanitizeAuditValue } from './audit-sanitizer';
+import { getClientIp, getUserAgent } from '../common/http-adapter.util';
 import { SecurityAuditInput } from './audit.types';
 
 @Injectable()
@@ -67,11 +68,8 @@ export class AuditService {
       branchId: context?.branchId ?? user?.branchId ?? null,
       contextKind: this.contextKind(context?.contextKind),
       requestId: request?.requestId ?? null,
-      ip:
-        request?.header?.('x-forwarded-for')?.split(',')[0]?.trim() ||
-        request?.ip ||
-        null,
-      userAgent: request?.header?.('user-agent') ?? null,
+      ip: getClientIp(request),
+      userAgent: getUserAgent(request),
     };
   }
 

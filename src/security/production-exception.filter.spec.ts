@@ -59,4 +59,28 @@ describe('ProductionExceptionFilter', () => {
 
     loggerSpy.mockRestore();
   });
+
+  it('responde com reply.status().send() em adapters Fastify', () => {
+    const response = {
+      status: jest.fn().mockReturnThis(),
+      send: jest.fn(),
+    };
+    const host = {
+      switchToHttp: () => ({
+        getResponse: () => response,
+        getRequest: () => ({
+          requestId: 'request-1',
+          method: 'GET',
+          path: '/',
+        }),
+      }),
+    } as ArgumentsHost;
+
+    new ProductionExceptionFilter().catch(new Error('boom'), host);
+
+    expect(response.status).toHaveBeenCalledWith(500);
+    expect(response.send).toHaveBeenCalledWith(
+      expect.objectContaining({ statusCode: 500, requestId: 'request-1' }),
+    );
+  });
 });

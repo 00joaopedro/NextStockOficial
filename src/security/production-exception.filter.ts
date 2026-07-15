@@ -100,7 +100,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     if (process.env.NODE_ENV === 'production' && status >= 500) {
-      response.status(status).json({
+      sendHttpResponse(response, status, {
         statusCode: status,
         message: 'Erro interno do servidor.',
         requestId: request.requestId,
@@ -109,11 +109,39 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     const body =
-      typeof safeResponse === 'string' ? { message: safeResponse } : safeResponse;
-    response.status(status).json({
+      typeof safeResponse === 'string'
+        ? { message: safeResponse }
+        : safeResponse;
+    sendHttpResponse(response, status, {
       ...(body as object),
       statusCode: status,
       requestId: request.requestId,
     });
   }
+}
+
+function sendHttpResponse(response: any, status: number, body: object) {
+  const statusResult =
+    typeof response?.status === 'function' ? response.status(status) : response;
+
+  if (typeof statusResult?.json === 'function') {
+    return statusResult.json(body);
+  }
+
+  if (typeof statusResult?.send === 'function') {
+    return statusResult.send(body);
+  }
+
+  if (typeof response?.code === 'function') {
+    return response.code(status).send(body);
+  }
+
+  if (typeof response?.send === 'function') {
+    response.statusCode = status;
+    return response.send(body);
+  }
+
+  response.statusCode = status;
+  response.body = body;
+  return undefined;
 }
