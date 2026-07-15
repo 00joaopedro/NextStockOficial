@@ -13,6 +13,7 @@ import {
 } from './tenant-context.decorator';
 import { TenantContextService } from './tenant-context.service';
 import { AuditService } from '../audit/audit.service';
+import { getHeader } from '../http/http-adapter.utils';
 
 @Injectable()
 export class BranchContextGuard implements CanActivate {
@@ -29,8 +30,8 @@ export class BranchContextGuard implements CanActivate {
         TENANT_CONTEXT_OPTIONS,
         [context.getHandler(), context.getClass()],
       ) ?? {};
-    const selectedBranchId = request.header('x-nextstock-branch-id');
-    const devContextMode = request.header('x-nextstock-dev-context');
+    const selectedBranchId = getHeader(request, 'x-nextstock-branch-id');
+    const devContextMode = getHeader(request, 'x-nextstock-dev-context');
 
     const resolved = await this.tenantContext.resolve(request.user, {
       ...options,

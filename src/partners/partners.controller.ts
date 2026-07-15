@@ -31,6 +31,7 @@ import { UpdateReferralSeenDto } from './dto/update-referral-seen.dto';
 import { PartnerReferralsService } from './partner-referrals.service';
 import { PartnersService } from './partners.service';
 import { ReferralRegistrationService } from './referral-registration.service';
+import { getClientIp, getUserAgent } from '../http/http-adapter.utils';
 
 const strictValidation = new ValidationPipe({
   whitelist: true,
@@ -126,8 +127,8 @@ export class PartnersController {
 
   private audit(req: Request) {
     return {
-      ip: req.header('x-forwarded-for')?.split(',')[0]?.trim() || req.ip,
-      userAgent: req.header('user-agent'),
+      ip: getClientIp(req),
+      userAgent: getUserAgent(req),
     };
   }
 }
@@ -146,7 +147,9 @@ export class PublicReferralsController {
     const referral = await this.referrals.resolveActive(code);
     if (!referral) {
       await this.referrals.recordRejected(code);
-      throw new NotFoundException('Link de indicacao invalido ou indisponivel.');
+      throw new NotFoundException(
+        'Link de indicacao invalido ou indisponivel.',
+      );
     }
 
     return {
