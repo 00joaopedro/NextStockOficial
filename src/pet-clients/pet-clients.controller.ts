@@ -13,7 +13,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { Role, SystemType } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';

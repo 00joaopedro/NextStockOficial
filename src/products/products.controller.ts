@@ -17,7 +17,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { FastifyFileInterceptor } from '../common/fastify-file.interceptor';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';

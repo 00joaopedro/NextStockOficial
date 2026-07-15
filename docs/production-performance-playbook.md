@@ -10,7 +10,7 @@ Contexto atual: Railway Hobby + Supabase Free, NestJS + Prisma + PostgreSQL/Supa
 4. Se aparecer `Seq Scan` em tabela grande, crie índice via nova migration Prisma append-only.
 5. Reduza payloads: troque `include` amplo por `select` cirúrgico e adicione paginação.
 6. Tire tarefas secundárias do caminho crítico com evento/fila.
-7. Só depois avalie troca Express -> Fastify; ela não corrige query/pool ruim.
+7. Mantenha Fastify como base HTTP, mas priorize banco/payload/pool; o adapter não corrige query ruim.
 
 ## 1. Diagnóstico do banco com Prisma + Supabase
 
@@ -103,17 +103,17 @@ Para Railway Hobby + Supabase Free:
 
 No `schema.prisma`, mantenha `url = env("DATABASE_URL")` e `directUrl = env("DIRECT_URL")` no datasource.
 
-## 3. Migração Express -> Fastify no NestJS
+## 3. Base Fastify no NestJS
 
-Fastify pode reduzir overhead HTTP, mas não resolve `Seq Scan`, payload grande ou API externa lenta. Implemente em staging primeiro.
+Fastify pode reduzir overhead HTTP, mas não resolve `Seq Scan`, payload grande ou API externa lenta. A aplicação já usa Fastify como adapter HTTP; mantenha esta base ao evoluir middlewares, guards, filtros e uploads.
 
-1. Instale pacotes:
+Pacotes esperados:
 
 ```bash
 npm install @nestjs/platform-fastify @fastify/cookie @fastify/helmet @fastify/compress
 ```
 
-2. Altere `main.ts` gradualmente:
+Exemplo da configuração esperada em `main.ts`:
 
 ```ts
 import { NestFactory } from '@nestjs/core';
@@ -134,13 +134,13 @@ await app.register(fastifyCompress, { threshold: 1024 });
 await app.register(fastifyHelmet, { /* mesma CSP atual */ });
 ```
 
-3. Pontos de quebra comuns:
-- código usando APIs Express (`req.header`, `res.setHeader`, `res.redirect`) pode precisar adaptação;
-- middlewares Express (`compression`, `cookie-parser`, `helmet`) devem virar plugins Fastify;
-- testes e interceptors que tipam `Request`/`Response` do Express precisam revisão;
-- uploads com Multer exigem estratégia Fastify compatível.
+Pontos de atenção para não regredir:
+- evite reintroduzir APIs específicas do Express em controllers, guards, filtros e interceptors;
+- middlewares devem permanecer como plugins Fastify (`@fastify/cookie`, `@fastify/helmet`, `@fastify/compress`, `@fastify/multipart`);
+- testes e tipos compartilhados devem usar os tipos HTTP compatíveis do projeto;
+- uploads devem continuar usando estratégia compatível com Fastify, sem Multer/`FileInterceptor` do Express.
 
-4. Critério de aceite: build + testes + smoke em staging + comparação p95 antes/depois.
+Critério de aceite: build + testes + smoke em staging + comparação p95 antes/depois.
 
 ## 4. Queries enxutas e paginação Prisma
 
@@ -294,6 +294,6 @@ export default defineConfig({
 - [ ] Criar migrations append-only com índices compostos tenant/branch/filtros/ordenação.
 - [ ] Remover `include` pesado e limitar `select`/`take` nos endpoints críticos.
 - [ ] Confirmar `DATABASE_URL` em `6543` e `DIRECT_URL`/`ADMIN_DATABASE_URL` em `5432`.
-- [ ] Adiar Fastify até banco/payload/background estarem medidos.
+- [ ] Manter Fastify como base HTTP e evitar dependências/runtime Express.
 - [ ] Mover APIs externas/e-mails/processamentos para evento/fila.
 - [ ] Otimizar frontend com bundles minificados quando o gargalo for navegador/assets.

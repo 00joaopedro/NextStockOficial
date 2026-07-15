@@ -161,9 +161,9 @@ necessárias, usar lote (`createSignedUrls`) e cache curto por bucket/caminho.
 - Cache em memória é por réplica e desaparece em redeploy. Serve para reduzir
   bursts, não como fonte de verdade. Redis só é necessário quando houver várias
   réplicas ou invalidação distribuída.
-- Fastify não deve ser trocado agora: `FileInterceptor`, tipos Express,
-  `cookie-parser`, `express.json` e static serving exigem adaptação e regressão
-  ampla. Medir depois das mudanças de banco/payload.
+- A base HTTP já foi migrada para Fastify; mantenha uploads, cookies, compressão,
+  helmet e tipos de request/reply em APIs compatíveis com Fastify, sem reintroduzir
+  dependências de runtime do Express.
 - SWC é compatível como melhoria de build após separar o build frontend. Não é
   prioridade de runtime.
 

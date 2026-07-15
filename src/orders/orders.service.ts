@@ -41,7 +41,7 @@ export class OrdersService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: OrderQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -72,7 +72,7 @@ export class OrdersService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -83,7 +83,7 @@ export class OrdersService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateOrderDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -152,7 +152,7 @@ export class OrdersService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateOrderDto,
     selectedBranchId?: string,
@@ -218,7 +218,7 @@ export class OrdersService {
   }
 
   async updateStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateOrderStatusDto,
     selectedBranchId?: string,
@@ -266,7 +266,7 @@ export class OrdersService {
   }
 
   async deliver(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -292,7 +292,7 @@ export class OrdersService {
   }
 
   async cancel(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: CancelOrderDto,
     selectedBranchId?: string,
@@ -348,7 +348,7 @@ export class OrdersService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -365,7 +365,7 @@ export class OrdersService {
   }
 
   async receipt(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -391,7 +391,7 @@ export class OrdersService {
   }
 
   async nfeDraft(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -423,7 +423,7 @@ export class OrdersService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

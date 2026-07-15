@@ -27,7 +27,7 @@ export class CheckoutService {
   ) {}
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     planSlug: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -124,7 +124,7 @@ export class CheckoutService {
   }
 
   async status(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,

@@ -18,7 +18,7 @@ export class PaymentMachinesService {
   ) {}
 
   async list(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -46,7 +46,7 @@ export class PaymentMachinesService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreatePaymentMachineDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -76,7 +76,7 @@ export class PaymentMachinesService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePaymentMachineDto,
     selectedBranchId?: string,
@@ -134,7 +134,7 @@ export class PaymentMachinesService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -166,7 +166,7 @@ export class PaymentMachinesService {
   }
 
   private resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

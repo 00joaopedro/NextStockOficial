@@ -66,7 +66,7 @@ export class SalesService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: SaleQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -102,7 +102,7 @@ export class SalesService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -122,7 +122,7 @@ export class SalesService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateSaleDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -288,7 +288,7 @@ export class SalesService {
   }
 
   async createFromOrder(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     orderId: string,
     dto: CreateSaleFromOrderDto = {},
     selectedBranchId?: string,
@@ -469,7 +469,7 @@ export class SalesService {
   }
 
   async cancel(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: CancelSaleDto,
     selectedBranchId?: string,
@@ -519,7 +519,7 @@ export class SalesService {
   }
 
   async receipt(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -562,7 +562,7 @@ export class SalesService {
   }
 
   async receiptByOrder(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     orderId: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -612,7 +612,7 @@ export class SalesService {
   }
 
   async listDocuments(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -634,7 +634,7 @@ export class SalesService {
   }
 
   async createFiscalDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     type: 'nfe55' | 'nfce65',
     dto: CreateSaleDocumentDto,
@@ -696,7 +696,7 @@ export class SalesService {
   }
 
   async downloadDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     documentId: string,
     format: 'pdf' | 'xml' | undefined,
@@ -739,7 +739,7 @@ export class SalesService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,
@@ -916,7 +916,7 @@ export class SalesService {
   private async loadSellerName(
     tx: PrismaTx,
     userId: string,
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
   ) {
     const profile = await tx.userProfile.findUnique({
       where: { id: userId },

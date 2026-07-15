@@ -96,7 +96,7 @@ export class ProductsService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: ProductQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -229,7 +229,7 @@ export class ProductsService {
   }
 
   async lookupForPos(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: ProductLookupQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -337,7 +337,7 @@ export class ProductsService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -375,7 +375,7 @@ export class ProductsService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateProductDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -407,7 +407,7 @@ export class ProductsService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateProductDto,
     selectedBranchId?: string,
@@ -438,7 +438,7 @@ export class ProductsService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -462,7 +462,7 @@ export class ProductsService {
   }
 
   async addImages(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: CreateProductImagesDto,
     selectedBranchId?: string,
@@ -513,7 +513,7 @@ export class ProductsService {
   }
 
   async uploadImage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     file: UploadFile,
     selectedBranchId?: string,
@@ -570,7 +570,7 @@ export class ProductsService {
   }
 
   async removeImage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     imageId: string,
     selectedBranchId?: string,
@@ -608,7 +608,7 @@ export class ProductsService {
   }
 
   private async getReadableTenant(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -631,7 +631,7 @@ export class ProductsService {
   }
 
   private async requireWritableTenant(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string | null,
     devContextMode?: string,
   ) {
@@ -876,7 +876,7 @@ export class ProductsService {
   }
 
   private async recordProductUsage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     context: {
       id: string;
       branchId: string;

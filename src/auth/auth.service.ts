@@ -451,7 +451,7 @@ export class AuthService {
     };
   }
 
-  async getProfile(user: Express.AuthenticatedUser | undefined) {
+  async getProfile(user: AuthenticatedUser | undefined) {
     if (!user) {
       throw new UnauthorizedException('Authenticated user not found.');
     }
@@ -1075,7 +1075,7 @@ export class AuthService {
       name: string;
       slug: string;
       tenantId: string;
-      tenant: Express.TenantSummary | null;
+      tenant: TenantSummary | null;
       role: Role;
       systemType: SystemType;
       mode?: SystemMode;

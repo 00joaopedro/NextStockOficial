@@ -41,7 +41,7 @@ export class TenantContextService {
   ) {}
 
   async resolve(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     options: ResolveTenantContextOptions = {},
   ): Promise<TenantContext> {
     if (!user) {

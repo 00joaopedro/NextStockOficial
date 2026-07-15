@@ -59,7 +59,7 @@ export class CertificateService {
   }
 
   async upload(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     file: UploadFile,
     password: string,
     selectedBranchId?: string,
@@ -125,7 +125,7 @@ export class CertificateService {
   }
 
   async validate(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -184,7 +184,7 @@ export class CertificateService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -228,7 +228,7 @@ export class CertificateService {
   }
 
   async activateProduction(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     confirmation: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -384,7 +384,7 @@ export class CertificateService {
   }
 
   private async resolveAdmin(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {

@@ -8,7 +8,7 @@ import {
   SetMetadata,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { Reflector } from '@nestjs/core';
 import { createHash } from 'crypto';
 import { AuditService } from '../audit/audit.service';

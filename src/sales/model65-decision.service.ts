@@ -23,7 +23,7 @@ export class Model65DecisionService {
   ) {}
 
   async print(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     saleId: string,
     selectedBranchId?: string,
     devContextMode?: string,

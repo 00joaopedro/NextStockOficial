@@ -6,7 +6,7 @@ import {
 import { AgendaPetStatus, Role, SystemMode, SystemType } from '@prisma/client';
 import { PetClientsService } from './pet-clients.service';
 
-function user(overrides: Partial<Express.AuthenticatedUser> = {}): Express.AuthenticatedUser {
+function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
   return {
     id: 'user-1',
     email: 'admin@pet.com',

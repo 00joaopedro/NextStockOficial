@@ -56,7 +56,7 @@ export class AuditService {
   }
 
   fromRequest(request: any) {
-    const user = request?.user as Express.AuthenticatedUser | undefined;
+    const user = request?.user as AuthenticatedUser | undefined;
     const context = request?.tenantContext as
       | { tenantId?: string; branchId?: string; contextKind?: string }
       | undefined;

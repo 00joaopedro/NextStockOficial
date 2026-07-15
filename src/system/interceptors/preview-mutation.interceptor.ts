@@ -4,7 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../../common/http-types';
 import { Observable } from 'rxjs';
 import { PreviewModePolicyService } from '../preview-mode-policy.service';
 

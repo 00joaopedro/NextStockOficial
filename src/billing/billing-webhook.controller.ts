@@ -1,5 +1,5 @@
 import { Body, Controller, Headers, Post, Query, Req } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { BillingExempt } from './billing-exempt.decorator';
 import { WebhookService } from './webhook.service';
 import { CsrfExempt } from '../security/csrf-origin.guard';

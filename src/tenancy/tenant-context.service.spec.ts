@@ -2,7 +2,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { TenantContextService } from './tenant-context.service';
 
-function user(overrides: Partial<Express.AuthenticatedUser> = {}): Express.AuthenticatedUser {
+function user(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
   return {
     id: 'user-a',
     email: 'admin@a.test',

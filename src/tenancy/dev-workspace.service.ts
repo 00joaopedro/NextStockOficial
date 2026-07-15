@@ -341,7 +341,7 @@ export class DevWorkspaceService {
     return workspace;
   }
 
-  async listSupportBranches(user: Express.AuthenticatedUser, systemType?: string) {
+  async listSupportBranches(user: AuthenticatedUser, systemType?: string) {
     if (!canAccessDev(user)) {
       return [];
     }

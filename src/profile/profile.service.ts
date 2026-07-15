@@ -25,7 +25,7 @@ export class ProfileService {
     private readonly tenantContext: TenantContextService,
   ) {}
 
-  async getMe(user?: Express.AuthenticatedUser) {
+  async getMe(user?: AuthenticatedUser) {
     if (!user) {
       throw new UnauthorizedException('Sessao expirada ou invalida.');
     }
@@ -60,7 +60,7 @@ export class ProfileService {
   }
 
   async updateMe(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: UpdateMeDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -85,7 +85,7 @@ export class ProfileService {
   }
 
   async getCompany(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -118,7 +118,7 @@ export class ProfileService {
   }
 
   async updateCompany(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: UpdateCompanyDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -170,7 +170,7 @@ export class ProfileService {
   }
 
   async getSubscription(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -197,7 +197,7 @@ export class ProfileService {
   }
 
   async updatePlan(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     planSlug: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -224,7 +224,7 @@ export class ProfileService {
   }
 
   async getMode(
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -244,7 +244,7 @@ export class ProfileService {
   }
 
   async updateMode(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     mode: SystemMode,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -282,7 +282,7 @@ export class ProfileService {
   }
 
   private resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

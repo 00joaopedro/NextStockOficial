@@ -5,7 +5,7 @@ import {
   Injectable,
   SetMetadata,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { Reflector } from '@nestjs/core';
 
 export const CSRF_EXEMPT_KEY = 'nextstock:csrf-exempt';

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+import type { Request } from '../common/http-types';
 import {
   TENANT_CONTEXT_OPTIONS,
   TenantContextMetadata,
