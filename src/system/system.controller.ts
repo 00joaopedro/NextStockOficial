@@ -1,6 +1,6 @@
 import { Controller, Get, Headers, Req } from '@nestjs/common';
 import { UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';

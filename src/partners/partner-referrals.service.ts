@@ -16,7 +16,7 @@ export class PartnerReferralsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     partnerId: string,
     query: ReferralQueryDto,
   ) {
@@ -70,7 +70,7 @@ export class PartnerReferralsService {
   }
 
   async updateSeen(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     partnerId: string,
     referralId: string,
     dto: UpdateReferralSeenDto,
@@ -101,7 +101,7 @@ export class PartnerReferralsService {
   }
 
   async updatePayment(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     partnerId: string,
     referralId: string,
     dto: UpdateReferralPaymentDto,
@@ -195,7 +195,7 @@ export class PartnerReferralsService {
     };
   }
 
-  private assertDev(user?: Express.AuthenticatedUser) {
+  private assertDev(user?: AuthenticatedUser) {
     if (!canAccessDev(user)) {
       throw new ForbiddenException('Acesso restrito ao Dev SuperAdmin.');
     }

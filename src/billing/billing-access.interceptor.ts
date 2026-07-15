@@ -32,7 +32,7 @@ export class BillingAccessInterceptor implements NestInterceptor {
     if (exempt) return next.handle();
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user as Express.AuthenticatedUser | undefined;
+    const user = request.user as AuthenticatedUser | undefined;
     if (!user) return next.handle();
 
     const result = await this.entitlement.forUser(user);

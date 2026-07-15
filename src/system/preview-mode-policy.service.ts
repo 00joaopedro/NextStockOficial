@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { SystemMode } from '@prisma/client';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { canAccessDev } from '../auth/super-admin.util';
 import {
   TenantContext,

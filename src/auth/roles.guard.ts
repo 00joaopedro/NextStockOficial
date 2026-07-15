@@ -28,7 +28,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    const user = request.user as Express.AuthenticatedUser | undefined;
+    const user = request.user as AuthenticatedUser | undefined;
 
     if (canAccessDev(user)) {
       return true;

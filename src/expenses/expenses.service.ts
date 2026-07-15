@@ -49,7 +49,7 @@ export class ExpensesService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: ExpenseQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -80,7 +80,7 @@ export class ExpensesService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -91,7 +91,7 @@ export class ExpensesService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateExpenseDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -136,7 +136,7 @@ export class ExpensesService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateExpenseDto,
     selectedBranchId?: string,
@@ -199,7 +199,7 @@ export class ExpensesService {
   }
 
   async updateStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateExpenseStatusDto,
     selectedBranchId?: string,
@@ -224,7 +224,7 @@ export class ExpensesService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -244,7 +244,7 @@ export class ExpensesService {
   }
 
   async uploadFile(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     file: any,
     selectedBranchId?: string,
@@ -300,7 +300,7 @@ export class ExpensesService {
   }
 
   async removeFile(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     fileId: string,
     selectedBranchId?: string,
@@ -320,7 +320,7 @@ export class ExpensesService {
   }
 
   async downloadFile(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     fileId: string,
     selectedBranchId?: string,
@@ -335,7 +335,7 @@ export class ExpensesService {
   }
 
   private resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

@@ -80,7 +80,7 @@ export class AgendaPetService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: AgendaPetQueryDto,
     selectedBranchId?: string,
   ) {
@@ -109,7 +109,7 @@ export class AgendaPetService {
 
   async findOne(
     id: string,
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
   ) {
     const context = await this.petClientsService.resolvePetShopContext(
@@ -124,7 +124,7 @@ export class AgendaPetService {
 
   async create(
     dto: CreateAgendaPetDto,
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
   ) {
     const context = await this.petClientsService.resolvePetShopContext(
@@ -187,7 +187,7 @@ export class AgendaPetService {
   async update(
     id: string,
     dto: UpdateAgendaPetDto,
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
   ) {
     const context = await this.petClientsService.resolvePetShopContext(
@@ -262,7 +262,7 @@ export class AgendaPetService {
 
   async remove(
     id: string,
-    user?: Express.AuthenticatedUser,
+    user?: AuthenticatedUser,
     selectedBranchId?: string,
   ) {
     const context = await this.petClientsService.resolvePetShopContext(

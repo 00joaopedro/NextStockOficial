@@ -23,7 +23,7 @@ export class BillingEntitlementService {
     return this.evaluate(subscription, now);
   }
 
-  async forUser(user?: Express.AuthenticatedUser, now = new Date()) {
+  async forUser(user?: AuthenticatedUser, now = new Date()) {
     if (!user) return this.denied('NO_AUTHENTICATED_TENANT', null);
     if (canAccessDev(user)) {
       return {

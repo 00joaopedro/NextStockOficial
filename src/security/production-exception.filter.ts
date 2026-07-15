@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { Request, Response } from 'express';
+import type { Request, Response } from '../common/http-types';
 
 const SENSITIVE_META_KEYS = new Set([
   'authorization',

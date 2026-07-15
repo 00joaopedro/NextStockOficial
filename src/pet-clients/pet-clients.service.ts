@@ -45,7 +45,7 @@ export class PetClientsService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: PetClientQueryDto,
     selectedBranchId?: string,
   ) {
@@ -165,7 +165,7 @@ export class PetClientsService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -181,7 +181,7 @@ export class PetClientsService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreatePetClientDto,
     selectedBranchId?: string,
   ) {
@@ -207,7 +207,7 @@ export class PetClientsService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePetClientDto,
     selectedBranchId?: string,
@@ -247,7 +247,7 @@ export class PetClientsService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -277,7 +277,7 @@ export class PetClientsService {
   }
 
   async listAppointments(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -304,7 +304,7 @@ export class PetClientsService {
   }
 
   async resolvePetShopContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     writable = false,
   ): Promise<PetShopContext> {
@@ -439,7 +439,7 @@ export class PetClientsService {
   }
 
   private async recordUsage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     eventType: string,
     dbReadCount: number,
     dbWriteCount: number,

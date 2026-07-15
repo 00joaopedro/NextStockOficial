@@ -15,7 +15,7 @@ export class ReconciliationService {
   ) {}
 
   async sync(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     checkoutId: string,
     selectedBranchId?: string,
     devContextMode?: string,

@@ -8,7 +8,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { RecordUsageEventDto } from './dto/record-usage-event.dto';
