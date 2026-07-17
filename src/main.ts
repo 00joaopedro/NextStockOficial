@@ -64,7 +64,7 @@ async function bootstrap() {
         ? { maxAge: 15_552_000, includeSubDomains: true }
         : false,
   });
-  app.addHook('onRequest', (request, reply, done) => {
+  app.getHttpAdapter().getInstance().addHook('onRequest', (request, reply, done) => {
     const header = request.headers['x-request-id'];
     const requestId =
       sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
