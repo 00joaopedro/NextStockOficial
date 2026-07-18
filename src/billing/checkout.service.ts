@@ -7,7 +7,6 @@ import {
 import {
   BillingEventType,
   CheckoutSessionStatus,
-  PaymentGatewayProvider,
   Prisma,
   Role,
 } from '@prisma/client';
@@ -41,13 +40,17 @@ export class CheckoutService {
       allowedRoles: [Role.Admin],
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
-    const mode = process.env.MERCADO_PAGO_MODE?.trim() || 'production';
+    const provider = this.gateways.defaultProvider();
+    const mode =
+      process.env.BILLING_MODE?.trim() ||
+      process.env.MERCADO_PAGO_MODE?.trim() ||
+      'production';
     const plan = await this.prisma.plan.findFirst({
       where: { slug: planSlug, isActive: true, deletedAt: null },
       include: {
         gatewayMappings: {
           where: {
-            provider: PaymentGatewayProvider.MERCADO_PAGO,
+            provider,
             mode,
             isActive: true,
           },
@@ -70,6 +73,15 @@ export class CheckoutService {
       );
     }
     const externalReference = createBillingExternalReference();
+    const profile = await this.prisma.userProfile.findUnique({
+      where: { id: context.userId },
+      select: { email: true },
+    });
+    if (!profile?.email)
+      throw new ConflictException('Perfil sem e-mail para assinatura.');
+    const publicAppUrl = process.env.PUBLIC_APP_URL?.trim();
+    if (!publicAppUrl)
+      throw new ConflictException('PUBLIC_APP_URL nao configurada.');
     const gateway = this.gateways.get(mapping.provider);
     const gatewayCheckout = await gateway.createCheckout({
       externalReference,
@@ -78,6 +90,8 @@ export class CheckoutService {
       title: plan.name,
       paymentLinkUrl: mapping.paymentLinkUrl,
       gatewayPlanId: mapping.gatewayPlanId,
+      payerEmail: profile.email,
+      backUrl: new URL('/api/billing/checkout/return', publicAppUrl).toString(),
     });
 
     const checkout = await this.prisma.$transaction(async (tx) => {
@@ -94,6 +108,14 @@ export class CheckoutService {
           expectedAmountCents: plan.priceCents,
           currency: plan.currency,
           createdById: context.userId,
+        },
+      });
+      await tx.subscription.update({
+        where: { id: subscription.id },
+        data: {
+          gatewayProvider: mapping.provider,
+          gatewaySubscriptionId: gatewayCheckout.gatewaySubscriptionId,
+          version: { increment: 1 },
         },
       });
       await this.events.create(

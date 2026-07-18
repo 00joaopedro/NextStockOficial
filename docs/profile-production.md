@@ -6,10 +6,11 @@
 tenant. O endpoint legado `PATCH /api/profile/plan` nao ativa planos: ele
 retorna `409 BILLING_CHECKOUT_REQUIRED`.
 
-Uma integracao futura deve criar checkout no provedor e ativar ou alterar a
-subscription somente depois de webhook autenticado e idempotente. Ate isso
-existir, `Tenant.currentPlanId` funciona apenas como compatibilidade de leitura
-para tenants legados.
+O checkout cria uma assinatura recorrente individual no adapter configurado e
+ativa ou altera a subscription somente depois de pagamento consultado no
+gateway, autenticado, correlacionado e processado de forma idempotente.
+`Tenant.currentPlanId` permanece apenas como compatibilidade de leitura para
+tenants legados.
 
 ## Perfil e empresa
 

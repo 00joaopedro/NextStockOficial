@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import {
   BillingEventType,
+  BillingInvoiceStatus,
   BillingPaymentStatus,
   CheckoutSessionStatus,
   PaymentGatewayProvider,
@@ -11,7 +12,6 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingEventsService } from './billing-events.service';
 import { GatewayPaymentResult } from './gateways/payment-gateway.interface';
-import { mapMercadoPagoPaymentStatus } from './gateways/mercado-pago/mercado-pago.mapper';
 import { isValidBillingExternalReference } from './external-reference.util';
 
 @Injectable()
@@ -32,17 +32,6 @@ export class PaymentsService {
     if (!isValidBillingExternalReference(externalReference)) {
       return { processed: false, reason: 'INVALID_EXTERNAL_REFERENCE' };
     }
-    const mode = process.env.MERCADO_PAGO_MODE?.trim() || 'production';
-    if (mode === 'production' && result.raw.live_mode !== true) {
-      throw new ConflictException('Pagamento nao pertence ao ambiente de producao.');
-    }
-    const collectorId = process.env.MERCADO_PAGO_COLLECTOR_ID?.trim();
-    if (
-      collectorId &&
-      String(result.raw.collector_id ?? '') !== collectorId
-    ) {
-      throw new ConflictException('Pagamento pertence a outro recebedor.');
-    }
     const checkout = await this.prisma.checkoutSession.findUnique({
       where: { externalReference },
       include: { plan: true, subscription: true },
@@ -58,11 +47,45 @@ export class PaymentsService {
       result.amountCents !== checkout.expectedAmountCents ||
       result.currency !== checkout.currency
     ) {
-      throw new ConflictException('Pagamento diverge do valor ou moeda esperados.');
+      throw new ConflictException(
+        'Pagamento diverge do valor ou moeda esperados.',
+      );
     }
-    const status = mapMercadoPagoPaymentStatus(result.status);
+    const status = BillingPaymentStatus[result.normalizedStatus];
 
     return this.prisma.$transaction(async (tx) => {
+      const periodStart = result.paidAt ?? new Date();
+      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval);
+      const invoice = await tx.billingInvoice.upsert({
+        where: {
+          provider_gatewayInvoiceId: {
+            provider,
+            gatewayInvoiceId: result.gatewayPaymentId,
+          },
+        },
+        update: {
+          status: this.invoiceStatus(status),
+          paidAt:
+            status === BillingPaymentStatus.APPROVED ? periodStart : undefined,
+          metadata: result.raw as Prisma.InputJsonValue,
+        },
+        create: {
+          tenantId: checkout.tenantId,
+          subscriptionId,
+          planId: checkout.planId,
+          provider,
+          gatewayInvoiceId: result.gatewayPaymentId,
+          externalReference,
+          status: this.invoiceStatus(status),
+          periodStartedAt: periodStart,
+          periodEndsAt: periodEnd,
+          dueAt: periodStart,
+          amountCents: result.amountCents,
+          currency: result.currency,
+          paidAt: status === BillingPaymentStatus.APPROVED ? periodStart : null,
+          metadata: result.raw as Prisma.InputJsonValue,
+        },
+      });
       const existing = await tx.billingPayment.findFirst({
         where: { provider, gatewayPaymentId: result.gatewayPaymentId },
       });
@@ -70,11 +93,12 @@ export class PaymentsService {
         ? await tx.billingPayment.update({
             where: { id: existing.id },
             data: {
+              invoiceId: invoice.id,
               status,
               rawGatewayStatus: result.status,
               paidAt:
                 status === BillingPaymentStatus.APPROVED
-                  ? result.paidAt ?? existing.paidAt ?? new Date()
+                  ? (result.paidAt ?? existing.paidAt ?? new Date())
                   : existing.paidAt,
               refundedAt:
                 status === BillingPaymentStatus.REFUNDED ? new Date() : null,
@@ -87,6 +111,7 @@ export class PaymentsService {
               subscriptionId,
               planId: checkout.planId,
               checkoutSessionId: checkout.id,
+              invoiceId: invoice.id,
               provider,
               gatewayPaymentId: result.gatewayPaymentId,
               externalReference,
@@ -96,7 +121,7 @@ export class PaymentsService {
               rawGatewayStatus: result.status,
               paidAt:
                 status === BillingPaymentStatus.APPROVED
-                  ? result.paidAt ?? new Date()
+                  ? (result.paidAt ?? new Date())
                   : null,
               refundedAt:
                 status === BillingPaymentStatus.REFUNDED ? new Date() : null,
@@ -105,8 +130,7 @@ export class PaymentsService {
           });
 
       if (status === BillingPaymentStatus.APPROVED) {
-        const now = result.paidAt ?? new Date();
-        const periodEnd = this.periodEnd(now, checkout.plan.interval);
+        const now = periodStart;
         await tx.subscription.update({
           where: { id: subscriptionId },
           data: {
@@ -220,15 +244,31 @@ export class PaymentsService {
   private periodEnd(start: Date, interval: PlanInterval) {
     if (interval === PlanInterval.LIFETIME) return null;
     const end = new Date(start);
-    if (interval === PlanInterval.YEARLY) end.setUTCFullYear(end.getUTCFullYear() + 1);
+    if (interval === PlanInterval.YEARLY)
+      end.setUTCFullYear(end.getUTCFullYear() + 1);
     else end.setUTCMonth(end.getUTCMonth() + 1);
     return end;
   }
 
   private eventType(status: BillingPaymentStatus) {
-    if (status === BillingPaymentStatus.REJECTED) return BillingEventType.PAYMENT_REJECTED;
-    if (status === BillingPaymentStatus.REFUNDED) return BillingEventType.PAYMENT_REFUNDED;
-    if (status === BillingPaymentStatus.CHARGEBACK) return BillingEventType.PAYMENT_CHARGEBACK;
+    if (status === BillingPaymentStatus.REJECTED)
+      return BillingEventType.PAYMENT_REJECTED;
+    if (status === BillingPaymentStatus.REFUNDED)
+      return BillingEventType.PAYMENT_REFUNDED;
+    if (status === BillingPaymentStatus.CHARGEBACK)
+      return BillingEventType.PAYMENT_CHARGEBACK;
     return BillingEventType.PAYMENT_PENDING;
+  }
+
+  private invoiceStatus(status: BillingPaymentStatus): BillingInvoiceStatus {
+    if (status === BillingPaymentStatus.APPROVED)
+      return BillingInvoiceStatus.PAID;
+    if (status === BillingPaymentStatus.REFUNDED)
+      return BillingInvoiceStatus.REFUNDED;
+    if (status === BillingPaymentStatus.CHARGEBACK)
+      return BillingInvoiceStatus.CHARGEBACK;
+    if (status === BillingPaymentStatus.CANCELED)
+      return BillingInvoiceStatus.VOID;
+    return BillingInvoiceStatus.PENDING;
   }
 }
