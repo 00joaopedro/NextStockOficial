@@ -13,7 +13,22 @@ export class PaymentGatewayRegistry {
 
   get(provider: PaymentGatewayProvider) {
     const gateway = this.gateways.get(provider);
-    if (!gateway) throw new NotFoundException('Gateway de pagamento indisponivel.');
+    if (!gateway)
+      throw new NotFoundException('Gateway de pagamento indisponivel.');
     return gateway;
+  }
+
+  defaultProvider() {
+    const configured = String(
+      process.env.BILLING_DEFAULT_PROVIDER || 'MERCADO_PAGO',
+    )
+      .trim()
+      .toUpperCase();
+    if (!(configured in PaymentGatewayProvider)) {
+      throw new NotFoundException(
+        'Gateway de pagamento configurado e indisponivel.',
+      );
+    }
+    return configured as PaymentGatewayProvider;
   }
 }

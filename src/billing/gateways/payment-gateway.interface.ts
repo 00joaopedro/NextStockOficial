@@ -7,12 +7,15 @@ export type CreateGatewayCheckoutInput = {
   title: string;
   paymentLinkUrl?: string | null;
   gatewayPlanId?: string | null;
+  payerEmail: string;
+  backUrl: string;
 };
 
 export type CreateGatewayCheckoutResult = {
   checkoutUrl: string;
   gatewayCheckoutId: string | null;
   supportsExternalReference: boolean;
+  gatewaySubscriptionId: string;
 };
 
 export type GatewayWebhookInput = {
@@ -28,6 +31,14 @@ export type GatewayPaymentResult = {
   amountCents: number;
   currency: string;
   paidAt: Date | null;
+  gatewaySubscriptionId: string | null;
+  normalizedStatus:
+    | 'PENDING'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'CANCELED'
+    | 'REFUNDED'
+    | 'CHARGEBACK';
   raw: Record<string, unknown>;
 };
 
@@ -39,4 +50,5 @@ export interface PaymentGateway {
   validateWebhookSignature(input: GatewayWebhookInput): boolean;
   getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult>;
   syncPayment(resourceId: string): Promise<GatewayPaymentResult>;
+  findPayments(externalReference: string): Promise<GatewayPaymentResult[]>;
 }

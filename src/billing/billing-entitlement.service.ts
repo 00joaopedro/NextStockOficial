@@ -14,7 +14,10 @@ export type BillingEntitlement = {
 export class BillingEntitlementService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async forTenant(tenantId: string, now = new Date()): Promise<BillingEntitlement> {
+  async forTenant(
+    tenantId: string,
+    now = new Date(),
+  ): Promise<BillingEntitlement> {
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId },
       include: { plan: true },
@@ -50,9 +53,6 @@ export class BillingEntitlementService {
             subscription: null,
           }
         : this.denied('NO_SUBSCRIPTION', null);
-    }
-    if (subscription.graceEndsAt && subscription.graceEndsAt > now) {
-      return this.allowed('GRACE_PERIOD', subscription);
     }
     if (
       subscription.status === SubscriptionStatus.trialing &&

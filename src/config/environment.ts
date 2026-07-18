@@ -29,9 +29,16 @@ const schema = Joi.object({
   BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_WEBHOOK_ENABLED: Joi.string().valid('true', 'false').optional(),
+  BILLING_DEFAULT_PROVIDER: Joi.string()
+    .valid('MERCADO_PAGO', 'mercado_pago')
+    .optional(),
+  BILLING_MODE: Joi.string().valid('sandbox', 'test', 'production').optional(),
   MERCADO_PAGO_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
   MERCADO_PAGO_ACCESS_TOKEN: Joi.string().allow('').optional(),
   MERCADO_PAGO_COLLECTOR_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_OURO: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_ESMERALDA: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_DIAMANTE: Joi.string().allow('').optional(),
   CERT_ENCRYPTION_KEY: Joi.string().base64().allow('').optional(),
   CERT_ENCRYPTION_KEY_VERSION: Joi.string().max(32).allow('').optional(),
   CSP_ENFORCE: Joi.string().valid('true', 'false').optional(),
@@ -89,6 +96,13 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
     if (checkoutEnabled || webhookEnabled) {
       requireWhenEmpty(required, value, 'BILLING_EXTERNAL_REFERENCE_SECRET');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_MODE');
+    }
+    if (checkoutEnabled) {
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_OURO');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_ESMERALDA');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_DIAMANTE');
     }
     if (webhookEnabled) {
       requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');

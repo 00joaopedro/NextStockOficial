@@ -24,10 +24,15 @@ describe('PaymentsService', () => {
     const tx = {
       billingPayment: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockImplementation(({ data }) =>
-          Promise.resolve({ id: 'payment', ...data }),
-        ),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'payment', ...data }),
+          ),
         update: jest.fn(),
+      },
+      billingInvoice: {
+        upsert: jest.fn().mockResolvedValue({ id: 'invoice' }),
       },
       subscription: { update: jest.fn().mockResolvedValue({}) },
       checkoutSession: { update: jest.fn().mockResolvedValue({}) },
@@ -38,9 +43,11 @@ describe('PaymentsService', () => {
       $transaction: jest.fn((callback) => callback(tx)),
     } as any;
     const events = {
-      create: jest.fn().mockImplementation((data, transaction) =>
-        transaction.billingEvent.create({ data }),
-      ),
+      create: jest
+        .fn()
+        .mockImplementation((data, transaction) =>
+          transaction.billingEvent.create({ data }),
+        ),
     } as any;
     return { tx, prisma, service: new PaymentsService(prisma, events) };
   }
@@ -55,6 +62,13 @@ describe('PaymentsService', () => {
     amountCents: 20000,
     currency: 'BRL',
     paidAt: new Date('2026-06-28T12:00:00Z'),
+    gatewaySubscriptionId: 'gateway-subscription',
+    normalizedStatus:
+      status === 'approved'
+        ? ('APPROVED' as const)
+        : status === 'rejected'
+          ? ('REJECTED' as const)
+          : ('PENDING' as const),
     raw: { status, live_mode: true },
   });
 

@@ -34,6 +34,7 @@
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
     "storage:orphan-report": "ts-node scripts/maintenance/storage-orphan-report.ts",
+    "billing:reconcile": "ts-node scripts/maintenance/billing-reconciliation.ts",
     "uploads:quota-report": "ts-node scripts/maintenance/upload-quota-report.ts",
     "privacy:report-pii": "ts-node scripts/privacy/report-pii.ts",
     "privacy:report-retention": "ts-node scripts/privacy/report-retention.ts",

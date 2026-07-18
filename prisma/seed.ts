@@ -10,6 +10,7 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
+  const gatewayMode = process.env.MERCADO_PAGO_MODE || 'production';
   const plans = [
     {
       name: 'Ouro',
@@ -18,7 +19,7 @@ async function main() {
       description:
         'Plano ideal para operacoes essenciais com praticidade no dia a dia.',
       sortOrder: 1,
-      paymentLinkUrl: 'https://mpago.la/1AFwduc',
+      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_OURO || null,
     },
     {
       name: 'Esmeralda',
@@ -27,7 +28,7 @@ async function main() {
       description:
         'Mais recursos para gestao e crescimento, indicado para negocios em expansao.',
       sortOrder: 2,
-      paymentLinkUrl: 'https://mpago.la/31d6g5z',
+      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_ESMERALDA || null,
     },
     {
       name: 'Diamante',
@@ -36,7 +37,7 @@ async function main() {
       description:
         'Plano completo para maxima performance, controle e escalabilidade.',
       sortOrder: 3,
-      paymentLinkUrl: 'https://mpago.la/2Kcwkre',
+      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_DIAMANTE || null,
     },
   ];
 
@@ -72,24 +73,26 @@ async function main() {
         planId_provider_mode: {
           planId: savedPlan.id,
           provider: PaymentGatewayProvider.MERCADO_PAGO,
-          mode: 'production',
+          mode: gatewayMode,
         },
       },
       update: {
-        paymentLinkUrl: plan.paymentLinkUrl,
-        isActive: true,
+        gatewayPlanId: plan.gatewayPlanId,
+        paymentLinkUrl: null,
+        isActive: Boolean(plan.gatewayPlanId),
         metadata: {
-          correlationMode: 'fixed_link_unverified',
+          correlationMode: 'recurring_preapproval',
         },
       },
       create: {
         planId: savedPlan.id,
         provider: PaymentGatewayProvider.MERCADO_PAGO,
-        mode: 'production',
-        paymentLinkUrl: plan.paymentLinkUrl,
-        isActive: true,
+        mode: gatewayMode,
+        gatewayPlanId: plan.gatewayPlanId,
+        paymentLinkUrl: null,
+        isActive: Boolean(plan.gatewayPlanId),
         metadata: {
-          correlationMode: 'fixed_link_unverified',
+          correlationMode: 'recurring_preapproval',
         },
       },
     });

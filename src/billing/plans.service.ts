@@ -7,17 +7,24 @@ export class PlansService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list() {
-    const mode = process.env.MERCADO_PAGO_MODE?.trim() || 'production';
+    const configured = String(
+      process.env.BILLING_DEFAULT_PROVIDER || 'MERCADO_PAGO',
+    ).toUpperCase();
+    const provider = configured as PaymentGatewayProvider;
+    const mode =
+      process.env.BILLING_MODE?.trim() ||
+      process.env.MERCADO_PAGO_MODE?.trim() ||
+      'production';
     const plans = await this.prisma.plan.findMany({
       where: { isActive: true, deletedAt: null },
       include: {
         gatewayMappings: {
           where: {
-            provider: PaymentGatewayProvider.MERCADO_PAGO,
+            provider,
             mode,
             isActive: true,
           },
-          select: { id: true },
+          select: { id: true, gatewayPlanId: true },
           take: 1,
         },
       },
@@ -36,7 +43,7 @@ export class PlansService {
       sortOrder: plan.sortOrder,
       checkoutAvailable:
         process.env.BILLING_CHECKOUT_ENABLED?.toLowerCase() !== 'false' &&
-        plan.gatewayMappings.length > 0,
+        Boolean(plan.gatewayMappings[0]?.gatewayPlanId),
     }));
   }
 }
