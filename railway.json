@@ -4,6 +4,7 @@
     "buildCommand": "npm run build && npm run build:frontend"
   },
   "deploy": {
+    "preDeployCommand": "npm run railway:migrate",
     "startCommand": "npm run start:railway",
     "healthcheckPath": "/api/health/ready",
     "healthcheckTimeout": 30

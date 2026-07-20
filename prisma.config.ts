@@ -12,9 +12,10 @@ const migrationUrl = isMigrateCommand
   : process.env.ADMIN_DATABASE_URL || process.env.DIRECT_URL || databaseUrl;
 
 process.env.DATABASE_URL = databaseUrl;
-if (process.env.ADMIN_DATABASE_URL || process.env.DIRECT_URL) {
-  process.env.DIRECT_URL ??= migrationUrl;
-}
+// `directUrl` is required while Prisma parses schema.prisma, including for
+// offline commands such as `validate`. Protected migrate commands have already
+// been rejected above when neither administrative URL is configured.
+process.env.DIRECT_URL ??= migrationUrl;
 
 export default defineConfig({
   schema: 'prisma/schema.prisma',
