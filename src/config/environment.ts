@@ -9,6 +9,7 @@ const schema = Joi.object({
     .optional(),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
+  ADMIN_DATABASE_URL: Joi.string().allow('').optional(),
   SUPABASE_URL: Joi.string()
     .uri({ scheme: ['https', 'http'] })
     .required(),
@@ -199,6 +200,16 @@ function validateEnvironmentIsolation(
   ) {
     throw new Error('SUPABASE_PROJECT_REF does not match SUPABASE_URL.');
   }
+  assertSupabaseDatabaseProject(
+    String(value.DATABASE_URL || ''),
+    projectRef,
+    'DATABASE_URL',
+  );
+  assertSupabaseDatabaseProject(
+    String(value.ADMIN_DATABASE_URL || value.DIRECT_URL || ''),
+    projectRef,
+    value.ADMIN_DATABASE_URL ? 'ADMIN_DATABASE_URL' : 'DIRECT_URL',
+  );
   if (appEnv === 'staging') {
     if (!projectRef || !stagingRef || projectRef !== stagingRef) {
       throw new Error(
@@ -229,5 +240,31 @@ function validateEnvironmentIsolation(
     if (webhookEnabled && mercadoPagoMode !== 'production') {
       throw new Error('Production cannot use Mercado Pago sandbox/test mode.');
     }
+  }
+}
+
+function assertSupabaseDatabaseProject(
+  rawUrl: string,
+  projectRef: string,
+  variableName: string,
+) {
+  if (!rawUrl || !projectRef) return;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`${variableName} is not a valid URL.`);
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isSupabaseDatabase =
+    host.includes('pooler.supabase.com') || host.endsWith('.supabase.co');
+  if (!isSupabaseDatabase) return;
+
+  const identity =
+    `${host}/${decodeURIComponent(parsed.username)}`.toLowerCase();
+  if (!identity.includes(projectRef.toLowerCase())) {
+    throw new Error(`${variableName} does not match SUPABASE_PROJECT_REF.`);
   }
 }

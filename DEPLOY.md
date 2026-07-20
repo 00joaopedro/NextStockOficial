@@ -97,6 +97,11 @@ commits ou arquivos `.env` versionados.
 8. Execute o deploy normal com `npm run start:railway`.
 9. Confirme `GET /api/health` e depois `GET /api/health/ready`.
 
+O healthcheck da Railway usa `/api/health/ready`. Alem de conectar ao PostgreSQL,
+esse endpoint exige as tabelas publicas essenciais (`tenants`, `branches`, `profiles`,
+`tenant_members` e `security_audit_events`). Um banco vazio ou com migrations
+incompletas nao deve receber trafego como uma instancia saudavel.
+
 O runtime normaliza automaticamente URLs `:6543` para garantir os parametros PgBouncer. Mesmo assim, configure a URL completa no Railway para deixar a infraestrutura explicita.
 
 ## Scripts importantes

@@ -121,4 +121,28 @@ describe('environment isolation guardrails', () => {
       }),
     ).not.toThrow();
   });
+
+  it('rejects a Supabase runtime database from another project', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        DATABASE_URL:
+          'postgresql://postgres.otherref:secret@aws-1-sa-east-1.pooler.supabase.com:6543/postgres',
+      }),
+    ).toThrow('DATABASE_URL does not match SUPABASE_PROJECT_REF');
+  });
+
+  it('accepts matching Supabase runtime and administrative databases', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        DATABASE_URL:
+          'postgresql://postgres.prodref:secret@aws-1-sa-east-1.pooler.supabase.com:6543/postgres',
+        ADMIN_DATABASE_URL:
+          'postgresql://postgres.prodref:secret@aws-1-sa-east-1.pooler.supabase.com:5432/postgres',
+      }),
+    ).not.toThrow();
+  });
 });
