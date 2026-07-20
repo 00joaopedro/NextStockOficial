@@ -16,8 +16,11 @@ export class RegisterDto {
   companyName!: string;
 
   @IsString()
-  @MinLength(6)
+  @MinLength(8)
   @MaxLength(200)
+  @Matches(/^[A-Za-z0-9]+$/, {
+    message: 'password must contain only letters and numbers',
+  })
   password!: string;
 
   @IsString()

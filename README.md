@@ -28,8 +28,11 @@ O backend tambem normaliza URLs runtime na porta `6543` para garantir `sslmode=r
 
 Use `.env.production.example` como inventario das variaveis protegidas do
 servico; nao envie um `.env` preenchido. O healthcheck versionado no
-`railway.json` usa `GET /api/health`, e o readiness com banco esta em
-`GET /api/health/ready`.
+`railway.json` usa `GET /api/health/ready`; `GET /api/health` permanece como
+verificacao simples de que o processo HTTP iniciou.
+
+O readiness valida a conexao e a presenca das tabelas essenciais do schema; portanto,
+um banco conectado, mas sem migrations, permanece fora de trafego.
 
 Billing desativado deve declarar explicitamente
 `BILLING_CHECKOUT_ENABLED=false`, `BILLING_WEBHOOK_ENABLED=false` e
