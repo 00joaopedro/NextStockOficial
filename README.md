@@ -28,8 +28,11 @@ O backend tambem normaliza URLs runtime na porta `6543` para garantir `sslmode=r
 
 Use `.env.production.example` como inventario das variaveis protegidas do
 servico; nao envie um `.env` preenchido. O healthcheck versionado no
-`railway.json` usa `GET /api/health`, e o readiness com banco esta em
-`GET /api/health/ready`.
+`railway.json` usa `GET /api/health/ready`; `GET /api/health` permanece como
+verificacao simples de que o processo HTTP iniciou.
+
+O readiness valida a conexao e a presenca das tabelas essenciais do schema; portanto,
+um banco conectado, mas sem migrations, permanece fora de trafego.
 
 Billing desativado deve declarar explicitamente
 `BILLING_CHECKOUT_ENABLED=false`, `BILLING_WEBHOOK_ENABLED=false` e
@@ -188,7 +191,8 @@ O comando de producao deve apenas iniciar o backend:
 npm run start:prod
 ```
 
-Nao coloque `prisma migrate deploy` dentro do `start:prod` nem em um pre-deploy que possa travar o boot da Railway.
+Nao coloque `prisma migrate deploy` dentro do `start:prod`. A Railway executa o
+fluxo administrativo separado em `preDeployCommand`, antes de iniciar a release.
 
 Quando houver migration nova, rode:
 
@@ -202,9 +206,10 @@ No Railway, este repositorio versiona `railway.json` para usar:
 npm run start:railway
 ```
 
-Esse script apenas chama `npm run start:prod`. Migrations continuam sendo aplicadas por
-`npm run railway:migrate` como etapa manual/controlada ou job separado. Isso impede que
-uma migration lenta/travada bloqueie o healthcheck da Railway e derrube a API com 502.
+Esse script apenas chama `npm run start:prod`. O `preDeployCommand` chama
+`npm run railway:migrate`, valida a conexao administrativa, inspeciona falhas anteriores,
+executa `migrate status`, aplica migrations e audita as tabelas essenciais. Uma falha
+interrompe a release antes de substituir a aplicacao em execucao.
 
 ### Multi-tenant integrity
 
@@ -267,6 +272,7 @@ npm run uploads:quota-report
 npm run privacy:report-pii
 npm run privacy:report-retention
 ```
+
 # Modo visualização
 
 O NextStock suporta operação read-only por tenant. Em

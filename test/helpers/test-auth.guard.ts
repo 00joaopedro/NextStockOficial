@@ -12,7 +12,8 @@ export class DeterministicTestAuthGuard implements CanActivate {
     const users = request.app?.locals?.securityTestUsers as
       | Map<string, AuthenticatedUser>
       | undefined;
-    const user = request.testUser || users?.get(testUserId);
+    const user =
+      request.testUser || (testUserId ? users?.get(testUserId) : undefined);
     if (!user) return false;
     request.user = user;
     return true;

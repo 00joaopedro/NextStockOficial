@@ -141,7 +141,9 @@ export class AuthService {
     const systemType =
       referral?.systemType ?? this.normalizeSystemType(input.systemType);
     const tenantName = companyName;
-    const tenantSlug = await this.buildUniqueTenantSlug(tenantName);
+    const tenantSlug = await this.buildUniqueTenantSlug(tenantName).catch(
+      (error) => this.handleKnownPrismaAuthError(error, 'register.slug_lookup'),
+    );
     const accessNameNormalized = normalizeAccessName(name);
 
     const existingProfile = await this.prisma.userProfile
@@ -318,11 +320,7 @@ export class AuthService {
         return { tenant, branch, profile };
       });
     } catch (error) {
-      await this.supabase.admin.auth.admin
-        .deleteUser(authUser.id)
-        .catch(() => undefined);
-
-      this.logger.error('Registration transaction failed; authentication user rollback requested.');
+      await this.rollbackAuthenticationUser(authUser.id);
       this.handleKnownPrismaAuthError(error, 'register.transaction');
       throw new InternalServerErrorException('Nao foi possivel concluir o cadastro.');
     }
@@ -1129,6 +1127,34 @@ export class AuthService {
     });
   }
 
+  private async rollbackAuthenticationUser(userId: string) {
+    try {
+      const result = await this.supabase.admin.auth.admin.deleteUser(userId);
+      if (result.error) {
+        this.logger.error(
+          `Registration authentication rollback failed code=${this.sanitizeLogToken(result.error.code ?? result.error.name ?? 'provider_error')}`,
+        );
+        return false;
+      }
+      this.logger.warn('Registration authentication user rollback completed.');
+      return true;
+    } catch (error) {
+      const candidate = error as SupabaseAuthError;
+      this.logger.error(
+        `Registration authentication rollback failed code=${this.sanitizeLogToken(candidate?.code ?? candidate?.name ?? 'request_failed')}`,
+      );
+      return false;
+    }
+  }
+
+  private sanitizeLogToken(value: unknown) {
+    return (
+      String(value)
+        .replace(/[^A-Za-z0-9_.-]/g, '')
+        .slice(0, 40) || 'unknown'
+    );
+  }
+
   private buildSupabaseAuthException(error: SupabaseAuthError) {
     this.logger.warn(
       `Supabase Auth operation rejected code=${String(error.code ?? 'unknown').replace(/[\r\n]/g, '').slice(0, 40)}`,
@@ -1242,9 +1268,13 @@ export class AuthService {
       throw new BadRequestException('password is required');
     }
 
-    if (password.length < 6) {
+    if (password.length < 8) {
+      throw new BadRequestException('password must be at least 8 characters');
+    }
+
+    if (!/^[A-Za-z0-9]+$/.test(password)) {
       throw new BadRequestException(
-        'password must be at least 6 characters',
+        'password must contain only letters and numbers',
       );
     }
 

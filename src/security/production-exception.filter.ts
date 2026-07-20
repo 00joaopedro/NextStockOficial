@@ -70,6 +70,14 @@ function findPrismaKnownError(error: unknown) {
   return null;
 }
 
+function requestPath(request: Request): string {
+  const candidate =
+    request.route?.path || request.path || request.originalUrl || request.url;
+  return typeof candidate === 'string' && candidate.trim()
+    ? candidate.split('?')[0]
+    : 'unknown';
+}
+
 @Catch()
 export class ProductionExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ProductionExceptionFilter.name);
@@ -95,7 +103,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
         : '';
 
       this.logger.error(
-        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${request.path} status=${status} error=${name}${prismaDetails}`,
+        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${requestPath(request)} status=${status} error=${name}${prismaDetails}`,
       );
     }
 

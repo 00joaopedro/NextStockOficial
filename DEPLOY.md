@@ -93,9 +93,14 @@ commits ou arquivos `.env` versionados.
    Mercado Pago quando checkout/webhook forem habilitados.
 5. Gere e cadastre a chave fiscal A1 no formato documentado.
 6. Produza e valide um backup.
-7. Execute `npm run railway:migrate` uma unica vez em job controlado.
-8. Execute o deploy normal com `npm run start:railway`.
+7. Confirme que o pre-deploy Railway executara `npm run railway:migrate` com a URL administrativa.
+8. Execute o deploy normal; a Railway conclui o pre-deploy antes de `npm run start:railway`.
 9. Confirme `GET /api/health` e depois `GET /api/health/ready`.
+
+O healthcheck da Railway usa `/api/health/ready`. Alem de conectar ao PostgreSQL,
+esse endpoint exige as tabelas publicas essenciais (`tenants`, `branches`, `profiles`,
+`tenant_members` e `security_audit_events`). Um banco vazio ou com migrations
+incompletas nao deve receber trafego como uma instancia saudavel.
 
 O runtime normaliza automaticamente URLs `:6543` para garantir os parametros PgBouncer. Mesmo assim, configure a URL completa no Railway para deixar a infraestrutura explicita.
 
@@ -176,15 +181,25 @@ Esse script executa:
 npm run start:prod
 ```
 
-Migrations nao fazem parte do start normal. Execute `npm run railway:migrate`
-uma unica vez em um job controlado, depois de backup, validacao em staging e
-aprovacao. Somente entao promova/inicie a release compativel.
+Migrations nao fazem parte do start normal. O `preDeployCommand` executa
+`npm run railway:migrate` como etapa administrativa separada, depois de backup,
+validacao em staging e aprovacao. Se status, deploy ou auditoria falhar, a nova
+release nao deve iniciar.
 
-Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` ou
+Antes de aplicar migrations, `railway:migrate` valida que `DIRECT_URL` ou
 `ADMIN_DATABASE_URL` existe nos ambientes controlados, rejeita
 `pooler.supabase.com:6543`, confere que host/usuario corresponde a
-`SUPABASE_PROJECT_REF` e que staging nao reutiliza o project ref de producao.
-O script nao imprime URL nem credenciais.
+`SUPABASE_PROJECT_REF`, confere que staging nao reutiliza o project ref de producao,
+executa `prisma migrate status` e bloqueia `migrate deploy` quando encontra migration
+falhada sem resolucao. Depois do deploy, exige `tenants`, `branches`, `profiles`,
+`tenant_members` e `security_audit_events`. O script nao imprime URL nem credenciais.
+
+Se `20260701010000_internal_receipt_status` estiver falhada por uma versao antiga que
+adicionava e usava `internal_issued` na mesma transacao, o pre-deploy para sem repetir
+`migrate deploy`. Depois de inspecionar `_prisma_migrations` e confirmar o enum no
+catalogo, execute explicitamente `npm run railway:migrate:repair-internal-receipt`.
+O reparo apenas marca a tentativa falhada como rolled back; a migration atual, que
+somente adiciona o enum, sera repetida de forma idempotente no proximo pre-deploy.
 
 O `start:prod` continua intencionalmente limitado a iniciar o backend, o que permite
 smoke tests sem reaplicar migrations.
