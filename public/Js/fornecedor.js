@@ -395,6 +395,7 @@
   });
 
   document.addEventListener("DOMContentLoaded", async () => {
+    if (window.isNextStockDemoMode?.()) return;
     try {
       const ok = await bootstrapContext();
       if (ok) {

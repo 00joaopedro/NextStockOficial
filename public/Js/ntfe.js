@@ -764,6 +764,11 @@
   }
 
   async function init() {
+    if (window.isNextStockDemoMode?.()) {
+      state.preview = true;
+      setStatus("Modo visualizacao: emissao e configuracoes fiscais bloqueadas.", "info");
+      return;
+    }
     elements.addItem.disabled = true;
     elements.addItem.title =
       'Itens fiscais sao carregados da venda e validados pelo backend.';

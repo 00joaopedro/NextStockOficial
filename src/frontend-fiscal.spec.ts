@@ -8,8 +8,8 @@ describe('ntfe.html production fiscal integration', () => {
     'utf8',
   );
 
-  it('desativa o script legado e carrega o frontend fiscal real', () => {
-    expect(html).toContain('data-legacy-fiscal-script="disabled"');
+  it('restringe a demonstracao ao preview e carrega o frontend fiscal real', () => {
+    expect(html).toContain('if (window.isNextStockDemoMode?.()) {');
     expect(html).toContain('./Js/ntfe.js');
     expect(script).not.toContain('DEMO_CLIENTS');
   });

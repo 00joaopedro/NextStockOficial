@@ -61,12 +61,6 @@ const SIDEBAR_ITEMS = [
         module: 'core',
     },
     {
-        label: 'Pagamento',
-        href: 'pagamentos.html',
-        key: 'pagamentos',
-        module: 'core',
-    },
-    {
         label: 'Funcionários',
         href: 'funcionario.html',
         key: 'funcionario',
@@ -338,6 +332,10 @@ function buildSidebarHtml(menu, context) {
   `;
 }
 async function fetchSystemContext() {
+    const publicPreview = window.getNextStockPublicPreviewContext?.();
+    if (publicPreview) {
+        return normalizeContext(publicPreview);
+    }
     const selectedBranchId = getSelectedBranchId();
     const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
         method: 'GET',
@@ -470,7 +468,7 @@ async function loadSidebar() {
     }
     catch (error) {
         console.warn('Using fallback sidebar context.', error);
-        const context = getRuntimeFallbackContext();
+        const context = { ...getRuntimeFallbackContext() };
         const selected = sessionStorage.getItem('nextstockSelectedSystemType');
         if (window.isNextStockDemoMode?.() && selected === 'petshop') {
             context.tenantType = 'PETSHOP';

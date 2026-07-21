@@ -214,6 +214,12 @@
   el.addMachine.addEventListener("click", clearMachine); el.saveMachine.addEventListener("click", run(saveMachine));
   el.deleteMachine.addEventListener("click", run(deleteMachine));
   (async () => {
+    if (window.isNextStockDemoMode?.()) {
+      state.preview = true;
+      message("Modo visualizacao: perfil, assinatura e pagamentos sao somente demonstrativos.");
+      permissions();
+      return;
+    }
     try {
       await bootstrap();
       await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines()]);

@@ -34,6 +34,14 @@ describe('perfil frontend production contract', () => {
     expect(html).toContain('id="machineList"');
   });
 
+  it('usa o mesmo layout fixo e responsivo da sidebar das demais paginas', () => {
+    expect(html).toContain('.sidebar{width:16vw');
+    expect(html).toContain('height:100vh;position:fixed');
+    expect(html).toContain('main{margin-left:16vw');
+    expect(html).toContain('.sidebar{width:100%;height:auto;position:relative');
+    expect(html).not.toContain('#sidebar-container{display:none}');
+  });
+
   it('envia suporte Dev somente quando branch e modo conferem', () => {
     expect(script).toContain('support?.branchId === state.selectedBranch?.id');
     expect(script).toContain('support?.mode === "support"');
