@@ -78,7 +78,7 @@
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^22.10.7",
+    "@types/node": "^26.1.1",
     "@types/node-forge": "^1.3.14",
     "@types/supertest": "^6.0.2",
     "eslint": "^9.18.0",
