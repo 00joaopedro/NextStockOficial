@@ -653,7 +653,8 @@
     </div>
   </div>
   <script src="./dist/session-state.js"></script>
-  <script type="text/plain" data-legacy-demo-script="disabled">
+  <script>
+    if (window.isNextStockDemoMode?.()) {
     const DEMO_SALES_DATA = [
       {
         id: "REC-65-0001",
@@ -1074,6 +1075,7 @@
     });
 
     renderSales();
+    }
   </script>
   <script src="./Js/historico.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>

@@ -374,6 +374,12 @@
   window.limparFormulario = limparFormulario;
 
   document.addEventListener("DOMContentLoaded", async () => {
+    if (window.isNextStockDemoMode?.()) {
+      setMessage("Modo visualizacao: dados demonstrativos indisponiveis e alteracoes bloqueadas.");
+      emptyMessage.style.display = "block";
+      emptyMessage.textContent = "Visualizacao publica de funcionarios.";
+      return;
+    }
     try {
       const ok = await bootstrapContext();
       if (ok) {

@@ -1358,9 +1358,14 @@
       }
     });
 
-    inicializarContextoAutenticado()
-      .then(() => buscarProdutos())
-      .catch((error) => console.warn(error.message));
+    if (window.isNextStockDemoMode?.()) {
+      modoSistema = "visualizacao";
+      definirMensagemResultado("Modo visualizacao: consultas demonstrativas e alteracoes bloqueadas.");
+    } else {
+      inicializarContextoAutenticado()
+        .then(() => buscarProdutos())
+        .catch((error) => console.warn(error.message));
+    }
     aplicarSanitizacaoNosInputs();
   </script>
 

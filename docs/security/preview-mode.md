@@ -5,6 +5,8 @@ normais do usuário, mas impede operações que alterem estado.
 
 ## Conceitos separados
 
+- Preview público: navegação anônima com dados demonstrativos locais, sem tenant,
+  filial ou consultas às APIs de negócio.
 - `Tenant.mode = visualizacao`: ativa read-only.
 - `Tenant.systemType = padrao | petshop`: define os módulos disponíveis.
 - `role`: define quais recursos o usuário pode acessar.
@@ -12,6 +14,10 @@ normais do usuário, mas impede operações que alterem estado.
 
 Visualização não concede acesso adicional. RBAC, billing, tenant, branch,
 `systemType`, workspace Dev e suporte explícito continuam obrigatórios.
+
+No preview público não há acesso adicional porque não existe contexto operacional:
+o frontend cria somente um contexto visual local (`PREVIEW`) e não envia mutações.
+As rotas mutáveis continuam protegidas por autenticação no backend.
 
 ## Política HTTP
 
@@ -41,6 +47,14 @@ webhooks assinados, seguem suas próprias políticas de segurança.
 `GET /api/system/context` é a fonte de verdade para `systemMode`,
 `mode`, `tenantType` e `systemType`. `sessionStorage` serve apenas como cache de
 interface e nunca autoriza uma operação.
+
+No preview público, a seleção `padrao | petshop` da página inicial é a fonte do
+contexto exclusivamente visual. A sidebar e as páginas devem usar esse contexto
+antes de qualquer bootstrap autenticado, não devem chamar profile, billing ou
+APIs de negócio e devem manter todos os controles de alteração desabilitados.
+Uma tentativa mutável feita por código de interface é interrompida antes da rede
+com o mesmo código `PREVIEW_MODE_MUTATION_BLOCKED`; isso é defesa adicional e
+não substitui os guards do backend.
 
 Ao receber `PREVIEW_MODE_MUTATION_BLOCKED`, o frontend:
 

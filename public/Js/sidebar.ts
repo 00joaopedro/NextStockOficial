@@ -95,12 +95,6 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     module: 'core',
   },
   {
-    label: 'Pagamento',
-    href: 'pagamentos.html',
-    key: 'pagamentos',
-    module: 'core',
-  },
-  {
     label: 'Funcionários',
     href: 'funcionario.html',
     key: 'funcionario',
@@ -448,6 +442,11 @@ function buildSidebarHtml(
 }
 
 async function fetchSystemContext(): Promise<SystemContextResponse> {
+  const publicPreview = (window as any).getNextStockPublicPreviewContext?.();
+  if (publicPreview) {
+    return normalizeContext(publicPreview);
+  }
+
   const selectedBranchId = getSelectedBranchId();
   const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
     method: 'GET',
@@ -601,7 +600,7 @@ async function loadSidebar(): Promise<void> {
     recordPageView(context);
   } catch (error) {
     console.warn('Using fallback sidebar context.', error);
-    const context = getRuntimeFallbackContext();
+    const context = { ...getRuntimeFallbackContext() };
     const selected = sessionStorage.getItem('nextstockSelectedSystemType');
     if ((window as any).isNextStockDemoMode?.() && selected === 'petshop') {
       context.tenantType = 'PETSHOP';

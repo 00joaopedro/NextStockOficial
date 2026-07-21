@@ -758,6 +758,13 @@
   }
 
   async function bootstrap() {
+    if (window.isNextStockDemoMode?.()) {
+      state.preview = true;
+      renderCart();
+      setStatus("Modo visualizacao", " Navegacao demonstrativa; operacoes bloqueadas.");
+      toast("Modo visualizacao: nenhuma operacao sera enviada ao backend.", "info");
+      return;
+    }
     setBusy(true);
     setStatus("Carregando caixa", " Validando sessao e filial.");
     try {

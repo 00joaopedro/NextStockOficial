@@ -986,7 +986,8 @@
     </div>
   </div>
   <script src="./dist/session-state.js"></script>
-  <script type="text/plain" data-legacy-demo-script="disabled">
+  <script>
+    if (window.isNextStockDemoMode?.()) {
     const expensesGrid = document.getElementById("expensesGrid");
     const emptyMessage = document.getElementById("emptyMessage");
 
@@ -1555,6 +1556,7 @@
     filterMinValue.addEventListener("input", renderExpenses);
 
     renderExpenses();
+    }
   </script>
   <script src="./Js/despesas.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>

@@ -15,8 +15,8 @@ describe('historico.html production sales integration', () => {
     'utf8',
   );
 
-  it('desativa o mock legado e carrega o script de producao', () => {
-    expect(html).toContain('data-legacy-demo-script="disabled"');
+  it('restringe o mock ao preview publico e carrega o script de producao', () => {
+    expect(html).toContain('if (window.isNextStockDemoMode?.()) {');
     expect(html).toContain('./Js/historico.js');
     expect(script).not.toContain('DEMO_SALES_DATA');
   });
