@@ -90,6 +90,7 @@ async function bootstrap() {
     exclude: [
       { path: 'dev.html', method: RequestMethod.GET },
       { path: 'parceiros.html', method: RequestMethod.GET },
+      { path: 'loja/:slug', method: RequestMethod.GET },
     ],
   });
 

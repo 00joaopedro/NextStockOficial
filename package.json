@@ -40,7 +40,8 @@
     "privacy:report-retention": "ts-node scripts/privacy/report-retention.ts",
     "security:smoke": "ts-node scripts/maintenance/security-smoke.ts",
     "backup:verify": "ts-node scripts/backup/verify-backup.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
