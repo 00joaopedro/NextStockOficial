@@ -148,15 +148,13 @@ export class AuthService {
 
     const existingProfile = await this.prisma.userProfile
       .findFirst({
-        where: {
-          OR: [{ email }, { accessNameNormalized }],
-        },
+        where: { email },
         select: { id: true },
       })
       .catch((error) => this.handleKnownPrismaAuthError(error, 'register.lookup'));
 
     if (existingProfile) {
-      throw new ConflictException('email or name is already registered');
+      throw new ConflictException('email is already registered');
     }
 
     const { data, error } = await this.supabase.admin.auth.admin.createUser({
@@ -178,7 +176,7 @@ export class AuthService {
 
     if (error) {
       if (isConflictError(error.message)) {
-        throw new ConflictException('E-mail ou nome ja cadastrado.');
+        throw new ConflictException('E-mail ja cadastrado.');
       }
 
       throw this.buildSupabaseAuthException(error);
@@ -1169,7 +1167,7 @@ export class AuthService {
       );
 
       if (error.code === 'P2002') {
-        throw new ConflictException('E-mail ou nome ja cadastrado.');
+        throw new ConflictException('E-mail ou identificador ja cadastrado.');
       }
 
       if (error.code === 'P2003' || error.code === 'P2025') {

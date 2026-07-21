@@ -202,6 +202,10 @@ describe('AuthService', () => {
         isSuperAdmin: false,
       },
     });
+    expect(prisma.userProfile.findFirst).toHaveBeenCalledWith({
+      where: { email: profile.email },
+      select: { id: true },
+    });
     expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ name: tenant.name, systemType: SystemType.padrao }),
@@ -307,7 +311,7 @@ describe('AuthService', () => {
     );
   });
 
-  it('cadastro com email ou nome duplicado retorna 409 antes de criar auth', async () => {
+  it('cadastro com email duplicado retorna 409 antes de criar auth', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
     prisma.userProfile.findFirst.mockResolvedValue({ id: 'existing-profile' });

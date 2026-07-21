@@ -148,10 +148,20 @@ export class ProfileService {
       data.contactPhone = this.normalizeOptionalPhone(dto.contato);
     }
 
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data,
-    });
+    try {
+      await this.prisma.tenant.update({
+        where: { id: tenant.id },
+        data,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('CNPJ ja vinculado a outra empresa.');
+      }
+      throw error;
+    }
 
     return this.getCompany(user, selectedBranchId, devContextMode);
   }
@@ -339,13 +349,10 @@ export class ProfileService {
       return;
     }
 
-    const candidates = await this.prisma.tenant.findMany({
-      where: { id: { not: tenantId }, cnpj: { not: null } },
-      select: { id: true, cnpj: true },
+    const duplicate = await this.prisma.tenant.findFirst({
+      where: { id: { not: tenantId }, cnpj },
+      select: { id: true },
     });
-    const duplicate = candidates.some(
-      (candidate) => this.onlyDigits(candidate.cnpj) === cnpj,
-    );
 
     if (duplicate) {
       throw new ConflictException('CNPJ ja vinculado a outra empresa.');

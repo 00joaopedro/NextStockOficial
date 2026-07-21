@@ -126,14 +126,12 @@ export class EmployeesService {
     const accessNameNormalized = this.buildAccessName(fullName, email);
 
     const existing = await this.prisma.userProfile.findFirst({
-      where: {
-        OR: [{ email }, { accessNameNormalized }],
-      },
+      where: { email },
       select: { id: true },
     });
 
     if (existing) {
-      throw new ConflictException('email or name is already registered');
+      throw new ConflictException('email is already registered');
     }
 
     const { data, error } = await this.supabase.admin.auth.admin.createUser({

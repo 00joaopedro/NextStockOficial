@@ -3,6 +3,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import {
+  Prisma,
   Role,
   SubscriptionStatus,
   SystemMode,
@@ -59,6 +60,7 @@ describe('ProfileService production rules', () => {
       },
       tenant: {
         findUnique: jest.fn().mockResolvedValue(tenant),
+        findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn().mockResolvedValue(tenant),
       },
@@ -142,6 +144,43 @@ describe('ProfileService production rules', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.tenant.update).not.toHaveBeenCalled();
+  });
+
+  it('rejeita CNPJ ja vinculado a outra empresa', async () => {
+    const { service, prisma } = setup();
+    prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-b' });
+
+    await expect(
+      service.updateCompany(
+        { id: 'user-a' } as any,
+        { cnpj: '11.222.333/0001-81' },
+        'branch-a',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.tenant.findFirst).toHaveBeenCalledWith({
+      where: { id: { not: 'tenant-a' }, cnpj: '11222333000181' },
+      select: { id: true },
+    });
+    expect(prisma.tenant.update).not.toHaveBeenCalled();
+  });
+
+  it('converte corrida da constraint unica de CNPJ em conflito', async () => {
+    const { service, prisma } = setup();
+    prisma.tenant.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+        meta: { modelName: 'Tenant', target: ['cnpj'] },
+      }),
+    );
+
+    await expect(
+      service.updateCompany(
+        { id: 'user-a' } as any,
+        { cnpj: '11.222.333/0001-81' },
+        'branch-a',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('propaga somente solicitacao explicita de suporte Dev', async () => {
