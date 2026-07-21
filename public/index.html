@@ -162,6 +162,35 @@
       box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
     }
 
+    .password-field {
+      position: relative;
+      margin: 15px 0;
+    }
+
+    .popup-content .password-field input {
+      margin: 0;
+      padding-right: 78px;
+    }
+
+    .password-toggle {
+      position: absolute;
+      top: 50%;
+      right: 14px;
+      border: 0;
+      background: transparent;
+      color: #1a456f;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transform: translateY(-50%);
+    }
+
+    .password-toggle:focus-visible {
+      border-radius: 4px;
+      outline: 2px solid #00cfcf;
+      outline-offset: 3px;
+    }
+
     .close {
       display: inline-block;
       margin-top: 20px;
@@ -260,7 +289,10 @@
 
       <form id="loginForm">
         <input id="loginEmail" type="email" placeholder="E-mail" required />
-        <input id="loginPassword" type="password" placeholder="Senha" required />
+        <div class="password-field">
+          <input id="loginPassword" type="password" placeholder="Senha" required />
+          <button class="password-toggle" type="button" data-password-target="loginPassword" aria-pressed="false">Mostrar</button>
+        </div>
         <button class="btn" type="submit">Entrar</button>
       </form>
 
@@ -281,14 +313,17 @@
         <input id="registerName" type="text" placeholder="Nome" required />
         <input id="registerCompanyName" type="text" placeholder="Nome da empresa" required />
 
-        <input
-          id="registerPassword"
-          type="password"
-          placeholder="Criar senha"
-          minlength="8"
-          pattern="[A-Za-z0-9]{8,}"
-          required
-        />
+        <div class="password-field">
+          <input
+            id="registerPassword"
+            type="password"
+            placeholder="Criar senha"
+            minlength="8"
+            pattern="[A-Za-z0-9]{8,}"
+            required
+          />
+          <button class="password-toggle" type="button" data-password-target="registerPassword" aria-pressed="false">Mostrar</button>
+        </div>
 
         <p class="small-info">
           A senha deve ter no m&iacute;nimo 8 d&iacute;gitos e aceitar apenas letras e n&uacute;meros.
@@ -333,6 +368,17 @@
     const petPreviewBtn = document.getElementById('petPreviewBtn');
     const standardPreviewFields = document.getElementById('standardPreviewFields');
     const petPreviewFields = document.getElementById('petPreviewFields');
+
+    document.querySelectorAll('.password-toggle').forEach((toggle) => {
+      toggle.addEventListener('click', () => {
+        const passwordInput = document.getElementById(toggle.dataset.passwordTarget);
+        const shouldShowPassword = passwordInput.type === 'password';
+
+        passwordInput.type = shouldShowPassword ? 'text' : 'password';
+        toggle.textContent = shouldShowPassword ? 'Ocultar' : 'Mostrar';
+        toggle.setAttribute('aria-pressed', String(shouldShowPassword));
+      });
+    });
 
     previewBtn.addEventListener('click', () => {
       previewOptions.classList.toggle('active');
