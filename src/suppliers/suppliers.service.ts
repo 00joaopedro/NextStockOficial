@@ -26,7 +26,7 @@ export class SuppliersService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: SupplierQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -63,7 +63,7 @@ export class SuppliersService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -81,7 +81,7 @@ export class SuppliersService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateSupplierDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -112,7 +112,7 @@ export class SuppliersService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateSupplierDto,
     selectedBranchId?: string,
@@ -146,7 +146,7 @@ export class SuppliersService {
   }
 
   async updateStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateSupplierStatusDto,
     selectedBranchId?: string,
@@ -173,7 +173,7 @@ export class SuppliersService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -200,7 +200,7 @@ export class SuppliersService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

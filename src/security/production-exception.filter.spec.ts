@@ -6,7 +6,7 @@ describe('ProductionExceptionFilter', () => {
   const createHost = (error?: unknown) => {
     const response = {
       status: jest.fn().mockReturnThis(),
-      json: jest.fn(),
+      send: jest.fn(),
     };
     const request = {
       requestId: 'request-1',
@@ -57,6 +57,23 @@ describe('ProductionExceptionFilter', () => {
     expect(logLine).not.toContain('jwt-token');
     expect(response.status).toHaveBeenCalledWith(500);
 
+    loggerSpy.mockRestore();
+  });
+
+  it('usa a URL como fallback e nunca registra path undefined', () => {
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    const { host, request } = createHost();
+    request.path = undefined as unknown as string;
+    (request as typeof request & { url?: string }).url =
+      '/api/auth/register?source=test';
+
+    new ProductionExceptionFilter().catch(new Error('failed'), host);
+
+    const logLine = String(loggerSpy.mock.calls[0]?.[0]);
+    expect(logLine).toContain('path=/api/auth/register');
+    expect(logLine).not.toContain('path=undefined');
     loggerSpy.mockRestore();
   });
 });

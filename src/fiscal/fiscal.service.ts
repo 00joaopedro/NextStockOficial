@@ -80,7 +80,7 @@ export class FiscalService {
   ) {}
 
   async getNfe55Draft(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: Nfe55DraftQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -165,7 +165,7 @@ export class FiscalService {
   }
 
   async getDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -185,7 +185,7 @@ export class FiscalService {
   }
 
   async createDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateNfe55DocumentDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -323,7 +323,7 @@ export class FiscalService {
   }
 
   async sendDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: SendFiscalDocumentDto,
     selectedBranchId?: string,
@@ -485,7 +485,7 @@ export class FiscalService {
   }
 
   async queryDocumentStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -548,7 +548,7 @@ export class FiscalService {
   }
 
   async cancelDocument(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: CancelFiscalDocumentDto,
     selectedBranchId?: string,
@@ -611,7 +611,7 @@ export class FiscalService {
   }
 
   async getFile(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     format: 'xml' | 'pdf',
     selectedBranchId?: string,
@@ -643,7 +643,7 @@ export class FiscalService {
   }
 
   async getCompanyConfig(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -661,7 +661,7 @@ export class FiscalService {
   }
 
   async updateCompanyConfig(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CompanyFiscalConfigDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -743,7 +743,7 @@ export class FiscalService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

@@ -26,7 +26,7 @@ type AuditContext = {
 export class PartnersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(user: Express.AuthenticatedUser | undefined, query: PartnerQueryDto) {
+  async findAll(user: AuthenticatedUser | undefined, query: PartnerQueryDto) {
     this.assertDev(user);
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
@@ -88,14 +88,14 @@ export class PartnersService {
     };
   }
 
-  async findOne(user: Express.AuthenticatedUser | undefined, id: string) {
+  async findOne(user: AuthenticatedUser | undefined, id: string) {
     this.assertDev(user);
     const partner = await this.findActiveOrThrow(id);
     return { partner: this.formatPartner(partner) };
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreatePartnerDto,
     audit: AuditContext = {},
   ) {
@@ -131,7 +131,7 @@ export class PartnersService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePartnerDto,
   ) {
@@ -153,7 +153,7 @@ export class PartnersService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     audit: AuditContext = {},
   ) {
@@ -182,7 +182,7 @@ export class PartnersService {
   }
 
   async rotateLink(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     audit: AuditContext = {},
   ) {
@@ -214,7 +214,7 @@ export class PartnersService {
   }
 
   async updateLinkStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateLinkStatusDto,
     audit: AuditContext = {},
@@ -246,7 +246,7 @@ export class PartnersService {
     return { partner: this.formatPartner(partner) };
   }
 
-  private assertDev(user?: Express.AuthenticatedUser) {
+  private assertDev(user?: AuthenticatedUser) {
     if (!canAccessDev(user)) {
       throw new ForbiddenException('Acesso restrito ao Dev SuperAdmin.');
     }

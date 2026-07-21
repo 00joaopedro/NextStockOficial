@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import type { Request, Response } from 'express';
+import type { Request, Response } from '../common/http-types';
 
 const SENSITIVE_META_KEYS = new Set([
   'authorization',
@@ -70,6 +70,14 @@ function findPrismaKnownError(error: unknown) {
   return null;
 }
 
+function requestPath(request: Request): string {
+  const candidate =
+    request.route?.path || request.path || request.originalUrl || request.url;
+  return typeof candidate === 'string' && candidate.trim()
+    ? candidate.split('?')[0]
+    : 'unknown';
+}
+
 @Catch()
 export class ProductionExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ProductionExceptionFilter.name);
@@ -95,12 +103,12 @@ export class ProductionExceptionFilter implements ExceptionFilter {
         : '';
 
       this.logger.error(
-        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${request.path} status=${status} error=${name}${prismaDetails}`,
+        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${requestPath(request)} status=${status} error=${name}${prismaDetails}`,
       );
     }
 
     if (process.env.NODE_ENV === 'production' && status >= 500) {
-      response.status(status).json({
+      response.status(status).send({
         statusCode: status,
         message: 'Erro interno do servidor.',
         requestId: request.requestId,
@@ -109,8 +117,10 @@ export class ProductionExceptionFilter implements ExceptionFilter {
     }
 
     const body =
-      typeof safeResponse === 'string' ? { message: safeResponse } : safeResponse;
-    response.status(status).json({
+      typeof safeResponse === 'string'
+        ? { message: safeResponse }
+        : safeResponse;
+    response.status(status).send({
       ...(body as object),
       statusCode: status,
       requestId: request.requestId,

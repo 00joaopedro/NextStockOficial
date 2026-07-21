@@ -1,6 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, INestApplication, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import * as request from 'supertest';
+import {
+  FastifyAdapter,
+  NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DevSuperAdminGuard } from './auth/dev-super-admin.guard';
@@ -38,7 +41,7 @@ class HeaderJwtGuard implements CanActivate {
 }
 
 describe('GET /dev.html protection', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
 
   beforeEach(async () => {
     process.env.DEV_SUPER_ADMIN_EMAILS = 'dev@example.com';
@@ -56,8 +59,11 @@ describe('GET /dev.html protection', () => {
       .useClass(HeaderJwtGuard)
       .compile();
 
-    app = moduleRef.createNestApplication();
+    app = moduleRef.createNestApplication<NestFastifyApplication>(
+      new FastifyAdapter(),
+    );
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
   });
 
   afterEach(async () => {
@@ -65,42 +71,53 @@ describe('GET /dev.html protection', () => {
   });
 
   it('sem login nao entrega HTML', async () => {
-    const response = await request(app.getHttpServer()).get('/dev.html');
+    const response = await app.inject({ method: 'GET', url: '/dev.html' });
 
-    expect(response.status).toBe(401);
-    expect(response.text).not.toContain('NextStock Dev');
+    expect(response.statusCode).toBe(401);
+    expect(response.body).not.toContain('NextStock Dev');
   });
 
   it('admin comum nao entrega HTML', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/dev.html')
-      .set('x-test-user', 'admin');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dev.html',
+      headers: { 'x-test-user': 'admin' },
+    });
 
-    expect(response.status).toBe(403);
-    expect(response.text).not.toContain('NextStock Dev');
+    expect(response.statusCode).toBe(403);
+    expect(response.body).not.toContain('NextStock Dev');
   });
 
   it('Dev SuperAdmin entrega HTML', async () => {
-    const response = await request(app.getHttpServer())
-      .get('/dev.html')
-      .set('x-test-user', 'dev');
+    const response = await app.inject({
+      method: 'GET',
+      url: '/dev.html',
+      headers: { 'x-test-user': 'dev' },
+    });
 
-    expect(response.status).toBe(200);
-    expect(response.text).toContain('NextStock Dev');
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('NextStock Dev');
   });
 
   it('protege parceiros.html com a mesma allowlist Dev', async () => {
-    const anonymous = await request(app.getHttpServer()).get('/parceiros.html');
-    const admin = await request(app.getHttpServer())
-      .get('/parceiros.html')
-      .set('x-test-user', 'admin');
-    const dev = await request(app.getHttpServer())
-      .get('/parceiros.html')
-      .set('x-test-user', 'dev');
+    const anonymous = await app.inject({
+      method: 'GET',
+      url: '/parceiros.html',
+    });
+    const admin = await app.inject({
+      method: 'GET',
+      url: '/parceiros.html',
+      headers: { 'x-test-user': 'admin' },
+    });
+    const dev = await app.inject({
+      method: 'GET',
+      url: '/parceiros.html',
+      headers: { 'x-test-user': 'dev' },
+    });
 
-    expect(anonymous.status).toBe(401);
-    expect(admin.status).toBe(403);
-    expect(dev.status).toBe(200);
-    expect(dev.text).toContain('Control-plane comercial do NextStock');
+    expect(anonymous.statusCode).toBe(401);
+    expect(admin.statusCode).toBe(403);
+    expect(dev.statusCode).toBe(200);
+    expect(dev.body).toContain('Control-plane comercial do NextStock');
   });
 });

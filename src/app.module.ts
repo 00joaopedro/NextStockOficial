@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import type { ServeStaticModuleOptions } from '@nestjs/serve-static';
+import type { FastifyStaticOptions } from '@fastify/static';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { ConfigModule } from '@nestjs/config';
@@ -59,6 +61,7 @@ const publicPath = join(__dirname, '..', 'public');
       exclude: ['/api', '/api/*path', '/dev.html', '/parceiros.html'],
       serveStaticOptions: {
         etag: true,
+        globIgnore: ['dev.html', 'parceiros.html'],
         setHeaders(res, filePath) {
           if (/\.html$/i.test(filePath)) {
             res.setHeader('Cache-Control', 'no-cache');
@@ -77,7 +80,8 @@ const publicPath = join(__dirname, '..', 'public');
           }
           res.setHeader('Cache-Control', 'public, max-age=3600');
         },
-      },
+      } as NonNullable<ServeStaticModuleOptions['serveStaticOptions']> &
+        Pick<FastifyStaticOptions, 'globIgnore'>,
     }),
     PerformanceModule,
     AuditModule,

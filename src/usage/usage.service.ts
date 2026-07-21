@@ -14,7 +14,7 @@ export type UsageEventType =
   | string;
 
 type UsageRecordInput = {
-  user?: Express.AuthenticatedUser | null;
+  user?: AuthenticatedUser | null;
   userId?: string | null;
   tenantId?: string | null;
   branchId?: string | null;

@@ -66,7 +66,7 @@ export class DashboardService {
   ) {}
 
   async getDashboard(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: DashboardFilterDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -110,7 +110,7 @@ export class DashboardService {
   }
 
   async getSummary(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: DashboardFilterDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -120,7 +120,7 @@ export class DashboardService {
   }
 
   async getCharts(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: DashboardFilterDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -130,7 +130,7 @@ export class DashboardService {
   }
 
   async getTopProducts(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: DashboardFilterDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -140,7 +140,7 @@ export class DashboardService {
   }
 
   async getProductMetrics(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     productId: string,
     query: DashboardFilterDto,
     selectedBranchId?: string,
@@ -199,7 +199,7 @@ export class DashboardService {
   }
 
   async getAlerts(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -208,7 +208,7 @@ export class DashboardService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
   ): Promise<DashboardContext> {

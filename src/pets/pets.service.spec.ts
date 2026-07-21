@@ -4,7 +4,7 @@ import { PetsService } from './pets.service';
 
 const context = { tenantId: 'tenant-pet', branchId: 'branch-pet', mode: 'petshop' };
 
-function user(): Express.AuthenticatedUser {
+function user(): AuthenticatedUser {
   return {
     id: 'user-1',
     email: 'admin@pet.com',

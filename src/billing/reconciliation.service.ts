@@ -15,7 +15,7 @@ export class ReconciliationService {
   ) {}
 
   async sync(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     checkoutId: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -37,24 +37,70 @@ export class ReconciliationService {
       },
     });
     if (!checkout) throw new NotFoundException('Checkout nao encontrado.');
-    const gatewayPaymentId = checkout.payments[0]?.gatewayPaymentId;
-    if (!gatewayPaymentId) {
+    const gateway = this.gateways.get(checkout.provider);
+    const results = checkout.payments[0]?.gatewayPaymentId
+      ? [await gateway.syncPayment(checkout.payments[0].gatewayPaymentId!)]
+      : await gateway.findPayments(checkout.externalReference);
+    if (!results.length) {
       return {
         reconciled: false,
-        code: 'CORRELATION_UNAVAILABLE',
-        message:
-          'O link fixo nao forneceu uma referencia verificavel. Uma preference dinamica ou preapproval e necessaria para conciliacao automatica.',
+        code: 'PAYMENT_NOT_FOUND',
+        message: 'O gateway ainda nao confirmou cobranca para esta assinatura.',
       };
     }
-    const result = await this.gateways
-      .get(checkout.provider)
-      .syncPayment(gatewayPaymentId);
+    const processed: Array<
+      Awaited<ReturnType<PaymentsService['processVerifiedPayment']>>
+    > = [];
+    for (const result of results) {
+      processed.push(
+        await this.payments.processVerifiedPayment(checkout.provider, result),
+      );
+    }
     return {
       reconciled: true,
-      result: await this.payments.processVerifiedPayment(
-        checkout.provider,
-        result,
-      ),
+      results: processed,
     };
+  }
+
+  async reconcilePendingBatch(limit = 100) {
+    const checkouts = await this.prisma.checkoutSession.findMany({
+      where: {
+        gatewayCheckoutId: { not: null },
+      },
+      orderBy: [{ lastReconciledAt: 'asc' }, { createdAt: 'asc' }],
+      take: Math.min(Math.max(limit, 1), 500),
+    });
+    const summary = {
+      checked: checkouts.length,
+      processed: 0,
+      missing: 0,
+      failed: 0,
+    };
+    for (const checkout of checkouts) {
+      try {
+        const results = await this.gateways
+          .get(checkout.provider)
+          .findPayments(checkout.externalReference);
+        if (!results.length) {
+          summary.missing += 1;
+          continue;
+        }
+        for (const result of results) {
+          const processed = await this.payments.processVerifiedPayment(
+            checkout.provider,
+            result,
+          );
+          if (processed.processed) summary.processed += 1;
+        }
+      } catch {
+        summary.failed += 1;
+      } finally {
+        await this.prisma.checkoutSession.update({
+          where: { id: checkout.id },
+          data: { lastReconciledAt: new Date() },
+        });
+      }
+    }
+    return summary;
   }
 }

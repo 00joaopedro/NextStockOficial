@@ -49,7 +49,7 @@ export class UsersService {
     @Optional() private readonly sessions?: SessionsService,
   ) {}
 
-  async list(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+  async list(currentUser?: AuthenticatedUser, selectedBranchId?: string) {
     const context = await this.tenantContext.resolve(currentUser, {
       selectedBranchId,
       requireBranch: true,
@@ -116,7 +116,7 @@ export class UsersService {
   }
 
   async create(
-    currentUser: Express.AuthenticatedUser | undefined,
+    currentUser: AuthenticatedUser | undefined,
     input: CreateTenantUserInput,
     selectedBranchId?: string,
   ) {
@@ -250,7 +250,7 @@ export class UsersService {
   }
 
   async updateRole(
-    currentUser: Express.AuthenticatedUser | undefined,
+    currentUser: AuthenticatedUser | undefined,
     profileId: string,
     nextRole?: Role,
     selectedBranchId?: string,

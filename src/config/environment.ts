@@ -9,6 +9,7 @@ const schema = Joi.object({
     .optional(),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
+  ADMIN_DATABASE_URL: Joi.string().allow('').optional(),
   SUPABASE_URL: Joi.string()
     .uri({ scheme: ['https', 'http'] })
     .required(),
@@ -29,9 +30,16 @@ const schema = Joi.object({
   BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_WEBHOOK_ENABLED: Joi.string().valid('true', 'false').optional(),
+  BILLING_DEFAULT_PROVIDER: Joi.string()
+    .valid('MERCADO_PAGO', 'mercado_pago')
+    .optional(),
+  BILLING_MODE: Joi.string().valid('sandbox', 'test', 'production').optional(),
   MERCADO_PAGO_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
   MERCADO_PAGO_ACCESS_TOKEN: Joi.string().allow('').optional(),
   MERCADO_PAGO_COLLECTOR_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_OURO: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_ESMERALDA: Joi.string().allow('').optional(),
+  MERCADO_PAGO_PLAN_ID_DIAMANTE: Joi.string().allow('').optional(),
   CERT_ENCRYPTION_KEY: Joi.string().base64().allow('').optional(),
   CERT_ENCRYPTION_KEY_VERSION: Joi.string().max(32).allow('').optional(),
   CSP_ENFORCE: Joi.string().valid('true', 'false').optional(),
@@ -89,6 +97,13 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
     if (checkoutEnabled || webhookEnabled) {
       requireWhenEmpty(required, value, 'BILLING_EXTERNAL_REFERENCE_SECRET');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_MODE');
+    }
+    if (checkoutEnabled) {
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_OURO');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_ESMERALDA');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_DIAMANTE');
     }
     if (webhookEnabled) {
       requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');
@@ -185,6 +200,16 @@ function validateEnvironmentIsolation(
   ) {
     throw new Error('SUPABASE_PROJECT_REF does not match SUPABASE_URL.');
   }
+  assertSupabaseDatabaseProject(
+    String(value.DATABASE_URL || ''),
+    projectRef,
+    'DATABASE_URL',
+  );
+  assertSupabaseDatabaseProject(
+    String(value.ADMIN_DATABASE_URL || value.DIRECT_URL || ''),
+    projectRef,
+    value.ADMIN_DATABASE_URL ? 'ADMIN_DATABASE_URL' : 'DIRECT_URL',
+  );
   if (appEnv === 'staging') {
     if (!projectRef || !stagingRef || projectRef !== stagingRef) {
       throw new Error(
@@ -215,5 +240,31 @@ function validateEnvironmentIsolation(
     if (webhookEnabled && mercadoPagoMode !== 'production') {
       throw new Error('Production cannot use Mercado Pago sandbox/test mode.');
     }
+  }
+}
+
+function assertSupabaseDatabaseProject(
+  rawUrl: string,
+  projectRef: string,
+  variableName: string,
+) {
+  if (!rawUrl || !projectRef) return;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`${variableName} is not a valid URL.`);
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const isSupabaseDatabase =
+    host.includes('pooler.supabase.com') || host.endsWith('.supabase.co');
+  if (!isSupabaseDatabase) return;
+
+  const identity =
+    `${host}/${decodeURIComponent(parsed.username)}`.toLowerCase();
+  if (!identity.includes(projectRef.toLowerCase())) {
+    throw new Error(`${variableName} does not match SUPABASE_PROJECT_REF.`);
   }
 }

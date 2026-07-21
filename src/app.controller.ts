@@ -1,7 +1,13 @@
 // src/app.controller.ts
-import { Controller, Get, Res, UseGuards } from '@nestjs/common';
-import type { Response } from 'express';
-import { existsSync } from 'fs';
+import {
+  Controller,
+  Get,
+  Header,
+  NotFoundException,
+  StreamableFile,
+  UseGuards,
+} from '@nestjs/common';
+import { createReadStream, existsSync } from 'fs';
 import { join } from 'path';
 import { AppService } from './app.service';
 import { DevSuperAdminGuard } from './auth/dev-super-admin.guard';
@@ -23,16 +29,28 @@ export class AppController {
 
   @Get('dev.html')
   @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
-  devHtml(@Res() res: Response) {
-    res.setHeader('Cache-Control', 'no-cache');
-    return res.sendFile(join(this.resolvePublicPath(), 'dev.html'));
+  @Header('Cache-Control', 'no-cache')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  devHtml() {
+    return this.streamPublicHtml('dev.html');
   }
 
   @Get('parceiros.html')
   @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
-  partnersHtml(@Res() res: Response) {
-    res.setHeader('Cache-Control', 'no-cache');
-    return res.sendFile(join(this.resolvePublicPath(), 'parceiros.html'));
+  @Header('Cache-Control', 'no-cache')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  partnersHtml() {
+    return this.streamPublicHtml('parceiros.html');
+  }
+
+  private streamPublicHtml(fileName: string) {
+    const filePath = join(this.resolvePublicPath(), fileName);
+
+    if (!existsSync(filePath)) {
+      throw new NotFoundException(`${fileName} nao encontrado.`);
+    }
+
+    return new StreamableFile(createReadStream(filePath));
   }
 
   private resolvePublicPath() {
@@ -42,6 +60,8 @@ export class AppController {
       join(process.cwd(), 'public'),
     ];
 
-    return candidates.find((candidate) => existsSync(candidate)) ?? candidates[2];
+    return (
+      candidates.find((candidate) => existsSync(candidate)) ?? candidates[2]
+    );
   }
 }

@@ -1,11 +1,8 @@
-import {
-  CallHandler,
-  ExecutionContext,
-  Injectable,
-} from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable } from '@nestjs/common';
 import { Observable, tap } from 'rxjs';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { PerformanceCacheService } from './performance-cache.service';
+import { getRequestHeader } from '../common/http-types';
 
 @Injectable()
 export class CacheInvalidationInterceptor {
@@ -16,7 +13,8 @@ export class CacheInvalidationInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
-    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return next.handle();
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method))
+      return next.handle();
 
     return next.handle().pipe(
       tap(() => {
@@ -32,11 +30,16 @@ export class CacheInvalidationInterceptor {
         existing ??
         (request.user
           ? await this.tenantContext.resolve(request.user, {
-              selectedBranchId: request.header('x-nextstock-branch-id'),
+              selectedBranchId: getRequestHeader(
+                request,
+                'x-nextstock-branch-id',
+              ),
               requireBranch: true,
               allowDevSupport:
-                request.header('x-nextstock-dev-context')?.toLowerCase() ===
-                'support',
+                getRequestHeader(
+                  request,
+                  'x-nextstock-dev-context',
+                )?.toLowerCase() === 'support',
             })
           : null);
       if (resolved?.tenantId && resolved?.branchId) {

@@ -45,7 +45,7 @@ export class PetClientsService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: PetClientQueryDto,
     selectedBranchId?: string,
   ) {
@@ -75,23 +75,69 @@ export class PetClientsService {
         this.prisma.petClient.count({ where }),
         this.prisma.petClient.findMany({
           where,
-          include: {
+          select: {
+            id: true,
+            tenantId: true,
+            branchId: true,
+            name: true,
+            phone: true,
+            email: true,
+            document: true,
+            address: true,
+            notes: true,
+            createdAt: true,
+            updatedAt: true,
             pets: {
               where: {
                 tenantId: context.tenantId,
                 branchId: context.branchId,
                 deletedAt: null,
               },
-              include: {
+              select: {
+                id: true,
+                tenantId: true,
+                clientId: true,
+                name: true,
+                species: true,
+                breed: true,
+                birthDate: true,
+                ageText: true,
+                weight: true,
+                height: true,
+                width: true,
+                length: true,
+                foodPerDay: true,
+                description: true,
+                vaccinesTaken: true,
+                vaccinesPending: true,
+                createdAt: true,
+                updatedAt: true,
                 photos: {
                   where: {
                     tenantId: context.tenantId,
                     branchId: context.branchId,
                   },
+                  select: {
+                    id: true,
+                    fileName: true,
+                    fileUrl: true,
+                    storagePath: true,
+                    mediumUrl: true,
+                    mediumPath: true,
+                    thumbnailUrl: true,
+                    thumbnailPath: true,
+                    mimeType: true,
+                    size: true,
+                    width: true,
+                    height: true,
+                    createdAt: true,
+                  },
                   orderBy: { createdAt: 'asc' },
+                  take: 1,
                 },
               },
               orderBy: { createdAt: 'desc' },
+              take: 5,
             },
           },
           orderBy: { createdAt: 'desc' },
@@ -119,7 +165,7 @@ export class PetClientsService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -135,7 +181,7 @@ export class PetClientsService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreatePetClientDto,
     selectedBranchId?: string,
   ) {
@@ -161,7 +207,7 @@ export class PetClientsService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePetClientDto,
     selectedBranchId?: string,
@@ -201,7 +247,7 @@ export class PetClientsService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -231,7 +277,7 @@ export class PetClientsService {
   }
 
   async listAppointments(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -258,7 +304,7 @@ export class PetClientsService {
   }
 
   async resolvePetShopContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId?: string,
     writable = false,
   ): Promise<PetShopContext> {
@@ -393,7 +439,7 @@ export class PetClientsService {
   }
 
   private async recordUsage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     eventType: string,
     dbReadCount: number,
     dbWriteCount: number,

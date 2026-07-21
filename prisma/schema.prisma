@@ -209,6 +209,7 @@ model Tenant {
   partnerReferrals PartnerReferral[]
   checkoutSessions CheckoutSession[]
   billingPayments  BillingPayment[]
+  billingInvoices  BillingInvoice[]
   billingEvents    BillingEvent[]
   userSessions     UserSession[]
   storedFiles      StoredFile[]
@@ -237,6 +238,7 @@ model Plan {
   gatewayMappings  GatewayPlanMapping[]
   checkoutSessions CheckoutSession[]
   billingPayments  BillingPayment[]
+  billingInvoices  BillingInvoice[]
   createdAt        DateTime             @default(now()) @map("created_at")
   updatedAt        DateTime             @updatedAt @map("updated_at")
 
@@ -299,6 +301,7 @@ model Subscription {
   partnerPaymentEvents PartnerReferralPaymentEvent[]
   checkoutSessions     CheckoutSession[]
   billingPayments      BillingPayment[]
+  billingInvoices      BillingInvoice[]
   billingEvents        BillingEvent[]
 
   @@index([tenantId, status])
@@ -342,6 +345,7 @@ model CheckoutSession {
   expiresAt           DateTime?              @map("expires_at")
   createdById         String?                @map("created_by_id") @db.Uuid
   completedAt         DateTime?              @map("completed_at")
+  lastReconciledAt    DateTime?              @map("last_reconciled_at")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
@@ -355,6 +359,7 @@ model CheckoutSession {
   @@index([tenantId, status, createdAt])
   @@index([planId])
   @@index([provider, gatewayCheckoutId])
+  @@index([lastReconciledAt])
   @@map("checkout_sessions")
 }
 
@@ -364,6 +369,7 @@ model BillingPayment {
   subscriptionId    String?                @map("subscription_id") @db.Uuid
   planId            String                 @map("plan_id") @db.Uuid
   checkoutSessionId String?                @map("checkout_session_id") @db.Uuid
+  invoiceId         String?                @map("invoice_id") @db.Uuid
   provider          PaymentGatewayProvider
   gatewayPaymentId  String?                @map("gateway_payment_id")
   externalReference String                 @map("external_reference")
@@ -381,13 +387,45 @@ model BillingPayment {
   subscription    Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
   plan            Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
   checkoutSession CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+  invoice         BillingInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   billingEvents   BillingEvent[]
 
   @@index([tenantId, status, createdAt])
   @@index([checkoutSessionId])
+  @@index([invoiceId])
   @@index([externalReference])
   @@index([provider, gatewayPaymentId])
   @@map("billing_payments")
+}
+
+model BillingInvoice {
+  id                String               @id @default(uuid()) @db.Uuid
+  tenantId          String               @map("tenant_id") @db.Uuid
+  subscriptionId    String               @map("subscription_id") @db.Uuid
+  planId            String               @map("plan_id") @db.Uuid
+  provider          PaymentGatewayProvider
+  gatewayInvoiceId  String?              @map("gateway_invoice_id")
+  externalReference String               @map("external_reference")
+  status            BillingInvoiceStatus @default(OPEN)
+  periodStartedAt   DateTime             @map("period_started_at")
+  periodEndsAt      DateTime?            @map("period_ends_at")
+  dueAt             DateTime?            @map("due_at")
+  amountCents       Int                  @map("amount_cents")
+  currency          String               @default("BRL")
+  paidAt            DateTime?            @map("paid_at")
+  metadata          Json?
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  plan         Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
+  payments     BillingPayment[]
+
+  @@unique([subscriptionId, periodStartedAt])
+  @@unique([provider, gatewayInvoiceId])
+  @@index([tenantId, status, dueAt])
+  @@map("billing_invoices")
 }
 
 model GatewayWebhookEvent {
@@ -559,6 +597,9 @@ model PetClient {
 
   @@index([tenantId])
   @@index([tenantId, branchId])
+  @@index([tenantId, branchId, deletedAt, createdAt])
+  @@index([tenantId, branchId, deletedAt, name])
+  @@index([tenantId, branchId, deletedAt, phone])
   @@index([tenantId, name])
   @@index([tenantId, phone])
   @@index([deletedAt])
@@ -715,6 +756,7 @@ model Order {
   fiscalDocuments SaleDocument[]
 
   @@index([tenantId, branchId, createdAt])
+  @@index([tenantId, branchId, deletedAt, createdAt])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, createdAt])
   @@index([tenantId, branchId, customerName])
@@ -784,6 +826,8 @@ model Sale {
 
   @@unique([tenantId, branchId, idempotencyKey])
   @@index([tenantId, branchId, soldAt])
+  @@index([tenantId, branchId, deletedAt, soldAt])
+  @@index([tenantId, branchId, documentType, deletedAt, soldAt])
   @@index([tenantId, branchId, sellerId])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, soldAt])
@@ -888,6 +932,7 @@ model SaleDocument {
 
   @@index([saleId, type, status])
   @@index([tenantId, branchId, status, type])
+  @@index([tenantId, branchId, type, status, createdAt])
   @@index([orderId])
   @@index([idempotencyKey])
   @@map("sale_documents")
@@ -1140,6 +1185,7 @@ model Expense {
   files     ExpenseFile[]
 
   @@index([tenantId, branchId, date])
+  @@index([tenantId, branchId, deletedAt, date])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, date])
   @@index([tenantId, branchId, type])
@@ -1478,6 +1524,16 @@ enum BillingPaymentStatus {
   APPROVED
   REJECTED
   CANCELED
+  REFUNDED
+  CHARGEBACK
+}
+
+enum BillingInvoiceStatus {
+  OPEN
+  PENDING
+  PAID
+  OVERDUE
+  VOID
   REFUNDED
   CHARGEBACK
 }

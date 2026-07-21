@@ -4,7 +4,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { SystemMode } from '@prisma/client';
-import type { Request } from 'express';
+import { getRequestHeader, type Request } from '../common/http-types';
 import { canAccessDev } from '../auth/super-admin.util';
 import {
   TenantContext,
@@ -32,8 +32,8 @@ export class PreviewModePolicyService {
       return;
     }
 
-    const selectedBranchId = request.header('x-nextstock-branch-id');
-    const devContextMode = request.header('x-nextstock-dev-context');
+    const selectedBranchId = getRequestHeader(request, 'x-nextstock-branch-id');
+    const devContextMode = getRequestHeader(request, 'x-nextstock-dev-context');
     let context = request.tenantContext;
 
     if (!context) {

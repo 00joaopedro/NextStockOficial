@@ -37,10 +37,10 @@ describe('BillingEntitlementService', () => {
     }, now).allowed).toBe(false);
   });
 
-  it('grace period explicito permite acesso temporario', () => {
+  it('nao usa grace para liberar acesso sem pagamento confirmado', () => {
     expect(service.evaluate({
       status: SubscriptionStatus.expired,
       graceEndsAt: new Date('2026-06-29T12:00:00Z'),
-    }, now).allowed).toBe(true);
+    }, now).allowed).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import type { Response } from 'express';
+import type { CompatibleReply } from '../common/http-types';
 
 export const SESSION_COOKIE_NAME = 'nextstock_session';
 
@@ -12,17 +12,17 @@ export function sessionCookieOptions() {
 }
 
 export function setSessionCookie(
-  response: Response,
+  reply: CompatibleReply,
   token: string,
   expiresAt: Date,
 ) {
-  response.cookie(SESSION_COOKIE_NAME, token, {
+  reply.setCookie(SESSION_COOKIE_NAME, token, {
     ...sessionCookieOptions(),
     expires: expiresAt,
   });
 }
 
-export function clearAuthCookies(response: Response) {
-  response.clearCookie('jwt', sessionCookieOptions());
-  response.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions());
+export function clearAuthCookies(reply: CompatibleReply) {
+  reply.clearCookie('jwt', sessionCookieOptions());
+  reply.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions());
 }

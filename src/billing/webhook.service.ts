@@ -39,7 +39,8 @@ export class WebhookService {
         });
     if (
       duplicate &&
-      (duplicate.processingStatus === GatewayWebhookProcessingStatus.PROCESSED ||
+      (duplicate.processingStatus ===
+        GatewayWebhookProcessingStatus.PROCESSED ||
         duplicate.processingStatus === GatewayWebhookProcessingStatus.IGNORED)
     ) {
       return { received: true, duplicate: true };
@@ -64,7 +65,10 @@ export class WebhookService {
         },
       }));
 
-    if (!signatureValid || process.env.BILLING_WEBHOOK_ENABLED?.toLowerCase() === 'false') {
+    if (
+      !signatureValid ||
+      process.env.BILLING_WEBHOOK_ENABLED?.toLowerCase() === 'false'
+    ) {
       throw new UnauthorizedException('Webhook Mercado Pago nao autenticado.');
     }
     if (!resourceId) {
@@ -72,9 +76,28 @@ export class WebhookService {
       return { received: true, processed: false };
     }
 
+    const eventType = String(
+      input.body.type || input.body.action || '',
+    ).toLowerCase();
+    if (!eventType.includes('payment')) {
+      await this.prisma.gatewayWebhookEvent.update({
+        where: { id: event.id },
+        data: {
+          processingStatus: GatewayWebhookProcessingStatus.IGNORED,
+          processedAt: new Date(),
+          attemptCount: { increment: 1 },
+          processingError: 'NON_PAYMENT_EVENT',
+        },
+      });
+      return { received: true, processed: false };
+    }
+
     try {
       const payment = await gateway.getPaymentStatus(resourceId);
-      const result = await this.payments.processVerifiedPayment(provider, payment);
+      const result = await this.payments.processVerifiedPayment(
+        provider,
+        payment,
+      );
       await this.prisma.gatewayWebhookEvent.update({
         where: { id: event.id },
         data: {

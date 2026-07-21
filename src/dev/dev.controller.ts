@@ -8,7 +8,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request } from '../common/http-types';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { canAccessDev } from '../auth/super-admin.util';
@@ -83,7 +83,7 @@ export class DevController {
     };
   }
 
-  private assertDevSuperAdmin(user: Express.AuthenticatedUser | undefined) {
+  private assertDevSuperAdmin(user: AuthenticatedUser | undefined) {
     if (!canAccessDev(user)) {
       throw new ForbiddenException('Acesso restrito ao Dev SuperAdmin.');
     }

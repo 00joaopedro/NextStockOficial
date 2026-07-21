@@ -520,6 +520,7 @@
 
   async function init() {
     bindEvents();
+    if (window.isNextStockDemoMode?.()) return;
     try {
       const valid = await bootstrapContext();
       if (!valid) return;

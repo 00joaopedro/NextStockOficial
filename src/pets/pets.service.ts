@@ -34,7 +34,7 @@ export class PetsService {
   ) {}
 
   async listByClient(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     clientId: string,
     selectedBranchId?: string,
   ) {
@@ -73,7 +73,7 @@ export class PetsService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     clientId: string,
     dto: CreatePetDto,
     selectedBranchId?: string,
@@ -104,7 +104,7 @@ export class PetsService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -122,7 +122,7 @@ export class PetsService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdatePetDto,
     selectedBranchId?: string,
@@ -157,7 +157,7 @@ export class PetsService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -179,7 +179,7 @@ export class PetsService {
   }
 
   async listPhotos(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -199,7 +199,7 @@ export class PetsService {
   }
 
   async addPhoto(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     file: UploadFile,
     selectedBranchId?: string,
@@ -254,7 +254,7 @@ export class PetsService {
   }
 
   async removePhoto(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     photoId: string,
     selectedBranchId?: string,
@@ -296,7 +296,7 @@ export class PetsService {
   }
 
   async listAppointments(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
   ) {
@@ -437,7 +437,7 @@ export class PetsService {
   }
 
   private async recordUsage(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     eventType: string,
     dbReadCount: number,
     dbWriteCount: number,

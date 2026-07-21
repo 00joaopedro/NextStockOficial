@@ -1,5 +1,5 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { Request } from 'express';
+import type { Request } from '../../common/http-types';
 import { PreviewModePolicyService } from '../preview-mode-policy.service';
 
 @Injectable()

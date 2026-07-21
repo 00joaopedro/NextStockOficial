@@ -11,7 +11,7 @@ import { canAccessDev } from './super-admin.util';
 export class DevSuperAdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const user = request?.user as Express.AuthenticatedUser | undefined;
+    const user = request?.user as AuthenticatedUser | undefined;
 
     if (!user) {
       throw new UnauthorizedException('Sessao invalida ou ausente.');

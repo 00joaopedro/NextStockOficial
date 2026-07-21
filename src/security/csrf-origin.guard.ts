@@ -5,7 +5,7 @@ import {
   Injectable,
   SetMetadata,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import { getRequestHeader, type Request } from '../common/http-types';
 import { Reflector } from '@nestjs/core';
 
 export const CSRF_EXEMPT_KEY = 'nextstock:csrf-exempt';
@@ -25,10 +25,12 @@ export class CsrfOriginGuard implements CanActivate {
       return true;
     }
     const request = context.switchToHttp().getRequest<Request>();
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) return true;
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method))
+      return true;
     if (!request.cookies?.jwt) return true;
 
-    const origin = request.header('origin') || this.originFromReferer(request);
+    const origin =
+      getRequestHeader(request, 'origin') || this.originFromReferer(request);
     const expectedOrigins = new Set(
       `${process.env.CORS_ALLOWED_ORIGINS || ''},${process.env.PUBLIC_APP_URL || ''}`
         .split(',')
@@ -47,7 +49,7 @@ export class CsrfOriginGuard implements CanActivate {
   }
 
   private originFromReferer(request: Request) {
-    const referer = request.header('referer');
+    const referer = getRequestHeader(request, 'referer');
     if (!referer) return undefined;
     try {
       return new URL(referer).origin;

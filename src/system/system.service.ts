@@ -37,7 +37,7 @@ export class SystemService {
   }
 
   async getContext(
-    currentUser?: Express.AuthenticatedUser,
+    currentUser?: AuthenticatedUser,
     selectedBranchId?: string,
     devContextMode?: string,
   ): Promise<SystemContextResponseDto> {
@@ -122,7 +122,7 @@ export class SystemService {
   }
 
   private resolveTenantSettings(
-    currentUser?: Express.AuthenticatedUser,
+    currentUser?: AuthenticatedUser,
   ): TenantSystemSettings {
     if (!currentUser?.tenantId) {
       return {};

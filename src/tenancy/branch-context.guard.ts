@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
+import { getRequestHeader, type Request } from '../common/http-types';
 import {
   TENANT_CONTEXT_OPTIONS,
   TenantContextMetadata,
@@ -29,8 +29,8 @@ export class BranchContextGuard implements CanActivate {
         TENANT_CONTEXT_OPTIONS,
         [context.getHandler(), context.getClass()],
       ) ?? {};
-    const selectedBranchId = request.header('x-nextstock-branch-id');
-    const devContextMode = request.header('x-nextstock-dev-context');
+    const selectedBranchId = getRequestHeader(request, 'x-nextstock-branch-id');
+    const devContextMode = getRequestHeader(request, 'x-nextstock-dev-context');
 
     const resolved = await this.tenantContext.resolve(request.user, {
       ...options,

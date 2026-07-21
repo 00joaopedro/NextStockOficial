@@ -93,9 +93,16 @@ commits ou arquivos `.env` versionados.
    Mercado Pago quando checkout/webhook forem habilitados.
 5. Gere e cadastre a chave fiscal A1 no formato documentado.
 6. Produza e valide um backup.
-7. Execute `npm run railway:migrate` uma unica vez em job controlado.
-8. Execute o deploy normal com `npm run start:railway`.
+7. Confirme que o pre-deploy do servico executa `npm run railway:migrate` uma
+   unica vez antes de cada release.
+8. Execute o deploy normal; somente depois do pre-deploy bem-sucedido a Railway
+   executara `npm run start:railway`.
 9. Confirme `GET /api/health` e depois `GET /api/health/ready`.
+
+O healthcheck da Railway usa `/api/health/ready`. Alem de conectar ao PostgreSQL,
+esse endpoint exige as tabelas publicas essenciais (`tenants`, `branches`, `profiles`,
+`tenant_members` e `security_audit_events`). Um banco vazio ou com migrations
+incompletas nao deve receber trafego como uma instancia saudavel.
 
 O runtime normaliza automaticamente URLs `:6543` para garantir os parametros PgBouncer. Mesmo assim, configure a URL completa no Railway para deixar a infraestrutura explicita.
 
@@ -162,23 +169,46 @@ node dist/src/main.js
 
 Nao acople migrations ao `start:prod`.
 
-## Railway start command
+## Railway Config as Code, pre-deploy e start
 
-Este repositorio inclui `railway.json` com:
+Este repositorio inclui `/railway.json` com as fases separadas:
 
-```bash
-npm run start:railway
+```json
+{
+  "deploy": {
+    "preDeployCommand": "npm run railway:migrate",
+    "startCommand": "npm run start:railway"
+  }
+}
 ```
 
-Esse script executa:
+`preDeployCommand` pertence a secao `deploy`, no mesmo nivel de
+`startCommand`. O pre-deploy roda com as variaveis do servico e precisa terminar
+com sucesso antes que a nova release seja iniciada. O comando de start continua
+executando somente:
 
 ```bash
 npm run start:prod
 ```
 
-Migrations nao fazem parte do start normal. Execute `npm run railway:migrate`
-uma unica vez em um job controlado, depois de backup, validacao em staging e
-aprovacao. Somente entao promova/inicie a release compativel.
+Migrations nao fazem parte do start normal: sao uma fase controlada e separada
+do deploy. O `prisma migrate deploy` e repetivel e aplica apenas migrations
+pendentes. Ainda assim, valide primeiro em staging, produza backup e obtenha a
+aprovacao antes de promover a mesma release para producao.
+
+No painel Railway, em **Service > Settings > Source**:
+
+- deixe **Root Directory** vazio (raiz do repositorio) ou defina `/`;
+- defina **Config File Path** exatamente como `/railway.json`;
+- nao use um caminho do filesystem do container, como
+  `/workspace/NextStockOficial/railway.json`;
+- apos salvar, confira no deploy details que o pre-deploy resolvido e
+  `npm run railway:migrate` e que ele aparece antes do start.
+
+O Config File Path e relativo a raiz do repositorio, inclusive quando o servico
+possui Root Directory. Se no futuro o app for movido para um subdiretorio, mova
+tambem o arquivo ou mantenha o caminho absoluto do repositorio no painel; para o
+layout atual, a configuracao suportada e `/railway.json` com Root Directory `/`.
 
 Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` ou
 `ADMIN_DATABASE_URL` existe nos ambientes controlados, rejeita
@@ -186,8 +216,8 @@ Antes de chamar o Prisma, `railway:migrate` valida que `DIRECT_URL` ou
 `SUPABASE_PROJECT_REF` e que staging nao reutiliza o project ref de producao.
 O script nao imprime URL nem credenciais.
 
-O `start:prod` continua intencionalmente limitado a iniciar o backend, o que permite
-smoke tests sem reaplicar migrations.
+O `start:prod` continua intencionalmente limitado a iniciar o backend. Nao copie
+o comando de migration para `start:prod` ou `start:railway`.
 
 Nao configure `NPM_CONFIG_PRODUCTION=true`: essa opcao e obsoleta e gera o warning
 `Use --omit=dev instead`. O build atual precisa de dependencias de desenvolvimento
@@ -214,6 +244,47 @@ do job de producao. Rollback da aplicacao nao desfaz schema: para banco, prefira
 uma migration aditiva de roll-forward revisada.
 
 O Prisma CLI prioriza `ADMIN_DATABASE_URL` e depois `DIRECT_URL` para `migrate`. Se a Session Pooler `:5432` nao estiver acessivel e `npm run railway:migrate` falhar, aplique o conteudo do `migration.sql` pendente pelo Supabase SQL Editor somente como plano B. Depois, reconcilie o historico da migration antes do proximo deploy.
+
+### Recuperacao segura de P3009/P3018
+
+Nao use `prisma db push` e nao execute `prisma migrate resolve --applied` apenas
+para liberar o deploy. Primeiro interrompa a promocao, preserve um backup e
+consulte `_prisma_migrations` e o catalogo PostgreSQL pela conexao administrativa.
+Para `20260701010000_internal_receipt_status`, comprove separadamente:
+
+```sql
+SELECT migration_name, started_at, finished_at, rolled_back_at, logs
+FROM "_prisma_migrations"
+WHERE migration_name = '20260701010000_internal_receipt_status';
+
+SELECT EXISTS (
+  SELECT 1
+  FROM pg_enum e
+  JOIN pg_type t ON t.oid = e.enumtypid
+  WHERE t.typname = 'SaleDocumentStatus'
+    AND e.enumlabel = 'internal_issued'
+) AS internal_issued_exists;
+```
+
+A migration de `20260701010000` contem somente o `ALTER TYPE ... ADD VALUE IF
+NOT EXISTS`; o uso/backfill do valor ocorre na migration posterior
+`20260708000000_apply_internal_receipt_status`. Assim:
+
+1. se o registro falhou e o enum **nao existe**, preserve os logs da causa,
+   corrija apenas a causa operacional, marque a tentativa como `--rolled-back`
+   e deixe `prisma migrate deploy` executar o SQL versionado novamente;
+2. se o enum existe, nao presuma que a migration inteira foi aplicada: compare
+   o SQL versionado e a evidencia do catalogo. Somente depois de comprovar que
+   todo o SQL foi executado e revisado e permitido reconciliar o historico;
+3. se houver qualquer divergencia ou SQL parcial em uma migration com mais de
+   uma instrucao, crie um plano de roll-forward aditivo revisado. Nao apague a
+   linha de `_prisma_migrations`, nao edite migrations versionadas e nao apague
+   dados.
+
+O ambiente local deste repositorio nao contem as credenciais do staging; por
+isso o estado `P3009`/`P3018` so pode ser confirmado no alvo pela conexao direta.
+O pre-deploy falhara fechado e o start nao ocorrera enquanto esse estado nao for
+resolvido com evidencia.
 
 Para verificar host/porta sem vazar senha:
 

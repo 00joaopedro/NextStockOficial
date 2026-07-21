@@ -63,7 +63,7 @@ function classifyAuthFailure(
 export class JwtAuthGuard extends AuthGuard('jwt') {
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  handleRequest<TUser = Express.AuthenticatedUser>(
+  handleRequest<TUser = AuthenticatedUser>(
     err: Error | null,
     user: TUser,
     info?: Error,

@@ -46,7 +46,7 @@ export class EmployeesService {
   ) {}
 
   async findAll(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     query: EmployeeQueryDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -86,7 +86,7 @@ export class EmployeesService {
   }
 
   async findOne(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -107,7 +107,7 @@ export class EmployeesService {
   }
 
   async create(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     dto: CreateEmployeeDto,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -232,7 +232,7 @@ export class EmployeesService {
   }
 
   async update(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateEmployeeDto,
     selectedBranchId?: string,
@@ -322,7 +322,7 @@ export class EmployeesService {
   }
 
   async updateStatus(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: UpdateEmployeeStatusDto,
     selectedBranchId?: string,
@@ -381,7 +381,7 @@ export class EmployeesService {
   }
 
   async remove(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
@@ -426,7 +426,7 @@ export class EmployeesService {
   }
 
   async resetPassword(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     id: string,
     dto: ResetEmployeePasswordDto,
     selectedBranchId?: string,
@@ -477,7 +477,7 @@ export class EmployeesService {
   }
 
   private async resolveContext(
-    user: Express.AuthenticatedUser | undefined,
+    user: AuthenticatedUser | undefined,
     selectedBranchId: string | undefined,
     devContextMode: string | undefined,
     writable: boolean,

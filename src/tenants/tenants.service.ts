@@ -22,7 +22,7 @@ export class TenantsService {
     private readonly tenantContext: TenantContextService,
   ) {}
 
-  async list(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+  async list(currentUser?: AuthenticatedUser, selectedBranchId?: string) {
     const context = await this.tenantContext.resolve(currentUser, {
       selectedBranchId,
       allowedRoles: [Role.Admin],
@@ -34,7 +34,7 @@ export class TenantsService {
     };
   }
 
-  async getCurrent(currentUser?: Express.AuthenticatedUser, selectedBranchId?: string) {
+  async getCurrent(currentUser?: AuthenticatedUser, selectedBranchId?: string) {
     const context = await this.tenantContext.resolve(currentUser, { selectedBranchId });
 
     return {
@@ -44,7 +44,7 @@ export class TenantsService {
   }
 
   async updateCurrent(
-    currentUser: Express.AuthenticatedUser | undefined,
+    currentUser: AuthenticatedUser | undefined,
     input: UpdateCurrentTenantInput,
     selectedBranchId?: string,
   ) {

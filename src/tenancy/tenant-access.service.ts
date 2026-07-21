@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { canAccessDev, isSuperAdmin } from '../auth/super-admin.util';
 import { toTenantSummary } from './tenant.utils';
 
-type AuthUser = Express.AuthenticatedUser;
+type AuthUser = AuthenticatedUser;
 
 @Injectable()
 export class TenantAccessService {

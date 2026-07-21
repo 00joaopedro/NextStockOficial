@@ -14,7 +14,7 @@ export async function createSecurityHttpApp() {
     .useClass(DeterministicTestAuthGuard)
     .compile();
   const app = module.createNestApplication();
-  const users = new Map<string, Express.AuthenticatedUser>();
+  const users = new Map<string, AuthenticatedUser>();
   app.getHttpAdapter().getInstance().locals.securityTestUsers = users;
   app.useGlobalPipes(
     new ValidationPipe({

@@ -1132,7 +1132,8 @@
   </div>
 
   <script src="./dist/session-state.js"></script>
-  <script type="text/plain" data-legacy-fiscal-script="disabled">
+  <script>
+    if (window.isNextStockDemoMode?.()) {
     const DEMO_CLIENTS = [
       {
         nome: "Ana Paula Ribeiro",
@@ -1492,6 +1493,7 @@
     });
     } else {
       createItemCard();
+    }
     }
   </script>
   <script src="./Js/ntfe.js"></script>

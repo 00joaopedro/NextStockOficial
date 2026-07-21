@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Prisma, Role, SystemMode, SystemType } from '@prisma/client';
 import { AuthService } from './auth.service';
 
@@ -374,6 +375,67 @@ describe('AuthService', () => {
       }),
     ).rejects.toMatchObject({ status: 503 });
     expect(supabase.admin.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+
+  it('cadastro mapeia P2021 no lookup do slug para 503 antes de criar auth', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.tenant.findUnique.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Table does not exist', {
+        code: 'P2021',
+        clientVersion: '6.19.3',
+        meta: { modelName: 'Tenant', table: 'public.tenants' },
+      }),
+    );
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.register({
+        email: profile.email,
+        name: profile.name,
+        companyName: tenant.name,
+        password: 'Senha123',
+        systemType: 'padrao',
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(supabase.admin.auth.admin.createUser).not.toHaveBeenCalled();
+  });
+
+  it('registra falha da compensacao Auth sem substituir o erro Prisma original', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const loggerSpy = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    prisma.userProfile.findFirst.mockResolvedValue(null);
+    prisma.$transaction.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.19.3',
+      }),
+    );
+    supabase.admin.auth.admin.deleteUser.mockResolvedValue({
+      data: null,
+      error: { code: 'provider_failure', message: 'sensitive provider detail' },
+    });
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(
+      service.register({
+        email: profile.email,
+        name: profile.name,
+        companyName: tenant.name,
+        password: 'Senha123',
+        systemType: 'padrao',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(loggerSpy).toHaveBeenCalledWith(
+      'Registration authentication rollback failed code=provider_failure',
+    );
+    expect(String(loggerSpy.mock.calls.flat())).not.toContain(
+      'sensitive provider detail',
+    );
+    loggerSpy.mockRestore();
   });
 
   it('login comum usa apenas email/senha e retorna a primeira filial automaticamente', async () => {

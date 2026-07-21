@@ -15,7 +15,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import { getRequestHeader, type Request } from '../common/http-types';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
@@ -126,8 +126,10 @@ export class PartnersController {
 
   private audit(req: Request) {
     return {
-      ip: req.header('x-forwarded-for')?.split(',')[0]?.trim() || req.ip,
-      userAgent: req.header('user-agent'),
+      ip:
+        getRequestHeader(req, 'x-forwarded-for')?.split(',')[0]?.trim() ||
+        req.ip,
+      userAgent: getRequestHeader(req, 'user-agent'),
     };
   }
 }
@@ -146,7 +148,9 @@ export class PublicReferralsController {
     const referral = await this.referrals.resolveActive(code);
     if (!referral) {
       await this.referrals.recordRejected(code);
-      throw new NotFoundException('Link de indicacao invalido ou indisponivel.');
+      throw new NotFoundException(
+        'Link de indicacao invalido ou indisponivel.',
+      );
     }
 
     return {
