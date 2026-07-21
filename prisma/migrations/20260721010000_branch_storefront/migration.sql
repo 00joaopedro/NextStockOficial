@@ -81,7 +81,9 @@ CREATE UNIQUE INDEX "orders_storefront_id_idempotency_key_hash_key" ON "orders"(
 CREATE INDEX "orders_storefront_id_status_created_at_idx" ON "orders"("storefront_id", "status", "created_at");
 CREATE INDEX "orders_source_reservation_expires_at_stock_restored_at_idx" ON "orders"("source", "reservation_expires_at", "stock_restored_at");
 
-ALTER TABLE "storefronts", "storefront_products", "storefront_slug_redirects" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "storefronts" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "storefront_products" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "storefront_slug_redirects" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE "storefronts", "storefront_products", "storefront_slug_redirects" FROM anon, authenticated;
 CREATE POLICY "storefronts_service_role_all" ON "storefronts" FOR ALL TO service_role USING (true) WITH CHECK (true);
 CREATE POLICY "storefront_products_service_role_all" ON "storefront_products" FOR ALL TO service_role USING (true) WITH CHECK (true);
