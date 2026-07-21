@@ -49,6 +49,9 @@ const schema = Joi.object({
   AUDIT_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
+  STOREFRONT_PUBLIC_READ_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  STOREFRONT_ORDERING_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  STOREFRONT_TOKEN_SECRET: Joi.string().min(32).allow('').optional(),
 }).unknown(true);
 
 export function validateEnvironment(env: NodeJS.ProcessEnv) {
@@ -88,6 +91,9 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       'SUPABASE_PROJECT_REF',
       'PRODUCTION_SUPABASE_PROJECT_REF',
     ].filter((name) => !String(value[name] ?? '').trim());
+    if (String(value.STOREFRONT_ORDERING_ENABLED).toLowerCase() === 'true') {
+      requireWhenEmpty(required, value, 'STOREFRONT_TOKEN_SECRET');
+    }
     if (appEnv === 'staging') {
       requireWhenEmpty(required, value, 'STAGING_SUPABASE_PROJECT_REF');
     }

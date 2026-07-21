@@ -9,55 +9,55 @@ datasource db {
 }
 
 model UserProfile {
-  id                      String                        @id @db.Uuid
-  supabaseUserId          String?                       @unique @map("supabase_user_id") @db.Uuid
-  tenantId                String?                       @map("tenant_id") @db.Uuid
-  tenant                  Tenant?                       @relation("TenantProfiles", fields: [tenantId], references: [id], onDelete: SetNull)
-  email                   String                        @unique
-  name                    String
-  fullName                String?                       @map("full_name")
-  accessNameNormalized    String                        @map("access_name_normalized")
-  role                    Role                          @default(Comprador)
-  systemType              SystemType?                   @map("system_type")
-  allowedSystemTypes      SystemType[]                  @default([]) @map("allowed_system_types")
-  isSuperAdmin            Boolean                       @default(false) @map("is_super_admin")
-  primaryTenantId         String?                       @map("primary_tenant_id") @db.Uuid
-  primaryTenant           Tenant?                       @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
-  memberships             TenantMember[]
-  devWorkspaces           DevWorkspace[]
-  createdAgendaPets       AgendaPet[]                   @relation("AgendaPetCreatedBy")
-  updatedAgendaPets       AgendaPet[]                   @relation("AgendaPetUpdatedBy")
-  canceledAgendaPets      AgendaPet[]                   @relation("AgendaPetCanceledBy")
-  createdOrders           Order[]                       @relation("OrderCreatedBy")
-  updatedOrders           Order[]                       @relation("OrderUpdatedBy")
-  employee                Employee?                     @relation("EmployeeProfile")
-  createdEmployees        Employee[]                    @relation("EmployeeCreatedBy")
-  updatedEmployees        Employee[]                    @relation("EmployeeUpdatedBy")
-  createdSuppliers        Supplier[]                    @relation("SupplierCreatedBy")
-  updatedSuppliers        Supplier[]                    @relation("SupplierUpdatedBy")
-  createdExpenses         Expense[]                     @relation("ExpenseCreatedBy")
-  updatedExpenses         Expense[]                     @relation("ExpenseUpdatedBy")
-  sales                   Sale[]                        @relation("SaleSeller")
-  canceledSales           Sale[]                        @relation("SaleCanceledBy")
-  createdFiscalDocuments  SaleDocument[]                @relation("SaleDocumentCreatedBy")
-  updatedFiscalDocuments  SaleDocument[]                @relation("SaleDocumentUpdatedBy")
-  fiscalEvents            FiscalDocumentEvent[]         @relation("FiscalEventCreatedBy")
+  id                       String                        @id @db.Uuid
+  supabaseUserId           String?                       @unique @map("supabase_user_id") @db.Uuid
+  tenantId                 String?                       @map("tenant_id") @db.Uuid
+  tenant                   Tenant?                       @relation("TenantProfiles", fields: [tenantId], references: [id], onDelete: SetNull)
+  email                    String                        @unique
+  name                     String
+  fullName                 String?                       @map("full_name")
+  accessNameNormalized     String                        @map("access_name_normalized")
+  role                     Role                          @default(Comprador)
+  systemType               SystemType?                   @map("system_type")
+  allowedSystemTypes       SystemType[]                  @default([]) @map("allowed_system_types")
+  isSuperAdmin             Boolean                       @default(false) @map("is_super_admin")
+  primaryTenantId          String?                       @map("primary_tenant_id") @db.Uuid
+  primaryTenant            Tenant?                       @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
+  memberships              TenantMember[]
+  devWorkspaces            DevWorkspace[]
+  createdAgendaPets        AgendaPet[]                   @relation("AgendaPetCreatedBy")
+  updatedAgendaPets        AgendaPet[]                   @relation("AgendaPetUpdatedBy")
+  canceledAgendaPets       AgendaPet[]                   @relation("AgendaPetCanceledBy")
+  createdOrders            Order[]                       @relation("OrderCreatedBy")
+  updatedOrders            Order[]                       @relation("OrderUpdatedBy")
+  employee                 Employee?                     @relation("EmployeeProfile")
+  createdEmployees         Employee[]                    @relation("EmployeeCreatedBy")
+  updatedEmployees         Employee[]                    @relation("EmployeeUpdatedBy")
+  createdSuppliers         Supplier[]                    @relation("SupplierCreatedBy")
+  updatedSuppliers         Supplier[]                    @relation("SupplierUpdatedBy")
+  createdExpenses          Expense[]                     @relation("ExpenseCreatedBy")
+  updatedExpenses          Expense[]                     @relation("ExpenseUpdatedBy")
+  sales                    Sale[]                        @relation("SaleSeller")
+  canceledSales            Sale[]                        @relation("SaleCanceledBy")
+  createdFiscalDocuments   SaleDocument[]                @relation("SaleDocumentCreatedBy")
+  updatedFiscalDocuments   SaleDocument[]                @relation("SaleDocumentUpdatedBy")
+  fiscalEvents             FiscalDocumentEvent[]         @relation("FiscalEventCreatedBy")
   fiscalProductionsEnabled CompanyFiscalConfig[]         @relation("FiscalProductionEnabledBy")
-  createdPaymentMachines  PaymentMachine[]              @relation("PaymentMachineCreatedBy")
-  updatedPaymentMachines  PaymentMachine[]              @relation("PaymentMachineUpdatedBy")
-  createdPartners         Partner[]                     @relation("PartnerCreatedBy")
-  updatedPartners         Partner[]                     @relation("PartnerUpdatedBy")
-  referredProfiles        PartnerReferral[]             @relation("PartnerReferredProfile")
-  seenPartnerReferrals    PartnerReferral[]             @relation("PartnerReferralSeenBy")
-  partnerLinkEvents       PartnerLinkEvent[]            @relation("PartnerLinkEventActor")
-  partnerPaymentChanges   PartnerReferralPaymentEvent[] @relation("PartnerPaymentChangedBy")
-  partnerSeenChanges      PartnerReferralSeenEvent[]    @relation("PartnerSeenChangedBy")
-  createdBillingCheckouts CheckoutSession[]             @relation("BillingCheckoutCreatedBy")
-  billingEvents           BillingEvent[]                @relation("BillingEventActor")
-  sessions                UserSession[]
-  ownedStoredFiles        StoredFile[]                   @relation("StoredFileOwner")
-  createdAt               DateTime                      @default(now()) @map("created_at")
-  updatedAt               DateTime                      @updatedAt @map("updated_at")
+  createdPaymentMachines   PaymentMachine[]              @relation("PaymentMachineCreatedBy")
+  updatedPaymentMachines   PaymentMachine[]              @relation("PaymentMachineUpdatedBy")
+  createdPartners          Partner[]                     @relation("PartnerCreatedBy")
+  updatedPartners          Partner[]                     @relation("PartnerUpdatedBy")
+  referredProfiles         PartnerReferral[]             @relation("PartnerReferredProfile")
+  seenPartnerReferrals     PartnerReferral[]             @relation("PartnerReferralSeenBy")
+  partnerLinkEvents        PartnerLinkEvent[]            @relation("PartnerLinkEventActor")
+  partnerPaymentChanges    PartnerReferralPaymentEvent[] @relation("PartnerPaymentChangedBy")
+  partnerSeenChanges       PartnerReferralSeenEvent[]    @relation("PartnerSeenChangedBy")
+  createdBillingCheckouts  CheckoutSession[]             @relation("BillingCheckoutCreatedBy")
+  billingEvents            BillingEvent[]                @relation("BillingEventActor")
+  sessions                 UserSession[]
+  ownedStoredFiles         StoredFile[]                  @relation("StoredFileOwner")
+  createdAt                DateTime                      @default(now()) @map("created_at")
+  updatedAt                DateTime                      @updatedAt @map("updated_at")
 
   @@index([tenantId])
   @@index([primaryTenantId])
@@ -65,21 +65,21 @@ model UserProfile {
 }
 
 model UserSession {
-  id               String    @id @default(uuid()) @db.Uuid
-  profileId        String    @map("profile_id") @db.Uuid
-  profile          UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  tenantId         String?   @map("tenant_id") @db.Uuid
-  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  tokenIdHash      String    @unique @map("token_id_hash")
-  jwtSubject       String?   @map("jwt_subject")
-  expiresAt        DateTime  @map("expires_at")
-  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
-  revokedAt        DateTime? @map("revoked_at")
-  revokedReason    String?   @map("revoked_reason")
-  ipHash           String?   @map("ip_hash")
-  userAgentHash    String?   @map("user_agent_hash")
-  deviceLabel      String?   @map("device_label")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id            String      @id @default(uuid()) @db.Uuid
+  profileId     String      @map("profile_id") @db.Uuid
+  profile       UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tenantId      String?     @map("tenant_id") @db.Uuid
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tokenIdHash   String      @unique @map("token_id_hash")
+  jwtSubject    String?     @map("jwt_subject")
+  expiresAt     DateTime    @map("expires_at")
+  lastSeenAt    DateTime    @default(now()) @map("last_seen_at")
+  revokedAt     DateTime?   @map("revoked_at")
+  revokedReason String?     @map("revoked_reason")
+  ipHash        String?     @map("ip_hash")
+  userAgentHash String?     @map("user_agent_hash")
+  deviceLabel   String?     @map("device_label")
+  createdAt     DateTime    @default(now()) @map("created_at")
 
   @@index([profileId, createdAt])
   @@index([profileId, revokedAt])
@@ -90,37 +90,37 @@ model UserSession {
 }
 
 model StoredFile {
-  id              String               @id @default(uuid()) @db.Uuid
-  tenantId        String               @map("tenant_id") @db.Uuid
-  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  branchId        String?              @map("branch_id") @db.Uuid
-  branch          Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  ownerProfileId  String?              @map("owner_profile_id") @db.Uuid
-  ownerProfile    UserProfile?         @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
-  module          String
-  targetType      String?              @map("target_type")
-  targetId        String?              @map("target_id")
-  bucket          String
-  storagePath     String               @map("storage_path")
-  originalName    String?              @map("original_name")
-  mimeType        String               @map("mime_type")
-  extension       String?
-  sizeBytes       BigInt               @map("size_bytes")
-  sha256          String?
-  visibility      StoredFileVisibility @default(SIGNED_ONLY)
-  scanStatus      StoredFileScanStatus @default(NOT_REQUIRED) @map("scan_status")
-  status          StoredFileStatus     @default(ACTIVE)
-  uploadedAt      DateTime             @default(now()) @map("uploaded_at")
-  deletedAt       DateTime?            @map("deleted_at")
-  lastAccessedAt  DateTime?            @map("last_accessed_at")
-  metadata        Json?
+  id             String               @id @default(uuid()) @db.Uuid
+  tenantId       String               @map("tenant_id") @db.Uuid
+  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branchId       String?              @map("branch_id") @db.Uuid
+  branch         Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  ownerProfileId String?              @map("owner_profile_id") @db.Uuid
+  ownerProfile   UserProfile?         @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  module         String
+  targetType     String?              @map("target_type")
+  targetId       String?              @map("target_id")
+  bucket         String
+  storagePath    String               @map("storage_path")
+  originalName   String?              @map("original_name")
+  mimeType       String               @map("mime_type")
+  extension      String?
+  sizeBytes      BigInt               @map("size_bytes")
+  sha256         String?
+  visibility     StoredFileVisibility @default(SIGNED_ONLY)
+  scanStatus     StoredFileScanStatus @default(NOT_REQUIRED) @map("scan_status")
+  status         StoredFileStatus     @default(ACTIVE)
+  uploadedAt     DateTime             @default(now()) @map("uploaded_at")
+  deletedAt      DateTime?            @map("deleted_at")
+  lastAccessedAt DateTime?            @map("last_accessed_at")
+  metadata       Json?
 
+  @@unique([bucket, storagePath])
   @@index([tenantId, module, uploadedAt])
   @@index([tenantId, status])
   @@index([targetType, targetId])
   @@index([sha256])
   @@index([ownerProfileId, uploadedAt])
-  @@unique([bucket, storagePath])
   @@map("stored_files")
 }
 
@@ -213,6 +213,7 @@ model Tenant {
   billingEvents    BillingEvent[]
   userSessions     UserSession[]
   storedFiles      StoredFile[]
+  storefronts      Storefront[]
   createdAt        DateTime              @default(now()) @map("created_at")
   updatedAt        DateTime              @updatedAt @map("updated_at")
 
@@ -399,23 +400,23 @@ model BillingPayment {
 }
 
 model BillingInvoice {
-  id                String               @id @default(uuid()) @db.Uuid
-  tenantId          String               @map("tenant_id") @db.Uuid
-  subscriptionId    String               @map("subscription_id") @db.Uuid
-  planId            String               @map("plan_id") @db.Uuid
+  id                String                 @id @default(uuid()) @db.Uuid
+  tenantId          String                 @map("tenant_id") @db.Uuid
+  subscriptionId    String                 @map("subscription_id") @db.Uuid
+  planId            String                 @map("plan_id") @db.Uuid
   provider          PaymentGatewayProvider
-  gatewayInvoiceId  String?              @map("gateway_invoice_id")
-  externalReference String               @map("external_reference")
-  status            BillingInvoiceStatus @default(OPEN)
-  periodStartedAt   DateTime             @map("period_started_at")
-  periodEndsAt      DateTime?            @map("period_ends_at")
-  dueAt             DateTime?            @map("due_at")
-  amountCents       Int                  @map("amount_cents")
-  currency          String               @default("BRL")
-  paidAt            DateTime?            @map("paid_at")
+  gatewayInvoiceId  String?                @map("gateway_invoice_id")
+  externalReference String                 @map("external_reference")
+  status            BillingInvoiceStatus   @default(OPEN)
+  periodStartedAt   DateTime               @map("period_started_at")
+  periodEndsAt      DateTime?              @map("period_ends_at")
+  dueAt             DateTime?              @map("due_at")
+  amountCents       Int                    @map("amount_cents")
+  currency          String                 @default("BRL")
+  paidAt            DateTime?              @map("paid_at")
   metadata          Json?
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
 
   tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   subscription Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
@@ -502,11 +503,13 @@ model Branch {
   paymentMachines  PaymentMachine[]
   devWorkspaces    DevWorkspace[]
   partnerReferrals PartnerReferral[]
-  storedFiles       StoredFile[]
+  storedFiles      StoredFile[]
+  storefront       Storefront?
   createdAt        DateTime              @default(now()) @map("created_at")
   updatedAt        DateTime              @updatedAt @map("updated_at")
 
   @@unique([tenantId, slug])
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@map("branches")
 }
@@ -677,44 +680,45 @@ model PetPhoto {
 
 model Product {
   /// Products are branch-wide. Legacy rows without branchId are not exposed.
-  id             String               @id @default(uuid()) @db.Uuid
-  tenantId       String               @map("tenant_id") @db.Uuid
-  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId       String?              @map("branch_id") @db.Uuid
-  branch         Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  name           String
-  costPriceCents Int                  @map("cost_price_cents")
-  profitPercent  Decimal              @map("profit_percent") @db.Decimal(7, 2)
-  salePriceCents Int                  @map("sale_price_cents")
-  quantity       Int
-  brand          String?
-  category       String?
-  supplier       String?
-  sku            String?
-  barcode        String?
-  description    String?
-  weight         String?
-  height         String?
-  width          String?
-  externalLink   String?              @map("external_link")
-  clothingSize   String?              @map("clothing_size")
-  apparelSize    String?              @map("apparel_size")
-  images         ProductImage[]
-  orderItems     OrderItem[]
-  expenseItems   ExpenseItem[]
-  saleItems      SaleItem[]
-  fiscalItems    FiscalDocumentItem[]
-  ncm            String?
-  cfopDefault    String?              @map("cfop_default")
-  cest           String?
-  origin         String?
-  unit           String?
-  icmsRate       Decimal?             @map("icms_rate") @db.Decimal(7, 4)
-  ipiRate        Decimal?             @map("ipi_rate") @db.Decimal(7, 4)
-  pisRate        Decimal?             @map("pis_rate") @db.Decimal(7, 4)
-  cofinsRate     Decimal?             @map("cofins_rate") @db.Decimal(7, 4)
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id                 String               @id @default(uuid()) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId           String?              @map("branch_id") @db.Uuid
+  branch             Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  name               String
+  costPriceCents     Int                  @map("cost_price_cents")
+  profitPercent      Decimal              @map("profit_percent") @db.Decimal(7, 2)
+  salePriceCents     Int                  @map("sale_price_cents")
+  quantity           Int
+  brand              String?
+  category           String?
+  supplier           String?
+  sku                String?
+  barcode            String?
+  description        String?
+  weight             String?
+  height             String?
+  width              String?
+  externalLink       String?              @map("external_link")
+  clothingSize       String?              @map("clothing_size")
+  apparelSize        String?              @map("apparel_size")
+  images             ProductImage[]
+  orderItems         OrderItem[]
+  expenseItems       ExpenseItem[]
+  saleItems          SaleItem[]
+  fiscalItems        FiscalDocumentItem[]
+  storefrontListings StorefrontProduct[]
+  ncm                String?
+  cfopDefault        String?              @map("cfop_default")
+  cest               String?
+  origin             String?
+  unit               String?
+  icmsRate           Decimal?             @map("icms_rate") @db.Decimal(7, 4)
+  ipiRate            Decimal?             @map("ipi_rate") @db.Decimal(7, 4)
+  pisRate            Decimal?             @map("pis_rate") @db.Decimal(7, 4)
+  cofinsRate         Decimal?             @map("cofins_rate") @db.Decimal(7, 4)
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
 
   @@unique([tenantId, branchId, sku])
   @@unique([tenantId, branchId, barcode])
@@ -725,29 +729,40 @@ model Product {
 }
 
 model Order {
-  id                 String             @id @default(uuid()) @db.Uuid
-  tenantId           String             @map("tenant_id") @db.Uuid
-  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId           String             @map("branch_id") @db.Uuid
-  branch             Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  customerName       String             @map("customer_name")
-  customerDocument   String?            @map("customer_document")
-  customerPhone      String?            @map("customer_phone")
-  customerEmail      String?            @map("customer_email")
-  paymentMethod      OrderPaymentMethod @default(other) @map("payment_method")
-  status             OrderStatus        @default(pending)
-  subtotalCents      Int                @map("subtotal_cents")
-  discountCents      Int                @default(0) @map("discount_cents")
-  totalCents         Int                @map("total_cents")
-  notes              String?
-  deliveredAt        DateTime?          @map("delivered_at")
-  canceledAt         DateTime?          @map("canceled_at")
-  cancellationReason String?            @map("cancellation_reason")
-  createdById        String?            @map("created_by_id") @db.Uuid
-  updatedById        String?            @map("updated_by_id") @db.Uuid
-  deletedAt          DateTime?          @map("deleted_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                     String             @id @default(uuid()) @db.Uuid
+  tenantId               String             @map("tenant_id") @db.Uuid
+  tenant                 Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId               String             @map("branch_id") @db.Uuid
+  branch                 Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customerName           String             @map("customer_name")
+  customerDocument       String?            @map("customer_document")
+  customerPhone          String?            @map("customer_phone")
+  customerEmail          String?            @map("customer_email")
+  paymentMethod          OrderPaymentMethod @default(other) @map("payment_method")
+  status                 OrderStatus        @default(pending)
+  subtotalCents          Int                @map("subtotal_cents")
+  discountCents          Int                @default(0) @map("discount_cents")
+  totalCents             Int                @map("total_cents")
+  notes                  String?
+  deliveredAt            DateTime?          @map("delivered_at")
+  canceledAt             DateTime?          @map("canceled_at")
+  cancellationReason     String?            @map("cancellation_reason")
+  createdById            String?            @map("created_by_id") @db.Uuid
+  updatedById            String?            @map("updated_by_id") @db.Uuid
+  deletedAt              DateTime?          @map("deleted_at")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  source                 OrderSource        @default(admin)
+  storefrontId           String?            @map("storefront_id") @db.Uuid
+  storefront             Storefront?        @relation(fields: [storefrontId], references: [id], onDelete: SetNull)
+  publicReference        String?            @unique @map("public_reference")
+  publicAccessTokenHash  String?            @map("public_access_token_hash")
+  idempotencyKeyHash     String?            @map("idempotency_key_hash")
+  idempotencyRequestHash String?            @map("idempotency_request_hash")
+  fulfillmentType        FulfillmentType?   @map("fulfillment_type")
+  deliveryAddress        Json?              @map("delivery_address")
+  reservationExpiresAt   DateTime?          @map("reservation_expires_at")
+  stockRestoredAt        DateTime?          @map("stock_restored_at")
 
   createdBy       UserProfile?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy       UserProfile?   @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
@@ -755,13 +770,77 @@ model Order {
   sale            Sale?
   fiscalDocuments SaleDocument[]
 
+  @@unique([storefrontId, idempotencyKeyHash])
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, deletedAt, createdAt])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, createdAt])
   @@index([tenantId, branchId, customerName])
   @@index([deletedAt])
+  @@index([storefrontId, status, createdAt])
+  @@index([source, reservationExpiresAt, stockRestoredAt])
   @@map("orders")
+}
+
+model Storefront {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          String                   @unique @map("branch_id") @db.Uuid
+  branch            Branch                   @relation(fields: [branchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  publicSlug        String                   @unique @map("public_slug")
+  status            StorefrontStatus         @default(draft)
+  publicName        String                   @map("public_name")
+  publicDescription String?                  @map("public_description")
+  orderingEnabled   Boolean                  @default(false) @map("ordering_enabled")
+  pickupEnabled     Boolean                  @default(true) @map("pickup_enabled")
+  deliveryEnabled   Boolean                  @default(true) @map("delivery_enabled")
+  publishedAt       DateTime?                @map("published_at")
+  products          StorefrontProduct[]
+  orders            Order[]
+  redirects         StorefrontSlugRedirect[]
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([branchId, tenantId])
+  @@index([tenantId, status])
+  @@map("storefronts")
+}
+
+model StorefrontProduct {
+  id                      String     @id @default(uuid()) @db.Uuid
+  storefrontId            String     @map("storefront_id") @db.Uuid
+  storefront              Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  productId               String     @map("product_id") @db.Uuid
+  product                 Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  publicSlug              String     @map("public_slug")
+  isPublished             Boolean    @default(false) @map("is_published")
+  availableForOnlineOrder Boolean    @default(false) @map("available_for_online_order")
+  publicName              String?    @map("public_name")
+  publicDescription       String?    @map("public_description")
+  sortOrder               Int        @default(0) @map("sort_order")
+  minimumOrderQuantity    Int        @default(1) @map("minimum_order_quantity")
+  maximumOrderQuantity    Int?       @map("maximum_order_quantity")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  @@unique([storefrontId, productId])
+  @@unique([storefrontId, publicSlug])
+  @@index([storefrontId, isPublished, sortOrder])
+  @@index([productId])
+  @@map("storefront_products")
+}
+
+model StorefrontSlugRedirect {
+  id           String     @id @default(uuid()) @db.Uuid
+  storefrontId String     @map("storefront_id") @db.Uuid
+  storefront   Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  oldSlug      String     @unique @map("old_slug")
+  expiresAt    DateTime?  @map("expires_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([storefrontId])
+  @@map("storefront_slug_redirects")
 }
 
 model OrderItem {
@@ -939,58 +1018,58 @@ model SaleDocument {
 }
 
 model CompanyFiscalConfig {
-  id                    String            @id @default(uuid()) @db.Uuid
-  tenantId              String            @map("tenant_id") @db.Uuid
-  branchId              String            @map("branch_id") @db.Uuid
-  legalName             String            @map("legal_name")
-  tradeName             String?           @map("trade_name")
-  cnpj                  String
-  stateRegistration     String?           @map("state_registration")
-  municipalRegistration String?           @map("municipal_registration")
-  crt                   Int
-  taxRegime             String            @map("tax_regime")
-  street                String
-  number                String
-  complement            String?
-  district              String
-  city                  String
-  cityCodeIbge          String            @map("city_code_ibge")
-  state                 String
-  zipCode               String            @map("zip_code")
-  country               String            @default("Brasil")
-  environment           FiscalEnvironment @default(homologacao)
-  certificatePath       String?           @map("certificate_path")
-  certificateSecretRef  String?           @map("certificate_secret_ref")
-  certificateOriginalName String?         @map("certificate_original_name")
-  certificateMimeType     String?         @map("certificate_mime_type")
-  certificateSize         Int?            @map("certificate_size")
-  certificatePasswordEncrypted String?    @map("certificate_password_encrypted")
-  certificatePasswordKeyVersion String?   @map("certificate_password_key_version")
-  certificateUploadedAt   DateTime?       @map("certificate_uploaded_at")
-  certificateValidFrom    DateTime?       @map("certificate_valid_from")
-  certificateExpiresAt  DateTime?         @map("certificate_expires_at")
-  certificateSubject      String?         @map("certificate_subject")
-  certificateIssuer       String?         @map("certificate_issuer")
-  certificateSerialNumber String?         @map("certificate_serial_number")
-  certificateCnpj         String?         @map("certificate_cnpj")
-  certificateFingerprintSha256 String?    @map("certificate_fingerprint_sha256")
-  certificateValidatedAt  DateTime?       @map("certificate_validated_at")
-  certificateValidationStatus CertificateValidationStatus? @map("certificate_validation_status")
-  certificateValidationErrorCode String?  @map("certificate_validation_error_code")
-  productionEnabledAt     DateTime?       @map("production_enabled_at")
-  productionEnabledById   String?         @map("production_enabled_by_id") @db.Uuid
-  deletedAt               DateTime?       @map("deleted_at")
-  nfeSeries             String            @default("1") @map("nfe_series")
-  nfceSeries            String            @default("1") @map("nfce_series")
-  nextNfeNumber         Int               @default(1) @map("next_nfe_number")
-  nextNfceNumber        Int               @default(1) @map("next_nfce_number")
-  provider              String            @default("mock")
-  providerConfig        Json?             @map("provider_config")
-  createdAt             DateTime          @default(now()) @map("created_at")
-  updatedAt             DateTime          @updatedAt @map("updated_at")
+  id                             String                       @id @default(uuid()) @db.Uuid
+  tenantId                       String                       @map("tenant_id") @db.Uuid
+  branchId                       String                       @map("branch_id") @db.Uuid
+  legalName                      String                       @map("legal_name")
+  tradeName                      String?                      @map("trade_name")
+  cnpj                           String
+  stateRegistration              String?                      @map("state_registration")
+  municipalRegistration          String?                      @map("municipal_registration")
+  crt                            Int
+  taxRegime                      String                       @map("tax_regime")
+  street                         String
+  number                         String
+  complement                     String?
+  district                       String
+  city                           String
+  cityCodeIbge                   String                       @map("city_code_ibge")
+  state                          String
+  zipCode                        String                       @map("zip_code")
+  country                        String                       @default("Brasil")
+  environment                    FiscalEnvironment            @default(homologacao)
+  certificatePath                String?                      @map("certificate_path")
+  certificateSecretRef           String?                      @map("certificate_secret_ref")
+  certificateOriginalName        String?                      @map("certificate_original_name")
+  certificateMimeType            String?                      @map("certificate_mime_type")
+  certificateSize                Int?                         @map("certificate_size")
+  certificatePasswordEncrypted   String?                      @map("certificate_password_encrypted")
+  certificatePasswordKeyVersion  String?                      @map("certificate_password_key_version")
+  certificateUploadedAt          DateTime?                    @map("certificate_uploaded_at")
+  certificateValidFrom           DateTime?                    @map("certificate_valid_from")
+  certificateExpiresAt           DateTime?                    @map("certificate_expires_at")
+  certificateSubject             String?                      @map("certificate_subject")
+  certificateIssuer              String?                      @map("certificate_issuer")
+  certificateSerialNumber        String?                      @map("certificate_serial_number")
+  certificateCnpj                String?                      @map("certificate_cnpj")
+  certificateFingerprintSha256   String?                      @map("certificate_fingerprint_sha256")
+  certificateValidatedAt         DateTime?                    @map("certificate_validated_at")
+  certificateValidationStatus    CertificateValidationStatus? @map("certificate_validation_status")
+  certificateValidationErrorCode String?                      @map("certificate_validation_error_code")
+  productionEnabledAt            DateTime?                    @map("production_enabled_at")
+  productionEnabledById          String?                      @map("production_enabled_by_id") @db.Uuid
+  deletedAt                      DateTime?                    @map("deleted_at")
+  nfeSeries                      String                       @default("1") @map("nfe_series")
+  nfceSeries                     String                       @default("1") @map("nfce_series")
+  nextNfeNumber                  Int                          @default(1) @map("next_nfe_number")
+  nextNfceNumber                 Int                          @default(1) @map("next_nfce_number")
+  provider                       String                       @default("mock")
+  providerConfig                 Json?                        @map("provider_config")
+  createdAt                      DateTime                     @default(now()) @map("created_at")
+  updatedAt                      DateTime                     @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
   productionEnabledBy UserProfile? @relation("FiscalProductionEnabledBy", fields: [productionEnabledById], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, branchId])
@@ -1212,21 +1291,21 @@ model ExpenseItem {
 }
 
 model ExpenseFile {
-  id          String          @id @default(uuid()) @db.Uuid
-  expenseId   String          @map("expense_id") @db.Uuid
-  tenantId    String          @map("tenant_id") @db.Uuid
-  branchId    String          @map("branch_id") @db.Uuid
-  fileName    String          @map("file_name")
-  mimeType    String          @map("mime_type")
-  fileType    ExpenseFileType @map("file_type")
-  fileSize    Int             @map("file_size")
-  originalSize Int?           @map("original_size")
-  width       Int?
-  height      Int?
-  storagePath String          @map("storage_path")
-  fileUrl     String?         @map("file_url")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  deletedAt   DateTime?       @map("deleted_at")
+  id           String          @id @default(uuid()) @db.Uuid
+  expenseId    String          @map("expense_id") @db.Uuid
+  tenantId     String          @map("tenant_id") @db.Uuid
+  branchId     String          @map("branch_id") @db.Uuid
+  fileName     String          @map("file_name")
+  mimeType     String          @map("mime_type")
+  fileType     ExpenseFileType @map("file_type")
+  fileSize     Int             @map("file_size")
+  originalSize Int?            @map("original_size")
+  width        Int?
+  height       Int?
+  storagePath  String          @map("storage_path")
+  fileUrl      String?         @map("file_url")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  deletedAt    DateTime?       @map("deleted_at")
 
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1589,6 +1668,24 @@ enum OrderPaymentMethod {
   debit_card
   cash
   other
+}
+
+enum StorefrontStatus {
+  draft
+  active
+  paused
+  suspended
+  archived
+}
+
+enum OrderSource {
+  admin
+  storefront_guest
+}
+
+enum FulfillmentType {
+  pickup
+  delivery
 }
 
 enum SaleStatus {

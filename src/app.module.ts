@@ -45,6 +45,7 @@ import { ObservabilityModule } from './observability/observability.module';
 import { ObservabilityInterceptor } from './observability/observability.interceptor';
 import { PrivacyModule } from './privacy/privacy.module';
 import { PreviewMutationInterceptor } from './system/interceptors/preview-mutation.interceptor';
+import { StorefrontModule } from './storefront/storefront.module';
 
 const publicPath = join(__dirname, '..', 'public');
 
@@ -112,6 +113,7 @@ const publicPath = join(__dirname, '..', 'public');
     DashboardModule,
     PartnersModule,
     BillingModule,
+    StorefrontModule,
   ],
   controllers: [AppController],
   providers: [

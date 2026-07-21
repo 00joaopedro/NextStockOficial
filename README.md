@@ -277,3 +277,32 @@ O NextStock suporta operação read-only por tenant. Em
 mutações autenticadas retornam `PREVIEW_MODE_MUTATION_BLOCKED`. A política e o
 checklist para novas rotas estão em
 [`docs/security/preview-mode.md`](docs/security/preview-mode.md).
+
+## Vitrine publica por filial
+
+A vitrine publica e um dominio separado das paginas administrativas. Cada filial pode
+ter no maximo uma `Storefront`; lojas e produtos existentes continuam despublicados.
+O shell publico e servido em `/loja/<publicSlug>` e consome somente
+`/api/public/storefronts/*`. Ative o rollout em duas fases:
+
+1. aplique a migration `20260721010000_branch_storefront` em staging;
+2. configure a vitrine e os produtos pelos endpoints administrativos `/api/storefront`;
+3. defina um `STOREFRONT_TOKEN_SECRET` protegido e aleatorio com 32+ caracteres;
+4. habilite `STOREFRONT_PUBLIC_READ_ENABLED=true` para leitura;
+5. somente depois dos testes, habilite `STOREFRONT_ORDERING_ENABLED=true`.
+
+O checkout ignora precos do navegador, usa o preco atual do PDV, limita o carrinho a
+100 produtos distintos, exige telefone e `Idempotency-Key`, e reserva estoque por 30
+dias com decremento condicional dentro de transacao. Produtos fracionados (peso ou
+volume) ficam bloqueados da publicacao ate que estoque e pedido suportem uma unidade
+minima precisa. Vitrines sem assinatura ativa/trial ficam invisiveis.
+
+O limitador atual e economico e local ao processo. Antes de escalar o servico Railway
+para mais de uma replica, substitua-o por um store compartilhado; manter uma replica
+evita falsa sensacao de limite distribuido e reduz custo na fase inicial.
+
+Agende `npm run storefront:cleanup` diariamente em um Railway Cron separado, primeiro
+com `MAINTENANCE_DRY_RUN=true`. O job expira reservas vencidas com devolucao atomica do
+estoque e anonimiza PII de pedidos publicos finais apos 30 dias. Ele e limitado a 500
+reservas por execucao para evitar picos de banco; monitore a fila antes de reduzir esse
+intervalo.
