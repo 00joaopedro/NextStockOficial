@@ -136,7 +136,7 @@ describe('EmployeesService', () => {
   });
 
   it('cria funcionario logavel vinculado ao tenant e branch do contexto sem retornar senha', async () => {
-    const { service, supabase, tx, tenantContext } = makeService();
+    const { service, prisma, supabase, tx, tenantContext } = makeService();
 
     const result = await service.create(
       { id: 'admin-id', email: 'admin@example.com' } as any,
@@ -164,6 +164,10 @@ describe('EmployeesService', () => {
       password: 'SenhaForte123',
       email_confirm: true,
       user_metadata: { name: 'Operador Caixa', employee: true },
+    });
+    expect(prisma.userProfile.findFirst).toHaveBeenCalledWith({
+      where: { email: 'caixa@example.com' },
+      select: { id: true },
     });
     expect(tx.userProfile.create).toHaveBeenCalledWith(
       expect.objectContaining({

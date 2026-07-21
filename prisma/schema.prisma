@@ -16,7 +16,7 @@ model UserProfile {
   email                   String                        @unique
   name                    String
   fullName                String?                       @map("full_name")
-  accessNameNormalized    String                        @unique @map("access_name_normalized")
+  accessNameNormalized    String                        @map("access_name_normalized")
   role                    Role                          @default(Comprador)
   systemType              SystemType?                   @map("system_type")
   allowedSystemTypes      SystemType[]                  @default([]) @map("allowed_system_types")
@@ -178,7 +178,7 @@ model Tenant {
   id               String                @id @default(uuid()) @db.Uuid
   name             String
   slug             String                @unique
-  cnpj             String?
+  cnpj             String?               @unique
   contactEmail     String?               @map("contact_email")
   contactPhone     String?               @map("contact_phone")
   systemType       SystemType            @default(padrao) @map("system_type")

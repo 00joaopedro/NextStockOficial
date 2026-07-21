@@ -135,14 +135,12 @@ export class UsersService {
     const accessNameNormalized = this.normalizeAccessName(name);
 
     const existingProfile = await this.prisma.userProfile.findFirst({
-      where: {
-        OR: [{ email }, { accessNameNormalized }],
-      },
+      where: { email },
       select: { id: true },
     });
 
     if (existingProfile) {
-      throw new ConflictException('email or name is already registered');
+      throw new ConflictException('email is already registered');
     }
 
     const { data, error } = await this.supabase.admin.auth.admin.createUser({
@@ -154,7 +152,7 @@ export class UsersService {
 
     if (error) {
       if (isConflictError(error.message)) {
-        throw new ConflictException('E-mail ou nome ja cadastrado.');
+        throw new ConflictException('E-mail ja cadastrado.');
       }
 
       throw new BadRequestException('Nao foi possivel criar o usuario.');
