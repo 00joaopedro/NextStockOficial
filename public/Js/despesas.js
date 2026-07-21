@@ -701,6 +701,7 @@
 
   async function init() {
     bindEvents();
+    if (window.isNextStockDemoMode?.()) return;
     try {
       const ok = await bootstrapContext();
       if (!ok) return;

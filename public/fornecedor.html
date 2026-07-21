@@ -585,7 +585,8 @@
     </div>
   </div>
   <script src="./dist/session-state.js"></script>
-  <script type="text/plain" data-legacy-demo-script="disabled">
+  <script>
+    if (window.isNextStockDemoMode?.()) {
     const supplierForm = document.getElementById("supplierForm");
     const supplierList = document.getElementById("supplierList");
     const emptyMessage = document.getElementById("emptyMessage");
@@ -885,6 +886,7 @@
       selecionarFornecedor(fornecedores[0].id);
     } else {
       limparFormulario();
+    }
     }
   </script>
   <script src="./Js/fornecedor.js" defer></script>

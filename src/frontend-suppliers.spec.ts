@@ -4,11 +4,12 @@ import { join } from 'path';
 describe('fornecedor.html production frontend', () => {
   const root = join(__dirname, '..');
 
-  it('carrega script real de fornecedores e desativa script legado inline', () => {
+  it('carrega producao e restringe a demonstracao inline ao preview publico', () => {
     const html = readFileSync(join(root, 'public', 'fornecedor.html'), 'utf8');
 
     expect(html).toContain('./Js/fornecedor.js');
-    expect(html).toContain('data-legacy-demo-script="disabled"');
+    expect(html).toContain('if (window.isNextStockDemoMode?.()) {');
+    expect(html).toContain('DEMO_FORNECEDORES');
   });
 
   it('usa /api/suppliers como fonte de verdade e renderiza sem innerHTML para dados da API', () => {

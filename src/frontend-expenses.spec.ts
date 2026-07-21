@@ -4,11 +4,12 @@ import { join } from 'path';
 describe('despesas.html production frontend', () => {
   const root = join(__dirname, '..');
 
-  it('carrega script real de despesas e desativa script legado inline', () => {
+  it('carrega producao e restringe a demonstracao inline ao preview publico', () => {
     const html = readFileSync(join(root, 'public', 'despesas.html'), 'utf8');
 
     expect(html).toContain('./Js/despesas.js');
-    expect(html).toContain('data-legacy-demo-script="disabled"');
+    expect(html).toContain('if (window.isNextStockDemoMode?.()) {');
+    expect(html).toContain('DEMO_EXPENSES');
   });
 
   it('usa /api/expenses como fonte de verdade e envia anexos via FormData', () => {
