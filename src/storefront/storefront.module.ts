@@ -3,6 +3,7 @@ import { AuditModule } from '../audit/audit.module';
 import { BillingCoreModule } from '../billing/billing-core.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
+import { SystemModule } from '../system/system.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import {
   StorefrontAdminController,
@@ -16,6 +17,7 @@ import { StorefrontService } from './storefront.service';
     BillingCoreModule,
     StorageModule,
     AuditModule,
+    SystemModule,
   ],
   controllers: [StorefrontAdminController, StorefrontPublicController],
   providers: [StorefrontService],
