@@ -37,6 +37,18 @@ const schema = Joi.object({
   MERCADO_PAGO_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
   MERCADO_PAGO_ACCESS_TOKEN: Joi.string().allow('').optional(),
   MERCADO_PAGO_COLLECTOR_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_CLIENT_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_CLIENT_SECRET: Joi.string().allow('').optional(),
+  MERCADO_PAGO_OAUTH_REDIRECT_URI: Joi.string()
+    .uri({ scheme: ['https', 'http'] })
+    .allow('')
+    .optional(),
+  MERCADO_PAGO_APP_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
+  PAYMENT_CREDENTIALS_ENCRYPTION_KEY: Joi.string()
+    .base64()
+    .allow('')
+    .optional(),
+  PAYMENT_CREDENTIALS_KEY_VERSION: Joi.string().max(40).allow('').optional(),
   MERCADO_PAGO_PLAN_ID_OURO: Joi.string().allow('').optional(),
   MERCADO_PAGO_PLAN_ID_ESMERALDA: Joi.string().allow('').optional(),
   MERCADO_PAGO_PLAN_ID_DIAMANTE: Joi.string().allow('').optional(),
@@ -49,8 +61,12 @@ const schema = Joi.object({
   AUDIT_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
-  STOREFRONT_PUBLIC_READ_ENABLED: Joi.string().valid('true', 'false').default('false'),
-  STOREFRONT_ORDERING_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  STOREFRONT_PUBLIC_READ_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  STOREFRONT_ORDERING_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
   STOREFRONT_TOKEN_SECRET: Joi.string().min(32).allow('').optional(),
 }).unknown(true);
 

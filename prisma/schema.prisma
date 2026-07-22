@@ -175,47 +175,51 @@ model DevWorkspace {
 }
 
 model Tenant {
-  id               String                @id @default(uuid()) @db.Uuid
-  name             String
-  slug             String                @unique
-  cnpj             String?               @unique
-  contactEmail     String?               @map("contact_email")
-  contactPhone     String?               @map("contact_phone")
-  systemType       SystemType            @default(padrao) @map("system_type")
-  mode             SystemMode            @default(visualizacao)
-  currentPlanId    String?               @map("current_plan_id") @db.Uuid
-  currentPlan      Plan?                 @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
-  subscriptions    Subscription[]
-  branches         Branch[]
-  members          TenantMember[]
-  primaryProfiles  UserProfile[]         @relation("PrimaryTenantProfiles")
-  profiles         UserProfile[]         @relation("TenantProfiles")
-  agendaPets       AgendaPet[]
-  petClients       PetClient[]
-  pets             Pet[]
-  petPhotos        PetPhoto[]
-  products         Product[]
-  orders           Order[]
-  employees        Employee[]
-  suppliers        Supplier[]
-  expenses         Expense[]
-  expenseFiles     ExpenseFile[]
-  sales            Sale[]
-  saleDocuments    SaleDocument[]
-  fiscalConfigs    CompanyFiscalConfig[]
-  fiscalSequences  FiscalSequence[]
-  paymentMachines  PaymentMachine[]
-  devWorkspaces    DevWorkspace[]
-  partnerReferrals PartnerReferral[]
-  checkoutSessions CheckoutSession[]
-  billingPayments  BillingPayment[]
-  billingInvoices  BillingInvoice[]
-  billingEvents    BillingEvent[]
-  userSessions     UserSession[]
-  storedFiles      StoredFile[]
-  storefronts      Storefront[]
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  id                        String                     @id @default(uuid()) @db.Uuid
+  name                      String
+  slug                      String                     @unique
+  cnpj                      String?                    @unique
+  contactEmail              String?                    @map("contact_email")
+  contactPhone              String?                    @map("contact_phone")
+  systemType                SystemType                 @default(padrao) @map("system_type")
+  mode                      SystemMode                 @default(visualizacao)
+  currentPlanId             String?                    @map("current_plan_id") @db.Uuid
+  currentPlan               Plan?                      @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
+  subscriptions             Subscription[]
+  branches                  Branch[]
+  members                   TenantMember[]
+  primaryProfiles           UserProfile[]              @relation("PrimaryTenantProfiles")
+  profiles                  UserProfile[]              @relation("TenantProfiles")
+  agendaPets                AgendaPet[]
+  petClients                PetClient[]
+  pets                      Pet[]
+  petPhotos                 PetPhoto[]
+  products                  Product[]
+  orders                    Order[]
+  employees                 Employee[]
+  suppliers                 Supplier[]
+  expenses                  Expense[]
+  expenseFiles              ExpenseFile[]
+  sales                     Sale[]
+  saleDocuments             SaleDocument[]
+  fiscalConfigs             CompanyFiscalConfig[]
+  fiscalSequences           FiscalSequence[]
+  paymentMachines           PaymentMachine[]
+  paymentTerminals          PaymentTerminal[]
+  paymentConnections        PaymentConnection[]
+  paymentRoutingPreferences PaymentRoutingPreference[]
+  paymentTransactions       PaymentTransaction[]
+  devWorkspaces             DevWorkspace[]
+  partnerReferrals          PartnerReferral[]
+  checkoutSessions          CheckoutSession[]
+  billingPayments           BillingPayment[]
+  billingInvoices           BillingInvoice[]
+  billingEvents             BillingEvent[]
+  userSessions              UserSession[]
+  storedFiles               StoredFile[]
+  storefronts               Storefront[]
+  createdAt                 DateTime                   @default(now()) @map("created_at")
+  updatedAt                 DateTime                   @updatedAt @map("updated_at")
 
   @@index([currentPlanId])
   @@map("tenants")
@@ -276,6 +280,135 @@ model PaymentMachine {
   @@index([createdById])
   @@index([updatedById])
   @@map("payment_machines")
+}
+
+model PaymentTerminal {
+  id                 String                @id @default(uuid()) @db.Uuid
+  tenantId           String                @map("tenant_id") @db.Uuid
+  branchId           String                @map("branch_id") @db.Uuid
+  cashRegisterCode   String?               @map("cash_register_code")
+  connectionId       String?               @map("connection_id") @db.Uuid
+  nickname           String
+  providerCode       PaymentProviderCode   @map("provider_code")
+  manufacturer       String?
+  model              String?
+  serialNumberMasked String?               @map("serial_number_masked")
+  externalDeviceId   String?               @map("external_device_id")
+  status             PaymentTerminalStatus @default(ACTIVE)
+  capabilities       Json?
+  lastSynchronizedAt DateTime?             @map("last_synchronized_at")
+  metadata           Json?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  connection   PaymentConnection?   @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  transactions PaymentTransaction[]
+
+  @@unique([tenantId, branchId, externalDeviceId, providerCode])
+  @@unique([tenantId, id])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, connectionId])
+  @@map("payment_terminals")
+}
+
+model PaymentConnection {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  providerCode         PaymentProviderCode     @map("provider_code")
+  displayName          String                  @map("display_name")
+  externalAccountId    String?                 @map("external_account_id")
+  status               PaymentConnectionStatus @default(PENDING)
+  capabilities         Json?
+  encryptedCredentials String?                 @map("encrypted_credentials")
+  credentialsExpireAt  DateTime?               @map("credentials_expire_at")
+  scopes               String[]                @default([])
+  lastValidatedAt      DateTime?               @map("last_validated_at")
+  sanitizedError       String?                 @map("sanitized_error")
+  version              Int                     @default(1)
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  terminals    PaymentTerminal[]
+  routes       PaymentRoutingPreference[]
+  transactions PaymentTransaction[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, providerCode, status])
+  @@map("payment_connections")
+}
+
+model PaymentRoutingPreference {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  connectionId String                @map("connection_id") @db.Uuid
+  method       PaymentMethod
+  context      PaymentRoutingContext
+  isActive     Boolean               @default(true) @map("is_active")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection PaymentConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, method, context])
+  @@index([tenantId, connectionId])
+  @@map("payment_routing_preferences")
+}
+
+model PaymentTransaction {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  orderId           String?                  @map("order_id") @db.Uuid
+  saleId            String?                  @map("sale_id") @db.Uuid
+  providerCode      PaymentProviderCode      @map("provider_code")
+  connectionId      String                   @map("connection_id") @db.Uuid
+  terminalId        String?                  @map("terminal_id") @db.Uuid
+  externalReference String                   @map("external_reference")
+  externalPaymentId String?                  @map("external_payment_id")
+  method            PaymentMethod
+  amountCents       Int                      @map("amount_cents")
+  currency          String                   @default("BRL")
+  status            PaymentTransactionStatus @default(PENDING)
+  externalStatus    String?                  @map("external_status")
+  idempotencyKey    String                   @map("idempotency_key")
+  sanitizedError    String?                  @map("sanitized_error")
+  metadata          Json?
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  completedAt       DateTime?                @map("completed_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order      Order?            @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  sale       Sale?             @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  connection PaymentConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  terminal   PaymentTerminal?  @relation(fields: [tenantId, terminalId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([providerCode, externalPaymentId])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+  @@map("payment_transactions")
+}
+
+model PaymentWebhookEvent {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  providerCode       PaymentProviderCode            @map("provider_code")
+  externalEventId    String                         @map("external_event_id")
+  signatureValidated Boolean                        @default(false) @map("signature_validated")
+  status             PaymentWebhookProcessingStatus @default(RECEIVED)
+  attempts           Int                            @default(0)
+  payloadHash        String                         @map("payload_hash")
+  sanitizedPayload   Json?                          @map("sanitized_payload")
+  receivedAt         DateTime                       @default(now()) @map("received_at")
+  processedAt        DateTime?                      @map("processed_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+
+  @@unique([providerCode, externalEventId])
+  @@index([status, receivedAt])
+  @@map("payment_webhook_events")
 }
 
 model Subscription {
@@ -501,6 +634,7 @@ model Branch {
   fiscalConfigs    CompanyFiscalConfig[]
   fiscalSequences  FiscalSequence[]
   paymentMachines  PaymentMachine[]
+  paymentTerminals PaymentTerminal[]
   devWorkspaces    DevWorkspace[]
   partnerReferrals PartnerReferral[]
   storedFiles      StoredFile[]
@@ -764,11 +898,12 @@ model Order {
   reservationExpiresAt   DateTime?          @map("reservation_expires_at")
   stockRestoredAt        DateTime?          @map("stock_restored_at")
 
-  createdBy       UserProfile?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       UserProfile?   @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  items           OrderItem[]
-  sale            Sale?
-  fiscalDocuments SaleDocument[]
+  createdBy           UserProfile?         @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy           UserProfile?         @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  sale                Sale?
+  fiscalDocuments     SaleDocument[]
+  paymentTransactions PaymentTransaction[]
 
   @@unique([storefrontId, idempotencyKeyHash])
   @@index([tenantId, branchId, createdAt])
@@ -893,15 +1028,16 @@ model Sale {
   updatedAt                  DateTime          @updatedAt @map("updated_at")
   deletedAt                  DateTime?         @map("deleted_at")
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order          Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  seller         UserProfile?    @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
-  canceledBy     UserProfile?    @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
-  paymentMachine PaymentMachine? @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
-  items          SaleItem[]
-  payments       SalePayment[]
-  documents      SaleDocument[]
+  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order               Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  seller              UserProfile?         @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  canceledBy          UserProfile?         @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  paymentMachine      PaymentMachine?      @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
+  items               SaleItem[]
+  payments            SalePayment[]
+  documents           SaleDocument[]
+  paymentTransactions PaymentTransaction[]
 
   @@unique([tenantId, branchId, idempotencyKey])
   @@index([tenantId, branchId, soldAt])
@@ -1797,6 +1933,58 @@ enum PaymentProvider {
   pagseguro
   mercado_pago
   outro
+}
+
+enum PaymentProviderCode {
+  MERCADO_PAGO
+  PAGBANK
+  ASAAS
+  OTHER
+}
+
+enum PaymentConnectionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+enum PaymentTerminalStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  OFFLINE
+}
+
+enum PaymentMethod {
+  PIX
+  ONLINE_CARD
+  TERMINAL_CARD
+  BOLETO
+}
+
+enum PaymentRoutingContext {
+  CHECKOUT
+  POS
+  STOREFRONT
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  CANCELED
+  REFUNDED
+  ERROR
+}
+
+enum PaymentWebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
 }
 
 enum PartnerLinkStatus {
