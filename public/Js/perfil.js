@@ -7,6 +7,7 @@
     machines: [],
     selectedMachineId: null,
     busy: false,
+    paymentConfig: { connections: [], terminals: [], routes: [] },
   };
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -20,6 +21,9 @@
     machineName: $("machineName"), machineProvider: $("machineProvider"),
     machineModel: $("machineModel"), machineFee: $("machineFee"),
     machineStatus: $("machineStatus"),
+    connectionList: $("paymentConnectionList"), connectionName: $("paymentConnectionName"), connectionProvider: $("paymentConnectionProvider"), accessToken: $("paymentAccessToken"), saveConnection: $("savePaymentConnectionBtn"),
+    terminalList: $("paymentTerminalList"), terminalNickname: $("paymentTerminalNickname"), terminalConnection: $("paymentTerminalConnection"), terminalManufacturer: $("paymentTerminalManufacturer"), terminalModel: $("paymentTerminalModel"), terminalExternalId: $("paymentTerminalExternalId"), saveTerminal: $("savePaymentTerminalBtn"),
+    routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
   };
   const planImages = {
     ouro: "img/trofeu-ouro.png",
@@ -73,6 +77,7 @@
     el.addMachine.disabled = blocked || !state.canManage;
     el.saveMachine.disabled = blocked || !state.canManage;
     el.deleteMachine.disabled = blocked || !state.canManage || !state.selectedMachineId;
+    [el.saveConnection, el.saveTerminal, el.saveRoute].forEach((button) => { button.disabled = blocked || !state.canManage; });
   }
 
   async function bootstrap() {
@@ -209,10 +214,32 @@
     try { await api(`/api/payment-machines/${state.selectedMachineId}`, { method: "DELETE" }); clearMachine(); await loadMachines(); }
     finally { busy(false); }
   }
+
+  async function loadPaymentConfiguration() {
+    state.paymentConfig = await api("/api/payments/configuration");
+    el.connectionList.replaceChildren(); el.terminalList.replaceChildren(); el.routeList.replaceChildren();
+    const active = (state.paymentConfig.connections || []).filter((item) => item.status === "ACTIVE");
+    for (const connection of state.paymentConfig.connections || []) {
+      const card = document.createElement("div"); card.className = "payment-item";
+      card.textContent = `${connection.displayName} · ${connection.providerCode} · ${connection.status} · conta ${connection.externalAccountId || "não identificada"}`;
+      el.connectionList.appendChild(card);
+    }
+    if (!state.paymentConfig.connections?.length) el.connectionList.textContent = "Nenhuma conexão configurada.";
+    for (const terminal of state.paymentConfig.terminals || []) { const card=document.createElement("div");card.className="payment-item";card.textContent=`${terminal.nickname} · ${terminal.model || "modelo não informado"} · ${terminal.status}`;el.terminalList.appendChild(card); }
+    if (!state.paymentConfig.terminals?.length) el.terminalList.textContent = "Nenhum terminal cadastrado nesta filial.";
+    for (const route of state.paymentConfig.routes || []) { const card=document.createElement("div");card.className="payment-item";card.textContent=`${route.method} / ${route.context} → ${route.connection.displayName}`;el.routeList.appendChild(card); }
+    if (!state.paymentConfig.routes?.length) el.routeList.textContent = "Nenhuma preferência definida.";
+    for (const select of [el.terminalConnection,el.routeConnection]) { select.replaceChildren(); const empty=document.createElement("option");empty.value="";empty.textContent="Selecione";select.appendChild(empty);for(const connection of active){const option=document.createElement("option");option.value=connection.id;option.textContent=connection.displayName;select.appendChild(option);} }
+  }
+  async function savePaymentConnection() { busy(true); try { await api("/api/payments/connections",{method:"POST",body:JSON.stringify({providerCode:el.connectionProvider.value,displayName:clean(el.connectionName.value),accessToken:el.accessToken.value})}); el.accessToken.value="";await loadPaymentConfiguration();message("Conexão validada e protegida.","success"); } finally { busy(false); } }
+  async function savePaymentTerminal() { busy(true); try { await api("/api/payments/terminals",{method:"POST",body:JSON.stringify({nickname:clean(el.terminalNickname.value),providerCode:"MERCADO_PAGO",connectionId:el.terminalConnection.value||undefined,manufacturer:clean(el.terminalManufacturer.value)||undefined,model:clean(el.terminalModel.value)||undefined,externalDeviceId:clean(el.terminalExternalId.value)||undefined})});await loadPaymentConfiguration();message("Terminal cadastrado.","success"); } finally { busy(false); } }
+  async function savePaymentRoute() { busy(true); try { await api("/api/payments/routing",{method:"POST",body:JSON.stringify({method:el.routeMethod.value,context:el.routeContext.value,connectionId:el.routeConnection.value})});await loadPaymentConfiguration();message("Preferência de processamento salva.","success"); } finally { busy(false); } }
+
   function run(action) { return () => action().catch((error) => { message(error.message, "error"); busy(false); }); }
   el.saveProfile.addEventListener("click", run(saveProfile)); el.saveCompany.addEventListener("click", run(saveCompany));
   el.addMachine.addEventListener("click", clearMachine); el.saveMachine.addEventListener("click", run(saveMachine));
   el.deleteMachine.addEventListener("click", run(deleteMachine));
+  el.saveConnection.addEventListener("click", run(savePaymentConnection)); el.saveTerminal.addEventListener("click", run(savePaymentTerminal)); el.saveRoute.addEventListener("click", run(savePaymentRoute));
   (async () => {
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
@@ -222,7 +249,7 @@
     }
     try {
       await bootstrap();
-      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines()]);
+      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines(), loadPaymentConfiguration()]);
       permissions();
       const returned = new URLSearchParams(location.search).has("billingReturn");
       if (returned || sessionStorage.getItem("nextstockBillingCheckoutId")) await pollCheckout();

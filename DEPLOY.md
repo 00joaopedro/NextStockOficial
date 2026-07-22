@@ -431,3 +431,7 @@ authorized by the backend. The current UI persists public URLs, so changing the
 `pet-photos` bucket to private requires a coordinated signed-URL read flow before the
 bucket policy changes. Keep this as an explicit production decision; do not make the
 bucket private without releasing the signed-URL flow at the same time.
+
+## Pagamentos operacionais por tenant
+
+Antes de habilitar a configuração de gateways, defina `PAYMENT_CREDENTIALS_ENCRYPTION_KEY`, `PAYMENT_CREDENTIALS_KEY_VERSION` e `MERCADO_PAGO_APP_WEBHOOK_SECRET` somente no backend. Aplique `20260722000000_tenant_payment_processing` em job controlado, valide o webhook e uma conta de teste em staging, e só então exponha o recurso em produção. Consulte `docs/PAYMENTS.md`.

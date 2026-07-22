@@ -18,6 +18,7 @@ import { SystemModule } from './system/system.module';
 import { AgendaPetModule } from './agenda-pet/agenda-pet.module';
 import { ProfileModule } from './profile/profile.module';
 import { PaymentMachinesModule } from './payment-machines/payment-machines.module';
+import { PaymentsModule } from './payments/payments.module';
 import { ProductsModule } from './products/products.module';
 import { DevModule } from './dev/dev.module';
 import { PetClientsModule } from './pet-clients/pet-clients.module';
@@ -99,6 +100,7 @@ const publicPath = join(__dirname, '..', 'public');
     AgendaPetModule,
     ProfileModule,
     PaymentMachinesModule,
+    PaymentsModule,
     ProductsModule,
     StorageModule,
     PetClientsModule,
