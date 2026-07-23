@@ -283,23 +283,25 @@ model PaymentMachine {
 }
 
 model PaymentTerminal {
-  id                 String                @id @default(uuid()) @db.Uuid
-  tenantId           String                @map("tenant_id") @db.Uuid
-  branchId           String                @map("branch_id") @db.Uuid
-  cashRegisterCode   String?               @map("cash_register_code")
-  connectionId       String?               @map("connection_id") @db.Uuid
+  id                 String                         @id @default(uuid()) @db.Uuid
+  tenantId           String                         @map("tenant_id") @db.Uuid
+  branchId           String                         @map("branch_id") @db.Uuid
+  cashRegisterCode   String?                        @map("cash_register_code")
+  connectionId       String?                        @map("connection_id") @db.Uuid
   nickname           String
-  providerCode       PaymentProviderCode   @map("provider_code")
+  providerCode       PaymentProviderCode            @map("provider_code")
   manufacturer       String?
   model              String?
-  serialNumberMasked String?               @map("serial_number_masked")
-  externalDeviceId   String?               @map("external_device_id")
-  status             PaymentTerminalStatus @default(ACTIVE)
+  serialNumberMasked String?                        @map("serial_number_masked")
+  externalDeviceId   String?                        @map("external_device_id")
+  status             PaymentTerminalStatus          @default(ACTIVE)
   capabilities       Json?
-  lastSynchronizedAt DateTime?             @map("last_synchronized_at")
+  lastSynchronizedAt DateTime?                      @map("last_synchronized_at")
+  integrationMode    PaymentTerminalIntegrationMode @default(MANUAL) @map("integration_mode")
+  notes              String?
   metadata           Json?
-  createdAt          DateTime              @default(now()) @map("created_at")
-  updatedAt          DateTime              @updatedAt @map("updated_at")
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
 
   tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch       Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
@@ -1937,6 +1939,8 @@ enum PaymentProvider {
 
 enum PaymentProviderCode {
   MERCADO_PAGO
+  PAGARME
+  STONE
   PAGBANK
   ASAAS
   OTHER
@@ -1948,6 +1952,14 @@ enum PaymentConnectionStatus {
   EXPIRED
   REVOKED
   ERROR
+}
+
+enum PaymentTerminalIntegrationMode {
+  MANUAL
+  REMOTE_API
+  LOCAL_SDK
+  TEF
+  UNAVAILABLE
 }
 
 enum PaymentTerminalStatus {

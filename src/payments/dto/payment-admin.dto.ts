@@ -3,11 +3,11 @@ import {
   PaymentProviderCode,
   PaymentRoutingContext,
   PaymentTerminalStatus,
+  PaymentTerminalIntegrationMode,
 } from '@prisma/client';
 import {
   IsEnum,
   IsInt,
-  IsObject,
   IsOptional,
   IsString,
   IsUUID,
@@ -31,6 +31,10 @@ export class CreateTerminalDto {
   @IsOptional() @IsString() @MaxLength(160) externalDeviceId?: string;
   @IsOptional() @IsString() @MaxLength(80) serialNumber?: string;
   @IsOptional() @IsEnum(PaymentTerminalStatus) status?: PaymentTerminalStatus;
+  @IsOptional()
+  @IsEnum(PaymentTerminalIntegrationMode)
+  integrationMode?: PaymentTerminalIntegrationMode;
+  @IsOptional() @IsString() @MaxLength(500) notes?: string;
 }
 export class SetRoutingDto {
   @IsEnum(PaymentMethod) method!: PaymentMethod;

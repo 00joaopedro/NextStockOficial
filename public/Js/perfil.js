@@ -22,7 +22,7 @@
     machineModel: $("machineModel"), machineFee: $("machineFee"),
     machineStatus: $("machineStatus"),
     connectionList: $("paymentConnectionList"), connectionName: $("paymentConnectionName"), connectionProvider: $("paymentConnectionProvider"), accessToken: $("paymentAccessToken"), saveConnection: $("savePaymentConnectionBtn"),
-    terminalList: $("paymentTerminalList"), terminalNickname: $("paymentTerminalNickname"), terminalConnection: $("paymentTerminalConnection"), terminalManufacturer: $("paymentTerminalManufacturer"), terminalModel: $("paymentTerminalModel"), terminalExternalId: $("paymentTerminalExternalId"), saveTerminal: $("savePaymentTerminalBtn"),
+    terminalList: $("paymentTerminalList"), terminalNickname: $("paymentTerminalNickname"), terminalProvider: $("paymentTerminalProvider"), terminalConnection: $("paymentTerminalConnection"), terminalMode: $("paymentTerminalMode"), terminalSerial: $("paymentTerminalSerial"), terminalNotes: $("paymentTerminalNotes"), terminalManufacturer: $("paymentTerminalManufacturer"), terminalModel: $("paymentTerminalModel"), terminalExternalId: $("paymentTerminalExternalId"), saveTerminal: $("savePaymentTerminalBtn"),
     routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
   };
   const planImages = {
@@ -217,6 +217,8 @@
 
   async function loadPaymentConfiguration() {
     state.paymentConfig = await api("/api/payments/configuration");
+    const pagarmeOption=el.connectionProvider.querySelector('[value="PAGARME"]'); pagarmeOption.disabled=!state.paymentConfig.featureAvailability?.pagarme; pagarmeOption.textContent=state.paymentConfig.featureAvailability?.pagarme?"Pagar.me":"Pagar.me — indisponível";
+    const stoneOption=el.terminalProvider.querySelector('[value="STONE"]'); stoneOption.disabled=!state.paymentConfig.featureAvailability?.stone; stoneOption.textContent=state.paymentConfig.featureAvailability?.stone?"Stone — cadastro manual":"Stone — indisponível"; if(stoneOption.disabled) el.terminalProvider.value="MERCADO_PAGO";
     el.connectionList.replaceChildren(); el.terminalList.replaceChildren(); el.routeList.replaceChildren();
     const active = (state.paymentConfig.connections || []).filter((item) => item.status === "ACTIVE");
     for (const connection of state.paymentConfig.connections || []) {
@@ -225,14 +227,14 @@
       el.connectionList.appendChild(card);
     }
     if (!state.paymentConfig.connections?.length) el.connectionList.textContent = "Nenhuma conexão configurada.";
-    for (const terminal of state.paymentConfig.terminals || []) { const card=document.createElement("div");card.className="payment-item";card.textContent=`${terminal.nickname} · ${terminal.model || "modelo não informado"} · ${terminal.status}`;el.terminalList.appendChild(card); }
+    for (const terminal of state.paymentConfig.terminals || []) { const card=document.createElement("div");card.className="payment-item";card.textContent=`${terminal.nickname} · ${terminal.providerCode} · ${terminal.integrationMode === "MANUAL" ? "Cadastrada, não integrada" : terminal.integrationMode} · ${terminal.status}`;el.terminalList.appendChild(card); }
     if (!state.paymentConfig.terminals?.length) el.terminalList.textContent = "Nenhum terminal cadastrado nesta filial.";
     for (const route of state.paymentConfig.routes || []) { const card=document.createElement("div");card.className="payment-item";card.textContent=`${route.method} / ${route.context} → ${route.connection.displayName}`;el.routeList.appendChild(card); }
     if (!state.paymentConfig.routes?.length) el.routeList.textContent = "Nenhuma preferência definida.";
     for (const select of [el.terminalConnection,el.routeConnection]) { select.replaceChildren(); const empty=document.createElement("option");empty.value="";empty.textContent="Selecione";select.appendChild(empty);for(const connection of active){const option=document.createElement("option");option.value=connection.id;option.textContent=connection.displayName;select.appendChild(option);} }
   }
   async function savePaymentConnection() { busy(true); try { await api("/api/payments/connections",{method:"POST",body:JSON.stringify({providerCode:el.connectionProvider.value,displayName:clean(el.connectionName.value),accessToken:el.accessToken.value})}); el.accessToken.value="";await loadPaymentConfiguration();message("Conexão validada e protegida.","success"); } finally { busy(false); } }
-  async function savePaymentTerminal() { busy(true); try { await api("/api/payments/terminals",{method:"POST",body:JSON.stringify({nickname:clean(el.terminalNickname.value),providerCode:"MERCADO_PAGO",connectionId:el.terminalConnection.value||undefined,manufacturer:clean(el.terminalManufacturer.value)||undefined,model:clean(el.terminalModel.value)||undefined,externalDeviceId:clean(el.terminalExternalId.value)||undefined})});await loadPaymentConfiguration();message("Terminal cadastrado.","success"); } finally { busy(false); } }
+  async function savePaymentTerminal() { busy(true); try { await api("/api/payments/terminals",{method:"POST",body:JSON.stringify({nickname:clean(el.terminalNickname.value),providerCode:el.terminalProvider.value,connectionId:el.terminalConnection.value||undefined,integrationMode:el.terminalMode.value,serialNumber:clean(el.terminalSerial.value)||undefined,notes:clean(el.terminalNotes.value)||undefined,manufacturer:clean(el.terminalManufacturer.value)||undefined,model:clean(el.terminalModel.value)||undefined,externalDeviceId:clean(el.terminalExternalId.value)||undefined})});el.terminalSerial.value="";await loadPaymentConfiguration();message("Terminal cadastrada; cadastro manual não significa integração.","success"); } finally { busy(false); } }
   async function savePaymentRoute() { busy(true); try { await api("/api/payments/routing",{method:"POST",body:JSON.stringify({method:el.routeMethod.value,context:el.routeContext.value,connectionId:el.routeConnection.value})});await loadPaymentConfiguration();message("Preferência de processamento salva.","success"); } finally { busy(false); } }
 
   function run(action) { return () => action().catch((error) => { message(error.message, "error"); busy(false); }); }

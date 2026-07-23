@@ -15,7 +15,7 @@ export interface PaymentProviderAdapter {
   readonly code: PaymentProviderCode;
   validateConnection(
     credentials: ProviderCredentials,
-  ): Promise<{ externalAccountId: string; capabilities: string[] }>;
+  ): Promise<{ externalAccountId?: string; capabilities: string[] }>;
   getPaymentStatus(
     credentials: ProviderCredentials,
     paymentId: string,
