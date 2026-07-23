@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, SystemMode, SystemType } from '@prisma/client';
 import * as request from 'supertest';
 import {
   createBillingPayment,
@@ -74,6 +74,8 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         role,
         tenantId: tenantA.id,
         branchId: branchA.id,
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
       });
     }
     process.env.DEV_SUPER_ADMIN_USER_IDS = devId;
@@ -96,6 +98,27 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
     'x-test-user-id': profile.id,
     'x-nextstock-branch-id': branchId,
     origin: 'http://security.test',
+  });
+
+  it('authenticates only registered identities without accepting context headers', async () => {
+    expect((await request(app.getHttpServer()).get('/api/users')).status).toBe(
+      401,
+    );
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get('/api/users')
+          .set('x-test-user-id', '00000000-0000-4000-8000-000000000000')
+      ).status,
+    ).toBe(401);
+    const known = await request(app.getHttpServer())
+      .get('/api/users')
+      .set(auth(adminA))
+      .set('x-role', Role.superAdmin)
+      .set('x-system-mode', SystemMode.visualizacao)
+      .set('x-system-type', SystemType.petshop);
+    expect(known.status).toBe(200);
+    expect(JSON.stringify(known.body)).not.toContain(tenantB.id);
   });
 
   it('isolates products and rejects a foreign branch header', async () => {

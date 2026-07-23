@@ -9,9 +9,9 @@ import { DeterministicTestAuthGuard } from './test-auth.guard';
 
 export async function createSecurityHttpApp() {
   const module = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(JwtAuthGuard)
+    .overrideGuard(JwtAuthGuard)
     .useClass(DeterministicTestAuthGuard)
-    .overrideProvider(OptionalJwtAuthGuard)
+    .overrideGuard(OptionalJwtAuthGuard)
     .useClass(DeterministicTestAuthGuard)
     .compile();
   const app = module.createNestApplication(new FastifyAdapter());
