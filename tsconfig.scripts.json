@@ -4,5 +4,8 @@
     "noEmit": true,
     "incremental": false
   },
-  "include": ["scripts/**/*.ts"]
+  "include": [
+    "scripts/**/*.ts",
+    "src/types/http.d.ts"
+  ]
 }

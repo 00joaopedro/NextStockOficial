@@ -16,7 +16,9 @@ export class AuditInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler) {
     const request = context.switchToHttp().getRequest();
     const method = String(request.method || 'GET').toUpperCase();
-    const path = String(request.originalUrl || request.path || request.url || '');
+    const path = String(
+      request.originalUrl || request.path || request.url || '',
+    );
     const shouldRecord =
       !['GET', 'HEAD', 'OPTIONS'].includes(method) ||
       /\/(?:download|xml|pdf|support\/branches)(?:\/|$)/i.test(path);

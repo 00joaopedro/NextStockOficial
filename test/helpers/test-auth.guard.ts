@@ -9,10 +9,12 @@ export class DeterministicTestAuthGuard implements CanActivate {
     }
     const request = context.switchToHttp().getRequest();
     const testUserId = getRequestHeader(request, 'x-test-user-id');
-    const users = request.app?.locals?.securityTestUsers as
+    const users = (request.app?.locals?.securityTestUsers ??
+      request.server?.securityTestUsers) as
       | Map<string, AuthenticatedUser>
       | undefined;
-    const user = request.testUser || users?.get(testUserId);
+    const user =
+      request.testUser || (testUserId ? users?.get(testUserId) : undefined);
     if (!user) return false;
     request.user = user;
     return true;
