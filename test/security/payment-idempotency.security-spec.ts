@@ -58,6 +58,21 @@ function barrier(size: number) {
   };
 }
 
+@Controller()
+class HttpHarness {
+  static controller: PaymentsController;
+  static branchId: string;
+
+  @Post('payments/pix')
+  async pix(@Body() body: any) {
+    return HttpHarness.controller.pix(
+      { user: undefined } as any,
+      body,
+      HttpHarness.branchId,
+    );
+  }
+}
+
 async function createService(prisma: PrismaClient, tenantId: string, branchId: string, adapter: FakePixAdapter) {
   const contexts = { resolve: jest.fn(() => ({ tenantId, branchId, userId: undefined, role: Role.Admin })) };
   const registry = { require: jest.fn(() => adapter), get: jest.fn(() => adapter) };
@@ -140,12 +155,10 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const adapter = new FakePixAdapter();
     const service = await createService(prismaA, tenant.id, branch.id, adapter);
     adapter.release();
-    const controller = new PaymentsController(service);
+    HttpHarness.controller = new PaymentsController(service);
+    HttpHarness.branchId = branch.id;
     const module = await Test.createTestingModule({
-      controllers: [class HttpHarness {
-        @Post('payments/pix')
-        async pix(@Body() body: any) { return controller.pix({ user: undefined } as any, body, branch.id); }
-      }],
+      controllers: [HttpHarness],
     }).compile();
     const app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
