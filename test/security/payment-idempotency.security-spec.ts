@@ -330,6 +330,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
         })();
       });
     });
+    await new Promise<void>((resolve) => server.listen(0, resolve));
     try {
       const key = `rc001-http-${randomUUID()}`;
       const first = {
