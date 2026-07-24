@@ -180,7 +180,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
         'SECURITY_TEST_DATABASE_URL is required for RC-001 concurrency tests.',
       );
     const pooledUrl = new URL(databaseUrl);
-    pooledUrl.searchParams.set('connection_limit', '20');
+    pooledUrl.searchParams.set('connection_limit', '5');
     prismaA = new PrismaClient({ datasourceUrl: pooledUrl.toString() });
     prismaB = new PrismaClient({ datasourceUrl: pooledUrl.toString() });
     await prismaA.$connect();
