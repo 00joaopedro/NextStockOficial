@@ -175,51 +175,52 @@ model DevWorkspace {
 }
 
 model Tenant {
-  id                        String                     @id @default(uuid()) @db.Uuid
-  name                      String
-  slug                      String                     @unique
-  cnpj                      String?                    @unique
-  contactEmail              String?                    @map("contact_email")
-  contactPhone              String?                    @map("contact_phone")
-  systemType                SystemType                 @default(padrao) @map("system_type")
-  mode                      SystemMode                 @default(visualizacao)
-  currentPlanId             String?                    @map("current_plan_id") @db.Uuid
-  currentPlan               Plan?                      @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
-  subscriptions             Subscription[]
-  branches                  Branch[]
-  members                   TenantMember[]
-  primaryProfiles           UserProfile[]              @relation("PrimaryTenantProfiles")
-  profiles                  UserProfile[]              @relation("TenantProfiles")
-  agendaPets                AgendaPet[]
-  petClients                PetClient[]
-  pets                      Pet[]
-  petPhotos                 PetPhoto[]
-  products                  Product[]
-  orders                    Order[]
-  employees                 Employee[]
-  suppliers                 Supplier[]
-  expenses                  Expense[]
-  expenseFiles              ExpenseFile[]
-  sales                     Sale[]
-  saleDocuments             SaleDocument[]
-  fiscalConfigs             CompanyFiscalConfig[]
-  fiscalSequences           FiscalSequence[]
-  paymentMachines           PaymentMachine[]
-  paymentTerminals          PaymentTerminal[]
-  paymentConnections        PaymentConnection[]
-  paymentRoutingPreferences PaymentRoutingPreference[]
-  paymentTransactions       PaymentTransaction[]
-  devWorkspaces             DevWorkspace[]
-  partnerReferrals          PartnerReferral[]
-  checkoutSessions          CheckoutSession[]
-  billingPayments           BillingPayment[]
-  billingInvoices           BillingInvoice[]
-  billingEvents             BillingEvent[]
-  userSessions              UserSession[]
-  storedFiles               StoredFile[]
-  storefronts               Storefront[]
-  createdAt                 DateTime                   @default(now()) @map("created_at")
-  updatedAt                 DateTime                   @updatedAt @map("updated_at")
+  id                           String                        @id @default(uuid()) @db.Uuid
+  name                         String
+  slug                         String                        @unique
+  cnpj                         String?                       @unique
+  contactEmail                 String?                       @map("contact_email")
+  contactPhone                 String?                       @map("contact_phone")
+  systemType                   SystemType                    @default(padrao) @map("system_type")
+  mode                         SystemMode                    @default(visualizacao)
+  currentPlanId                String?                       @map("current_plan_id") @db.Uuid
+  currentPlan                  Plan?                         @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
+  subscriptions                Subscription[]
+  branches                     Branch[]
+  members                      TenantMember[]
+  primaryProfiles              UserProfile[]                 @relation("PrimaryTenantProfiles")
+  profiles                     UserProfile[]                 @relation("TenantProfiles")
+  agendaPets                   AgendaPet[]
+  petClients                   PetClient[]
+  pets                         Pet[]
+  petPhotos                    PetPhoto[]
+  products                     Product[]
+  orders                       Order[]
+  employees                    Employee[]
+  suppliers                    Supplier[]
+  expenses                     Expense[]
+  expenseFiles                 ExpenseFile[]
+  sales                        Sale[]
+  saleDocuments                SaleDocument[]
+  fiscalConfigs                CompanyFiscalConfig[]
+  fiscalSequences              FiscalSequence[]
+  paymentMachines              PaymentMachine[]
+  paymentTerminals             PaymentTerminal[]
+  paymentConnections           PaymentConnection[]
+  paymentRoutingPreferences    PaymentRoutingPreference[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
+  devWorkspaces                DevWorkspace[]
+  partnerReferrals             PartnerReferral[]
+  checkoutSessions             CheckoutSession[]
+  billingPayments              BillingPayment[]
+  billingInvoices              BillingInvoice[]
+  billingEvents                BillingEvent[]
+  userSessions                 UserSession[]
+  storedFiles                  StoredFile[]
+  storefronts                  Storefront[]
+  createdAt                    DateTime                      @default(now()) @map("created_at")
+  updatedAt                    DateTime                      @updatedAt @map("updated_at")
 
   @@index([currentPlanId])
   @@map("tenants")
@@ -332,10 +333,11 @@ model PaymentConnection {
   createdAt            DateTime                @default(now()) @map("created_at")
   updatedAt            DateTime                @updatedAt @map("updated_at")
 
-  tenant       Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  terminals    PaymentTerminal[]
-  routes       PaymentRoutingPreference[]
-  transactions PaymentTransaction[]
+  tenant                Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  terminals             PaymentTerminal[]
+  routes                PaymentRoutingPreference[]
+  transactions          PaymentTransaction[]
+  idempotencyExecutions PaymentIdempotencyExecution[]
 
   @@unique([tenantId, id])
   @@index([tenantId, providerCode, status])
@@ -382,17 +384,55 @@ model PaymentTransaction {
   updatedAt         DateTime                 @updatedAt @map("updated_at")
   completedAt       DateTime?                @map("completed_at")
 
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  order      Order?            @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  sale       Sale?             @relation(fields: [saleId], references: [id], onDelete: Restrict)
-  connection PaymentConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
-  terminal   PaymentTerminal?  @relation(fields: [tenantId, terminalId], references: [tenantId, id], onDelete: Restrict)
+  tenant               Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order                Order?                       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  sale                 Sale?                        @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  connection           PaymentConnection            @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  terminal             PaymentTerminal?             @relation(fields: [tenantId, terminalId], references: [tenantId, id], onDelete: Restrict)
+  idempotencyExecution PaymentIdempotencyExecution?
 
   @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, id])
   @@unique([providerCode, externalPaymentId])
   @@index([tenantId, orderId])
   @@index([tenantId, saleId])
   @@map("payment_transactions")
+}
+
+model PaymentIdempotencyExecution {
+  id                String                           @id @default(uuid()) @db.Uuid
+  tenantId          String                           @map("tenant_id") @db.Uuid
+  operationType     PaymentIdempotencyOperationType  @map("operation_type")
+  idempotencyKey    String                           @map("idempotency_key")
+  requestHash       String                           @map("request_hash")
+  providerCode      PaymentProviderCode              @map("provider_code")
+  connectionId      String                           @map("connection_id") @db.Uuid
+  externalReference String                           @map("external_reference")
+  externalPaymentId String?                          @map("external_payment_id")
+  state             PaymentIdempotencyExecutionState @default(CLAIMED)
+  claimToken        String?                          @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime?                        @map("lease_expires_at")
+  providerStartedAt DateTime?                        @map("provider_started_at")
+  orderId           String?                          @map("order_id") @db.Uuid
+  saleId            String?                          @map("sale_id") @db.Uuid
+  transactionId     String?                          @unique @map("transaction_id") @db.Uuid
+  failureCode       String?                          @map("failure_code")
+  createdAt         DateTime                         @default(now()) @map("created_at")
+  updatedAt         DateTime                         @updatedAt @map("updated_at")
+  completedAt       DateTime?                        @map("completed_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  connection  PaymentConnection   @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  order       Order?              @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  sale        Sale?               @relation(fields: [tenantId, saleId], references: [tenantId, id], onDelete: Restrict)
+  transaction PaymentTransaction? @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, operationType, idempotencyKey])
+  @@unique([tenantId, transactionId])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+  @@map("payment_idempotency_executions")
 }
 
 model PaymentWebhookEvent {
@@ -900,14 +940,16 @@ model Order {
   reservationExpiresAt   DateTime?          @map("reservation_expires_at")
   stockRestoredAt        DateTime?          @map("stock_restored_at")
 
-  createdBy           UserProfile?         @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy           UserProfile?         @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  items               OrderItem[]
-  sale                Sale?
-  fiscalDocuments     SaleDocument[]
-  paymentTransactions PaymentTransaction[]
+  createdBy                    UserProfile?                  @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy                    UserProfile?                  @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items                        OrderItem[]
+  sale                         Sale?
+  fiscalDocuments              SaleDocument[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
 
   @@unique([storefrontId, idempotencyKeyHash])
+  @@unique([tenantId, id])
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, deletedAt, createdAt])
   @@index([tenantId, branchId, status])
@@ -1030,18 +1072,20 @@ model Sale {
   updatedAt                  DateTime          @updatedAt @map("updated_at")
   deletedAt                  DateTime?         @map("deleted_at")
 
-  tenant              Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch              Branch               @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order               Order?               @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  seller              UserProfile?         @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
-  canceledBy          UserProfile?         @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
-  paymentMachine      PaymentMachine?      @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
-  items               SaleItem[]
-  payments            SalePayment[]
-  documents           SaleDocument[]
-  paymentTransactions PaymentTransaction[]
+  tenant                       Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                       Branch                        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order                        Order?                        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  seller                       UserProfile?                  @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  canceledBy                   UserProfile?                  @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  paymentMachine               PaymentMachine?               @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
+  items                        SaleItem[]
+  payments                     SalePayment[]
+  documents                    SaleDocument[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
 
   @@unique([tenantId, branchId, idempotencyKey])
+  @@unique([tenantId, id])
   @@index([tenantId, branchId, soldAt])
   @@index([tenantId, branchId, deletedAt, soldAt])
   @@index([tenantId, branchId, documentType, deletedAt, soldAt])
@@ -1990,6 +2034,19 @@ enum PaymentTransactionStatus {
   CANCELED
   REFUNDED
   ERROR
+}
+
+enum PaymentIdempotencyOperationType {
+  CREATE_PIX
+}
+
+enum PaymentIdempotencyExecutionState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
 }
 
 enum PaymentWebhookProcessingStatus {
