@@ -76,7 +76,7 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
     if (this.mode === 'unknown')
       throw new Error('network timeout after provider started');
     return {
-      id: `fake-payment-${this.calls.length}`,
+      id: `fake-payment-${randomUUID()}`,
       status: 'approved',
       qrCode: 'fake-qr',
     };
