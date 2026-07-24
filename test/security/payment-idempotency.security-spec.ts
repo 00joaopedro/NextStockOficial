@@ -258,7 +258,11 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const settled = await Promise.allSettled(calls);
     if (startError) throw startError;
     const results = settled.map((result) => {
-      if (result.status === 'rejected') throw result.reason;
+      if (result.status === 'rejected') {
+        throw result.reason instanceof Error
+          ? result.reason
+          : new Error(String(result.reason));
+      }
       return result.value;
     });
     const executions = await prismaA.paymentIdempotencyExecution.findMany({
