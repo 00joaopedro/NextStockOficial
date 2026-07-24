@@ -84,20 +84,21 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
 
   waitUntilStarted(timeoutMs = 15_000) {
     if (this.providerStarted) return Promise.resolve();
-    return Promise.race([
-      this.started,
-      new Promise<void>((_, reject) =>
-        setTimeout(
-          () =>
-            reject(
-              new Error(
-                'fake adapter did not start within the concurrency timeout',
-              ),
+    let timeout: ReturnType<typeof setTimeout>;
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      timeout = setTimeout(
+        () =>
+          reject(
+            new Error(
+              'fake adapter did not start within the concurrency timeout',
             ),
-          timeoutMs,
-        ),
-      ),
-    ]);
+          ),
+        timeoutMs,
+      );
+    });
+    return Promise.race([this.started, timeoutPromise]).finally(() =>
+      clearTimeout(timeout),
+    );
   }
 
   release() {
@@ -270,7 +271,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const executions = await prismaA.paymentIdempotencyExecution.findMany({
       where: { tenantId: tenant.id },
     });
-    return { tenant, branch, order, adapter, results, executions };
+    return { tenant, branch, order, adapter, dto, results, executions };
   }
 
   it.each([2, 20, 100])(
@@ -357,7 +358,33 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const unknown = await concurrent(2, 'unknown');
     try {
       expect(unknown.adapter.calls).toHaveLength(1);
+      expect(unknown.adapter.networkCalls).toBe(1);
+      expect(unknown.executions).toHaveLength(1);
       expect(unknown.executions[0].state).toBe('UNKNOWN');
+
+      const retryService = createService(
+        prismaA,
+        unknown.tenant.id,
+        unknown.branch.id,
+        unknown.adapter,
+      );
+      await expect(
+        retryService.createPix(undefined, unknown.dto, unknown.branch.id),
+      ).resolves.toMatchObject({ recoverable: true });
+      expect(unknown.adapter.calls).toHaveLength(1);
+      expect(unknown.adapter.networkCalls).toBe(1);
+      expect(
+        await prismaA.paymentIdempotencyExecution.count({
+          where: { tenantId: unknown.tenant.id },
+        }),
+      ).toBe(1);
+      expect(
+        (
+          await prismaA.paymentIdempotencyExecution.findFirst({
+            where: { tenantId: unknown.tenant.id },
+          })
+        )?.state,
+      ).toBe('UNKNOWN');
     } finally {
       await cleanup(unknown.tenant.id);
     }
