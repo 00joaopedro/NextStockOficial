@@ -171,7 +171,8 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         await request(app.getHttpServer())
           .patch(`/api/products/${foreign.id}`)
           .set(auth(adminA))
-          .send({ name: 'blocked' })
+          .set('content-type', 'application/json')
+          .send({ nome: 'blocked' })
       ).status,
     ).toBe(404);
     expect(
@@ -367,7 +368,8 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
       ).status,
     ).toBe(200);
     const support = await request(app.getHttpServer())
-      .get('/api/products')
+      .get('/api/products/lookup')
+      .query({ search: 'Security' })
       .set('x-test-user-id', devId)
       .set('x-nextstock-branch-id', branchB.id)
       .set('x-nextstock-dev-context', 'support');
