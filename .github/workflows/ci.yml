@@ -58,6 +58,8 @@ jobs:
             -f scripts/ci/bootstrap-supabase-roles.sql
       - name: Apply migrations to isolated CI database
         run: npm run db:migrate:deploy
+      - name: Verify migration status
+        run: npx prisma migrate status
       - run: npm run lint:check
       - run: npm run build
       - run: npm run build:frontend
