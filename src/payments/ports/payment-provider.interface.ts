@@ -60,6 +60,10 @@ export interface PixPaymentProviderAdapter {
     },
     idempotencyKey: string,
   ): Promise<ProviderPayment>;
+  findPixPaymentByExternalReference?(
+    credentials: ProviderCredentials,
+    externalReference: string,
+  ): Promise<ProviderPayment | null>;
 }
 export interface WebhookPaymentProviderAdapter {
   verifyWebhookSignature(input: {

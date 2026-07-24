@@ -92,6 +92,18 @@ export class MercadoPagoAdapter
     )) as any;
     return this.payment(data);
   }
+  async findPixPaymentByExternalReference(
+    c: ProviderCredentials,
+    externalReference: string,
+  ) {
+    const data = (await this.request(
+      `/v1/payments/search?external_reference=${encodeURIComponent(externalReference)}&sort=date_created&criteria=desc`,
+      'GET',
+      c,
+    )) as any;
+    const payment = Array.isArray(data.results) ? data.results[0] : null;
+    return payment ? this.payment(payment) : null;
+  }
   async createTerminalPayment(
     c: ProviderCredentials,
     input: Record<string, unknown>,
