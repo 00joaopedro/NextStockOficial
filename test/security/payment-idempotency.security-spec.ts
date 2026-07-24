@@ -1,7 +1,4 @@
-import { Body, Controller, Post, ValidationPipe } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
+import { Controller, Post, Body, HttpException } from '@nestjs/common';
 import {
   PrismaClient,
   PaymentProviderCode,
@@ -11,6 +8,7 @@ import {
 } from '@prisma/client';
 import * as request from 'supertest';
 import { randomUUID } from 'crypto';
+import { createServer } from 'http';
 import { PaymentsController } from '../../src/payments/payments.controller';
 import { PaymentsService } from '../../src/payments/payments.service';
 import {
@@ -303,16 +301,33 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     adapter.release();
     HttpHarness.controller = new PaymentsController(service);
     HttpHarness.branchId = branch.id;
-    const module = await Test.createTestingModule({
-      controllers: [HttpHarness],
-    }).compile();
-    const app = module.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter(),
-    );
-    app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true }),
-    );
-    await app.init();
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.setEncoding('utf8');
+      req.on('data', (chunk) => (raw += chunk));
+      req.on('end', async () => {
+        try {
+          const result = await HttpHarness.controller.pix(
+            { user: undefined } as any,
+            JSON.parse(raw),
+            HttpHarness.branchId,
+          );
+          res.statusCode = 201;
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          const status =
+            error instanceof HttpException ? error.getStatus() : 500;
+          const response =
+            error instanceof HttpException
+              ? error.getResponse()
+              : { message: 'Internal Server Error' };
+          res.statusCode = status;
+          res.setHeader('content-type', 'application/json');
+          res.end(JSON.stringify(response));
+        }
+      });
+    });
     try {
       const key = `rc001-http-${randomUUID()}`;
       const first = {
@@ -321,17 +336,16 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
         idempotencyKey: key,
         description: 'one',
       };
-      await request(app.getHttpServer())
-        .post('/payments/pix')
-        .send(first)
-        .expect(201);
-      await request(app.getHttpServer())
+      await request(server).post('/payments/pix').send(first).expect(201);
+      await request(server)
         .post('/payments/pix')
         .send({ ...first, description: 'two' })
         .expect(409);
       expect(adapter.calls).toHaveLength(1);
     } finally {
-      await app.close();
+      await new Promise<void>((resolve, reject) =>
+        server.close((error) => (error ? reject(error) : resolve())),
+      );
       await cleanup(tenant.id);
     }
   }, 30_000);
