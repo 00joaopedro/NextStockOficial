@@ -24,13 +24,17 @@ import {
   CreateTerminalDto,
   SetRoutingDto,
 } from './dto/payment-admin.dto';
-import { MercadoPagoAdapter } from './adapters/mercado-pago.adapter';
 import { PaymentCredentialsCryptoService } from './payment-credentials-crypto.service';
 import { PaymentProviderRegistry } from './payment-provider.registry';
 import {
   OAuthPaymentProviderAdapter,
   PixPaymentProviderAdapter,
 } from './ports/payment-provider.interface';
+import {
+  capabilityForMethod,
+  PAYMENT_CAPABILITIES,
+  requireCapability,
+} from './payment-capabilities';
 
 @Injectable()
 export class PaymentsService {
@@ -89,7 +93,21 @@ export class PaymentsService {
         },
       }),
     ]);
-    return { connections, terminals, routes };
+    return {
+      connections,
+      terminals,
+      routes,
+      capabilities: PAYMENT_CAPABILITIES,
+      featureAvailability: {
+        pagarme: process.env.PAGARME_ENABLED === 'true',
+        pagarmePix: process.env.PAGARME_PIX_ENABLED === 'true',
+        pagarmeCard: process.env.PAGARME_CARD_ENABLED === 'true',
+        stone:
+          process.env.STONE_ENABLED === 'true' &&
+          process.env.STONE_TERMINALS_ENABLED === 'true',
+        stoneRemote: false,
+      },
+    };
   }
   async createConnection(
     user: AuthenticatedUser | undefined,
@@ -97,7 +115,14 @@ export class PaymentsService {
     branch?: string,
   ) {
     const c = await this.context(user, branch, true);
-    if (dto.providerCode !== PaymentProviderCode.MERCADO_PAGO)
+    if (dto.providerCode === PaymentProviderCode.STONE)
+      throw new BadRequestException(
+        'Stone aceita somente cadastro manual de terminal nesta etapa.',
+      );
+    if (
+      dto.providerCode !== PaymentProviderCode.MERCADO_PAGO &&
+      dto.providerCode !== PaymentProviderCode.PAGARME
+    )
       throw new BadRequestException('Provedor ainda nao disponivel.');
     const adapter = this.registry.get(dto.providerCode);
     const credentials = { accessToken: dto.accessToken.trim() };
@@ -183,13 +208,11 @@ export class PaymentsService {
         id,
         connection.version,
       );
-      await (
-        this.registry.get(
-          connection.providerCode,
-        ) as unknown as OAuthPaymentProviderAdapter
-      )
-        .revokeConnection(credentials)
-        .catch(() => undefined);
+      const adapter = this.registry.get(connection.providerCode);
+      if ('revokeConnection' in adapter)
+        await (adapter as unknown as OAuthPaymentProviderAdapter)
+          .revokeConnection(credentials)
+          .catch(() => undefined);
     }
     await this.prisma.$transaction([
       this.prisma.paymentRoutingPreference.deleteMany({
@@ -213,6 +236,20 @@ export class PaymentsService {
     branch?: string,
   ) {
     const c = await this.context(user, branch, true);
+    if (
+      dto.providerCode === PaymentProviderCode.STONE &&
+      (process.env.STONE_ENABLED !== 'true' ||
+        process.env.STONE_TERMINALS_ENABLED !== 'true')
+    )
+      throw new ConflictException('Cadastro de terminais Stone desativado.');
+    if (
+      dto.providerCode === PaymentProviderCode.STONE &&
+      dto.integrationMode &&
+      !['MANUAL', 'LOCAL_SDK', 'TEF', 'UNAVAILABLE'].includes(
+        dto.integrationMode,
+      )
+    )
+      throw new BadRequestException('Stone remoto nao esta habilitado.');
     if (dto.connectionId) {
       const conn = await this.connection(c.tenantId, dto.connectionId);
       if (conn.providerCode !== dto.providerCode)
@@ -232,6 +269,18 @@ export class PaymentsService {
         externalDeviceId: dto.externalDeviceId?.trim(),
         serialNumberMasked: this.mask(dto.serialNumber),
         status: dto.status,
+        integrationMode: dto.integrationMode,
+        notes: dto.notes?.trim(),
+        capabilities:
+          dto.providerCode === PaymentProviderCode.STONE
+            ? {
+                TERMINAL_CARD:
+                  dto.integrationMode === 'LOCAL_SDK' ||
+                  dto.integrationMode === 'TEF'
+                    ? 'REQUIRES_LOCAL_SDK'
+                    : 'UNSUPPORTED',
+              }
+            : undefined,
       },
     });
     await this.record(c, 'payment.terminal.created', terminal.id);
@@ -260,8 +309,9 @@ export class PaymentsService {
   ) {
     const c = await this.context(user, branch, true);
     const connection = await this.connection(c.tenantId, dto.connectionId);
-    if (connection.status !== 'ACTIVE')
-      throw new ConflictException('A conexao deve estar ativa.');
+    if (connection.status !== 'ACTIVE' || !connection.lastValidatedAt)
+      throw new ConflictException('A conexao deve estar ativa e validada.');
+    requireCapability(connection.providerCode, capabilityForMethod(dto.method));
     return this.prisma.paymentRoutingPreference.upsert({
       where: {
         tenantId_method_context: {
@@ -324,8 +374,9 @@ export class PaymentsService {
     );
     const externalReference = `ns-${c.tenantId}-${randomUUID()}`;
     const created = await (
-      this.registry.get(
+      this.registry.require(
         route.connection.providerCode,
+        'PIX',
       ) as unknown as PixPaymentProviderAdapter
     ).createPixPayment(
       credentials,

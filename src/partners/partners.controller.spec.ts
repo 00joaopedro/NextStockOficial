@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { FastifyAdapter } from '@nestjs/platform-fastify';
 import * as request from 'supertest';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -71,8 +72,8 @@ describe('PartnersController authorization', () => {
       .overrideGuard(CsrfOriginGuard)
       .useClass(AllowGuard)
       .compile();
-    app = moduleRef.createNestApplication();
-    await app.init();
+    app = moduleRef.createNestApplication(new FastifyAdapter());
+    await app.listen(0, '127.0.0.1');
   });
 
   afterAll(async () => {
@@ -81,7 +82,9 @@ describe('PartnersController authorization', () => {
   });
 
   it('nega anonimo e Admin comum, permite somente Dev allowlisted', async () => {
-    expect((await request(app.getHttpServer()).get('/partners')).status).toBe(401);
+    expect((await request(app.getHttpServer()).get('/partners')).status).toBe(
+      401,
+    );
     expect(
       (
         await request(app.getHttpServer())
