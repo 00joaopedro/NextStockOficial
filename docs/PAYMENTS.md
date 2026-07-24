@@ -32,3 +32,9 @@ Cadastre o webhook em `POST /api/payments/webhooks/mercado-pago`. Não registre 
 ## Fluxo Mercado Pago
 
 Na fase 1 o administrador informa um access token da própria conta, que é transmitido por HTTPS, validado em `/users/me`, cifrado e nunca retornado. A UI permite cadastrar terminais e definir rotas para PIX, cartão online, Point e boleto. `POST /api/payments/pix` exige pedido da filial, valor exatamente igual ao total servidor-side, rota ativa e idempotency key; o QR retornado é metadado não sensível da transação. Eventos assinados são deduplicados e o status é novamente consultado no Mercado Pago.
+
+## Rollout da idempotência de criação PIX (RC-001)
+
+A criação PIX reivindica agora uma linha em `payment_idempotency_executions` antes de chamar o provider. A identidade é `(tenant_id, operation_type, idempotency_key)` e o hash financeiro fixa pedido, filial, valor recalculado, moeda, método, provider e conexão. Execuções `UNKNOWN` nunca são cobradas novamente às cegas: Mercado Pago é consultado pela `external_reference`; providers sem consulta segura permanecem pendentes para reconciliação operacional.
+
+O rollout é expand-only: aplicar a migration em pre-deploy, publicar o código e acompanhar logs `pix_idempotency`. O rollback seguro é desabilitar novas criações PIX na configuração do provider; não remover a tabela, não apagar execuções e não repetir registros `UNKNOWN`. Nenhum histórico em `payment_transactions` requer backfill.
