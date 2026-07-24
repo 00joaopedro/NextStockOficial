@@ -66,6 +66,8 @@ jobs:
       - run: npm run build:scripts
       - run: npm test -- --runInBand
       - run: npm run test:security
+      - name: RC-001 PIX concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci
