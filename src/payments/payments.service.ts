@@ -15,6 +15,8 @@ import {
   Role,
 } from '@prisma/client';
 import { randomUUID } from 'crypto';
+import { createHash } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
@@ -345,15 +347,11 @@ export class PaymentsService {
     });
     if (!order || order.totalCents !== dto.amountCents)
       throw new BadRequestException('Pedido ou valor invalido.');
-    const existing = await this.prisma.paymentTransaction.findUnique({
-      where: {
-        tenantId_idempotencyKey: {
-          tenantId: c.tenantId,
-          idempotencyKey: dto.idempotencyKey,
-        },
-      },
+    const requestHash = this.requestHash({
+      orderId: dto.orderId,
+      amountCents: dto.amountCents,
+      description: dto.description || `Pedido ${order.id}`,
     });
-    if (existing) return existing;
     const route = await this.prisma.paymentRoutingPreference.findUnique({
       where: {
         tenantId_method_context: {
@@ -366,46 +364,82 @@ export class PaymentsService {
     });
     if (!route?.isActive || route.connection.status !== 'ACTIVE')
       throw new ConflictException('Configure uma rota PIX ativa.');
+    let externalReference = `ns-${c.tenantId}-${randomUUID()}`;
+    let execution;
+    try {
+      execution = await this.prisma.paymentIdempotencyExecution.create({
+        data: {
+          tenantId: c.tenantId,
+          operationType: 'CREATE_PIX',
+          idempotencyKey: dto.idempotencyKey,
+          requestHash,
+          providerCode: route.connection.providerCode,
+          connectionId: route.connection.id,
+          externalReference,
+          orderId: order.id,
+          state: 'CLAIMED',
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') throw error;
+      const raced = await this.prisma.paymentIdempotencyExecution.findUnique({
+        where: { tenantId_operationType_idempotencyKey: {
+          tenantId: c.tenantId, operationType: 'CREATE_PIX', idempotencyKey: dto.idempotencyKey,
+        } },
+        include: { transaction: true },
+      });
+      if (!raced) throw error;
+      if (raced.requestHash !== requestHash)
+        throw new ConflictException('A chave de idempotencia ja foi usada com outro payload.');
+      if (raced.state === 'SUCCEEDED' && raced.transaction) return raced.transaction;
+      if (raced.state === 'UNKNOWN' || raced.state === 'PROCESSING')
+        return { recoverable: true, state: raced.state, executionId: raced.id };
+      if (raced.state === 'CLAIMED')
+        return { recoverable: true, state: raced.state, executionId: raced.id };
+      if (raced.state === 'FAILED_FINAL')
+        throw new ConflictException('A execucao de pagamento foi encerrada sem sucesso.');
+      execution = raced;
+      externalReference = raced.externalReference;
+    }
+    await this.prisma.paymentIdempotencyExecution.update({
+      where: { id: execution.id }, data: { state: 'PROCESSING', providerStartedAt: new Date() },
+    });
     const credentials = this.crypto.decrypt(
       route.connection.encryptedCredentials!,
       c.tenantId,
       route.connection.id,
       route.connection.version,
     );
-    const externalReference = `ns-${c.tenantId}-${randomUUID()}`;
-    const created = await (
-      this.registry.require(
-        route.connection.providerCode,
-        'PIX',
-      ) as unknown as PixPaymentProviderAdapter
-    ).createPixPayment(
-      credentials,
-      {
-        amountCents: dto.amountCents,
-        externalReference,
-        description: dto.description || `Pedido ${order.id}`,
-      },
-      dto.idempotencyKey,
-    );
-    return this.prisma.paymentTransaction.create({
-      data: {
-        tenantId: c.tenantId,
-        orderId: order.id,
-        providerCode: route.connection.providerCode,
-        connectionId: route.connection.id,
-        externalReference,
-        externalPaymentId: created.id,
-        method: 'PIX',
-        amountCents: dto.amountCents,
-        idempotencyKey: dto.idempotencyKey,
-        status: this.status(created.status),
-        externalStatus: created.status,
-        metadata: {
-          qrCode: created.qrCode,
-          qrCodeBase64: created.qrCodeBase64,
-        },
-      },
+    let created;
+    try {
+      created = await (this.registry.require(route.connection.providerCode, 'PIX') as unknown as PixPaymentProviderAdapter)
+        .createPixPayment(credentials, { amountCents: dto.amountCents, externalReference, description: dto.description || `Pedido ${order.id}` }, dto.idempotencyKey);
+    } catch (error) {
+      const uncertain = error instanceof Error && /timeout|abort|network|communicat/i.test(error.message);
+      await this.prisma.paymentIdempotencyExecution.update({
+        where: { id: execution.id },
+        data: { state: uncertain ? 'UNKNOWN' : 'FAILED_RETRYABLE', failureCode: uncertain ? 'EXTERNAL_RESULT_UNKNOWN' : 'PROVIDER_NOT_REACHED' },
+      });
+      if (uncertain) return { recoverable: true, state: 'UNKNOWN', executionId: execution.id };
+      throw error;
+    }
+    const transaction = await this.prisma.paymentTransaction.create({ data: {
+      tenantId: c.tenantId, orderId: order.id, providerCode: route.connection.providerCode,
+      connectionId: route.connection.id, externalReference, externalPaymentId: created.id,
+      method: 'PIX', amountCents: dto.amountCents, idempotencyKey: dto.idempotencyKey,
+      status: this.status(created.status), externalStatus: created.status,
+      metadata: { qrCode: created.qrCode, qrCodeBase64: created.qrCodeBase64 },
+    } });
+    await this.prisma.paymentIdempotencyExecution.update({
+      where: { id: execution.id }, data: { state: 'SUCCEEDED', transactionId: transaction.id, externalPaymentId: created.id, completedAt: new Date() },
     });
+    return transaction;
+  }
+  private requestHash(payload: Record<string, unknown>) {
+    const canonical = JSON.stringify(Object.keys(payload).sort().reduce((o, key) => {
+      o[key] = payload[key]; return o;
+    }, {} as Record<string, unknown>));
+    return createHash('sha256').update(canonical).digest('hex');
   }
   private async connection(tenantId: string, id: string) {
     const c = await this.prisma.paymentConnection.findFirst({
