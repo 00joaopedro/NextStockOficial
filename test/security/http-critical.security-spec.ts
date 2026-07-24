@@ -60,6 +60,11 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
       role: Role.Comprador,
       tenantId: tenantA.id,
     });
+    await createProfile(prisma, {
+      id: devId,
+      email: 'dev-security@test.local',
+      role: Role.superAdmin,
+    });
     await createMembership(prisma, adminA, tenantA, branchA, Role.Admin);
     await createMembership(prisma, sellerA, tenantA, branchA, Role.Vendedor);
     await createMembership(prisma, buyerA, tenantA, branchA, Role.Comprador);
@@ -367,15 +372,22 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
       .set('x-nextstock-branch-id', branchB.id)
       .set('x-nextstock-dev-context', 'support');
     expect(support.status).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 25));
     await expect(
-      prisma!.securityAuditEvent.count({
+      prisma!.securityAuditEvent.findFirst({
         where: {
           eventType: 'dev_support.tenant_access',
+          actorProfileId: devId,
           tenantId: tenantB.id,
           branchId: branchB.id,
+          action: 'access_real_tenant',
         },
       }),
-    ).resolves.toBeGreaterThan(0);
+    ).resolves.toMatchObject({
+      eventType: 'dev_support.tenant_access',
+      actorProfileId: devId,
+      tenantId: tenantB.id,
+      branchId: branchB.id,
+      action: 'access_real_tenant',
+    });
   });
 });

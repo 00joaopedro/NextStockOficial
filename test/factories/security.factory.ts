@@ -52,9 +52,14 @@ export async function createBranch(
 
 export async function createProfile(
   prisma: PrismaClient,
-  input: { role?: Role; tenantId?: string; email?: string } = {},
+  input: {
+    id?: string;
+    role?: Role;
+    tenantId?: string;
+    email?: string;
+  } = {},
 ) {
-  const id = randomUUID();
+  const id = input.id ?? randomUUID();
   const email = input.email ?? `${unique('user')}@test.local`;
   return prisma.userProfile.create({
     data: {
@@ -284,16 +289,18 @@ export async function createCheckout(
     profile?: { id: string };
   },
 ) {
+  const externalReference = randomUUID();
   return prisma.checkoutSession.create({
     data: {
       tenantId: input.tenant.id,
       planId: input.plan.id,
       createdById: input.profile?.id,
       provider: 'MERCADO_PAGO',
-      externalReference: randomUUID(),
-      amountCents: input.plan.priceCents,
+      checkoutUrl: `https://checkout.test.invalid/session/${externalReference}`,
+      externalReference,
+      expectedAmountCents: input.plan.priceCents,
       currency: input.plan.currency,
-    } as any,
+    },
   });
 }
 

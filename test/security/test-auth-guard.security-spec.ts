@@ -1,4 +1,4 @@
-import type { ExecutionContext } from '@nestjs/common';
+import { UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { DeterministicTestAuthGuard } from '../helpers/test-auth.guard';
 
@@ -47,10 +47,14 @@ describe('DeterministicTestAuthGuard', () => {
     };
   }
 
-  it('rejects an absent or unknown deterministic identity', () => {
+  it('rejects an absent or unknown deterministic identity with 401', () => {
     const guard = new DeterministicTestAuthGuard();
-    expect(guard.canActivate(contextFor(requestFor()))).toBe(false);
-    expect(guard.canActivate(contextFor(requestFor('unknown')))).toBe(false);
+    expect(() => guard.canActivate(contextFor(requestFor()))).toThrow(
+      UnauthorizedException,
+    );
+    expect(() => guard.canActivate(contextFor(requestFor('unknown')))).toThrow(
+      UnauthorizedException,
+    );
   });
 
   it('preserves the registered role, tenant, branch, mode and system type', () => {

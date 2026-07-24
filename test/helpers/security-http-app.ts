@@ -1,6 +1,10 @@
 import { ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { FastifyAdapter } from '@nestjs/platform-fastify';
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from '@nestjs/platform-fastify';
+import fastifyMultipart from '@fastify/multipart';
 import { Role, SystemMode, SystemType } from '@prisma/client';
 import { AppModule } from '../../src/app.module';
 import { JwtAuthGuard } from '../../src/auth/jwt-auth.guard';
@@ -14,12 +18,15 @@ export async function createSecurityHttpApp() {
     .overrideGuard(OptionalJwtAuthGuard)
     .useClass(DeterministicTestAuthGuard)
     .compile();
-  const app = module.createNestApplication(new FastifyAdapter());
+  const app = module.createNestApplication<NestFastifyApplication>(
+    new FastifyAdapter(),
+  );
   const users = new Map<string, AuthenticatedUser>();
   const fastify = app.getHttpAdapter().getInstance() as {
     securityTestUsers?: Map<string, AuthenticatedUser>;
   };
   fastify.securityTestUsers = users;
+  await app.register(fastifyMultipart, { attachFieldsToBody: false });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
