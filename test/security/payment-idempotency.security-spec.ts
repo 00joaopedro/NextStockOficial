@@ -256,7 +256,11 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
       adapter.release();
     }
     const settled = await Promise.allSettled(calls);
-    if (startError) throw startError;
+    if (startError) {
+      throw startError instanceof Error
+        ? startError
+        : new Error(String(startError));
+    }
     const results = settled.map((result) => {
       if (result.status === 'rejected') {
         throw result.reason instanceof Error
