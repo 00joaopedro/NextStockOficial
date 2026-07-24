@@ -78,10 +78,25 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
     };
   }
 
-  waitUntilStarted() {
-    return new Promise<void>((resolve) => {
-      const poll = () =>
-        this.providerStarted ? resolve() : setTimeout(poll, 5);
+  waitUntilStarted(timeoutMs = 15_000) {
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () =>
+          reject(
+            new Error(
+              'fake adapter did not start within the concurrency timeout',
+            ),
+          ),
+        timeoutMs,
+      );
+      const poll = () => {
+        if (this.providerStarted) {
+          clearTimeout(timeout);
+          resolve();
+          return;
+        }
+        setTimeout(poll, 5);
+      };
       poll();
     });
   }
@@ -165,7 +180,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
         'SECURITY_TEST_DATABASE_URL is required for RC-001 concurrency tests.',
       );
     const pooledUrl = new URL(databaseUrl);
-    pooledUrl.searchParams.set('connection_limit', '50');
+    pooledUrl.searchParams.set('connection_limit', '20');
     prismaA = new PrismaClient({ datasourceUrl: pooledUrl.toString() });
     prismaB = new PrismaClient({ datasourceUrl: pooledUrl.toString() });
     await prismaA.$connect();
