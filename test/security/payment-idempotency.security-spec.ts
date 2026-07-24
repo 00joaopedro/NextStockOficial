@@ -210,18 +210,8 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const { tenant, branch, order } = await fixture();
     const adapter = new FakePixAdapter();
     adapter.mode = mode;
-    const serviceA = await createService(
-      prismaA,
-      tenant.id,
-      branch.id,
-      adapter,
-    );
-    const serviceB = await createService(
-      prismaB,
-      tenant.id,
-      branch.id,
-      adapter,
-    );
+    const serviceA = createService(prismaA, tenant.id, branch.id, adapter);
+    const serviceB = createService(prismaB, tenant.id, branch.id, adapter);
     const dto = {
       orderId: order.id,
       amountCents: 100,
@@ -271,7 +261,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
   it('usa duas instâncias independentes e rejeita payload divergente com HTTP 409', async () => {
     const { tenant, branch, order } = await fixture();
     const adapter = new FakePixAdapter();
-    const service = await createService(prismaA, tenant.id, branch.id, adapter);
+    const service = createService(prismaA, tenant.id, branch.id, adapter);
     adapter.release();
     HttpHarness.controller = new PaymentsController(service);
     HttpHarness.branchId = branch.id;
@@ -320,7 +310,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const { tenant, branch, order } = await fixture();
     const adapter = new FakePixAdapter();
     adapter.mode = 'pre-network';
-    const service = await createService(prismaA, tenant.id, branch.id, adapter);
+    const service = createService(prismaA, tenant.id, branch.id, adapter);
     const dto = {
       orderId: order.id,
       amountCents: 100,
@@ -343,13 +333,13 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
     const left = await fixture();
     const right = await fixture();
     const adapter = new FakePixAdapter();
-    const serviceLeft = await createService(
+    const serviceLeft = createService(
       prismaA,
       left.tenant.id,
       left.branch.id,
       adapter,
     );
-    const serviceRight = await createService(
+    const serviceRight = createService(
       prismaB,
       right.tenant.id,
       right.branch.id,
