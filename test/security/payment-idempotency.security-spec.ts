@@ -305,27 +305,29 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
       let raw = '';
       req.setEncoding('utf8');
       req.on('data', (chunk) => (raw += chunk));
-      req.on('end', async () => {
-        try {
-          const result = await HttpHarness.controller.pix(
-            { user: undefined } as any,
-            JSON.parse(raw),
-            HttpHarness.branchId,
-          );
-          res.statusCode = 201;
-          res.setHeader('content-type', 'application/json');
-          res.end(JSON.stringify(result));
-        } catch (error) {
-          const status =
-            error instanceof HttpException ? error.getStatus() : 500;
-          const response =
-            error instanceof HttpException
-              ? error.getResponse()
-              : { message: 'Internal Server Error' };
-          res.statusCode = status;
-          res.setHeader('content-type', 'application/json');
-          res.end(JSON.stringify(response));
-        }
+      req.on('end', () => {
+        void (async () => {
+          try {
+            const result = await HttpHarness.controller.pix(
+              { user: undefined } as any,
+              JSON.parse(raw),
+              HttpHarness.branchId,
+            );
+            res.statusCode = 201;
+            res.setHeader('content-type', 'application/json');
+            res.end(JSON.stringify(result));
+          } catch (error) {
+            const status =
+              error instanceof HttpException ? error.getStatus() : 500;
+            const response =
+              error instanceof HttpException
+                ? error.getResponse()
+                : { message: 'Internal Server Error' };
+            res.statusCode = status;
+            res.setHeader('content-type', 'application/json');
+            res.end(JSON.stringify(response));
+          }
+        })();
       });
     });
     try {
