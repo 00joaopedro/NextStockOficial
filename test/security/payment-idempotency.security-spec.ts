@@ -47,6 +47,10 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
   private releaseProvider: (() => void) | undefined;
   private providerStarted = false;
   private released = false;
+  private startedResolve!: () => void;
+  private readonly started = new Promise<void>((resolve) => {
+    this.startedResolve = resolve;
+  });
 
   async createPixPayment(
     _credentials: ProviderCredentials,
@@ -66,6 +70,7 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
       throw new Error('provider rejected before request');
     this.networkCalls += 1;
     this.providerStarted = true;
+    this.startedResolve();
     if (this.blockExternal && !this.released)
       await new Promise<void>((resolve) => {
         this.releaseProvider = resolve;
@@ -80,26 +85,21 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
   }
 
   waitUntilStarted(timeoutMs = 15_000) {
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(
-        () =>
-          reject(
-            new Error(
-              'fake adapter did not start within the concurrency timeout',
+    if (this.providerStarted) return Promise.resolve();
+    return Promise.race([
+      this.started,
+      new Promise<void>((_, reject) =>
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                'fake adapter did not start within the concurrency timeout',
+              ),
             ),
-          ),
-        timeoutMs,
-      );
-      const poll = () => {
-        if (this.providerStarted) {
-          clearTimeout(timeout);
-          resolve();
-          return;
-        }
-        setTimeout(poll, 5);
-      };
-      poll();
-    });
+          timeoutMs,
+        ),
+      ),
+    ]);
   }
 
   release() {
