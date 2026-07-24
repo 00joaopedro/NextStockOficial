@@ -9,7 +9,7 @@ import {
   PaymentRoutingContext,
   Role,
 } from '@prisma/client';
-import request from 'supertest';
+import * as request from 'supertest';
 import { randomUUID } from 'crypto';
 import { PaymentsController } from '../../src/payments/payments.controller';
 import { PaymentsService } from '../../src/payments/payments.service';
@@ -62,7 +62,7 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
       externalReference: input.externalReference,
     });
     if (this.mode === 'pre-network')
-      throw new Error('provider rejected before network');
+      throw new Error('provider rejected before request');
     this.networkCalls += 1;
     this.providerStarted = true;
     if (!this.released)
