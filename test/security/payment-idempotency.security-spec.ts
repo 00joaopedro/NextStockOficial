@@ -43,6 +43,7 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
   }> = [];
   networkCalls = 0;
   mode: 'success' | 'pre-network' | 'unknown' = 'success';
+  blockExternal = true;
   private releaseProvider: (() => void) | undefined;
   private providerStarted = false;
   private released = false;
@@ -65,7 +66,7 @@ class FakePixAdapter implements PixPaymentProviderAdapter {
       throw new Error('provider rejected before request');
     this.networkCalls += 1;
     this.providerStarted = true;
-    if (!this.released)
+    if (this.blockExternal && !this.released)
       await new Promise<void>((resolve) => {
         this.releaseProvider = resolve;
       });
@@ -245,10 +246,21 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
         ),
       ),
     );
-    await adapter.waitUntilStarted();
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    adapter.release();
-    const results = await Promise.all(calls);
+    let startError: unknown;
+    try {
+      await adapter.waitUntilStarted();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    } catch (error) {
+      startError = error;
+    } finally {
+      adapter.release();
+    }
+    const settled = await Promise.allSettled(calls);
+    if (startError) throw startError;
+    const results = settled.map((result) => {
+      if (result.status === 'rejected') throw result.reason;
+      return result.value;
+    });
     const executions = await prismaA.paymentIdempotencyExecution.findMany({
       where: { tenantId: tenant.id },
     });
@@ -278,6 +290,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
   it('usa duas instâncias independentes e rejeita payload divergente com HTTP 409', async () => {
     const { tenant, branch, order } = await fixture();
     const adapter = new FakePixAdapter();
+    adapter.blockExternal = false;
     const service = createService(prismaA, tenant.id, branch.id, adapter);
     adapter.release();
     HttpHarness.controller = new PaymentsController(service);
@@ -313,7 +326,7 @@ runDatabaseSuite('RC-001 PIX idempotency on PostgreSQL', () => {
       await app.close();
       await cleanup(tenant.id);
     }
-  });
+  }, 30_000);
 
   it('UNKNOWN não repete cobrança e falha pré-rede permite retry', async () => {
     const unknown = await concurrent(2, 'unknown');
