@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  AuditOutcome,
+  AuditSeverity,
   Order,
   OrderItem,
   OrderPaymentMethod,
@@ -308,8 +310,8 @@ export class OrdersService {
         tx,
       );
 
-      if (existing.status === OrderStatus.canceled) {
-        throw new BadRequestException('Pedido ja esta cancelado.');
+      if (existing.status === OrderStatus.canceled && existing.stockRestoredAt) {
+        return existing;
       }
 
       const paidSale = await tx.sale.findFirst({
@@ -327,19 +329,61 @@ export class OrdersService {
         );
       }
 
+      const claimedAt = new Date();
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          status: { not: OrderStatus.canceled },
+          stockRestoredAt: null,
+        },
+        data: {
+          status: OrderStatus.canceled,
+          canceledAt: claimedAt,
+          cancellationReason: clean(dto.cancellationReason),
+          stockRestoredAt: claimedAt,
+          updatedById: user?.id,
+        },
+      });
+
+      if (claim.count !== 1) {
+        const current = await this.findScopedOrder(
+          context.tenantId,
+          context.branchId!,
+          id,
+          tx,
+        );
+        if (current.status === OrderStatus.canceled && current.stockRestoredAt) {
+          return current;
+        }
+        throw new BadRequestException('Pedido foi atualizado e nao pode ser cancelado.');
+      }
+
       await this.applyStockDelta(tx, context.tenantId, context.branchId!, existing.items.map((item) => ({
         productId: item.productId,
         delta: item.quantity,
       })));
 
-      return tx.order.update({
-        where: { id, tenantId: context.tenantId, branchId: context.branchId! },
+      await tx.securityAuditEvent.create({
         data: {
-          status: OrderStatus.canceled,
-          canceledAt: new Date(),
-          cancellationReason: clean(dto.cancellationReason),
-          updatedById: user?.id,
+          eventType: 'order.admin_canceled',
+          action: 'cancel_admin_order',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.LOW,
+          actorProfileId: user?.id,
+          actorRole: context.role,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          targetType: 'order',
+          targetId: id,
+          metadata: { stockRestoredAt: claimedAt.toISOString() },
         },
+      });
+
+      return tx.order.findFirstOrThrow({
+        where: { id, tenantId: context.tenantId, branchId: context.branchId! },
         include: { items: { orderBy: { createdAt: 'asc' } } },
       });
     });
@@ -554,7 +598,9 @@ export class OrdersService {
     branchId: string,
     deltas: Array<{ productId: string; delta: number }>,
   ) {
-    for (const delta of deltas) {
+    for (const delta of [...deltas].sort((a, b) =>
+      a.productId.localeCompare(b.productId),
+    )) {
       const result = await tx.product.updateMany({
         where: {
           id: delta.productId,

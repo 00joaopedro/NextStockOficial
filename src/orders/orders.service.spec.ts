@@ -41,6 +41,7 @@ describe('OrdersService', () => {
     cancellationReason: null,
     createdById: 'user-id',
     updatedById: 'user-id',
+    stockRestoredAt: null,
     deletedAt: null,
     createdAt: new Date('2026-06-09T10:00:00.000Z'),
     updatedAt: new Date('2026-06-09T10:00:00.000Z'),
@@ -78,13 +79,18 @@ describe('OrdersService', () => {
       order: {
         create: jest.fn().mockResolvedValue(order),
         findFirst: jest.fn().mockResolvedValue(order),
+        findFirstOrThrow: jest.fn().mockResolvedValue(order),
         update: jest.fn().mockResolvedValue(order),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       orderItem: {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       sale: {
         findFirst: jest.fn().mockResolvedValue(null),
+      },
+      securityAuditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-id' }),
       },
     };
     const prisma: any = {
@@ -252,10 +258,11 @@ describe('OrdersService', () => {
 
   it('cancelar pedido devolve estoque e marca canceledAt', async () => {
     const { service, tx } = makeService();
-    tx.order.update.mockResolvedValueOnce({
+    tx.order.findFirstOrThrow.mockResolvedValueOnce({
       ...order,
       status: OrderStatus.canceled,
       canceledAt: new Date('2026-06-09T11:00:00.000Z'),
+      stockRestoredAt: new Date('2026-06-09T11:00:00.000Z'),
     });
 
     await expect(
@@ -269,6 +276,22 @@ describe('OrdersService', () => {
         data: { quantity: { increment: 2 } },
       }),
     );
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'order-id',
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          status: { not: OrderStatus.canceled },
+          stockRestoredAt: null,
+        }),
+        data: expect.objectContaining({
+          status: OrderStatus.canceled,
+          stockRestoredAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(tx.securityAuditEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it('nao cancela pedido que ja possui Sale paga vinculada', async () => {
