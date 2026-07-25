@@ -21,6 +21,17 @@ export type FiscalProviderResult = {
   errorMessage?: string;
 };
 
+/** Providers must only use NOT_SENT when they can prove no request left the process. */
+export class FiscalProviderSendError extends Error {
+  constructor(
+    message: string,
+    readonly dispatchState: 'NOT_SENT' | 'UNKNOWN',
+  ) {
+    super(message);
+    this.name = 'FiscalProviderSendError';
+  }
+}
+
 export interface FiscalProvider {
   readonly name: string;
   readonly isRealProvider: boolean;

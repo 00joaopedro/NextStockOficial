@@ -1151,36 +1151,39 @@ model SalePayment {
 }
 
 model SaleDocument {
-  id                 String             @id @default(uuid()) @db.Uuid
-  saleId             String             @map("sale_id") @db.Uuid
-  tenantId           String?            @map("tenant_id") @db.Uuid
-  branchId           String?            @map("branch_id") @db.Uuid
-  orderId            String?            @map("order_id") @db.Uuid
-  type               SaleDocumentType
-  model              String?
-  environment        FiscalEnvironment?
-  number             String?
-  series             String?
-  accessKey          String?            @map("access_key")
-  protocol           String?
-  provider           String?
-  providerRef        String?            @map("provider_ref")
-  idempotencyKey     String?            @map("idempotency_key")
-  normalizedPayload  Json?              @map("normalized_payload")
-  providerResponse   Json?              @map("provider_response")
-  errorMessage       String?            @map("error_message")
-  status             SaleDocumentStatus @default(draft)
-  xmlPath            String?            @map("xml_path")
-  pdfPath            String?            @map("pdf_path")
-  issuedAt           DateTime?          @map("issued_at")
-  sentAt             DateTime?          @map("sent_at")
-  canceledAt         DateTime?          @map("canceled_at")
-  cancellationReason String?            @map("cancellation_reason")
-  createdById        String?            @map("created_by_id") @db.Uuid
-  updatedById        String?            @map("updated_by_id") @db.Uuid
-  deletedAt          DateTime?          @map("deleted_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                  String                  @id @default(uuid()) @db.Uuid
+  saleId              String                  @map("sale_id") @db.Uuid
+  tenantId            String?                 @map("tenant_id") @db.Uuid
+  branchId            String?                 @map("branch_id") @db.Uuid
+  orderId             String?                 @map("order_id") @db.Uuid
+  type                SaleDocumentType
+  model               String?
+  environment         FiscalEnvironment?
+  number              String?
+  series              String?
+  accessKey           String?                 @map("access_key")
+  protocol            String?
+  provider            String?
+  providerRef         String?                 @map("provider_ref")
+  idempotencyKey      String?                 @map("idempotency_key")
+  normalizedPayload   Json?                   @map("normalized_payload")
+  providerResponse    Json?                   @map("provider_response")
+  errorMessage        String?                 @map("error_message")
+  status              SaleDocumentStatus      @default(draft)
+  xmlPath             String?                 @map("xml_path")
+  pdfPath             String?                 @map("pdf_path")
+  issuedAt            DateTime?               @map("issued_at")
+  sentAt              DateTime?               @map("sent_at")
+  sendAttemptId       String?                 @map("send_attempt_id") @db.Uuid
+  sendAttemptState    FiscalSendAttemptState? @map("send_attempt_state")
+  processingStartedAt DateTime?               @map("processing_started_at")
+  canceledAt          DateTime?               @map("canceled_at")
+  cancellationReason  String?                 @map("cancellation_reason")
+  createdById         String?                 @map("created_by_id") @db.Uuid
+  updatedById         String?                 @map("updated_by_id") @db.Uuid
+  deletedAt           DateTime?               @map("deleted_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
 
   sale      Sale                  @relation(fields: [saleId], references: [id], onDelete: Cascade)
   tenant    Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1196,6 +1199,7 @@ model SaleDocument {
   @@index([tenantId, branchId, type, status, createdAt])
   @@index([orderId])
   @@index([idempotencyKey])
+  @@index([tenantId, branchId, id, sendAttemptId])
   @@map("sale_documents")
 }
 
@@ -1314,12 +1318,14 @@ model FiscalDocumentEvent {
   errorMessage    String?            @map("error_message")
   createdById     String?            @map("created_by_id") @db.Uuid
   createdAt       DateTime           @default(now()) @map("created_at")
+  attemptId       String?            @map("attempt_id") @db.Uuid
 
   document  SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy UserProfile? @relation("FiscalEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([documentId, createdAt])
   @@index([providerRef])
+  @@index([documentId, attemptId])
   @@map("fiscal_document_events")
 }
 
@@ -1900,6 +1906,14 @@ enum SaleDocumentStatus {
   internal_issued
   rejected
   canceled
+}
+
+enum FiscalSendAttemptState {
+  claimed
+  dispatching
+  unknown
+  completed
+  failed_pre_network
 }
 
 enum SalePaymentStatus {

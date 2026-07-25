@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import {
   FiscalEnvironment,
+  FiscalSendAttemptState,
   OrderStatus,
   Prisma,
   Role,
@@ -14,6 +15,7 @@ import {
   SaleDocumentType,
   SaleStatus,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { CancelFiscalDocumentDto } from './dto/cancel-fiscal-document.dto';
@@ -24,6 +26,7 @@ import { SendFiscalDocumentDto } from './dto/send-fiscal-document.dto';
 import {
   FiscalProvider,
   FiscalProviderDocument,
+  FiscalProviderSendError,
 } from './fiscal-provider.interface';
 import { FiscalSequenceService } from './fiscal-sequence.service';
 import { FiscalStorageService } from './fiscal-storage.service';
@@ -67,6 +70,7 @@ type FiscalSale = Prisma.SaleGetPayload<{
 
 const READ_ROLES = [Role.Admin, Role.Vendedor];
 const WRITE_ROLES = [Role.Admin];
+const CLAIM_LEASE_MS = 5 * 60 * 1000;
 
 @Injectable()
 export class FiscalService {
@@ -359,7 +363,6 @@ export class FiscalService {
     this.validation.assertConfig(config, true);
     this.validation.assertItems(document.sale.items);
     const provider = this.getProvider(config!.provider);
-
     if (
       config!.environment === FiscalEnvironment.producao &&
       !provider.isRealProvider
@@ -369,32 +372,143 @@ export class FiscalService {
       );
     }
 
-    const number =
-      document.number ??
-      String(
-        await this.sequence.allocate({
-          tenantId: context.tenantId,
-          branchId: context.branchId!,
-          model: '55',
-          series: document.series || config!.nfeSeries,
-          environment: config!.environment,
-        }),
-      );
-    const providerDocument = this.toProviderDocument(document, number);
-
-    await this.prisma.saleDocument.update({
-      where: { id: document.id },
+    const attemptId = randomUUID();
+    const claimedAt = new Date();
+    const claim = await this.prisma.saleDocument.updateMany({
+      where: {
+        id: document.id,
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+        deletedAt: null,
+        OR: [
+          { status: SaleDocumentStatus.draft },
+          {
+            status: SaleDocumentStatus.rejected,
+            OR: [
+              { sendAttemptState: null },
+              { sendAttemptState: FiscalSendAttemptState.completed },
+              { sendAttemptState: FiscalSendAttemptState.failed_pre_network },
+            ],
+          },
+          {
+            status: SaleDocumentStatus.processing,
+            sendAttemptState: FiscalSendAttemptState.claimed,
+            processingStartedAt: {
+              lt: new Date(claimedAt.getTime() - CLAIM_LEASE_MS),
+            },
+          },
+        ],
+      },
       data: {
-        number,
-        series: document.series || config!.nfeSeries,
+        sendAttemptId: attemptId,
+        sendAttemptState: FiscalSendAttemptState.claimed,
+        processingStartedAt: claimedAt,
         status: SaleDocumentStatus.processing,
-        sentAt: new Date(),
         updatedById: context.userId,
         errorMessage: null,
       },
     });
 
-    const result = await provider.sendNfe55(providerDocument);
+    if (claim.count !== 1) {
+      const current = await this.findScopedDocument(
+        context.tenantId,
+        context.branchId!,
+        id,
+      );
+      return {
+        ok: true,
+        idempotent: true,
+        processing: current.status === SaleDocumentStatus.processing,
+        authorized: current.status === SaleDocumentStatus.authorized,
+        message: 'Documento ja possui uma tentativa fiscal ativa.',
+        document: this.formatDocument(current),
+      };
+    }
+
+    const defaultSeries = document.series || config!.nfeSeries;
+    const numbered = await this.prisma.$transaction(async (tx) => {
+      const fresh = await tx.saleDocument.findFirst({
+        where: {
+          id: document.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          sendAttemptId: attemptId,
+          sendAttemptState: FiscalSendAttemptState.claimed,
+        },
+        select: { number: true, series: true },
+      });
+      if (!fresh) return null;
+      const number =
+        fresh.number ??
+        String(
+          await this.sequence.allocateWithClient(tx, {
+            tenantId: context.tenantId,
+            branchId: context.branchId!,
+            model: '55',
+            series: fresh.series || defaultSeries,
+            environment: config!.environment,
+          }),
+        );
+      const owned = await tx.saleDocument.updateMany({
+        where: { id: document.id, sendAttemptId: attemptId },
+        data: {
+          number,
+          series: fresh.series || defaultSeries,
+          sentAt: new Date(),
+          sendAttemptState: FiscalSendAttemptState.dispatching,
+        },
+      });
+      return owned.count === 1
+        ? { number, series: fresh.series || defaultSeries }
+        : null;
+    });
+    if (!numbered) {
+      const current = await this.findScopedDocument(
+        context.tenantId,
+        context.branchId!,
+        id,
+      );
+      return {
+        ok: true,
+        idempotent: true,
+        document: this.formatDocument(current),
+      };
+    }
+
+    const providerDocument = this.toProviderDocument(
+      { ...document, series: numbered.series },
+      numbered.number,
+    );
+    let result;
+    try {
+      result = await provider.sendNfe55(providerDocument);
+    } catch (error) {
+      const preNetwork =
+        error instanceof FiscalProviderSendError &&
+        error.dispatchState === 'NOT_SENT';
+      await this.prisma.saleDocument.updateMany({
+        where: {
+          id: document.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          sendAttemptId: attemptId,
+          sendAttemptState: FiscalSendAttemptState.dispatching,
+        },
+        data: {
+          status: preNetwork
+            ? SaleDocumentStatus.rejected
+            : SaleDocumentStatus.processing,
+          sendAttemptState: preNetwork
+            ? FiscalSendAttemptState.failed_pre_network
+            : FiscalSendAttemptState.unknown,
+          errorMessage: preNetwork
+            ? 'Falha comprovada antes do envio; nova tentativa permitida.'
+            : 'Resultado externo incerto; reconcilie antes de nova tentativa.',
+        },
+      });
+      throw error;
+    }
+
     const safeStatus =
       result.status === SaleDocumentStatus.authorized &&
       !provider.isRealProvider
@@ -403,7 +517,6 @@ export class FiscalService {
     const response = this.validation.sanitizeProviderPayload(result.response);
     let xmlPath: string | undefined;
     let pdfPath: string | undefined;
-
     if (provider.isRealProvider && result.xml) {
       xmlPath = await this.storage.uploadXml({
         tenantId: context.tenantId,
@@ -425,57 +538,78 @@ export class FiscalService {
       });
     }
 
-    const updated = await this.prisma.saleDocument.update({
-      where: { id: document.id },
-      data: {
-        status: safeStatus,
-        provider: provider.name,
-        providerRef: result.providerRef,
-        providerResponse: response as Prisma.InputJsonValue,
-        errorMessage:
-          safeStatus === SaleDocumentStatus.authorized
-            ? null
-            : (result.errorMessage ??
-              (provider.isRealProvider
-                ? null
-                : 'Provider real nao configurado; autorizacao SEFAZ nao ocorreu.')),
-        accessKey:
-          provider.isRealProvider &&
-          safeStatus === SaleDocumentStatus.authorized
-            ? result.accessKey
-            : null,
-        protocol:
-          provider.isRealProvider &&
-          safeStatus === SaleDocumentStatus.authorized
-            ? result.protocol
-            : null,
-        issuedAt:
-          safeStatus === SaleDocumentStatus.authorized ? new Date() : null,
-        xmlPath,
-        pdfPath,
-        updatedById: context.userId,
-        events: {
-          create: {
-            eventType: 'send',
-            status: safeStatus,
-            providerRef: result.providerRef,
-            requestPayload: {
-              requestId: dto.requestId,
-              number,
-              series: document.series || config!.nfeSeries,
-            },
-            responsePayload: response as Prisma.InputJsonValue,
-            errorMessage: result.errorMessage,
-            createdById: context.userId,
-          },
+    const applied = await this.prisma.$transaction(async (tx) => {
+      const owned = await tx.saleDocument.updateMany({
+        where: {
+          id: document.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          sendAttemptId: attemptId,
+          sendAttemptState: FiscalSendAttemptState.dispatching,
         },
-      },
-      include: DOCUMENT_INCLUDE,
+        data: {
+          status: safeStatus,
+          provider: provider.name,
+          providerRef: result.providerRef,
+          providerResponse: response as Prisma.InputJsonValue,
+          errorMessage:
+            safeStatus === SaleDocumentStatus.authorized
+              ? null
+              : (result.errorMessage ??
+                (provider.isRealProvider
+                  ? null
+                  : 'Provider real nao configurado; autorizacao SEFAZ nao ocorreu.')),
+          accessKey:
+            provider.isRealProvider &&
+            safeStatus === SaleDocumentStatus.authorized
+              ? result.accessKey
+              : null,
+          protocol:
+            provider.isRealProvider &&
+            safeStatus === SaleDocumentStatus.authorized
+              ? result.protocol
+              : null,
+          issuedAt:
+            safeStatus === SaleDocumentStatus.authorized ? new Date() : null,
+          xmlPath,
+          pdfPath,
+          sendAttemptState:
+            safeStatus === SaleDocumentStatus.processing
+              ? FiscalSendAttemptState.unknown
+              : FiscalSendAttemptState.completed,
+          updatedById: context.userId,
+        },
+      });
+      if (owned.count !== 1) return false;
+      await tx.fiscalDocumentEvent.create({
+        data: {
+          documentId: document.id,
+          eventType: 'send',
+          status: safeStatus,
+          providerRef: result.providerRef,
+          requestPayload: {
+            requestId: dto.requestId,
+            number: numbered.number,
+            series: numbered.series,
+            attemptId,
+          },
+          responsePayload: response as Prisma.InputJsonValue,
+          errorMessage: result.errorMessage,
+          createdById: context.userId,
+          attemptId,
+        },
+      });
+      return true;
     });
-
+    const updated = await this.findScopedDocument(
+      context.tenantId,
+      context.branchId!,
+      document.id,
+    );
     return {
       ok: true,
-      authorized: safeStatus === SaleDocumentStatus.authorized,
+      staleResponseIgnored: !applied,
+      authorized: updated.status === SaleDocumentStatus.authorized,
       providerReal: provider.isRealProvider,
       message: provider.isRealProvider
         ? 'Retorno do provider fiscal processado.'
@@ -1000,6 +1134,9 @@ export class FiscalService {
       errorMessage: document.errorMessage,
       issuedAt: document.issuedAt,
       sentAt: document.sentAt,
+      sendAttemptId: document.sendAttemptId,
+      sendAttemptState: document.sendAttemptState,
+      processingStartedAt: document.processingStartedAt,
       canceledAt: document.canceledAt,
       cancellationReason: document.cancellationReason,
       createdAt: document.createdAt,
@@ -1013,6 +1150,7 @@ export class FiscalService {
         eventType: event.eventType,
         status: event.status,
         providerRef: event.providerRef,
+        attemptId: event.attemptId,
         errorMessage: event.errorMessage,
         createdAt: event.createdAt,
       })),
