@@ -1,8 +1,4 @@
-import {
-  PaymentGatewayProvider,
-  PlanInterval,
-  Role,
-} from '@prisma/client';
+import { PaymentGatewayProvider, PlanInterval, Role } from '@prisma/client';
 import { CheckoutService } from './checkout.service';
 
 describe('CheckoutService', () => {
@@ -15,28 +11,46 @@ describe('CheckoutService', () => {
       priceCents: 20000,
       currency: 'BRL',
       interval: PlanInterval.MONTHLY,
-      gatewayMappings: [{
-        provider: PaymentGatewayProvider.MERCADO_PAGO,
-        paymentLinkUrl: null,
-        gatewayPlanId: 'mp-plan',
-      }],
+      gatewayMappings: [
+        {
+          provider: PaymentGatewayProvider.MERCADO_PAGO,
+          paymentLinkUrl: null,
+          gatewayPlanId: 'mp-plan',
+        },
+      ],
     };
     const tx = {
       checkoutSession: {
-        create: jest.fn().mockImplementation(({ data }) =>
-          Promise.resolve({ id: 'checkout', ...data }),
-        ),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'checkout', ...data }),
+          ),
       },
       billingEvent: { create: jest.fn().mockResolvedValue({}) },
       subscription: { update: jest.fn().mockResolvedValue({}) },
+      billingCheckoutIntent: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
     };
     const prisma = {
       plan: { findFirst: jest.fn().mockResolvedValue(plan) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub' }) },
-      userProfile: { findUnique: jest.fn().mockResolvedValue({ email: 'admin@example.com' }) },
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue({ email: 'admin@example.com' }),
+      },
+      billingCheckoutIntent: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'intent', ...data }),
+          ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
       $transaction: jest.fn((callback) => callback(tx)),
     } as any;
     const gateway = {
+      supportsIdempotentCheckoutRecovery: true,
       createCheckout: jest.fn().mockResolvedValue({
         checkoutUrl: 'https://www.mercadopago.com/subscriptions/checkout',
         gatewayCheckoutId: 'mp-subscription',
@@ -53,23 +67,38 @@ describe('CheckoutService', () => {
           role: Role.Admin,
         }),
       } as any,
-      { get: () => gateway, defaultProvider: () => PaymentGatewayProvider.MERCADO_PAGO } as any,
       {
-        create: jest.fn().mockImplementation((data, transaction) =>
-          transaction.billingEvent.create({ data }),
-        ),
+        get: () => gateway,
+        defaultProvider: () => PaymentGatewayProvider.MERCADO_PAGO,
+      } as any,
+      {
+        create: jest
+          .fn()
+          .mockImplementation((data, transaction) =>
+            transaction.billingEvent.create({ data }),
+          ),
       } as any,
     );
 
-    const result = await service.create({} as any, 'ouro');
+    const result = await service.create({} as any, 'ouro', 'checkout-key-123');
     const data = tx.checkoutSession.create.mock.calls[0][0].data;
     expect(data.expectedAmountCents).toBe(20000);
     expect(data.currency).toBe('BRL');
     expect(data.externalReference).toMatch(/^ns_cs_[0-9a-f-]+_[a-f0-9]{16}$/);
     expect(result.checkoutUrl).toContain('mercadopago.com');
     expect(result.automaticConfirmationAvailable).toBe(true);
-    expect(tx.subscription.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ gatewaySubscriptionId: 'mp-subscription' }),
-    }));
+    expect(gateway.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
+        externalReference: expect.stringMatching(/^ns_cs_/),
+      }),
+    );
+    expect(tx.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          gatewaySubscriptionId: 'mp-subscription',
+        }),
+      }),
+    );
   });
 });

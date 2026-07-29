@@ -1,6 +1,17 @@
 import { PaymentGatewayProvider } from '@prisma/client';
 
+export class GatewayCheckoutError extends Error {
+  constructor(
+    message: string,
+    readonly networkStarted: boolean,
+  ) {
+    super(message);
+    this.name = 'GatewayCheckoutError';
+  }
+}
+
 export type CreateGatewayCheckoutInput = {
+  idempotencyKey: string;
   externalReference: string;
   amountCents: number;
   currency: string;
@@ -44,6 +55,8 @@ export type GatewayPaymentResult = {
 
 export interface PaymentGateway {
   readonly provider: PaymentGatewayProvider;
+  /** Replaying create with the same key is an authoritative provider lookup/recovery. */
+  readonly supportsIdempotentCheckoutRecovery: boolean;
   createCheckout(
     input: CreateGatewayCheckoutInput,
   ): Promise<CreateGatewayCheckoutResult>;

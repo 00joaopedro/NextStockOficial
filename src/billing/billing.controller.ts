@@ -71,12 +71,14 @@ export class BillingController {
   createCheckout(
     @Req() req: Request,
     @Body() body: CreateCheckoutDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
     return this.checkouts.create(
       req.user,
       body.planSlug,
+      idempotencyKey,
       branchId,
       devContext,
     );
