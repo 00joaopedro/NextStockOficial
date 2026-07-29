@@ -346,7 +346,7 @@ databaseSuite('RC-005 billing checkout idempotency on PostgreSQL 16', () => {
       }),
     ).toBe(2);
     await expect(
-      service(prismaA, two, gateway).status(undefined, first.checkoutId),
+      service(prismaA, two, gateway).status(undefined, first.checkoutId!),
     ).rejects.toThrow('Checkout nao encontrado');
   });
 
