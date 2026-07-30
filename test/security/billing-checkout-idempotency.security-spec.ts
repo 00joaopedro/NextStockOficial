@@ -114,16 +114,41 @@ databaseSuite('RC-005 billing checkout idempotency on PostgreSQL 16', () => {
   });
 
   afterAll(async () => {
-    await prismaA.userProfile.deleteMany({ where: { id: { in: profileIds } } });
-    for (const tenantId of tenantIds)
-      await prismaA.tenant
-        .delete({ where: { id: tenantId } })
-        .catch(() => undefined);
-    await prismaA.gatewayPlanMapping.deleteMany({
-      where: { planId: { in: planIds } },
-    });
-    await prismaA.plan.deleteMany({ where: { id: { in: planIds } } });
-    await Promise.all([prismaA?.$disconnect(), prismaB?.$disconnect()]);
+    try {
+      await prismaA.billingCheckoutIntent.deleteMany({
+        where: {
+          tenantId: { in: tenantIds },
+          planId: { in: planIds },
+        },
+      });
+      await prismaA.checkoutSession.deleteMany({
+        where: {
+          tenantId: { in: tenantIds },
+          planId: { in: planIds },
+        },
+      });
+      await prismaA.billingEvent.deleteMany({
+        where: { tenantId: { in: tenantIds } },
+      });
+      await prismaA.subscription.deleteMany({
+        where: {
+          tenantId: { in: tenantIds },
+          planId: { in: planIds },
+        },
+      });
+      await prismaA.userProfile.deleteMany({
+        where: { id: { in: profileIds } },
+      });
+      await prismaA.tenant.deleteMany({
+        where: { id: { in: tenantIds } },
+      });
+      await prismaA.gatewayPlanMapping.deleteMany({
+        where: { planId: { in: planIds } },
+      });
+      await prismaA.plan.deleteMany({ where: { id: { in: planIds } } });
+    } finally {
+      await Promise.all([prismaA?.$disconnect(), prismaB?.$disconnect()]);
+    }
   });
 
   async function fixture(label = 'fixture') {
