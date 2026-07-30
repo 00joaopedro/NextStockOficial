@@ -144,40 +144,37 @@ export class PaymentsService {
           data: { planId: checkout.planId, currentPeriodEndsAt: periodEnd },
         });
       }
-      const invoice = await tx.billingInvoice.upsert({
-        where: {
-          provider_gatewayInvoiceId: {
-            provider,
-            gatewayInvoiceId: result.gatewayPaymentId,
-          },
-        },
-        update: {
-          status: this.invoiceStatus(status),
-          paidAt:
-            status === BillingPaymentStatus.APPROVED ? periodStart : undefined,
-          metadata: result.raw as Prisma.InputJsonValue,
-          lastProviderEventAt: result.providerOccurredAt,
-          lastPaymentState: status,
-        },
-        create: {
-          tenantId: checkout.tenantId,
-          subscriptionId: checkout.subscription.id,
-          planId: checkout.planId,
-          provider,
-          gatewayInvoiceId: result.gatewayPaymentId,
-          externalReference: result.externalReference!,
-          status: this.invoiceStatus(status),
-          periodStartedAt: periodStart,
-          periodEndsAt: periodEnd,
-          dueAt: periodStart,
-          amountCents: result.amountCents,
-          currency: result.currency,
-          paidAt: status === BillingPaymentStatus.APPROVED ? periodStart : null,
-          metadata: result.raw as Prisma.InputJsonValue,
-          lastProviderEventAt: result.providerOccurredAt,
-          lastPaymentState: status,
-        },
-      });
+      const [invoice] = await tx.$queryRaw<[{ id: string }]>(Prisma.sql`
+        INSERT INTO "billing_invoices" (
+          "tenant_id", "subscription_id", "plan_id", "provider",
+          "gateway_invoice_id", "external_reference", "status",
+          "period_started_at", "period_ends_at", "due_at", "amount_cents",
+          "currency", "paid_at", "metadata", "last_provider_event_at",
+          "last_payment_state"
+        ) VALUES (
+          ${checkout.tenantId}::uuid, ${checkout.subscription.id}::uuid,
+          ${checkout.planId}::uuid, ${provider}, ${result.gatewayPaymentId},
+          ${result.externalReference!}, ${this.invoiceStatus(status)},
+          ${periodStart}, ${periodEnd}, ${periodStart}, ${result.amountCents},
+          ${result.currency},
+          ${status === BillingPaymentStatus.APPROVED ? periodStart : null},
+          ${result.raw as Prisma.InputJsonValue}, ${result.providerOccurredAt},
+          ${status}
+        )
+        ON CONFLICT ("provider", "gateway_invoice_id")
+        WHERE "gateway_invoice_id" IS NOT NULL
+        DO UPDATE SET
+          "status" = EXCLUDED."status",
+          "paid_at" = CASE
+            WHEN EXCLUDED."status" = 'PAID' THEN EXCLUDED."paid_at"
+            ELSE "billing_invoices"."paid_at"
+          END,
+          "metadata" = EXCLUDED."metadata",
+          "last_provider_event_at" = EXCLUDED."last_provider_event_at",
+          "last_payment_state" = EXCLUDED."last_payment_state",
+          "updated_at" = NOW()
+        RETURNING "id"
+      `);
       let payment: { id: string };
       if (existing) {
         const paymentClaim = await tx.billingPayment.updateMany({
