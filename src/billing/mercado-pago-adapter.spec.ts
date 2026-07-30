@@ -25,6 +25,7 @@ describe('MercadoPagoGatewayAdapter', () => {
       validate: jest.fn(),
     } as any);
     const result = await adapter.createCheckout({
+      idempotencyKey: 'checkout-key-123',
       externalReference: 'ns_cs_reference',
       amountCents: 20000,
       currency: 'BRL',
