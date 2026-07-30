@@ -153,13 +153,15 @@ export class PaymentsService {
           "last_payment_state"
         ) VALUES (
           ${checkout.tenantId}::uuid, ${checkout.subscription.id}::uuid,
-          ${checkout.planId}::uuid, ${provider}, ${result.gatewayPaymentId},
-          ${result.externalReference!}, ${this.invoiceStatus(status)},
+          ${checkout.planId}::uuid,
+          ${provider}::"PaymentGatewayProvider", ${result.gatewayPaymentId},
+          ${result.externalReference!},
+          ${this.invoiceStatus(status)}::"BillingInvoiceStatus",
           ${periodStart}, ${periodEnd}, ${periodStart}, ${result.amountCents},
           ${result.currency},
           ${status === BillingPaymentStatus.APPROVED ? periodStart : null},
-          ${result.raw as Prisma.InputJsonValue}, ${result.providerOccurredAt},
-          ${status}
+          ${JSON.stringify(result.raw)}::jsonb, ${result.providerOccurredAt},
+          ${status}::"BillingPaymentStatus"
         )
         ON CONFLICT ("provider", "gateway_invoice_id")
         WHERE "gateway_invoice_id" IS NOT NULL
