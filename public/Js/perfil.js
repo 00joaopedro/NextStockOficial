@@ -135,10 +135,18 @@
   async function startCheckout(planSlug) {
     busy(true); message("Criando checkout...");
     try {
+      const storageKey = `nextstockBillingIntent:${planSlug}`;
+      let idempotencyKey = sessionStorage.getItem(storageKey);
+      if (!idempotencyKey) {
+        idempotencyKey = crypto.randomUUID();
+        sessionStorage.setItem(storageKey, idempotencyKey);
+      }
       const checkout = await api("/api/billing/checkout", {
-        method: "POST", body: JSON.stringify({ planSlug }),
+        method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ planSlug }),
       });
+      if (!checkout.checkoutUrl) { message("Checkout em processamento. Tente novamente com segurança."); return; }
       sessionStorage.setItem("nextstockBillingCheckoutId", checkout.checkoutId);
+      sessionStorage.removeItem(storageKey);
       location.assign(checkout.checkoutUrl);
     } finally { busy(false); }
   }

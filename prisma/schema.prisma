@@ -213,6 +213,7 @@ model Tenant {
   devWorkspaces                DevWorkspace[]
   partnerReferrals             PartnerReferral[]
   checkoutSessions             CheckoutSession[]
+  billingCheckoutIntents       BillingCheckoutIntent[]
   billingPayments              BillingPayment[]
   billingInvoices              BillingInvoice[]
   billingEvents                BillingEvent[]
@@ -227,26 +228,27 @@ model Tenant {
 }
 
 model Plan {
-  id               String               @id @default(uuid()) @db.Uuid
+  id               String                  @id @default(uuid()) @db.Uuid
   name             String
-  slug             String               @unique
-  priceCents       Int                  @map("price_cents")
-  currency         String               @default("BRL")
-  interval         PlanInterval         @default(MONTHLY)
-  intervalCount    Int                  @default(1) @map("interval_count")
+  slug             String                  @unique
+  priceCents       Int                     @map("price_cents")
+  currency         String                  @default("BRL")
+  interval         PlanInterval            @default(MONTHLY)
+  intervalCount    Int                     @default(1) @map("interval_count")
   features         Json?
-  sortOrder        Int                  @default(0) @map("sort_order")
+  sortOrder        Int                     @default(0) @map("sort_order")
   description      String?
-  isActive         Boolean              @default(true) @map("is_active")
-  deletedAt        DateTime?            @map("deleted_at")
-  tenants          Tenant[]             @relation("CurrentPlanTenants")
+  isActive         Boolean                 @default(true) @map("is_active")
+  deletedAt        DateTime?               @map("deleted_at")
+  tenants          Tenant[]                @relation("CurrentPlanTenants")
   subscriptions    Subscription[]
   gatewayMappings  GatewayPlanMapping[]
   checkoutSessions CheckoutSession[]
+  checkoutIntents  BillingCheckoutIntent[]
   billingPayments  BillingPayment[]
   billingInvoices  BillingInvoice[]
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
 
   @@index([isActive, sortOrder])
   @@map("plans")
@@ -478,6 +480,7 @@ model Subscription {
   plan                 Plan?                         @relation(fields: [planId], references: [id], onDelete: Restrict)
   partnerPaymentEvents PartnerReferralPaymentEvent[]
   checkoutSessions     CheckoutSession[]
+  checkoutIntents      BillingCheckoutIntent[]
   billingPayments      BillingPayment[]
   billingInvoices      BillingInvoice[]
   billingEvents        BillingEvent[]
@@ -487,6 +490,34 @@ model Subscription {
   @@index([planId])
   @@index([gatewayProvider, gatewaySubscriptionId])
   @@map("subscriptions")
+}
+
+model BillingCheckoutIntent {
+  id                String                     @id @default(uuid()) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  subscriptionId    String                     @map("subscription_id") @db.Uuid
+  planId            String                     @map("plan_id") @db.Uuid
+  provider          PaymentGatewayProvider
+  operation         String                     @default("CREATE_CHECKOUT")
+  idempotencyKey    String                     @map("idempotency_key")
+  payloadHash       String                     @map("payload_hash")
+  externalReference String                     @unique @map("external_reference")
+  state             BillingCheckoutIntentState @default(CLAIMED)
+  claimToken        String                     @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime                   @map("lease_expires_at")
+  checkoutSessionId String?                    @unique @map("checkout_session_id") @db.Uuid
+  failureCode       String?                    @map("failure_code")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription    Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  plan            Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
+  checkoutSession CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, operation, idempotencyKey])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@map("billing_checkout_intents")
 }
 
 model GatewayPlanMapping {
@@ -529,12 +560,13 @@ model CheckoutSession {
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  plan          Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
-  subscription  Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  createdBy     UserProfile?     @relation("BillingCheckoutCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plan          Plan                   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  subscription  Subscription?          @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  createdBy     UserProfile?           @relation("BillingCheckoutCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   payments      BillingPayment[]
   billingEvents BillingEvent[]
+  intent        BillingCheckoutIntent?
 
   @@index([tenantId, status, createdAt])
   @@index([planId])
@@ -1792,6 +1824,15 @@ enum CheckoutSessionStatus {
   EXPIRED
   CANCELED
   FAILED
+}
+
+enum BillingCheckoutIntentState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
 }
 
 enum BillingPaymentStatus {

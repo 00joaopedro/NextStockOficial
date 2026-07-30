@@ -38,7 +38,7 @@ jobs:
       SUPABASE_JWT_SECRET: test-jwt-secret-at-least-twenty-characters
       AUDIT_HASH_SECRET: test-audit-secret-at-least-thirty-two-characters
       SESSION_HASH_SECRET: test-session-secret-at-least-thirty-two-characters
-      SESSION_ENFORCEMENT_ENABLED: "false"
+      SESSION_ENFORCEMENT_ENABLED: 'false'
       BILLING_EXTERNAL_REFERENCE_SECRET: test-billing-secret-at-least-thirty-two-characters
       MERCADO_PAGO_MODE: sandbox
     steps:
@@ -65,7 +65,7 @@ jobs:
       - run: npm run build:frontend
       - run: npm run build:scripts
       - run: npm test -- --runInBand
-      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts
+      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
       - name: RC-002 fiscal send claim integration tests
@@ -74,6 +74,8 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/order-cancel-concurrency.security-spec.ts
       - name: RC-004 billing state ordering integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-state-order.security-spec.ts
+      - name: RC-005 billing checkout idempotency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-checkout-idempotency.security-spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci

@@ -16,6 +16,7 @@ import {
 @Injectable()
 export class MercadoPagoGatewayAdapter implements PaymentGateway {
   readonly provider = PaymentGatewayProvider.MERCADO_PAGO;
+  readonly supportsIdempotentCheckoutRecovery = true;
 
   constructor(private readonly signatures: MercadoPagoSignatureService) {}
 
@@ -27,6 +28,7 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     }
     const body = await this.request('/preapproval', {
       method: 'POST',
+      headers: { 'X-Idempotency-Key': input.idempotencyKey },
       body: JSON.stringify({
         preapproval_plan_id: input.gatewayPlanId,
         payer_email: input.payerEmail,
