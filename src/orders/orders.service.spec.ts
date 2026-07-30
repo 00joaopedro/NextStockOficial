@@ -1,5 +1,15 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderPaymentMethod, OrderStatus, Role, SystemMode, SystemType } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  OrderPaymentMethod,
+  OrderStatus,
+  Role,
+  SystemMode,
+  SystemType,
+} from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 describe('OrdersService', () => {
@@ -172,7 +182,11 @@ describe('OrdersService', () => {
 
     await expect(
       service.create(
-        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {
+          ...user,
+          systemType: SystemType.petshop,
+          allowedSystemTypes: [SystemType.petshop],
+        },
         {
           customerName: 'Cliente Pet',
           paymentMethod: OrderPaymentMethod.pix,
@@ -206,7 +220,11 @@ describe('OrdersService', () => {
 
     await expect(
       service.findAll(
-        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {
+          ...user,
+          systemType: SystemType.petshop,
+          allowedSystemTypes: [SystemType.petshop],
+        },
         {},
       ),
     ).resolves.toMatchObject({
@@ -266,7 +284,9 @@ describe('OrdersService', () => {
     });
 
     await expect(
-      service.cancel(user, 'order-id', { cancellationReason: 'Cliente desistiu' }),
+      service.cancel(user, 'order-id', {
+        cancellationReason: 'Cliente desistiu',
+      }),
     ).resolves.toMatchObject({
       ok: true,
       order: { status: OrderStatus.canceled },
@@ -282,7 +302,7 @@ describe('OrdersService', () => {
           id: 'order-id',
           tenantId: 'tenant-id',
           branchId: 'branch-id',
-          status: { not: OrderStatus.canceled },
+          status: { in: [OrderStatus.pending, OrderStatus.preparing] },
           stockRestoredAt: null,
         }),
         data: expect.objectContaining({
@@ -302,13 +322,13 @@ describe('OrdersService', () => {
       service.cancel(user, 'order-id', {
         cancellationReason: 'Cancelamento solicitado',
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('entregar pedido muda status sem nova baixa de estoque', async () => {
-    const { service, prisma } = makeService();
-    prisma.order.update.mockResolvedValueOnce({
+    const { service, tx } = makeService();
+    tx.order.findFirst.mockResolvedValueOnce(order).mockResolvedValueOnce({
       ...order,
       status: OrderStatus.delivered,
       deliveredAt: new Date('2026-06-09T11:00:00.000Z'),

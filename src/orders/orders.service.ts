@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -22,6 +23,7 @@ import { CreateOrderDto, CreateOrderItemDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { sourcesFor } from './order-status-transitions';
 
 type OrderWithItems = Order & { items: OrderItem[] };
 type PrismaTx = Prisma.TransactionClient;
@@ -48,7 +50,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, false);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      false,
+    );
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const where = this.buildWhere(context.tenantId, context.branchId!, query);
@@ -79,8 +86,17 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, false);
-    const order = await this.findScopedOrder(context.tenantId, context.branchId!, id);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      false,
+    );
+    const order = await this.findScopedOrder(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
     return { order: this.formatOrder(order) };
   }
 
@@ -90,7 +106,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
     const normalizedItems = this.normalizeItems(dto.items);
 
     const order = await this.prisma.$transaction(async (tx) => {
@@ -142,10 +163,15 @@ export class OrdersService {
         include: { items: { orderBy: { createdAt: 'asc' } } },
       });
 
-      await this.applyStockDelta(tx, context.tenantId, context.branchId!, pricedItems.map((item) => ({
-        productId: item.productId,
-        delta: -item.quantity,
-      })));
+      await this.applyStockDelta(
+        tx,
+        context.tenantId,
+        context.branchId!,
+        pricedItems.map((item) => ({
+          productId: item.productId,
+          delta: -item.quantity,
+        })),
+      );
 
       return created;
     });
@@ -160,7 +186,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
 
     const order = await this.prisma.$transaction(async (tx) => {
       const existing = await this.findScopedOrder(
@@ -185,9 +216,17 @@ export class OrdersService {
           (sum, item) => sum + item.totalPriceCents,
           0,
         );
-        const discountCents = Math.min(dto.discountCents ?? existing.discountCents, subtotalCents);
+        const discountCents = Math.min(
+          dto.discountCents ?? existing.discountCents,
+          subtotalCents,
+        );
 
-        await this.applyStockDelta(tx, context.tenantId, context.branchId!, stockDiff);
+        await this.applyStockDelta(
+          tx,
+          context.tenantId,
+          context.branchId!,
+          stockDiff,
+        );
         await tx.orderItem.deleteMany({ where: { orderId: id } });
         data.subtotalCents = subtotalCents;
         data.discountCents = discountCents;
@@ -204,7 +243,10 @@ export class OrdersService {
           })),
         };
       } else if (dto.discountCents !== undefined) {
-        const discountCents = Math.min(dto.discountCents, existing.subtotalCents);
+        const discountCents = Math.min(
+          dto.discountCents,
+          existing.subtotalCents,
+        );
         data.discountCents = discountCents;
         data.totalCents = Math.max(existing.subtotalCents - discountCents, 0);
       }
@@ -227,7 +269,13 @@ export class OrdersService {
     devContextMode?: string,
   ) {
     if (dto.status === OrderStatus.canceled) {
-      return this.cancel(user, id, { cancellationReason: dto.cancellationReason }, selectedBranchId, devContextMode);
+      return this.cancel(
+        user,
+        id,
+        { cancellationReason: dto.cancellationReason },
+        selectedBranchId,
+        devContextMode,
+      );
     }
 
     if (dto.status === OrderStatus.delivered) {
@@ -251,17 +299,36 @@ export class OrdersService {
       return { ok: true, order, sale: saleResult.sale };
     }
 
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const existing = await this.findScopedOrder(context.tenantId, context.branchId!, id);
-    this.assertStatusTransition(existing.status, dto.status);
-
-    const order = await this.prisma.order.update({
-      where: { id, tenantId: context.tenantId, branchId: context.branchId! },
-      data: {
-        status: dto.status,
-        updatedById: user?.id,
-      },
-      include: { items: { orderBy: { createdAt: 'asc' } } },
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const order = await this.prisma.$transaction(async (tx) => {
+      await this.findScopedOrder(context.tenantId, context.branchId!, id, tx);
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          status: { in: sourcesFor(dto.status) },
+        },
+        data: { status: dto.status, updatedById: user?.id },
+      });
+      const current = await this.findScopedOrder(
+        context.tenantId,
+        context.branchId!,
+        id,
+        tx,
+      );
+      if (claim.count === 0 && current.status !== dto.status) {
+        throw new ConflictException(
+          'Status do pedido mudou durante a transicao.',
+        );
+      }
+      return current;
     });
 
     return { ok: true, order: this.formatOrder(order) };
@@ -273,21 +340,57 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
-    const existing = await this.findScopedOrder(context.tenantId, context.branchId!, id);
-
-    if (existing.status === OrderStatus.canceled) {
-      throw new BadRequestException('Pedido cancelado nao pode ser entregue.');
-    }
-
-    const order = await this.prisma.order.update({
-      where: { id, tenantId: context.tenantId, branchId: context.branchId! },
-      data: {
-        status: OrderStatus.delivered,
-        deliveredAt: existing.deliveredAt ?? new Date(),
-        updatedById: user?.id,
-      },
-      include: { items: { orderBy: { createdAt: 'asc' } } },
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
+    const order = await this.prisma.$transaction(async (tx) => {
+      await this.findScopedOrder(context.tenantId, context.branchId!, id, tx);
+      const deliveredAt = new Date();
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          status: { in: sourcesFor(OrderStatus.delivered) },
+        },
+        data: {
+          status: OrderStatus.delivered,
+          deliveredAt,
+          updatedById: user?.id,
+        },
+      });
+      const current = await this.findScopedOrder(
+        context.tenantId,
+        context.branchId!,
+        id,
+        tx,
+      );
+      if (claim.count === 0) {
+        if (current.status === OrderStatus.delivered) return current;
+        throw new ConflictException(
+          'Status do pedido mudou durante a entrega.',
+        );
+      }
+      await tx.securityAuditEvent.create({
+        data: {
+          eventType: 'order.delivered',
+          action: 'deliver_order',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.LOW,
+          actorProfileId: user?.id,
+          actorRole: context.role,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          targetType: 'order',
+          targetId: id,
+          metadata: { deliveredAt: deliveredAt.toISOString() },
+        },
+      });
+      return current;
     });
 
     return { ok: true, order: this.formatOrder(order) };
@@ -300,7 +403,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
 
     const order = await this.prisma.$transaction(async (tx) => {
       const existing = await this.findScopedOrder(
@@ -310,7 +418,10 @@ export class OrdersService {
         tx,
       );
 
-      if (existing.status === OrderStatus.canceled && existing.stockRestoredAt) {
+      if (
+        existing.status === OrderStatus.canceled &&
+        existing.stockRestoredAt
+      ) {
         return existing;
       }
 
@@ -324,7 +435,7 @@ export class OrdersService {
         select: { id: true },
       });
       if (paidSale) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'Pedido pago possui venda vinculada. Cancele a venda pelo historico.',
         );
       }
@@ -336,7 +447,7 @@ export class OrdersService {
           tenantId: context.tenantId,
           branchId: context.branchId!,
           deletedAt: null,
-          status: { not: OrderStatus.canceled },
+          status: { in: sourcesFor(OrderStatus.canceled) },
           stockRestoredAt: null,
         },
         data: {
@@ -355,16 +466,26 @@ export class OrdersService {
           id,
           tx,
         );
-        if (current.status === OrderStatus.canceled && current.stockRestoredAt) {
+        if (
+          current.status === OrderStatus.canceled &&
+          current.stockRestoredAt
+        ) {
           return current;
         }
-        throw new BadRequestException('Pedido foi atualizado e nao pode ser cancelado.');
+        throw new ConflictException(
+          'Status do pedido mudou durante o cancelamento.',
+        );
       }
 
-      await this.applyStockDelta(tx, context.tenantId, context.branchId!, existing.items.map((item) => ({
-        productId: item.productId,
-        delta: item.quantity,
-      })));
+      await this.applyStockDelta(
+        tx,
+        context.tenantId,
+        context.branchId!,
+        existing.items.map((item) => ({
+          productId: item.productId,
+          delta: item.quantity,
+        })),
+      );
 
       await tx.securityAuditEvent.create({
         data: {
@@ -397,7 +518,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const context = await this.resolveContext(user, selectedBranchId, devContextMode, true);
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      true,
+    );
     await this.findScopedOrder(context.tenantId, context.branchId!, id);
 
     await this.prisma.order.update({
@@ -424,7 +550,12 @@ export class OrdersService {
       return saleReceipt;
     }
 
-    const { order } = await this.findOne(user, id, selectedBranchId, devContextMode);
+    const { order } = await this.findOne(
+      user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
     return {
       ok: true,
       receipt: {
@@ -440,7 +571,12 @@ export class OrdersService {
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
-    const { order } = await this.findOne(user, id, selectedBranchId, devContextMode);
+    const { order } = await this.findOne(
+      user,
+      id,
+      selectedBranchId,
+      devContextMode,
+    );
     return {
       ok: true,
       orderId: order.id,
@@ -537,7 +673,10 @@ export class OrdersService {
     const byProduct = new Map<string, number>();
 
     items.forEach((item) => {
-      byProduct.set(item.productId, (byProduct.get(item.productId) ?? 0) + item.quantity);
+      byProduct.set(
+        item.productId,
+        (byProduct.get(item.productId) ?? 0) + item.quantity,
+      );
     });
 
     return Array.from(byProduct.entries()).map(([productId, quantity]) => ({
@@ -567,17 +706,23 @@ export class OrdersService {
         quantity: true,
       },
     });
-    const productById = new Map(products.map((product) => [product.id, product]));
+    const productById = new Map(
+      products.map((product) => [product.id, product]),
+    );
 
     return items.map((item) => {
       const product = productById.get(item.productId);
 
       if (!product) {
-        throw new BadRequestException('Produto do pedido nao pertence a filial atual.');
+        throw new BadRequestException(
+          'Produto do pedido nao pertence a filial atual.',
+        );
       }
 
       if (product.quantity < item.quantity) {
-        throw new BadRequestException(`Estoque insuficiente para ${product.name}.`);
+        throw new BadRequestException(
+          `Estoque insuficiente para ${product.name}.`,
+        );
       }
 
       return {
@@ -606,7 +751,9 @@ export class OrdersService {
           id: delta.productId,
           tenantId,
           branchId,
-          ...(delta.delta < 0 ? { quantity: { gte: Math.abs(delta.delta) } } : {}),
+          ...(delta.delta < 0
+            ? { quantity: { gte: Math.abs(delta.delta) } }
+            : {}),
         },
         data: {
           quantity: { increment: delta.delta },
@@ -614,7 +761,9 @@ export class OrdersService {
       });
 
       if (result.count !== 1) {
-        throw new BadRequestException('Estoque insuficiente para concluir o pedido.');
+        throw new BadRequestException(
+          'Estoque insuficiente para concluir o pedido.',
+        );
       }
     }
   }
@@ -627,27 +776,36 @@ export class OrdersService {
     const next = new Map<string, number>();
 
     currentItems.forEach((item) => {
-      current.set(item.productId, (current.get(item.productId) ?? 0) + item.quantity);
+      current.set(
+        item.productId,
+        (current.get(item.productId) ?? 0) + item.quantity,
+      );
     });
     nextItems.forEach((item) => {
       next.set(item.productId, (next.get(item.productId) ?? 0) + item.quantity);
     });
 
     const productIds = new Set([...current.keys(), ...next.keys()]);
-    return Array.from(productIds).map((productId) => ({
-      productId,
-      delta: (current.get(productId) ?? 0) - (next.get(productId) ?? 0),
-    })).filter((item) => item.delta !== 0);
+    return Array.from(productIds)
+      .map((productId) => ({
+        productId,
+        delta: (current.get(productId) ?? 0) - (next.get(productId) ?? 0),
+      }))
+      .filter((item) => item.delta !== 0);
   }
 
   private buildUpdateData(dto: UpdateOrderDto, userId?: string) {
     const data: Prisma.OrderUpdateInput = {};
     if (userId) data.updatedBy = { connect: { id: userId } };
 
-    if (dto.customerName !== undefined) data.customerName = dto.customerName.trim();
-    if (dto.customerDocument !== undefined) data.customerDocument = clean(dto.customerDocument);
-    if (dto.customerPhone !== undefined) data.customerPhone = clean(dto.customerPhone);
-    if (dto.customerEmail !== undefined) data.customerEmail = clean(dto.customerEmail)?.toLowerCase() ?? null;
+    if (dto.customerName !== undefined)
+      data.customerName = dto.customerName.trim();
+    if (dto.customerDocument !== undefined)
+      data.customerDocument = clean(dto.customerDocument);
+    if (dto.customerPhone !== undefined)
+      data.customerPhone = clean(dto.customerPhone);
+    if (dto.customerEmail !== undefined)
+      data.customerEmail = clean(dto.customerEmail)?.toLowerCase() ?? null;
     if (dto.paymentMethod !== undefined) data.paymentMethod = dto.paymentMethod;
     if (dto.notes !== undefined) data.notes = clean(dto.notes);
 
@@ -663,16 +821,6 @@ export class OrdersService {
 
     if (order.status === OrderStatus.delivered) {
       throw new BadRequestException('Pedido entregue nao pode ser alterado.');
-    }
-  }
-
-  private assertStatusTransition(current: OrderStatus, next: OrderStatus) {
-    if (current === OrderStatus.canceled) {
-      throw new BadRequestException('Pedido cancelado nao pode mudar de status.');
-    }
-
-    if (current === OrderStatus.delivered && next !== OrderStatus.refunded) {
-      throw new BadRequestException('Pedido entregue so pode ser estornado.');
     }
   }
 

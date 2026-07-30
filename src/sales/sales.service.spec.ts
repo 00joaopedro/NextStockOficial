@@ -139,10 +139,13 @@ describe('SalesService', () => {
       },
       order: {
         findFirst: jest.fn(),
+        findFirstOrThrow: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       sale: {
         create: jest.fn().mockResolvedValue(sale),
+        findFirst: jest.fn().mockResolvedValue(null),
       },
     };
     const prisma: any = {
@@ -325,7 +328,7 @@ describe('SalesService', () => {
 
     expect(tx.product.findMany).not.toHaveBeenCalled();
     expect(tx.product.updateMany).not.toHaveBeenCalled();
-    expect(tx.order.update).toHaveBeenCalledWith(
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: OrderStatus.paid }),
       }),
