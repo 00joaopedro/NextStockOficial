@@ -65,13 +65,15 @@ jobs:
       - run: npm run build:frontend
       - run: npm run build:scripts
       - run: npm test -- --runInBand
-      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts
+      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
       - name: RC-002 fiscal send claim integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/fiscal-send-claim.security-spec.ts
       - name: RC-003 order cancellation concurrency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/order-cancel-concurrency.security-spec.ts
+      - name: RC-004 billing state ordering integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-state-order.security-spec.ts
       - name: RC-005 billing checkout idempotency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-checkout-idempotency.security-spec.ts
       - run: npm run test:e2e -- --runInBand

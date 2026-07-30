@@ -42,6 +42,8 @@ export type GatewayPaymentResult = {
   amountCents: number;
   currency: string;
   paidAt: Date | null;
+  /** Provider-owned payment update time; null when the provider omits it. */
+  providerOccurredAt: Date | null;
   gatewaySubscriptionId: string | null;
   normalizedStatus:
     | 'PENDING'
