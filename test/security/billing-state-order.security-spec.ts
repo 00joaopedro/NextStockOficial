@@ -184,11 +184,18 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
       const f = await fixture();
       const start = barrier(size);
       const states: State[] = ['PENDING', 'REJECTED', 'APPROVED', 'REFUNDED'];
-      const calls = Array.from({ length: size }, (_, index) =>
+      const scheduledStates: State[] =
+        size === 2
+          ? ['APPROVED', 'REFUNDED']
+          : Array.from(
+              { length: size },
+              (_, index) => states[index % states.length],
+            );
+      const calls = scheduledStates.map((scheduledState, index) =>
         start(() =>
           (index % 2 ? serviceA : serviceB).processVerifiedPayment(
             provider,
-            payment(f, states[index % states.length], null),
+            payment(f, scheduledState, null),
             index % 3 === 0
               ? 'webhook'
               : index % 3 === 1
@@ -199,10 +206,14 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
       );
       const results = await Promise.allSettled(calls);
       expect(results.every((item) => item.status === 'fulfilled')).toBe(true);
-      await assertAggregate(
-        f,
-        states.includes('REFUNDED') ? 'REFUNDED' : 'APPROVED',
-      );
+      const expected: State = scheduledStates.includes('REFUNDED')
+        ? 'REFUNDED'
+        : scheduledStates.includes('APPROVED')
+          ? 'APPROVED'
+          : scheduledStates.includes('REJECTED')
+            ? 'REJECTED'
+            : 'PENDING';
+      await assertAggregate(f, expected);
       expect(
         (
           await prismaA.subscription.findUniqueOrThrow({
