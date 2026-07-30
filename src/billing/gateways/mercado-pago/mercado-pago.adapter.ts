@@ -78,6 +78,10 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
   ): GatewayPaymentResult {
     this.assertMerchant(body);
     const status = String(body.status ?? 'unknown');
+    const metadata =
+      body.metadata && typeof body.metadata === 'object'
+        ? (body.metadata as Record<string, unknown>)
+        : {};
     return {
       gatewayPaymentId: String(body.id ?? resourceId),
       status,
@@ -88,10 +92,13 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
           : null,
       amountCents: Math.round(Number(body.transaction_amount ?? 0) * 100),
       currency: String(body.currency_id ?? ''),
-      paidAt: body.date_approved ? new Date(body.date_approved) : null,
+      paidAt: this.date(body.date_approved),
+      // Mercado Pago documents date_last_updated on the payment resource. Do
+      // not substitute webhook receipt time or the local clock when absent.
+      providerOccurredAt: this.date(body.date_last_updated),
       gatewaySubscriptionId:
-        typeof body.metadata?.preapproval_id === 'string'
-          ? body.metadata.preapproval_id
+        typeof metadata.preapproval_id === 'string'
+          ? metadata.preapproval_id
           : typeof body.subscription_id === 'string'
             ? body.subscription_id
             : null,
@@ -103,10 +110,17 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
         transaction_amount: body.transaction_amount,
         currency_id: body.currency_id,
         date_approved: body.date_approved,
+        date_last_updated: body.date_last_updated,
         live_mode: body.live_mode,
         collector_id: body.collector_id,
       },
     };
+  }
+
+  private date(value: unknown) {
+    if (typeof value !== 'string') return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 
   syncPayment(resourceId: string) {
