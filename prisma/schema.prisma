@@ -979,6 +979,7 @@ model Order {
   deliveryAddress        Json?              @map("delivery_address")
   reservationExpiresAt   DateTime?          @map("reservation_expires_at")
   stockRestoredAt        DateTime?          @map("stock_restored_at")
+  version                Int                @default(1)
 
   createdBy                    UserProfile?                  @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy                    UserProfile?                  @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
