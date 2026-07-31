@@ -162,7 +162,7 @@ describe('SupabaseStorageService', () => {
   it('bloqueia antes do Storage quando a quota e excedida', async () => {
     const supabase = makeSupabase();
     const quotas = {
-      assertAllowed: jest
+      reserve: jest
         .fn()
         .mockRejectedValue(new BadRequestException('quota exceeded')),
     };

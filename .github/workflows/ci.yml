@@ -65,7 +65,7 @@ jobs:
       - run: npm run build:frontend
       - run: npm run build:scripts
       - run: npm test -- --runInBand
-      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts
+      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
       - name: RC-002 fiscal send claim integration tests
@@ -80,9 +80,10 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/order-edit-concurrency.security-spec.ts
       - name: RC-007 order status CAS integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/order-status-cas.security-spec.ts
+      - name: RC-008 upload quota reservation concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/upload-quota-concurrency.security-spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci
-      - name: High severity dependency report
-        continue-on-error: true
+      - name: High severity dependency audit (blocking)
         run: npm audit --omit=dev --audit-level=high
