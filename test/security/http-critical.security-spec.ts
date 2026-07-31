@@ -204,7 +204,10 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
     for (const operation of [
       request(app.getHttpServer())
         .patch(`/api/orders/${foreignOrder.id}`)
-        .send({ notes: 'blocked' }),
+        .send({
+          notes: 'blocked',
+          expectedVersion: foreignOrder.version,
+        }),
       request(app.getHttpServer())
         .patch(`/api/orders/${foreignOrder.id}/cancel`)
         .send({ cancellationReason: 'blocked cross tenant' }),
@@ -221,6 +224,16 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         items: [{ productId: foreignProduct.id, quantity: 1 }],
       });
     expect([400, 404]).toContain(create.status);
+    await expect(
+      prisma!.order.findUniqueOrThrow({ where: { id: foreignOrder.id } }),
+    ).resolves.toMatchObject({
+      status: foreignOrder.status,
+      notes: foreignOrder.notes,
+      version: foreignOrder.version,
+    });
+    await expect(
+      prisma!.product.findUniqueOrThrow({ where: { id: foreignProduct.id } }),
+    ).resolves.toMatchObject({ quantity: foreignProduct.quantity });
   });
 
   it('blocks foreign sales and buyer cancellation', async () => {
