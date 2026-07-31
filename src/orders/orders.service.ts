@@ -23,6 +23,7 @@ import { CreateOrderDto, CreateOrderItemDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { sourcesFor } from './order-status-transitions';
 
 type OrderWithItems = Order & { items: OrderItem[] };
 type PrismaTx = Prisma.TransactionClient;
@@ -361,20 +362,34 @@ export class OrdersService {
       devContextMode,
       true,
     );
-    const existing = await this.findScopedOrder(
-      context.tenantId,
-      context.branchId!,
-      id,
-    );
-    this.assertStatusTransition(existing.status, dto.status);
-
-    const order = await this.prisma.order.update({
-      where: { id, tenantId: context.tenantId, branchId: context.branchId! },
-      data: {
-        status: dto.status,
-        updatedById: user?.id,
-      },
-      include: { items: { orderBy: { createdAt: 'asc' } } },
+    const order = await this.prisma.$transaction(async (tx) => {
+      await this.findScopedOrder(context.tenantId, context.branchId!, id, tx);
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          status: { in: sourcesFor(dto.status) },
+        },
+        data: {
+          status: dto.status,
+          updatedById: user?.id,
+          version: { increment: 1 },
+        },
+      });
+      const current = await this.findScopedOrder(
+        context.tenantId,
+        context.branchId!,
+        id,
+        tx,
+      );
+      if (claim.count === 0 && current.status !== dto.status) {
+        throw new ConflictException(
+          'Status do pedido mudou durante a transicao.',
+        );
+      }
+      return current;
     });
 
     return { ok: true, order: this.formatOrder(order) };
@@ -392,24 +407,52 @@ export class OrdersService {
       devContextMode,
       true,
     );
-    const existing = await this.findScopedOrder(
-      context.tenantId,
-      context.branchId!,
-      id,
-    );
-
-    if (existing.status === OrderStatus.canceled) {
-      throw new BadRequestException('Pedido cancelado nao pode ser entregue.');
-    }
-
-    const order = await this.prisma.order.update({
-      where: { id, tenantId: context.tenantId, branchId: context.branchId! },
-      data: {
-        status: OrderStatus.delivered,
-        deliveredAt: existing.deliveredAt ?? new Date(),
-        updatedById: user?.id,
-      },
-      include: { items: { orderBy: { createdAt: 'asc' } } },
+    const order = await this.prisma.$transaction(async (tx) => {
+      await this.findScopedOrder(context.tenantId, context.branchId!, id, tx);
+      const deliveredAt = new Date();
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          status: { in: sourcesFor(OrderStatus.delivered) },
+        },
+        data: {
+          status: OrderStatus.delivered,
+          deliveredAt,
+          updatedById: user?.id,
+          version: { increment: 1 },
+        },
+      });
+      const current = await this.findScopedOrder(
+        context.tenantId,
+        context.branchId!,
+        id,
+        tx,
+      );
+      if (claim.count === 0) {
+        if (current.status === OrderStatus.delivered) return current;
+        throw new ConflictException(
+          'Status do pedido mudou durante a entrega.',
+        );
+      }
+      await tx.securityAuditEvent.create({
+        data: {
+          eventType: 'order.delivered',
+          action: 'deliver_order',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.LOW,
+          actorProfileId: user?.id,
+          actorRole: context.role,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          targetType: 'order',
+          targetId: id,
+          metadata: { deliveredAt: deliveredAt.toISOString() },
+        },
+      });
+      return current;
     });
 
     return { ok: true, order: this.formatOrder(order) };
@@ -454,7 +497,7 @@ export class OrdersService {
         select: { id: true },
       });
       if (paidSale) {
-        throw new BadRequestException(
+        throw new ConflictException(
           'Pedido pago possui venda vinculada. Cancele a venda pelo historico.',
         );
       }
@@ -466,7 +509,7 @@ export class OrdersService {
           tenantId: context.tenantId,
           branchId: context.branchId!,
           deletedAt: null,
-          status: { not: OrderStatus.canceled },
+          status: { in: sourcesFor(OrderStatus.canceled) },
           stockRestoredAt: null,
         },
         data: {
@@ -475,6 +518,7 @@ export class OrdersService {
           cancellationReason: clean(dto.cancellationReason),
           stockRestoredAt: claimedAt,
           updatedById: user?.id,
+          version: { increment: 1 },
         },
       });
 
@@ -491,8 +535,8 @@ export class OrdersService {
         ) {
           return current;
         }
-        throw new BadRequestException(
-          'Pedido foi atualizado e nao pode ser cancelado.',
+        throw new ConflictException(
+          'Status do pedido mudou durante o cancelamento.',
         );
       }
 
@@ -841,18 +885,6 @@ export class OrdersService {
 
     if (order.status === OrderStatus.delivered) {
       throw new BadRequestException('Pedido entregue nao pode ser alterado.');
-    }
-  }
-
-  private assertStatusTransition(current: OrderStatus, next: OrderStatus) {
-    if (current === OrderStatus.canceled) {
-      throw new BadRequestException(
-        'Pedido cancelado nao pode mudar de status.',
-      );
-    }
-
-    if (current === OrderStatus.delivered && next !== OrderStatus.refunded) {
-      throw new BadRequestException('Pedido entregue so pode ser estornado.');
     }
   }
 

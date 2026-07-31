@@ -365,7 +365,7 @@ describe('OrdersService', () => {
           id: 'order-id',
           tenantId: 'tenant-id',
           branchId: 'branch-id',
-          status: { not: OrderStatus.canceled },
+          status: { in: [OrderStatus.pending, OrderStatus.preparing] },
           stockRestoredAt: null,
         }),
         data: expect.objectContaining({
@@ -385,13 +385,13 @@ describe('OrdersService', () => {
       service.cancel(user, 'order-id', {
         cancellationReason: 'Cancelamento solicitado',
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('entregar pedido muda status sem nova baixa de estoque', async () => {
-    const { service, prisma } = makeService();
-    prisma.order.update.mockResolvedValueOnce({
+    const { service, tx } = makeService();
+    tx.order.findFirst.mockResolvedValueOnce(order).mockResolvedValueOnce({
       ...order,
       status: OrderStatus.delivered,
       deliveredAt: new Date('2026-06-09T11:00:00.000Z'),

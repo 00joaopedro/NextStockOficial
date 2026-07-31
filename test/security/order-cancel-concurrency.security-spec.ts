@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   OrderPaymentMethod,
   OrderStatus,
@@ -225,7 +229,7 @@ runDatabaseSuite(
           data.order.id,
           { cancellationReason: 'must fail' },
         ),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      ).rejects.toBeInstanceOf(ConflictException);
       expect(
         await prismaA.product.findUniqueOrThrow({
           where: { id: data.product.id },
@@ -234,6 +238,9 @@ runDatabaseSuite(
       expect(
         await prismaA.order.findUniqueOrThrow({ where: { id: data.order.id } }),
       ).toMatchObject({ status: OrderStatus.pending, stockRestoredAt: null });
+      expect(
+        await prismaA.sale.count({ where: { orderId: data.order.id } }),
+      ).toBe(1);
     });
 
     it('hides cross-tenant and cross-branch orders', async () => {

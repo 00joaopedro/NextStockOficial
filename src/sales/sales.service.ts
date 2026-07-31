@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -25,6 +26,7 @@ import { CreateSaleFromOrderDto } from './dto/create-sale-from-order.dto';
 import { CreateSaleDto, CreateSaleItemDto } from './dto/create-sale.dto';
 import { SaleQueryDto } from './dto/sale-query.dto';
 import { InternalReceiptService } from './internal-receipt.service';
+import { sourcesFor } from '../orders/order-status-transitions';
 
 const SALE_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' as const } },
@@ -334,14 +336,67 @@ export class SalesService {
         if (!order) {
           throw new NotFoundException('Pedido nao encontrado.');
         }
-        if (
-          order.status === OrderStatus.canceled ||
-          order.status === OrderStatus.refunded
-        ) {
-          throw new BadRequestException(
-            'Pedido cancelado ou estornado nao pode virar venda.',
+        const paymentTarget =
+          order.status === OrderStatus.delivered
+            ? OrderStatus.delivered
+            : OrderStatus.paid;
+        const paymentSources =
+          paymentTarget === OrderStatus.delivered
+            ? [OrderStatus.delivered]
+            : sourcesFor(OrderStatus.paid);
+        const claim = await tx.order.updateMany({
+          where: {
+            id: order.id,
+            tenantId: context.tenantId,
+            branchId: context.branchId!,
+            deletedAt: null,
+            status: { in: paymentSources },
+          },
+          data: {
+            status: paymentTarget,
+            updatedById: context.userId,
+            version: { increment: 1 },
+          },
+        });
+        if (claim.count !== 1) {
+          const current = await tx.order.findFirstOrThrow({
+            where: {
+              id: order.id,
+              tenantId: context.tenantId,
+              branchId: context.branchId!,
+            },
+          });
+          const racedSale = await tx.sale.findFirst({
+            where: {
+              orderId: order.id,
+              tenantId: context.tenantId,
+              branchId: context.branchId!,
+              deletedAt: null,
+            },
+            include: SALE_INCLUDE,
+          });
+          if (
+            (current.status === OrderStatus.paid ||
+              current.status === OrderStatus.delivered) &&
+            racedSale
+          ) {
+            return racedSale;
+          }
+          throw new ConflictException(
+            'Status do pedido mudou durante o pagamento.',
           );
         }
+
+        const saleAfterClaim = await tx.sale.findFirst({
+          where: {
+            orderId: order.id,
+            tenantId: context.tenantId,
+            branchId: context.branchId!,
+            deletedAt: null,
+          },
+          include: SALE_INCLUDE,
+        });
+        if (saleAfterClaim) return saleAfterClaim;
 
         const sellerName = await this.loadSellerName(tx, context.userId, user);
         const paymentMethod = dto.paymentMethod ?? order.paymentMethod;
@@ -425,21 +480,6 @@ export class SalesService {
             },
           },
           include: SALE_INCLUDE,
-        });
-
-        await tx.order.update({
-          where: {
-            id: order.id,
-            tenantId: context.tenantId,
-            branchId: context.branchId!,
-          },
-          data: {
-            status:
-              order.status === OrderStatus.delivered
-                ? OrderStatus.delivered
-                : OrderStatus.paid,
-            updatedById: context.userId,
-          },
         });
 
         return created;

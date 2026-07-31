@@ -48,7 +48,7 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
     if (!databaseUrl)
       throw new Error('SECURITY_TEST_DATABASE_URL is required for RC-004.');
     const url = new URL(databaseUrl);
-    url.searchParams.set('connection_limit', '60');
+    url.searchParams.set('connection_limit', '30');
     url.searchParams.set('pool_timeout', '60');
     prismaA = new PrismaClient({ datasourceUrl: url.toString() });
     prismaB = new PrismaClient({ datasourceUrl: url.toString() });
@@ -205,7 +205,23 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
         ),
       );
       const results = await Promise.allSettled(calls);
-      expect(results.every((item) => item.status === 'fulfilled')).toBe(true);
+      const rejected = results.filter(
+        (item): item is PromiseRejectedResult => item.status === 'rejected',
+      );
+
+      if (rejected.length > 0) {
+        throw new Error(
+          [
+            `RC-004 ${size}: ${rejected.length} concurrent calls rejected`,
+            ...rejected.map((item, index) => {
+              const reason = item.reason;
+              return reason instanceof Error
+                ? `[${index}] ${reason.stack ?? reason.message}`
+                : `[${index}] ${String(reason)}`;
+            }),
+          ].join('\n'),
+        );
+      }
       const expected: State = scheduledStates.includes('REFUNDED')
         ? 'REFUNDED'
         : scheduledStates.includes('APPROVED')
