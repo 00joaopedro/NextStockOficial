@@ -58,6 +58,7 @@ model UserProfile {
   ownedStoredFiles         StoredFile[]                  @relation("StoredFileOwner")
   createdAt                DateTime                      @default(now()) @map("created_at")
   updatedAt                DateTime                      @updatedAt @map("updated_at")
+  provisioning             UserProvisioning?             @relation("ProvisionedProfile")
 
   @@index([tenantId])
   @@index([primaryTenantId])
@@ -212,6 +213,7 @@ model Tenant {
   paymentIdempotencyExecutions PaymentIdempotencyExecution[]
   devWorkspaces                DevWorkspace[]
   partnerReferrals             PartnerReferral[]
+  userProvisionings            UserProvisioning[]
   checkoutSessions             CheckoutSession[]
   billingCheckoutIntents       BillingCheckoutIntent[]
   billingPayments              BillingPayment[]
@@ -693,36 +695,37 @@ model BillingEvent {
 }
 
 model Branch {
-  id               String                @id @default(uuid()) @db.Uuid
-  tenantId         String                @map("tenant_id") @db.Uuid
-  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name             String
-  slug             String
-  isDefault        Boolean               @default(false) @map("is_default")
-  isActive         Boolean               @default(true) @map("is_active")
-  members          TenantMember[]
-  petClients       PetClient[]
-  pets             Pet[]
-  petPhotos        PetPhoto[]
-  agendaPets       AgendaPet[]
-  products         Product[]
-  orders           Order[]
-  employees        Employee[]
-  suppliers        Supplier[]
-  expenses         Expense[]
-  expenseFiles     ExpenseFile[]
-  sales            Sale[]
-  saleDocuments    SaleDocument[]
-  fiscalConfigs    CompanyFiscalConfig[]
-  fiscalSequences  FiscalSequence[]
-  paymentMachines  PaymentMachine[]
-  paymentTerminals PaymentTerminal[]
-  devWorkspaces    DevWorkspace[]
-  partnerReferrals PartnerReferral[]
-  storedFiles      StoredFile[]
-  storefront       Storefront?
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String
+  slug              String
+  isDefault         Boolean               @default(false) @map("is_default")
+  isActive          Boolean               @default(true) @map("is_active")
+  members           TenantMember[]
+  petClients        PetClient[]
+  pets              Pet[]
+  petPhotos         PetPhoto[]
+  agendaPets        AgendaPet[]
+  products          Product[]
+  orders            Order[]
+  employees         Employee[]
+  suppliers         Supplier[]
+  expenses          Expense[]
+  expenseFiles      ExpenseFile[]
+  sales             Sale[]
+  saleDocuments     SaleDocument[]
+  fiscalConfigs     CompanyFiscalConfig[]
+  fiscalSequences   FiscalSequence[]
+  paymentMachines   PaymentMachine[]
+  paymentTerminals  PaymentTerminal[]
+  devWorkspaces     DevWorkspace[]
+  partnerReferrals  PartnerReferral[]
+  storedFiles       StoredFile[]
+  storefront        Storefront?
+  userProvisionings UserProvisioning[]
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   @@unique([tenantId, slug])
   @@unique([id, tenantId])
@@ -731,21 +734,72 @@ model Branch {
 }
 
 model TenantMember {
-  id            String      @id @default(uuid()) @db.Uuid
-  tenantId      String      @map("tenant_id") @db.Uuid
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userProfileId String      @map("user_profile_id") @db.Uuid
-  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  branchId      String?     @map("branch_id") @db.Uuid
-  branch        Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  role          Role        @default(Comprador)
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userProfileId String            @map("user_profile_id") @db.Uuid
+  userProfile   UserProfile       @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  branchId      String?           @map("branch_id") @db.Uuid
+  branch        Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  role          Role              @default(Comprador)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  provisioning  UserProvisioning? @relation("ProvisionedMembership")
 
   @@unique([tenantId, userProfileId])
   @@index([userProfileId])
   @@index([branchId])
   @@map("tenant_members")
+}
+
+model UserProvisioning {
+  id                String                  @id @default(uuid()) @db.Uuid
+  tenantId          String                  @map("tenant_id") @db.Uuid
+  branchId          String?                 @map("branch_id") @db.Uuid
+  canonicalEmail    String                  @unique @map("canonical_email")
+  idempotencyKey    String                  @unique @map("idempotency_key")
+  payloadHash       String                  @map("payload_hash")
+  state             UserProvisioningState   @default(CLAIMED)
+  authUserId        String?                 @unique @map("auth_user_id") @db.Uuid
+  profileId         String?                 @unique @map("profile_id") @db.Uuid
+  membershipId      String?                 @unique @map("membership_id") @db.Uuid
+  claimToken        String?                 @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime?               @map("lease_expires_at")
+  attempts          Int                     @default(1)
+  lastErrorCode     String?                 @map("last_error_code")
+  compensationState String?                 @map("compensation_state")
+  actorProfileId    String                  @map("actor_profile_id") @db.Uuid
+  requestedName     String                  @map("requested_name")
+  requestedRole     Role                    @map("requested_role")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  completedAt       DateTime?               @map("completed_at")
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch            Branch?                 @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  profile           UserProfile?            @relation("ProvisionedProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  membership        TenantMember?           @relation("ProvisionedMembership", fields: [membershipId], references: [id], onDelete: Restrict)
+  events            UserProvisioningEvent[]
+
+  @@index([state, leaseExpiresAt])
+  @@index([tenantId, branchId])
+  @@map("user_provisionings")
+}
+
+model UserProvisioningEvent {
+  id             BigInt                 @id @default(autoincrement())
+  provisioningId String                 @map("provisioning_id") @db.Uuid
+  tenantId       String                 @map("tenant_id") @db.Uuid
+  branchId       String?                @map("branch_id") @db.Uuid
+  decision       String
+  fromState      UserProvisioningState? @map("from_state")
+  toState        UserProvisioningState  @map("to_state")
+  errorCode      String?                @map("error_code")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  provisioning   UserProvisioning       @relation(fields: [provisioningId], references: [id], onDelete: Restrict)
+
+  @@index([provisioningId, createdAt])
+  @@index([tenantId, branchId, createdAt])
+  @@map("user_provisioning_events")
 }
 
 model AgendaPet {
@@ -1735,6 +1789,17 @@ model PartnerReferralSeenEvent {
   @@index([referralId, createdAt])
   @@index([createdAt])
   @@map("partner_referral_seen_events")
+}
+
+enum UserProvisioningState {
+  CLAIMED
+  AUTH_CREATED
+  PROFILE_CREATED
+  COMPLETED
+  COMPENSATION_REQUIRED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+  UNKNOWN
 }
 
 enum Role {
