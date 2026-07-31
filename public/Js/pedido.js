@@ -6,6 +6,7 @@
   let currentOrders = [];
   let totalPages = 0;
   let previewMode = false;
+  let loadedDetailOrder = null;
 
   const ordersContainer = document.getElementById("ordersContainer");
   const pagination = document.getElementById("pagination");
@@ -15,6 +16,7 @@
   const statusFilter = document.getElementById("statusFilter");
   const orderDetailOverlay = document.getElementById("orderDetailOverlay");
   const closeDetailModal = document.getElementById("closeDetailModal");
+  const editOrderButton = document.getElementById("editOrderButton");
   const detailTitle = document.getElementById("detailTitle");
   const productsList = document.getElementById("productsList");
   const printArea = document.getElementById("printArea");
@@ -94,7 +96,9 @@
       if (response.status === 401) {
         throw new Error("Sessão expirada ou inválida. Faça login novamente.");
       }
-      throw new Error(data.message || `Erro ${response.status}`);
+      const error = new Error(data.message || `Erro ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     return data;
@@ -289,6 +293,8 @@
   async function openOrderDetails(orderId) {
     const data = await apiFetch(`/orders/${orderId}`);
     const order = data.order;
+    loadedDetailOrder = order;
+    editOrderButton.disabled = previewMode || !["pending", "preparing"].includes(order.status);
     detailTitle.textContent = `Produtos do pedido - ${order.customerName}`;
     productsList.innerHTML = order.items
       .map(
@@ -302,6 +308,55 @@
       )
       .join("");
     orderDetailOverlay.classList.add("active");
+  }
+
+  async function editLoadedOrder() {
+    const order = loadedDetailOrder;
+    if (!order) return;
+
+    const quantities = [];
+    for (const item of order.items) {
+      const answer = prompt(
+        `Quantidade de ${item.name} (0 remove):`,
+        String(item.quantity),
+      );
+      if (answer === null) return;
+      const quantity = Number(answer);
+      if (!Number.isInteger(quantity) || quantity < 0 || quantity > 9999) {
+        alert("Informe quantidades inteiras entre 0 e 9999.");
+        return;
+      }
+      if (quantity > 0) quantities.push({ productId: item.productId, quantity });
+    }
+    if (!quantities.length) {
+      alert("O pedido deve manter ao menos um produto.");
+      return;
+    }
+
+    try {
+      const result = await apiFetch(`/orders/${order.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          expectedVersion: order.version,
+          items: quantities,
+        }),
+      });
+      // The server response is the only authority for the next edit revision.
+      loadedDetailOrder = result.order;
+      await openOrderDetails(order.id);
+      await loadOrders();
+    } catch (error) {
+      if (error.status === 409) {
+        loadedDetailOrder = null;
+        alert(
+          "Este pedido foi alterado em outra sessão. Recarregue o pedido antes de editar novamente.",
+        );
+        closeOrderDetails();
+        await loadOrders();
+        return;
+      }
+      throw error;
+    }
   }
 
   async function markAsDelivered(orderId) {
@@ -386,6 +441,7 @@
   }
 
   function closeOrderDetails() {
+    loadedDetailOrder = null;
     orderDetailOverlay.classList.remove("active");
   }
 
@@ -414,6 +470,11 @@
   minPriceInput.addEventListener("input", resetAndLoad);
   statusFilter.addEventListener("change", resetAndLoad);
   closeDetailModal.addEventListener("click", closeOrderDetails);
+  editOrderButton.addEventListener("click", () => {
+    editLoadedOrder().catch((error) =>
+      alert(error.message || "Não foi possível editar o pedido."),
+    );
+  });
   orderDetailOverlay.addEventListener("click", (event) => {
     if (event.target === orderDetailOverlay) closeOrderDetails();
   });
