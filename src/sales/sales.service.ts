@@ -352,7 +352,11 @@ export class SalesService {
             deletedAt: null,
             status: { in: paymentSources },
           },
-          data: { status: paymentTarget, updatedById: context.userId },
+          data: {
+            status: paymentTarget,
+            updatedById: context.userId,
+            version: { increment: 1 },
+          },
         });
         if (claim.count !== 1) {
           const current = await tx.order.findFirstOrThrow({

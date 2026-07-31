@@ -201,6 +201,36 @@ export class OrdersService {
         tx,
       );
       this.assertMutable(existing);
+
+      // Claim the exact client-observed revision before reading any state used
+      // to calculate stock. PostgreSQL holds the updated order row until this
+      // transaction commits, so a competing editor can never pass this CAS.
+      const claim = await tx.order.updateMany({
+        where: {
+          id,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          deletedAt: null,
+          version: dto.expectedVersion,
+        },
+        data: { version: { increment: 1 } },
+      });
+      if (claim.count !== 1) {
+        throw new ConflictException(
+          'Pedido foi alterado por outro usuario. Recarregue antes de editar.',
+        );
+      }
+
+      // The first read may have happened before a winning transaction
+      // committed. Re-read only after winning the claim and derive the diff
+      // from this protected state.
+      const protectedOrder = await this.findScopedOrder(
+        context.tenantId,
+        context.branchId!,
+        id,
+        tx,
+      );
+      this.assertMutable(protectedOrder);
       const data = this.buildUpdateData(dto, user?.id);
 
       if (dto.items) {
@@ -210,14 +240,18 @@ export class OrdersService {
           context.tenantId,
           context.branchId!,
           normalizedItems,
+          false,
         );
-        const stockDiff = this.buildStockDiff(existing.items, pricedItems);
+        const stockDiff = this.buildStockDiff(
+          protectedOrder.items,
+          pricedItems,
+        );
         const subtotalCents = pricedItems.reduce(
           (sum, item) => sum + item.totalPriceCents,
           0,
         );
         const discountCents = Math.min(
-          dto.discountCents ?? existing.discountCents,
+          dto.discountCents ?? protectedOrder.discountCents,
           subtotalCents,
         );
 
@@ -245,17 +279,40 @@ export class OrdersService {
       } else if (dto.discountCents !== undefined) {
         const discountCents = Math.min(
           dto.discountCents,
-          existing.subtotalCents,
+          protectedOrder.subtotalCents,
         );
         data.discountCents = discountCents;
-        data.totalCents = Math.max(existing.subtotalCents - discountCents, 0);
+        data.totalCents = Math.max(
+          protectedOrder.subtotalCents - discountCents,
+          0,
+        );
       }
 
-      return tx.order.update({
+      await tx.order.update({
         where: { id, tenantId: context.tenantId, branchId: context.branchId! },
         data,
-        include: { items: { orderBy: { createdAt: 'asc' } } },
       });
+
+      await tx.securityAuditEvent.create({
+        data: {
+          eventType: 'order.admin_updated',
+          action: 'update_admin_order',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.LOW,
+          actorProfileId: user?.id,
+          actorRole: context.role,
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+          targetType: 'order',
+          targetId: id,
+          metadata: {
+            previousVersion: dto.expectedVersion,
+            version: dto.expectedVersion + 1,
+          },
+        },
+      });
+
+      return this.findScopedOrder(context.tenantId, context.branchId!, id, tx);
     });
 
     return { ok: true, order: this.formatOrder(order) };
@@ -315,7 +372,11 @@ export class OrdersService {
           deletedAt: null,
           status: { in: sourcesFor(dto.status) },
         },
-        data: { status: dto.status, updatedById: user?.id },
+        data: {
+          status: dto.status,
+          updatedById: user?.id,
+          version: { increment: 1 },
+        },
       });
       const current = await this.findScopedOrder(
         context.tenantId,
@@ -361,6 +422,7 @@ export class OrdersService {
           status: OrderStatus.delivered,
           deliveredAt,
           updatedById: user?.id,
+          version: { increment: 1 },
         },
       });
       const current = await this.findScopedOrder(
@@ -456,6 +518,7 @@ export class OrdersService {
           cancellationReason: clean(dto.cancellationReason),
           stockRestoredAt: claimedAt,
           updatedById: user?.id,
+          version: { increment: 1 },
         },
       });
 
@@ -690,6 +753,7 @@ export class OrdersService {
     tenantId: string,
     branchId: string,
     items: CreateOrderItemDto[],
+    validateFinalQuantity = true,
   ) {
     const products = await tx.product.findMany({
       where: {
@@ -719,7 +783,7 @@ export class OrdersService {
         );
       }
 
-      if (product.quantity < item.quantity) {
+      if (validateFinalQuantity && product.quantity < item.quantity) {
         throw new BadRequestException(
           `Estoque insuficiente para ${product.name}.`,
         );
@@ -827,6 +891,7 @@ export class OrdersService {
   private formatOrder(order: OrderWithItems) {
     return {
       id: order.id,
+      version: order.version,
       customerName: order.customerName,
       customerDocument: order.customerDocument,
       customerPhone: order.customerPhone,
