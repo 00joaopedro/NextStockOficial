@@ -28,16 +28,20 @@ describe('RC-007 order status CAS on PostgreSQL', () => {
   });
 
   afterAll(async () => {
-    for (const tenantId of tenants) {
-      await a.securityAuditEvent.deleteMany({ where: { tenantId } });
-      await a.sale.deleteMany({ where: { tenantId } });
-      await a.order.deleteMany({ where: { tenantId } });
-      await a.product.deleteMany({ where: { tenantId } });
-      await a.userProfile.deleteMany({ where: { tenantId } });
-      await a.branch.deleteMany({ where: { tenantId } });
-      await a.tenant.delete({ where: { id: tenantId } });
+    try {
+      // SecurityAuditEvent is append-only. Its records intentionally outlive
+      // these mutable fixtures and the disposable CI database.
+      for (const tenantId of tenants) {
+        await a.sale.deleteMany({ where: { tenantId } });
+        await a.order.deleteMany({ where: { tenantId } });
+        await a.product.deleteMany({ where: { tenantId } });
+        await a.userProfile.deleteMany({ where: { tenantId } });
+        await a.branch.deleteMany({ where: { tenantId } });
+        await a.tenant.delete({ where: { id: tenantId } });
+      }
+    } finally {
+      await Promise.all([a?.$disconnect(), b?.$disconnect()]);
     }
-    await Promise.all([a.$disconnect(), b.$disconnect()]);
   });
 
   async function fixture() {
