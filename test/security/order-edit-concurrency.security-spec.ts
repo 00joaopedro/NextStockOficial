@@ -73,9 +73,9 @@ describe('RC-006 order edit CAS on PostgreSQL 16', () => {
 
   afterAll(async () => {
     try {
-      await prismaA.securityAuditEvent.deleteMany({
-        where: { tenantId: { in: [...tenantIds] } },
-      });
+      // Audit events intentionally outlive their mutable fixtures. Their
+      // identifier columns have no foreign keys and the disposable CI database
+      // is destroyed after the job, so the append-only log must not be deleted.
       await prismaA.order.deleteMany({
         where: { tenantId: { in: [...tenantIds] } },
       });
