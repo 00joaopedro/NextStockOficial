@@ -28,6 +28,7 @@ export class StoredFilesService {
     visibility?: StoredFileVisibility;
     scanStatus?: StoredFileScanStatus;
     metadata?: Record<string, unknown>;
+    quotaReservationId?: string;
   }) {
     return this.prisma.storedFile.create({
       data: {
@@ -47,19 +48,49 @@ export class StoredFilesService {
         visibility: input.visibility ?? StoredFileVisibility.SIGNED_ONLY,
         scanStatus: input.scanStatus ?? StoredFileScanStatus.NOT_REQUIRED,
         metadata: input.metadata as Prisma.InputJsonValue | undefined,
+        quotaReservationId: input.quotaReservationId,
       },
     });
   }
 
   markDeleted(paths: Array<string | null | undefined>) {
-    return this.prisma.storedFile.updateMany({
-      where: {
-        storagePath: {
-          in: paths.filter((path): path is string => Boolean(path)),
+    const cleanPaths = paths.filter((path): path is string => Boolean(path));
+    return this.prisma.$transaction(async (tx) => {
+      const files = await tx.storedFile.findMany({
+        where: {
+          storagePath: { in: cleanPaths },
+          status: StoredFileStatus.ACTIVE,
         },
-        status: StoredFileStatus.ACTIVE,
-      },
-      data: { status: StoredFileStatus.DELETED, deletedAt: new Date() },
+        select: { id: true, tenantId: true, sizeBytes: true },
+      });
+      if (!files.length) return { count: 0 };
+      const changed = await tx.storedFile.updateMany({
+        where: {
+          id: { in: files.map((file) => file.id) },
+          status: StoredFileStatus.ACTIVE,
+        },
+        data: { status: StoredFileStatus.DELETED, deletedAt: new Date() },
+      });
+      for (const tenantId of new Set(files.map((file) => file.tenantId))) {
+        const tenantFiles = files.filter((file) => file.tenantId === tenantId);
+        await tx.uploadQuotaCounter.updateMany({
+          where: {
+            tenantId,
+            scope: 'TENANT_TOTAL',
+            windowStart: new Date('1970-01-01T00:00:00.000Z'),
+          },
+          data: {
+            confirmedBytes: {
+              decrement: tenantFiles.reduce(
+                (sum, file) => sum + file.sizeBytes,
+                0n,
+              ),
+            },
+            confirmedFiles: { decrement: tenantFiles.length },
+          },
+        });
+      }
+      return changed;
     });
   }
 
