@@ -712,17 +712,23 @@ model GatewayWebhookEvent {
   requestId        String?                        @map("request_id")
   signatureValid   Boolean                        @default(false) @map("signature_valid")
   payloadHash      String                         @map("payload_hash")
+  identityKey      String?                        @unique @map("identity_key")
+  accountScope     String                         @default("platform") @map("account_scope")
   rawPayload       Json?                          @map("raw_payload")
   processingStatus GatewayWebhookProcessingStatus @default(RECEIVED) @map("processing_status")
   attemptCount     Int                            @default(0) @map("attempt_count")
+  claimToken       String?                        @map("claim_token") @db.Uuid
+  claimedAt        DateTime?                      @map("claimed_at")
+  leaseExpiresAt   DateTime?                      @map("lease_expires_at")
   processedAt      DateTime?                      @map("processed_at")
   processingError  String?                        @map("processing_error")
+  failureCode      String?                        @map("failure_code")
   createdAt        DateTime                       @default(now()) @map("created_at")
   updatedAt        DateTime                       @updatedAt @map("updated_at")
 
   @@index([payloadHash])
   @@index([provider, gatewayEventId])
-  @@index([processingStatus, createdAt])
+  @@index([processingStatus, leaseExpiresAt])
   @@map("gateway_webhook_events")
 }
 
@@ -1993,8 +1999,11 @@ enum BillingInvoiceStatus {
 
 enum GatewayWebhookProcessingStatus {
   RECEIVED
+  PROCESSING
   PROCESSED
   FAILED
+  FAILED_RETRYABLE
+  FAILED_FINAL
   IGNORED
 }
 
