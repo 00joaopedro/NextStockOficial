@@ -56,6 +56,8 @@ model UserProfile {
   billingEvents            BillingEvent[]                @relation("BillingEventActor")
   sessions                 UserSession[]
   ownedStoredFiles         StoredFile[]                  @relation("StoredFileOwner")
+  uploadQuotaCounters      UploadQuotaCounter[]
+  uploadQuotaReservations  UploadQuotaReservation[]
   createdAt                DateTime                      @default(now()) @map("created_at")
   updatedAt                DateTime                      @updatedAt @map("updated_at")
   provisioning             UserProvisioning?             @relation("ProvisionedProfile")
@@ -91,30 +93,32 @@ model UserSession {
 }
 
 model StoredFile {
-  id             String               @id @default(uuid()) @db.Uuid
-  tenantId       String               @map("tenant_id") @db.Uuid
-  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  branchId       String?              @map("branch_id") @db.Uuid
-  branch         Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  ownerProfileId String?              @map("owner_profile_id") @db.Uuid
-  ownerProfile   UserProfile?         @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
-  module         String
-  targetType     String?              @map("target_type")
-  targetId       String?              @map("target_id")
-  bucket         String
-  storagePath    String               @map("storage_path")
-  originalName   String?              @map("original_name")
-  mimeType       String               @map("mime_type")
-  extension      String?
-  sizeBytes      BigInt               @map("size_bytes")
-  sha256         String?
-  visibility     StoredFileVisibility @default(SIGNED_ONLY)
-  scanStatus     StoredFileScanStatus @default(NOT_REQUIRED) @map("scan_status")
-  status         StoredFileStatus     @default(ACTIVE)
-  uploadedAt     DateTime             @default(now()) @map("uploaded_at")
-  deletedAt      DateTime?            @map("deleted_at")
-  lastAccessedAt DateTime?            @map("last_accessed_at")
-  metadata       Json?
+  id                 String                  @id @default(uuid()) @db.Uuid
+  tenantId           String                  @map("tenant_id") @db.Uuid
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branchId           String?                 @map("branch_id") @db.Uuid
+  branch             Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  ownerProfileId     String?                 @map("owner_profile_id") @db.Uuid
+  ownerProfile       UserProfile?            @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  module             String
+  targetType         String?                 @map("target_type")
+  targetId           String?                 @map("target_id")
+  bucket             String
+  storagePath        String                  @map("storage_path")
+  originalName       String?                 @map("original_name")
+  mimeType           String                  @map("mime_type")
+  extension          String?
+  sizeBytes          BigInt                  @map("size_bytes")
+  sha256             String?
+  visibility         StoredFileVisibility    @default(SIGNED_ONLY)
+  scanStatus         StoredFileScanStatus    @default(NOT_REQUIRED) @map("scan_status")
+  status             StoredFileStatus        @default(ACTIVE)
+  uploadedAt         DateTime                @default(now()) @map("uploaded_at")
+  deletedAt          DateTime?               @map("deleted_at")
+  lastAccessedAt     DateTime?               @map("last_accessed_at")
+  metadata           Json?
+  quotaReservation   UploadQuotaReservation? @relation(fields: [quotaReservationId], references: [id], onDelete: SetNull)
+  quotaReservationId String?                 @unique @map("quota_reservation_id") @db.Uuid
 
   @@unique([bucket, storagePath])
   @@index([tenantId, module, uploadedAt])
@@ -123,6 +127,57 @@ model StoredFile {
   @@index([sha256])
   @@index([ownerProfileId, uploadedAt])
   @@map("stored_files")
+}
+
+model UploadQuotaCounter {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ownerProfileId String?          @map("owner_profile_id") @db.Uuid
+  ownerProfile   UserProfile?     @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  scope          UploadQuotaScope
+  windowStart    DateTime         @map("window_start") @db.Date
+  byteLimit      BigInt           @map("byte_limit")
+  fileLimit      Int              @map("file_limit")
+  confirmedBytes BigInt           @default(0) @map("confirmed_bytes")
+  confirmedFiles Int              @default(0) @map("confirmed_files")
+  reservedBytes  BigInt           @default(0) @map("reserved_bytes")
+  reservedFiles  Int              @default(0) @map("reserved_files")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@unique([tenantId, scope, ownerProfileId, windowStart])
+  @@index([tenantId, windowStart])
+  @@map("upload_quota_counters")
+}
+
+model UploadQuotaReservation {
+  id               String                      @id @default(uuid()) @db.Uuid
+  tenantId         String                      @map("tenant_id") @db.Uuid
+  tenant           Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         String?                     @map("branch_id") @db.Uuid
+  ownerProfileId   String?                     @map("owner_profile_id") @db.Uuid
+  ownerProfile     UserProfile?                @relation(fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  idempotencyKey   String                      @map("idempotency_key")
+  intentHash       String                      @map("intent_hash")
+  requestedBytes   BigInt                      @map("requested_bytes")
+  requestedFiles   Int                         @map("requested_files")
+  state            UploadQuotaReservationState @default(RESERVED)
+  objectKeys       Json                        @map("object_keys")
+  storedFile       StoredFile?
+  expiresAt        DateTime                    @map("expires_at")
+  claimedAt        DateTime?                   @map("claimed_at")
+  confirmedAt      DateTime?                   @map("confirmed_at")
+  releasedAt       DateTime?                   @map("released_at")
+  lastError        String?                     @map("last_error")
+  reconciliationAt DateTime?                   @map("reconciliation_at")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([state, expiresAt])
+  @@index([tenantId, branchId])
+  @@map("upload_quota_reservations")
 }
 
 model SecurityAuditEvent {
@@ -221,6 +276,8 @@ model Tenant {
   billingEvents                BillingEvent[]
   userSessions                 UserSession[]
   storedFiles                  StoredFile[]
+  uploadQuotaCounters          UploadQuotaCounter[]
+  uploadQuotaReservations      UploadQuotaReservation[]
   storefronts                  Storefront[]
   createdAt                    DateTime                      @default(now()) @map("created_at")
   updatedAt                    DateTime                      @updatedAt @map("updated_at")
@@ -1849,6 +1906,20 @@ enum StoredFileStatus {
   DELETED
   ORPHANED
   QUARANTINED
+}
+
+enum UploadQuotaScope {
+  TENANT_TOTAL
+  TENANT_DAILY
+  USER_DAILY
+}
+
+enum UploadQuotaReservationState {
+  RESERVED
+  CONFIRMED
+  RELEASED
+  EXPIRED
+  RECONCILIATION_REQUIRED
 }
 
 enum SystemType {
