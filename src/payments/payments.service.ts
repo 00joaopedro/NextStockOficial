@@ -40,6 +40,12 @@ import {
 
 @Injectable()
 export class PaymentsService {
+  private readonly validationStatuses: PaymentConnectionStatus[] = [
+    PaymentConnectionStatus.PENDING,
+    PaymentConnectionStatus.ACTIVE,
+    PaymentConnectionStatus.EXPIRED,
+    PaymentConnectionStatus.ERROR,
+  ];
   constructor(
     private prisma: PrismaService,
     private contexts: TenantContextService,
@@ -164,8 +170,22 @@ export class PaymentsService {
   ) {
     const c = await this.context(user, branch, true);
     const connection = await this.connection(c.tenantId, id);
+    if (
+      connection.status === PaymentConnectionStatus.REVOKED ||
+      !connection.encryptedCredentials
+    ) {
+      await this.record(
+        c,
+        'payment.connection.validation_rejected_revoked',
+        id,
+        AuditOutcome.DENIED,
+      );
+      throw new ConflictException(
+        'A conexao foi revogada. Reconecte o provedor.',
+      );
+    }
     const credentials = this.crypto.decrypt(
-      connection.encryptedCredentials!,
+      connection.encryptedCredentials,
       c.tenantId,
       id,
       connection.version,
@@ -174,25 +194,63 @@ export class PaymentsService {
       const result = await this.registry
         .get(connection.providerCode)
         .validateConnection(credentials);
-      await this.prisma.paymentConnection.update({
-        where: { id },
+      const applied = await this.prisma.paymentConnection.updateMany({
+        where: {
+          id,
+          tenantId: c.tenantId,
+          providerCode: connection.providerCode,
+          version: connection.version,
+          status: { in: this.validationStatuses },
+        },
         data: {
-          status: 'ACTIVE',
+          status: PaymentConnectionStatus.ACTIVE,
           externalAccountId: result.externalAccountId,
           capabilities: result.capabilities,
           lastValidatedAt: new Date(),
           sanitizedError: null,
+          encryptedCredentials: this.crypto.encrypt(
+            credentials,
+            c.tenantId,
+            id,
+            connection.version + 1,
+          ),
+          version: { increment: 1 },
         },
       });
+      if (applied.count !== 1)
+        return this.validationConflict(c, id, connection.version);
+      await this.record(c, 'payment.connection.validated', id);
       return { valid: true, ...result };
     } catch (error) {
-      await this.prisma.paymentConnection.update({
-        where: { id },
+      if (error instanceof ConflictException) throw error;
+      const applied = await this.prisma.paymentConnection.updateMany({
+        where: {
+          id,
+          tenantId: c.tenantId,
+          providerCode: connection.providerCode,
+          version: connection.version,
+          status: { in: this.validationStatuses },
+        },
         data: {
-          status: 'ERROR',
+          status: PaymentConnectionStatus.ERROR,
           sanitizedError: 'Nao foi possivel validar a conexao.',
+          encryptedCredentials: this.crypto.encrypt(
+            credentials,
+            c.tenantId,
+            id,
+            connection.version + 1,
+          ),
+          version: { increment: 1 },
         },
       });
+      if (applied.count !== 1)
+        return this.validationConflict(c, id, connection.version);
+      await this.record(
+        c,
+        'payment.connection.validation_failed',
+        id,
+        AuditOutcome.FAILED,
+      );
       throw error;
     }
   }
@@ -220,8 +278,8 @@ export class PaymentsService {
       this.prisma.paymentRoutingPreference.deleteMany({
         where: { tenantId: c.tenantId, connectionId: id },
       }),
-      this.prisma.paymentConnection.update({
-        where: { id },
+      this.prisma.paymentConnection.updateMany({
+        where: { id, tenantId: c.tenantId },
         data: {
           status: 'REVOKED',
           encryptedCredentials: null,
@@ -448,6 +506,35 @@ export class PaymentsService {
     if (!c) throw new NotFoundException('Conexao nao encontrada.');
     return c;
   }
+  private async validationConflict(
+    c: any,
+    id: string,
+    snapshotVersion: number,
+  ) {
+    const current = await this.prisma.paymentConnection.findFirst({
+      where: { id, tenantId: c.tenantId },
+      select: { status: true, version: true },
+    });
+    await this.record(
+      c,
+      current?.status === PaymentConnectionStatus.REVOKED
+        ? 'payment.connection.validation_discarded_after_revoke'
+        : 'payment.connection.validation_cas_lost',
+      id,
+      AuditOutcome.DENIED,
+    );
+    throw new ConflictException({
+      statusCode: 409,
+      message:
+        current?.status === PaymentConnectionStatus.REVOKED
+          ? 'A conexao foi revogada durante a validacao.'
+          : 'A conexao foi alterada durante a validacao. Tente novamente.',
+      error: 'Conflict',
+      connectionStatus: current?.status,
+      currentVersion: current?.version,
+      snapshotVersion,
+    });
+  }
   private mask(value?: string) {
     const v = String(value || '').trim();
     return v
@@ -463,7 +550,12 @@ export class PaymentsService {
         ? PaymentTransactionStatus.REJECTED
         : PaymentTransactionStatus.PENDING;
   }
-  private record(c: any, eventType: string, targetId: string) {
+  private record(
+    c: any,
+    eventType: string,
+    targetId: string,
+    outcome: AuditOutcome = AuditOutcome.SUCCESS,
+  ) {
     return this.audit.record({
       eventType,
       severity: AuditSeverity.HIGH,
@@ -474,7 +566,7 @@ export class PaymentsService {
       targetType: 'payment',
       targetId,
       action: eventType,
-      outcome: AuditOutcome.SUCCESS,
+      outcome,
     });
   }
 }
