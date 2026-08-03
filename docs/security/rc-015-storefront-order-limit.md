@@ -7,10 +7,19 @@ storefront/filial e telefone canônico, em uma janela móvel de 30 dias baseada 
 `preparing` e `paid`; registros cancelados, entregues, reembolsados, soft-deleted
 ou anteriores à janela não contam.
 
-O telefone canônico preserva todos os dígitos (incluindo país e zeros), remove
-somente a formatação aceita pelo DTO e limita-se aos 20 dígitos já persistidos.
-Prefixos não são inferidos. Telefone ausente ou com menos de oito dígitos é
-rejeitado como requisição inválida.
+O telefone canônico preserva todos os dígitos (incluindo país e zeros) e remove
+somente a formatação aceita pelo DTO. São aceitos de 8 a 20 dígitos; valores fora
+desse intervalo são rejeitados, nunca truncados. Prefixos não são inferidos:
+números nacionais e internacionais permanecem identidades distintas.
+
+| Status      | Conta? | Justificativa                    |
+| ----------- | ------ | -------------------------------- |
+| `pending`   | sim    | reserva pública aberta           |
+| `preparing` | sim    | pedido ainda em atendimento      |
+| `paid`      | sim    | pedido pago ainda não finalizado |
+| `delivered` | não    | estado final de entrega          |
+| `canceled`  | não    | cancelamento libera o slot       |
+| `refunded`  | não    | estado final após reembolso      |
 
 Dentro da mesma transação curta, a ordem é: `pg_advisory_xact_lock` da identidade
 RC-015; releitura da idempotência; relógio do banco e `count`; produtos ordenados

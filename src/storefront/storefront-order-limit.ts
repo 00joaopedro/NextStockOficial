@@ -2,10 +2,20 @@ import { createHash } from 'crypto';
 
 export const STOREFRONT_ACTIVE_ORDER_LIMIT = 3;
 export const STOREFRONT_ACTIVE_ORDER_WINDOW_DAYS = 30;
+export const STOREFRONT_PHONE_MIN_DIGITS = 8;
+export const STOREFRONT_PHONE_MAX_DIGITS = 20;
 
 /** Canonical representation accepted by the public checkout DTO. */
 export function normalizeStorefrontPhone(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 20);
+  if (!/^\+?[0-9 ()-]+$/.test(value))
+    throw new Error('STOREFRONT_PHONE_INVALID_CHARACTERS');
+  const canonical = value.replace(/\D/g, '');
+  if (
+    canonical.length < STOREFRONT_PHONE_MIN_DIGITS ||
+    canonical.length > STOREFRONT_PHONE_MAX_DIGITS
+  )
+    throw new Error('STOREFRONT_PHONE_INVALID_LENGTH');
+  return canonical;
 }
 
 /**

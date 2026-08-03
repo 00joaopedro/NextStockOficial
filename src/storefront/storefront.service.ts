@@ -391,8 +391,12 @@ export class StorefrontService {
       !storefront.deliveryEnabled
     )
       throw new BadRequestException('Entrega indisponivel.');
-    const phone = normalizeStorefrontPhone(dto.customerPhone);
-    if (phone.length < 8) throw new BadRequestException('Telefone invalido.');
+    let phone: string;
+    try {
+      phone = normalizeStorefrontPhone(dto.customerPhone);
+    } catch {
+      throw new BadRequestException('Telefone invalido.');
+    }
     const normalizedItems = aggregateItems(dto.items);
     const keyHash = this.hashSecret(`${storefront.id}|${idempotencyKey}`);
     const requestHash = createHash('sha256')
@@ -440,10 +444,7 @@ export class StorefrontService {
               return existing;
             }
 
-            const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
-            SELECT transaction_timestamp() AS now
-          `;
-            const operationTime = clock.now;
+            const operationTime = await this.guestOrderOperationTime(tx);
             const windowStart = new Date(
               operationTime.getTime() -
                 STOREFRONT_ACTIVE_ORDER_WINDOW_DAYS * 86400000,
@@ -601,16 +602,25 @@ export class StorefrontService {
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+        error.code === 'P2002' &&
+        isGuestOrderIdempotencyViolation(error)
       ) {
         const replay = await this.prisma.order.findFirst({
-          where: { storefrontId: storefront.id, idempotencyKeyHash: keyHash },
+          where: {
+            tenantId: storefront.tenantId,
+            branchId: storefront.branchId,
+            storefrontId: storefront.id,
+            idempotencyKeyHash: keyHash,
+          },
           include: { items: true },
         });
         if (replay && replay.idempotencyRequestHash === requestHash) {
-          await this.enqueueGuestOrderAudit(replay, storefront, meta);
           return this.guestOrderResponse(replay, trackingToken);
         }
+        if (replay)
+          throw new ConflictException(
+            'A chave de idempotencia ja foi usada com outro pedido.',
+          );
       }
       throw error;
     }
@@ -634,6 +644,13 @@ export class StorefrontService {
         await new Promise((resolve) => setTimeout(resolve, attempt * 10));
       }
     }
+  }
+
+  private async guestOrderOperationTime(tx: Prisma.TransactionClient) {
+    const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+      SELECT transaction_timestamp() AS now
+    `;
+    return clock.now;
   }
 
   private async enqueueGuestOrderAudit(
@@ -664,7 +681,12 @@ export class StorefrontService {
     const storefront = await this.resolvePublic(slug);
     this.assertTrackingToken(token);
     await this.expireReservations(storefront.id);
-    const phone = normalizeStorefrontPhone(phoneInput);
+    let phone: string;
+    try {
+      phone = normalizeStorefrontPhone(phoneInput);
+    } catch {
+      throw new NotFoundException('Pedido nao encontrado.');
+    }
     const authorized = await this.prisma.order.findFirst({
       where: {
         storefrontId: storefront.id,
@@ -987,6 +1009,20 @@ function stableJson(value: unknown): string {
       .join(',')}}`;
   }
   return JSON.stringify(value);
+}
+function isGuestOrderIdempotencyViolation(
+  error: Prisma.PrismaClientKnownRequestError,
+) {
+  const target = error.meta?.target;
+  const fields = Array.isArray(target)
+    ? target.map(String)
+    : typeof target === 'string'
+      ? [target]
+      : [];
+  return (
+    fields.includes('storefront_id') &&
+    fields.includes('idempotency_key_hash')
+  );
 }
 function encodeCursor(id: string) {
   return Buffer.from(id).toString('base64url');
