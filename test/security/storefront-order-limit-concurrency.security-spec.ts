@@ -7,12 +7,12 @@ import {
   PrismaClient,
   StorefrontStatus,
 } from '@prisma/client';
-import {
-  ConflictException,
-  INestApplication,
-  ValidationPipe,
-} from '@nestjs/common';
+import { ConflictException, ValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import {
+  FastifyAdapter,
+  type NestFastifyApplication,
+} from '@nestjs/platform-fastify';
 import { randomUUID } from 'crypto';
 import request from 'supertest';
 import { AuditOutboxService } from '../../src/audit/audit-outbox.service';
@@ -413,7 +413,7 @@ describe('RC-015 through the real StorefrontService', () => {
     const idempotencyFixture = await createFixture(20);
     await seedActiveOrders(fixture, 2);
     const service = createServices().serviceA;
-    let app: INestApplication | undefined;
+    let app: NestFastifyApplication | undefined;
     try {
       const moduleRef = await Test.createTestingModule({
         controllers: [StorefrontPublicController],
@@ -422,12 +422,14 @@ describe('RC-015 through the real StorefrontService', () => {
         .overrideGuard(PublicRateLimitGuard)
         .useValue({ canActivate: () => true })
         .compile();
-      app = moduleRef.createNestApplication();
+      app = moduleRef.createNestApplication<NestFastifyApplication>(
+        new FastifyAdapter(),
+      );
       app.setGlobalPrefix('api');
       app.useGlobalPipes(
         new ValidationPipe({ transform: true, whitelist: true }),
       );
-      await app.init();
+      await app.listen(0, '127.0.0.1');
       const endpoint = `/api/public/storefronts/${fixture.storefront.publicSlug}/orders`;
       const [one, two] = await Promise.all([
         request(app.getHttpServer())
