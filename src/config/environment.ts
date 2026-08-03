@@ -68,6 +68,27 @@ const schema = Joi.object({
     .valid('true', 'false')
     .default('false'),
   STOREFRONT_TOKEN_SECRET: Joi.string().min(32).allow('').optional(),
+  DASHBOARD_CACHE_MODE: Joi.string()
+    .valid('auto', 'local', 'disabled')
+    .default('auto'),
+  DASHBOARD_CACHE_SINGLE_REPLICA: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  DASHBOARD_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
+  DASHBOARD_CACHE_INVALIDATION_SLA_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
+  DASHBOARD_CACHE_MAX_ENTRIES: Joi.number()
+    .integer()
+    .min(1)
+    .max(10000)
+    .default(500),
 }).unknown(true);
 
 export function validateEnvironment(env: NodeJS.ProcessEnv) {
@@ -79,6 +100,13 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   if (error) {
     throw new Error(
       `Invalid environment configuration: ${error.details.map((d) => d.path.join('.')).join(', ')}`,
+    );
+  }
+  if (
+    value.DASHBOARD_CACHE_TTL_MS > value.DASHBOARD_CACHE_INVALIDATION_SLA_MS
+  ) {
+    throw new Error(
+      'Invalid environment configuration: DASHBOARD_CACHE_TTL_MS exceeds DASHBOARD_CACHE_INVALIDATION_SLA_MS',
     );
   }
   if (
