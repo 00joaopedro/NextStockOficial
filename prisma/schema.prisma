@@ -1334,6 +1334,7 @@ model SaleDocument {
   sentAt              DateTime?               @map("sent_at")
   sendAttemptId       String?                 @map("send_attempt_id") @db.Uuid
   sendAttemptState    FiscalSendAttemptState? @map("send_attempt_state")
+  printCounter        Int                     @default(0) @map("print_counter")
   processingStartedAt DateTime?               @map("processing_started_at")
   canceledAt          DateTime?               @map("canceled_at")
   cancellationReason  String?                 @map("cancellation_reason")
@@ -1477,6 +1478,7 @@ model FiscalDocumentEvent {
   createdById     String?            @map("created_by_id") @db.Uuid
   createdAt       DateTime           @default(now()) @map("created_at")
   attemptId       String?            @map("attempt_id") @db.Uuid
+  printNumber     Int?               @map("print_number")
 
   document  SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy UserProfile? @relation("FiscalEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -1484,6 +1486,7 @@ model FiscalDocumentEvent {
   @@index([documentId, createdAt])
   @@index([providerRef])
   @@index([documentId, attemptId])
+  @@unique([documentId, printNumber])
   @@map("fiscal_document_events")
 }
 
