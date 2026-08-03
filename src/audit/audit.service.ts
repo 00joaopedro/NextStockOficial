@@ -11,6 +11,11 @@ export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
   async record(input: SecurityAuditInput) {
+    return this.recordBestEffort(input);
+  }
+
+  /** Observational only. Sensitive mutations must use AuditOutboxService. */
+  async recordBestEffort(input: SecurityAuditInput) {
     try {
       const metadata = sanitizeAuditValue(input.metadata);
       const beforeState = sanitizeAuditValue(input.beforeState);

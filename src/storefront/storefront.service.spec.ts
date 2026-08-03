@@ -24,9 +24,15 @@ describe('StorefrontService security boundaries', () => {
     };
     const billing: any = { forTenant: jest.fn() };
     const storage: any = {};
-    const audit: any = { record: jest.fn() };
+    const auditOutbox: any = { enqueue: jest.fn() };
     return {
-      service: new StorefrontService(prisma, tenancy, billing, storage, audit),
+      service: new StorefrontService(
+        prisma,
+        tenancy,
+        billing,
+        storage,
+        auditOutbox,
+      ),
       prisma,
       tenancy,
       billing,
