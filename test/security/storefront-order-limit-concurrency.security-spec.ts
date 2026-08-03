@@ -481,7 +481,9 @@ describe('RC-015 through the real StorefrontService', () => {
     return new StorefrontService(
       prisma as unknown as PrismaService,
       {} as never,
-      { forTenant: async () => ({ allowed: true, subscription: {} }) } as never,
+      {
+        forTenant: () => Promise.resolve({ allowed: true, subscription: {} }),
+      } as never,
       {} as never,
       outbox,
     );
