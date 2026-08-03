@@ -23,7 +23,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { BillingEntitlementService } from '../billing/billing-entitlement.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
-import { AuditService } from '../audit/audit.service';
+import { AuditOutboxService } from '../audit/audit-outbox.service';
 import {
   CreateGuestOrderDto,
   PublicProductsQueryDto,
@@ -49,7 +49,7 @@ export class StorefrontService {
     private readonly tenantContext: TenantContextService,
     private readonly billing: BillingEntitlementService,
     private readonly storage: SupabaseStorageService,
-    private readonly audit: AuditService,
+    private readonly auditOutbox: AuditOutboxService,
   ) {}
 
   async getAdmin(user: AuthenticatedUser | undefined, branchId?: string) {
@@ -401,6 +401,7 @@ export class StorefrontService {
         throw new ConflictException(
           'A chave de idempotencia ja foi usada com outro pedido.',
         );
+      await this.enqueueGuestOrderAudit(existing, storefront, meta);
       return this.guestOrderResponse(
         existing,
         this.trackingToken(storefront.id, idempotencyKey),
@@ -497,7 +498,7 @@ export class StorefrontService {
             (sum, item) => sum + item.totalPriceCents,
             0,
           );
-          return tx.order.create({
+          const order = await tx.order.create({
             data: {
               tenantId: storefront.tenantId,
               branchId: storefront.branchId,
@@ -526,10 +527,52 @@ export class StorefrontService {
             },
             include: { items: true },
           });
+          await this.auditOutbox.enqueue(tx, {
+            operationId: `storefront:create_guest_order:${order.id}`,
+            eventType: 'storefront.order_created',
+            action: 'create_guest_order',
+            outcome: AuditOutcome.SUCCESS,
+            severity: AuditSeverity.LOW,
+            tenantId: storefront.tenantId,
+            branchId: storefront.branchId,
+            targetType: 'order',
+            targetId: order.id,
+            requestId: meta.requestId,
+            ip: meta.ip,
+            userAgent: meta.userAgent,
+            metadata: { itemCount: order.items.length },
+          });
+          return order;
         },
         { timeout: 10000 },
       );
-      void this.audit.record({
+      return this.guestOrderResponse(order, trackingToken);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const replay = await this.prisma.order.findFirst({
+          where: { storefrontId: storefront.id, idempotencyKeyHash: keyHash },
+          include: { items: true },
+        });
+        if (replay && replay.idempotencyRequestHash === requestHash) {
+          await this.enqueueGuestOrderAudit(replay, storefront, meta);
+          return this.guestOrderResponse(replay, trackingToken);
+        }
+      }
+      throw error;
+    }
+  }
+
+  private async enqueueGuestOrderAudit(
+    order: { id: string; items: unknown[] },
+    storefront: { tenantId: string; branchId: string },
+    meta: RequestMeta,
+  ) {
+    await this.prisma.$transaction((tx) =>
+      this.auditOutbox.enqueue(tx, {
+        operationId: `storefront:create_guest_order:${order.id}`,
         eventType: 'storefront.order_created',
         action: 'create_guest_order',
         outcome: AuditOutcome.SUCCESS,
@@ -542,22 +585,8 @@ export class StorefrontService {
         ip: meta.ip,
         userAgent: meta.userAgent,
         metadata: { itemCount: order.items.length },
-      });
-      return this.guestOrderResponse(order, trackingToken);
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        const replay = await this.prisma.order.findFirst({
-          where: { storefrontId: storefront.id, idempotencyKeyHash: keyHash },
-          include: { items: true },
-        });
-        if (replay && replay.idempotencyRequestHash === requestHash)
-          return this.guestOrderResponse(replay, trackingToken);
-      }
-      throw error;
-    }
+      }),
+    );
   }
 
   async listGuestOrders(slug: string, phoneInput: string, token: string) {
@@ -660,23 +689,25 @@ export class StorefrontService {
           },
           data: { quantity: { increment: item.quantity } },
         });
-      return tx.order.findUniqueOrThrow({
+      const order = await tx.order.findUniqueOrThrow({
         where: { id: existing.id },
         include: { items: true },
       });
-    });
-    void this.audit.record({
-      eventType: 'storefront.order_canceled',
-      action: 'cancel_guest_order',
-      outcome: AuditOutcome.SUCCESS,
-      severity: AuditSeverity.LOW,
-      tenantId: storefront.tenantId,
-      branchId: storefront.branchId,
-      targetType: 'order',
-      targetId: order.id,
-      requestId: meta.requestId,
-      ip: meta.ip,
-      userAgent: meta.userAgent,
+      await this.auditOutbox.enqueue(tx, {
+        operationId: `storefront:cancel_guest_order:${order.id}`,
+        eventType: 'storefront.order_canceled',
+        action: 'cancel_guest_order',
+        outcome: AuditOutcome.SUCCESS,
+        severity: AuditSeverity.LOW,
+        tenantId: storefront.tenantId,
+        branchId: storefront.branchId,
+        targetType: 'order',
+        targetId: order.id,
+        requestId: meta.requestId,
+        ip: meta.ip,
+        userAgent: meta.userAgent,
+      });
+      return order;
     });
     return { ok: true, reference: order.publicReference, status: order.status };
   }

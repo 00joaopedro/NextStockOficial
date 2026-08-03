@@ -201,6 +201,7 @@ model SecurityAuditEvent {
   beforeState    Json?            @map("before_state")
   afterState     Json?            @map("after_state")
   createdAt      DateTime         @default(now()) @map("created_at")
+  outboxEventId  String?          @unique @map("outbox_event_id") @db.Uuid
 
   @@index([tenantId, createdAt])
   @@index([actorProfileId, createdAt])
@@ -209,6 +210,47 @@ model SecurityAuditEvent {
   @@index([outcome, severity, createdAt])
   @@index([requestId])
   @@map("security_audit_events")
+}
+
+model AuditOutboxEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  branchId       String?           @map("branch_id") @db.Uuid
+  actorProfileId String?           @map("actor_profile_id") @db.Uuid
+  actorRole      String?           @map("actor_role")
+  requestId      String?           @map("request_id")
+  operationId    String            @map("operation_id")
+  payloadHash    String            @map("payload_hash")
+  eventType      String            @map("event_type")
+  action         String
+  outcome        AuditOutcome
+  severity       AuditSeverity
+  contextKind    AuditContextKind  @default(NORMAL) @map("context_kind")
+  targetType     String?           @map("target_type")
+  targetId       String?           @map("target_id")
+  reasonCode     String?           @map("reason_code")
+  ipHash         String?           @map("ip_hash")
+  userAgentHash  String?           @map("user_agent_hash")
+  metadata       Json?
+  beforeState    Json?             @map("before_state")
+  afterState     Json?             @map("after_state")
+  status         AuditOutboxStatus @default(PENDING)
+  attemptCount   Int               @default(0) @map("attempt_count")
+  claimToken     String?           @map("claim_token") @db.Uuid
+  claimedAt      DateTime?         @map("claimed_at")
+  leaseExpiresAt DateTime?         @map("lease_expires_at")
+  availableAt    DateTime          @default(now()) @map("available_at")
+  deliveredAt    DateTime?         @map("delivered_at")
+  lastErrorCode  String?           @map("last_error_code")
+  lastError      String?           @map("last_error")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@unique([tenantId, operationId])
+  @@index([status, availableAt])
+  @@index([status, leaseExpiresAt])
+  @@index([tenantId, branchId, createdAt])
+  @@map("audit_outbox_events")
 }
 
 model DevWorkspace {
@@ -1893,6 +1935,14 @@ enum AuditContextKind {
   DEV_WORKSPACE
   DEV_SUPPORT
   SYSTEM
+}
+
+enum AuditOutboxStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED_RETRYABLE
+  FAILED_FINAL
 }
 
 enum StoredFileVisibility {
