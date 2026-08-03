@@ -2,7 +2,7 @@
 
 O limite autoritativo é de **três** pedidos `storefront_guest`, por tenant,
 storefront/filial e telefone canônico, em uma janela móvel de 30 dias baseada em
-`orders.created_at`. O instante único é `transaction_timestamp()` do PostgreSQL
+`orders.created_at`. O instante único é `clock_timestamp()` após o lock PostgreSQL
 (UTC na aplicação). A fronteira inicial é inclusiva. Contam os estados `pending`,
 `preparing` e `paid`; registros cancelados, entregues, reembolsados, soft-deleted
 ou anteriores à janela não contam.

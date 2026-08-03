@@ -14,13 +14,17 @@ import {
   type NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { randomUUID } from 'crypto';
-import request from 'supertest';
+import * as request from 'supertest';
 import { AuditOutboxService } from '../../src/audit/audit-outbox.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import { PublicRateLimitGuard } from '../../src/security/public-rate-limit.guard';
 import { StorefrontPublicController } from '../../src/storefront/storefront.controller';
 import { CreateGuestOrderDto } from '../../src/storefront/dto/storefront-public.dto';
 import { StorefrontService } from '../../src/storefront/storefront.service';
+import {
+  normalizeStorefrontPhone,
+  storefrontOrderLimitLockKey,
+} from '../../src/storefront/storefront-order-limit';
 import {
   createBranch,
   createProduct,
@@ -119,6 +123,7 @@ describe('RC-015 through the real StorefrontService', () => {
         fixture,
         requests,
         () => key,
+        false,
       );
       expect(results.every(isFulfilled)).toBe(true);
       const references = results
@@ -573,12 +578,28 @@ describe('RC-015 through the real StorefrontService', () => {
     fixture: Fixture,
     count: number,
     keyAt: (index: number) => string = () => idempotencyKey(),
+    expectDistinctKeys = true,
   ) {
+    const keys = Array.from({ length: count }, (_, index) => keyAt(index));
+    const phones = Array.from({ length: count }, () =>
+      normalizeStorefrontPhone(buildDto(fixture).customerPhone),
+    );
+    const lockKeys = phones.map((phone) =>
+      storefrontOrderLimitLockKey({
+        tenantId: fixture.tenant.id,
+        storefrontId: fixture.storefront.id,
+        branchId: fixture.branch.id,
+        phone,
+      }).toString(),
+    );
+    expect(new Set(phones).size).toBe(1);
+    expect(new Set(lockKeys).size).toBe(1);
+    if (expectDistinctKeys) expect(new Set(keys).size).toBe(count);
     return Promise.allSettled(
       Array.from({ length: count }, (_, index) =>
         (index % 2 ? services.serviceB : services.serviceA).createGuestOrder(
           fixture.storefront.publicSlug,
-          keyAt(index),
+          keys[index],
           buildDto(fixture),
           { requestId: `rc015-${index}` },
         ),

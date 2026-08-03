@@ -561,6 +561,7 @@ export class StorefrontService {
                 customerEmail: clean(dto.customerEmail)?.toLowerCase(),
                 paymentMethod: OrderPaymentMethod.other,
                 status: OrderStatus.pending,
+                createdAt: operationTime,
                 subtotalCents,
                 totalCents: subtotalCents,
                 discountCents: 0,
@@ -648,7 +649,7 @@ export class StorefrontService {
 
   private async guestOrderOperationTime(tx: Prisma.TransactionClient) {
     const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
-      SELECT transaction_timestamp() AS now
+      SELECT clock_timestamp() AS now
     `;
     return clock.now;
   }
