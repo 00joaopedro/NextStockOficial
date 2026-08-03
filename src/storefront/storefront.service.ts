@@ -4,6 +4,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -33,6 +34,12 @@ import {
   UpsertStorefrontDto,
 } from './dto/storefront-admin.dto';
 import { assertPublicSlug, normalizePublicSlug } from './storefront-slug';
+import {
+  normalizeStorefrontPhone,
+  storefrontOrderLimitLockKey,
+  STOREFRONT_ACTIVE_ORDER_LIMIT,
+  STOREFRONT_ACTIVE_ORDER_WINDOW_DAYS,
+} from './storefront-order-limit';
 
 type RequestMeta = { ip?: string; userAgent?: string; requestId?: string };
 const PUBLIC_NOT_FOUND = 'Loja nao encontrada.';
@@ -44,6 +51,7 @@ const ACTIVE_ORDER_STATUSES = [
 
 @Injectable()
 export class StorefrontService {
+  private readonly logger = new Logger(StorefrontService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
@@ -383,7 +391,7 @@ export class StorefrontService {
       !storefront.deliveryEnabled
     )
       throw new BadRequestException('Entrega indisponivel.');
-    const phone = normalizePhone(dto.customerPhone);
+    const phone = normalizeStorefrontPhone(dto.customerPhone);
     if (phone.length < 8) throw new BadRequestException('Telefone invalido.');
     const normalizedItems = aggregateItems(dto.items);
     const keyHash = this.hashSecret(`${storefront.id}|${idempotencyKey}`);
@@ -392,159 +400,202 @@ export class StorefrontService {
         stableJson({ ...dto, customerPhone: phone, items: normalizedItems }),
       )
       .digest('hex');
-    const existing = await this.prisma.order.findFirst({
-      where: { storefrontId: storefront.id, idempotencyKeyHash: keyHash },
-      include: { items: true },
-    });
-    if (existing) {
-      if (existing.idempotencyRequestHash !== requestHash)
-        throw new ConflictException(
-          'A chave de idempotencia ja foi usada com outro pedido.',
-        );
-      await this.enqueueGuestOrderAudit(existing, storefront, meta);
-      return this.guestOrderResponse(
-        existing,
-        this.trackingToken(storefront.id, idempotencyKey),
-      );
-    }
-    const activeCount = await this.prisma.order.count({
-      where: {
-        storefrontId: storefront.id,
-        customerPhone: phone,
-        source: OrderSource.storefront_guest,
-        status: { in: ACTIVE_ORDER_STATUSES },
-        createdAt: { gte: new Date(Date.now() - 30 * 86400000) },
-        deletedAt: null,
-      },
-    });
-    if (activeCount >= 3)
-      throw new ConflictException(
-        'Limite de 3 pedidos ativos atingido para este telefone.',
-      );
     const trackingToken = this.trackingToken(storefront.id, idempotencyKey);
+    const lockKey = storefrontOrderLimitLockKey({
+      tenantId: storefront.tenantId,
+      storefrontId: storefront.id,
+      branchId: storefront.branchId,
+      phone,
+    });
     try {
-      const order = await this.prisma.$transaction(
-        async (tx) => {
-          const listings = await tx.storefrontProduct.findMany({
-            where: {
-              storefrontId: storefront.id,
-              publicSlug: { in: normalizedItems.map((i) => i.productSlug) },
-              isPublished: true,
-              availableForOnlineOrder: true,
-              product: {
+      const order = await this.withGuestOrderTransactionRetry(async () =>
+        this.prisma.$transaction(
+          async (tx) => {
+            const waitingSince = Date.now();
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(${lockKey})`;
+            const waitMs = Date.now() - waitingSince;
+            const lockRef = createHash('sha256')
+              .update(lockKey.toString())
+              .digest('hex')
+              .slice(0, 12);
+            this.logger.debug(
+              `RC-015 lock acquired ref=${lockRef} waitMs=${waitMs}`,
+            );
+
+            // Idempotency is reloaded only after the customer/storefront lock.
+            const existing = await tx.order.findFirst({
+              where: {
+                storefrontId: storefront.id,
+                idempotencyKeyHash: keyHash,
+              },
+              include: { items: true },
+            });
+            if (existing) {
+              if (existing.idempotencyRequestHash !== requestHash) {
+                this.logger.warn(`RC-015 idempotency conflict ref=${lockRef}`);
+                throw new ConflictException(
+                  'A chave de idempotencia ja foi usada com outro pedido.',
+                );
+              }
+              return existing;
+            }
+
+            const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+            SELECT transaction_timestamp() AS now
+          `;
+            const operationTime = clock.now;
+            const windowStart = new Date(
+              operationTime.getTime() -
+                STOREFRONT_ACTIVE_ORDER_WINDOW_DAYS * 86400000,
+            );
+            const activeCount = await tx.order.count({
+              where: {
                 tenantId: storefront.tenantId,
                 branchId: storefront.branchId,
+                storefrontId: storefront.id,
+                customerPhone: phone,
+                source: OrderSource.storefront_guest,
+                status: { in: ACTIVE_ORDER_STATUSES },
+                createdAt: { gte: windowStart, lte: operationTime },
+                deletedAt: null,
               },
-            },
-            select: {
-              publicSlug: true,
-              publicName: true,
-              minimumOrderQuantity: true,
-              maximumOrderQuantity: true,
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                  sku: true,
-                  barcode: true,
-                  salePriceCents: true,
-                  quantity: true,
+            });
+            this.logger.debug(
+              `RC-015 active count ref=${lockRef} count=${activeCount}`,
+            );
+            if (activeCount >= STOREFRONT_ACTIVE_ORDER_LIMIT) {
+              this.logger.warn(
+                `RC-015 active order limit reached ref=${lockRef}`,
+              );
+              throw new ConflictException(
+                'Limite de 3 pedidos ativos atingido para este telefone.',
+              );
+            }
+
+            const listings = await tx.storefrontProduct.findMany({
+              where: {
+                storefrontId: storefront.id,
+                publicSlug: { in: normalizedItems.map((i) => i.productSlug) },
+                isPublished: true,
+                availableForOnlineOrder: true,
+                product: {
+                  tenantId: storefront.tenantId,
+                  branchId: storefront.branchId,
                 },
               },
-            },
-          });
-          if (listings.length !== normalizedItems.length)
-            throw new ConflictException(
-              'Um ou mais produtos nao estao disponiveis.',
-            );
-          const bySlug = new Map(listings.map((i) => [i.publicSlug, i]));
-          const priced = normalizedItems.map((requested) => {
-            const listing = bySlug.get(requested.productSlug)!;
-            if (
-              requested.quantity < listing.minimumOrderQuantity ||
-              (listing.maximumOrderQuantity &&
-                requested.quantity > listing.maximumOrderQuantity)
-            )
-              throw new BadRequestException(
-                'Quantidade fora dos limites permitidos.',
+              select: {
+                publicSlug: true,
+                publicName: true,
+                minimumOrderQuantity: true,
+                maximumOrderQuantity: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    sku: true,
+                    barcode: true,
+                    salePriceCents: true,
+                    quantity: true,
+                  },
+                },
+              },
+            });
+            if (listings.length !== normalizedItems.length)
+              throw new ConflictException(
+                'Um ou mais produtos nao estao disponiveis.',
               );
-            return {
-              productId: listing.product.id,
-              productNameSnapshot: listing.publicName ?? listing.product.name,
-              skuSnapshot: listing.product.sku,
-              barcodeSnapshot: listing.product.barcode,
-              quantity: requested.quantity,
-              unitPriceCents: listing.product.salePriceCents,
-              totalPriceCents:
-                listing.product.salePriceCents * requested.quantity,
-            };
-          });
-          for (const item of priced) {
-            const changed = await tx.product.updateMany({
-              where: {
-                id: item.productId,
+            const bySlug = new Map(listings.map((i) => [i.publicSlug, i]));
+            const priced = normalizedItems.map((requested) => {
+              const listing = bySlug.get(requested.productSlug)!;
+              if (
+                requested.quantity < listing.minimumOrderQuantity ||
+                (listing.maximumOrderQuantity &&
+                  requested.quantity > listing.maximumOrderQuantity)
+              )
+                throw new BadRequestException(
+                  'Quantidade fora dos limites permitidos.',
+                );
+              return {
+                productId: listing.product.id,
+                productNameSnapshot: listing.publicName ?? listing.product.name,
+                skuSnapshot: listing.product.sku,
+                barcodeSnapshot: listing.product.barcode,
+                quantity: requested.quantity,
+                unitPriceCents: listing.product.salePriceCents,
+                totalPriceCents:
+                  listing.product.salePriceCents * requested.quantity,
+              };
+            });
+            for (const item of priced) {
+              const changed = await tx.product.updateMany({
+                where: {
+                  id: item.productId,
+                  tenantId: storefront.tenantId,
+                  branchId: storefront.branchId,
+                  quantity: { gte: item.quantity },
+                },
+                data: { quantity: { decrement: item.quantity } },
+              });
+              if (changed.count !== 1)
+                throw new ConflictException(
+                  'Estoque alterado. Atualize o carrinho e tente novamente.',
+                );
+            }
+            const subtotalCents = priced.reduce(
+              (sum, item) => sum + item.totalPriceCents,
+              0,
+            );
+            const order = await tx.order.create({
+              data: {
                 tenantId: storefront.tenantId,
                 branchId: storefront.branchId,
-                quantity: { gte: item.quantity },
+                storefrontId: storefront.id,
+                source: OrderSource.storefront_guest,
+                publicReference: `NS-${randomBytes(8).toString('hex').toUpperCase()}`,
+                publicAccessTokenHash: this.hashSecret(trackingToken),
+                idempotencyKeyHash: keyHash,
+                idempotencyRequestHash: requestHash,
+                customerName: dto.customerName.trim(),
+                customerPhone: phone,
+                customerEmail: clean(dto.customerEmail)?.toLowerCase(),
+                paymentMethod: OrderPaymentMethod.other,
+                status: OrderStatus.pending,
+                subtotalCents,
+                totalCents: subtotalCents,
+                discountCents: 0,
+                notes: clean(dto.notes),
+                fulfillmentType: dto.fulfillmentType,
+                deliveryAddress:
+                  dto.fulfillmentType === FulfillmentType.delivery
+                    ? (dto.deliveryAddress as unknown as Prisma.InputJsonValue)
+                    : Prisma.JsonNull,
+                reservationExpiresAt: new Date(
+                  operationTime.getTime() + 30 * 86400000,
+                ),
+                items: { create: priced },
               },
-              data: { quantity: { decrement: item.quantity } },
+              include: { items: true },
             });
-            if (changed.count !== 1)
-              throw new ConflictException(
-                'Estoque alterado. Atualize o carrinho e tente novamente.',
-              );
-          }
-          const subtotalCents = priced.reduce(
-            (sum, item) => sum + item.totalPriceCents,
-            0,
-          );
-          const order = await tx.order.create({
-            data: {
+            await this.auditOutbox.enqueue(tx, {
+              operationId: `storefront:create_guest_order:${order.id}`,
+              eventType: 'storefront.order_created',
+              action: 'create_guest_order',
+              outcome: AuditOutcome.SUCCESS,
+              severity: AuditSeverity.LOW,
               tenantId: storefront.tenantId,
               branchId: storefront.branchId,
-              storefrontId: storefront.id,
-              source: OrderSource.storefront_guest,
-              publicReference: `NS-${randomBytes(8).toString('hex').toUpperCase()}`,
-              publicAccessTokenHash: this.hashSecret(trackingToken),
-              idempotencyKeyHash: keyHash,
-              idempotencyRequestHash: requestHash,
-              customerName: dto.customerName.trim(),
-              customerPhone: phone,
-              customerEmail: clean(dto.customerEmail)?.toLowerCase(),
-              paymentMethod: OrderPaymentMethod.other,
-              status: OrderStatus.pending,
-              subtotalCents,
-              totalCents: subtotalCents,
-              discountCents: 0,
-              notes: clean(dto.notes),
-              fulfillmentType: dto.fulfillmentType,
-              deliveryAddress:
-                dto.fulfillmentType === FulfillmentType.delivery
-                  ? (dto.deliveryAddress as unknown as Prisma.InputJsonValue)
-                  : Prisma.JsonNull,
-              reservationExpiresAt: new Date(Date.now() + 30 * 86400000),
-              items: { create: priced },
-            },
-            include: { items: true },
-          });
-          await this.auditOutbox.enqueue(tx, {
-            operationId: `storefront:create_guest_order:${order.id}`,
-            eventType: 'storefront.order_created',
-            action: 'create_guest_order',
-            outcome: AuditOutcome.SUCCESS,
-            severity: AuditSeverity.LOW,
-            tenantId: storefront.tenantId,
-            branchId: storefront.branchId,
-            targetType: 'order',
-            targetId: order.id,
-            requestId: meta.requestId,
-            ip: meta.ip,
-            userAgent: meta.userAgent,
-            metadata: { itemCount: order.items.length },
-          });
-          return order;
-        },
-        { timeout: 10000 },
+              targetType: 'order',
+              targetId: order.id,
+              requestId: meta.requestId,
+              ip: meta.ip,
+              userAgent: meta.userAgent,
+              metadata: { itemCount: order.items.length },
+            });
+            this.logger.debug(`RC-015 guest order accepted ref=${lockRef}`);
+            return order;
+          },
+          { timeout: 10000 },
+        ),
       );
       return this.guestOrderResponse(order, trackingToken);
     } catch (error) {
@@ -562,6 +613,26 @@ export class StorefrontService {
         }
       }
       throw error;
+    }
+  }
+
+  private async withGuestOrderTransactionRetry<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const maximumAttempts = 3;
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await operation();
+      } catch (error) {
+        const transient =
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2034';
+        if (!transient || attempt >= maximumAttempts) throw error;
+        this.logger.warn(
+          `RC-015 transient transaction retry attempt=${attempt}`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, attempt * 10));
+      }
     }
   }
 
@@ -593,7 +664,7 @@ export class StorefrontService {
     const storefront = await this.resolvePublic(slug);
     this.assertTrackingToken(token);
     await this.expireReservations(storefront.id);
-    const phone = normalizePhone(phoneInput);
+    const phone = normalizeStorefrontPhone(phoneInput);
     const authorized = await this.prisma.order.findFirst({
       where: {
         storefrontId: storefront.id,
@@ -888,9 +959,6 @@ export class StorefrontService {
 
 function clean(value?: string | null) {
   return value?.trim() || null;
-}
-function normalizePhone(value: string) {
-  return value.replace(/\D/g, '').slice(0, 20);
 }
 function isFractionalUnit(unit?: string | null) {
   return ['KG', 'KGM', 'G', 'GR', 'L', 'LT', 'ML'].includes(
