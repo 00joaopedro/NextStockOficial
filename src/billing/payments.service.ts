@@ -28,6 +28,7 @@ export class PaymentsService {
     provider: PaymentGatewayProvider,
     result: GatewayPaymentResult,
     source = 'gateway',
+    transaction?: Prisma.TransactionClient,
   ) {
     if (!result.externalReference)
       return { processed: false, reason: 'MISSING_EXTERNAL_REFERENCE' };
@@ -36,6 +37,8 @@ export class PaymentsService {
 
     // Gateway I/O is deliberately performed by the caller before this method.
     // Retry only the short local transaction when an aggregate CAS is lost.
+    if (transaction)
+      return this.applyWithCas(provider, result, source, transaction);
     for (let attempt = 0; attempt < 120; attempt += 1) {
       try {
         return await this.applyWithCas(provider, result, source);
@@ -50,8 +53,9 @@ export class PaymentsService {
     provider: PaymentGatewayProvider,
     result: GatewayPaymentResult,
     source: string,
+    transaction?: Prisma.TransactionClient,
   ) {
-    return this.prisma.$transaction(async (tx) => {
+    const apply = async (tx: Prisma.TransactionClient) => {
       const checkout = await tx.checkoutSession.findUnique({
         where: { externalReference: result.externalReference! },
         include: { plan: true, subscription: true },
@@ -277,7 +281,8 @@ export class PaymentsService {
         );
       }
       return { processed: true, applied: true, paymentId: payment.id, status };
-    });
+    };
+    return transaction ? apply(transaction) : this.prisma.$transaction(apply);
   }
 
   private subscriptionState(
