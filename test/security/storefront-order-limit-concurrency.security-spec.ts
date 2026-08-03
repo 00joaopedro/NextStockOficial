@@ -30,10 +30,11 @@ import {
 const databaseUrl = process.env.SECURITY_TEST_DATABASE_URL;
 const ACTIVE = [OrderStatus.pending, OrderStatus.preparing, OrderStatus.paid];
 
-type Fixture = Awaited<ReturnType<typeof createFixture>>;
 type ServicePair = { serviceA: StorefrontService; serviceB: StorefrontService };
 
 describe('RC-015 through the real StorefrontService', () => {
+  type Fixture = Awaited<ReturnType<typeof createFixture>>;
+
   const prismaA = new PrismaClient({ datasourceUrl: databaseUrl });
   const prismaB = new PrismaClient({ datasourceUrl: databaseUrl });
   const originalOrdering = process.env.STOREFRONT_ORDERING_ENABLED;
