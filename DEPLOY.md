@@ -435,3 +435,19 @@ bucket private without releasing the signed-URL flow at the same time.
 ## Pagamentos operacionais por tenant
 
 Antes de habilitar a configuração de gateways, defina `PAYMENT_CREDENTIALS_ENCRYPTION_KEY`, `PAYMENT_CREDENTIALS_KEY_VERSION` e `MERCADO_PAGO_APP_WEBHOOK_SECRET` somente no backend. Aplique `20260722000000_tenant_payment_processing` em job controlado, valide o webhook e uma conta de teste em staging, e só então exponha o recurso em produção. Consulte `docs/PAYMENTS.md`.
+
+## REL-016 schema compatibility readiness
+
+`GET /api/health` remains a liveness probe and does not access PostgreSQL. `GET /api/health/ready` is the deployment readiness probe and returns `200` only after PostgreSQL has the `schema_compatibility_markers` table with marker version `1` or higher and the critical structural canaries used by the current runtime.
+
+Rollout order for REL-016:
+
+1. Railway pre-deploy runs `npm run railway:migrate` and applies `20260804010000_schema_compatibility_marker`.
+2. The append-only marker row `version = 1` exists.
+3. The new application code starts with `REQUIRED_SCHEMA_COMPATIBILITY_VERSION = 1`.
+4. Railway healthcheck calls `/api/health/ready`.
+5. Traffic is sent only after readiness returns `{"status":"ready"}`.
+
+The readiness response is intentionally minimal. Failures return `503` with a generic reason (`database_unavailable`, `schema_incompatible`, or `readiness_timeout`) and do not expose hostnames, database names, SQL, migration names, Prisma codes, or stack traces. Detailed canary failure details are logged internally in sanitized structured logs.
+
+Rollback is safe: older code ignores `schema_compatibility_markers`; do not remove or downgrade marker rows, and do not edit an applied migration. Future incompatible schema changes must add a new migration inserting a new monotonic marker row instead of updating version `1`.

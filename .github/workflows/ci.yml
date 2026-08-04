@@ -106,6 +106,8 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/distributed-auth-rate-limit.security-spec.ts
       - name: MEM-016 upload processing backpressure integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/image-processing-backpressure.security-spec.ts
+      - name: REL-016 readiness schema compatibility integration tests
+        run: npx jest --runInBand src/observability/schema-compatibility.service.spec.ts src/observability/health.controller.spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci
