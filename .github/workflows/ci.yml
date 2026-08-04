@@ -61,6 +61,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Normalize and verify dependency tree
+        run: |
+          npm prune --package-lock=false
+          git diff --exit-code -- package.json package-lock.json
+          npm ls --all
+          npm ls --all --omit=dev
       - name: Runtime dependency tree integrity
         run: |
           npm ls --all
