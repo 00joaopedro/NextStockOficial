@@ -101,6 +101,8 @@ jobs:
       - name: RC-015 storefront order limit concurrency tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/storefront-order-limit-concurrency.security-spec.ts
       - name: SEC-016 distributed auth rate limit integration tests
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
         run: npx jest --config ./test/jest-security.json --runInBand test/security/distributed-auth-rate-limit.security-spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
