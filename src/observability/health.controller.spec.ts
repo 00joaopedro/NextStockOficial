@@ -1,55 +1,55 @@
 import { ServiceUnavailableException } from '@nestjs/common';
 import { HealthController } from './health.controller';
+import { SchemaCompatibilityService } from './schema-compatibility.service';
 
 describe('HealthController', () => {
-  const requiredTables = [
-    'tenants',
-    'branches',
-    'profiles',
-    'tenant_members',
-    'security_audit_events',
-  ];
+  it('keeps liveness simple and does not call readiness or Prisma', () => {
+    const schemaCompatibility = { check: jest.fn() };
+    const controller = new HealthController(schemaCompatibility as any);
 
-  it('reports ready only when the required schema is present', async () => {
-    const prisma = {
-      $queryRaw: jest
-        .fn()
-        .mockResolvedValue(
-          requiredTables.map((table_name) => ({ table_name })),
-        ),
+    expect(controller.health()).toEqual({ status: 'ok' });
+    expect(schemaCompatibility.check).not.toHaveBeenCalled();
+  });
+
+  it('returns sanitized ready response only when schema is compatible', async () => {
+    const schemaCompatibility = {
+      check: jest.fn().mockResolvedValue({ ready: true, durationMs: 12 }),
     };
-    const controller = new HealthController(prisma as any);
+    const controller = new HealthController(schemaCompatibility as any);
 
-    await expect(controller.readiness()).resolves.toEqual({
-      status: 'ready',
-      database: 'available',
-      schema: 'compatible',
+    await expect(controller.readiness()).resolves.toEqual({ status: 'ready' });
+  });
+
+  it('rejects readiness with sanitized schema reason', async () => {
+    const schemaCompatibility = {
+      check: jest.fn().mockResolvedValue({
+        ready: false,
+        reason: 'schema_incompatible',
+        internalCode: 'marker_missing',
+        durationMs: 10,
+      }),
+    };
+    const controller = new HealthController(schemaCompatibility as any);
+
+    await expect(controller.readiness()).rejects.toMatchObject({
+      status: 503,
+      response: { status: 'not_ready', reason: 'schema_incompatible' },
     });
   });
 
-  it('rejects readiness when an essential table is missing', async () => {
-    const prisma = {
-      $queryRaw: jest
-        .fn()
-        .mockResolvedValue(
-          requiredTables
-            .filter((table) => table !== 'tenants')
-            .map((table_name) => ({ table_name })),
-        ),
-    };
-    const controller = new HealthController(prisma as any);
+  it('rejects readiness with sanitized timeout reason', async () => {
+    const schemaCompatibility = {
+      check: jest.fn().mockResolvedValue({
+        ready: false,
+        reason: 'readiness_timeout',
+        internalCode: 'readiness_timeout',
+        durationMs: 250,
+      }),
+    } satisfies Partial<SchemaCompatibilityService>;
+    const controller = new HealthController(schemaCompatibility as any);
 
     await expect(controller.readiness()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
-  });
-
-  it('rejects readiness when the database cannot be queried', async () => {
-    const prisma = {
-      $queryRaw: jest.fn().mockRejectedValue(new Error('connection failed')),
-    };
-    const controller = new HealthController(prisma as any);
-
-    await expect(controller.readiness()).rejects.toMatchObject({ status: 503 });
   });
 });

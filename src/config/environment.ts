@@ -93,6 +93,11 @@ const schema = Joi.object({
   AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
   AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
+  READINESS_DATABASE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(250)
+    .max(5000)
+    .default(2000),
   IMAGE_PROCESSING_CONCURRENCY: Joi.number().integer().min(1).max(4).default(1),
   IMAGE_PROCESSING_MAX_QUEUE: Joi.number().integer().min(1).max(100).default(4),
   IMAGE_PROCESSING_QUEUE_TIMEOUT_MS: Joi.number()
