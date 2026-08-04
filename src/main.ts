@@ -13,11 +13,12 @@ import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
+import { trustedProxyHops } from './config/trusted-proxy';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    new FastifyAdapter({ trustProxy: trustedProxyHops() }),
   );
 
   app.useGlobalPipes(
@@ -64,15 +65,19 @@ async function bootstrap() {
         ? { maxAge: 15_552_000, includeSubDomains: true }
         : false,
   });
-  app.getHttpAdapter().getInstance().addHook('onRequest', (request, reply, done) => {
-    const header = request.headers['x-request-id'];
-    const requestId =
-      sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
-      randomUUID();
-    reply.header('X-Request-Id', requestId);
-    (request as typeof request & { requestId?: string }).requestId = requestId;
-    done();
-  });
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onRequest', (request, reply, done) => {
+      const header = request.headers['x-request-id'];
+      const requestId =
+        sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
+        randomUUID();
+      reply.header('X-Request-Id', requestId);
+      (request as typeof request & { requestId?: string }).requestId =
+        requestId;
+      done();
+    });
 
   app.enableCors({
     origin(origin, callback) {
@@ -102,6 +107,17 @@ async function bootstrap() {
   console.log(`Health: /api/health`);
   console.log(`Readiness: /api/health/ready`);
   console.log(`Public: /`);
+  console.log(
+    JSON.stringify({
+      event: 'auth_rate_limit_configuration',
+      enabled: process.env.AUTH_RATE_LIMIT_ENABLED !== 'false',
+      store: process.env.AUTH_RATE_LIMIT_STORE || 'postgres',
+      trustedProxyHops: trustedProxyHops(),
+      logicalRestart: process.env.RAILWAY_DEPLOYMENT_ID
+        ? 'deployment'
+        : 'process',
+    }),
+  );
 }
 void bootstrap().catch((error: unknown) => {
   const message = sanitizeBootstrapError(error);

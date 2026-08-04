@@ -14,8 +14,11 @@ import { OptionalJwtAuthGuard } from './optional-jwt-auth.guard';
 import { RolesGuard } from './roles.guard';
 import { ReferralModule } from '../partners/referral.module';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
+import { AuthRateLimitStore } from './auth-rate-limit.store';
 import { BillingCoreModule } from '../billing/billing-core.module';
 import { SessionsModule } from '../sessions/sessions.module';
+import { ObservabilityModule } from '../observability/observability.module';
 
 @Module({
   imports: [
@@ -27,6 +30,7 @@ import { SessionsModule } from '../sessions/sessions.module';
     ReferralModule,
     BillingCoreModule,
     SessionsModule,
+    ObservabilityModule,
   ],
   providers: [
     AuthService,
@@ -36,6 +40,8 @@ import { SessionsModule } from '../sessions/sessions.module';
     RolesGuard,
     DevSuperAdminGuard,
     PublicRateLimitGuard,
+    AuthRateLimitGuard,
+    AuthRateLimitStore,
   ],
   controllers: [AuthController],
   exports: [

@@ -39,6 +39,10 @@ jobs:
       AUDIT_HASH_SECRET: test-audit-secret-at-least-thirty-two-characters
       SESSION_HASH_SECRET: test-session-secret-at-least-thirty-two-characters
       SESSION_ENFORCEMENT_ENABLED: 'false'
+      AUTH_RATE_LIMIT_ENABLED: 'true'
+      AUTH_RATE_LIMIT_STORE: postgres
+      AUTH_RATE_LIMIT_HMAC_SECRET: test-auth-rate-limit-secret-at-least-thirty-two-characters
+      TRUSTED_PROXY_HOPS: '0'
       BILLING_EXTERNAL_REFERENCE_SECRET: test-billing-secret-at-least-thirty-two-characters
       MERCADO_PAGO_MODE: sandbox
     steps:
@@ -65,7 +69,7 @@ jobs:
       - run: npm run build:frontend
       - run: npm run build:scripts
       - run: npm test -- --runInBand
-      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts
+      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts --testPathIgnorePatterns=distributed-auth-rate-limit.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
       - name: RC-002 fiscal send claim integration tests
@@ -96,6 +100,10 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/dashboard-cache-coherence.security-spec.ts
       - name: RC-015 storefront order limit concurrency tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/storefront-order-limit-concurrency.security-spec.ts
+      - name: SEC-016 distributed auth rate limit integration tests
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/distributed-auth-rate-limit.security-spec.ts
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci

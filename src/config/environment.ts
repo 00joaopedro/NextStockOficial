@@ -89,6 +89,10 @@ const schema = Joi.object({
     .min(1)
     .max(10000)
     .default(500),
+  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
+  AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
+  TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
 }).unknown(true);
 
 export function validateEnvironment(env: NodeJS.ProcessEnv) {
@@ -107,6 +111,14 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   ) {
     throw new Error(
       'Invalid environment configuration: DASHBOARD_CACHE_TTL_MS exceeds DASHBOARD_CACHE_INVALIDATION_SLA_MS',
+    );
+  }
+  if (
+    String(value.AUTH_RATE_LIMIT_ENABLED).toLowerCase() === 'true' &&
+    String(value.AUTH_RATE_LIMIT_HMAC_SECRET || '').length < 32
+  ) {
+    throw new Error(
+      'Missing required environment variable: AUTH_RATE_LIMIT_HMAC_SECRET',
     );
   }
   if (

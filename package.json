@@ -18,7 +18,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "lint:check": "eslint \"src/{audit,sessions,observability,privacy}/**/*.ts\" \"src/storage/{stored-files.service,upload-quota.service,file-scanner.interface}.ts\" \"src/config/environment.ts\" \"src/auth/{auth.controller,roles.guard,jwt-auth.guard}.ts\" \"src/security/public-rate-limit.guard.ts\" \"src/tenancy/branch-context.guard.ts\" \"src/system/system.service.ts\" \"src/system/dto/system-context-response.dto.ts\" \"src/system/interfaces/system-context.interface.ts\" \"test/{security,helpers,factories}/**/*.ts\" \"scripts/**/*.ts\"",
+    "lint:check": "eslint \"src/{audit,sessions,observability,privacy}/**/*.ts\" \"src/storage/{stored-files.service,upload-quota.service,file-scanner.interface}.ts\" \"src/config/{environment,trusted-proxy}.ts\" \"src/auth/{auth.controller,roles.guard,jwt-auth.guard,auth-rate-limit.guard,auth-rate-limit.store}.ts\" \"src/security/public-rate-limit.guard.ts\" \"src/tenancy/branch-context.guard.ts\" \"src/system/system.service.ts\" \"src/system/dto/system-context-response.dto.ts\" \"src/system/interfaces/system-context.interface.ts\" \"test/{security,helpers,factories}/**/*.ts\" \"scripts/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",

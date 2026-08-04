@@ -16,10 +16,8 @@ import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
-import {
-  PublicRateLimitGuard,
-  RateLimit,
-} from '../security/public-rate-limit.guard';
+import { RateLimit } from '../security/public-rate-limit.guard';
+import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { CsrfExempt } from '../security/csrf-origin.guard';
 import { BillingExempt } from '../billing/billing-exempt.decorator';
 import { AuditService } from '../audit/audit.service';
@@ -46,7 +44,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
-  @UseGuards(PublicRateLimitGuard)
+  @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 8, windowMs: 60_000, includeEmail: true })
   @CsrfExempt()
   async register(
@@ -74,7 +72,7 @@ export class AuthController {
   }
 
   @Post('login')
-  @UseGuards(PublicRateLimitGuard)
+  @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 60_000, includeEmail: true })
   @CsrfExempt()
   async login(
@@ -116,7 +114,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @UseGuards(PublicRateLimitGuard)
+  @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: true })
   @CsrfExempt()
   async forgotPassword(

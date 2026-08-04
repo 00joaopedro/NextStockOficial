@@ -1525,10 +1525,10 @@ model FiscalDocumentEvent {
   document  SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy UserProfile? @relation("FiscalEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([documentId, printNumber])
   @@index([documentId, createdAt])
   @@index([providerRef])
   @@index([documentId, attemptId])
-  @@unique([documentId, printNumber])
   @@map("fiscal_document_events")
 }
 
@@ -1781,6 +1781,22 @@ model ResourceUsageSnapshot {
   @@map("resource_usage_snapshots")
 }
 
+model AuthRateLimitBucket {
+  id           String                @id @default(uuid()) @db.Uuid
+  action       String
+  identityType AuthRateLimitIdentity @map("identity_type")
+  identityHash String                @map("identity_hash")
+  windowStart  DateTime              @map("window_start")
+  windowEndsAt DateTime              @map("window_ends_at")
+  attemptCount Int                   @default(0) @map("attempt_count")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@unique([action, identityType, identityHash, windowStart])
+  @@index([windowEndsAt])
+  @@map("auth_rate_limit_buckets")
+}
+
 model Partner {
   id                 String            @id @default(uuid()) @db.Uuid
   name               String
@@ -1908,6 +1924,11 @@ enum UserProvisioningState {
   FAILED_RETRYABLE
   FAILED_FINAL
   UNKNOWN
+}
+
+enum AuthRateLimitIdentity {
+  IP
+  ACCOUNT
 }
 
 enum Role {

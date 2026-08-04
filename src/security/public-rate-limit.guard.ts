@@ -14,7 +14,7 @@ import { createHash } from 'crypto';
 import { AuditService } from '../audit/audit.service';
 
 type RateBucket = { count: number; resetAt: number };
-type RateLimitOptions = {
+export type RateLimitOptions = {
   max: number;
   windowMs: number;
   includeEmail?: boolean;

@@ -17,6 +17,7 @@ const base = {
   SUPABASE_URL: 'https://prodref.supabase.co',
   SUPABASE_PROJECT_REF: 'prodref',
   PRODUCTION_SUPABASE_PROJECT_REF: 'prodref',
+  AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32),
 };
 
 describe('environment isolation guardrails', () => {
@@ -37,6 +38,22 @@ describe('environment isolation guardrails', () => {
         CORS_ALLOWED_ORIGINS: '',
       }),
     ).toThrow('CORS_ALLOWED_ORIGINS');
+  });
+
+  it('rejects enabled auth rate limiting without its HMAC secret', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        AUTH_RATE_LIMIT_ENABLED: 'true',
+        AUTH_RATE_LIMIT_HMAC_SECRET: '',
+      }),
+    ).toThrow('AUTH_RATE_LIMIT_HMAC_SECRET');
+  });
+
+  it('rejects invalid trusted proxy topology early', () => {
+    expect(() => validateEnvironment({ ...base, TRUSTED_PROXY_HOPS: 'all' })).toThrow(
+      'TRUSTED_PROXY_HOPS',
+    );
   });
 
   it('rejects production without CERT_ENCRYPTION_KEY', () => {
