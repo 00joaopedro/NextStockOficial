@@ -215,15 +215,16 @@ describe('SEC-016 distributed authentication rate limiter', () => {
     await app.getHttpAdapter().getInstance().ready();
 
     const loginPayload = { email: 'HTTP@Example.Test', password: 'Password1' };
-    const loginResponses = [];
+    const performLogin = () =>
+      app.inject({
+        method: 'POST',
+        url: '/auth/login',
+        payload: loginPayload,
+      });
+    type LoginResponse = Awaited<ReturnType<typeof performLogin>>;
+    const loginResponses: LoginResponse[] = [];
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      loginResponses.push(
-        await app.inject({
-          method: 'POST',
-          url: '/auth/login',
-          payload: loginPayload,
-        }),
-      );
+      loginResponses.push(await performLogin());
     }
     expect(loginResponses.map((response) => response.statusCode)).toEqual([
       201, 201, 201, 201, 201, 429,
