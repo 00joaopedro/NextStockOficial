@@ -15,6 +15,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { AuthController } from '../../src/auth/auth.controller';
 import { AuthService } from '../../src/auth/auth.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
+import fastifyCookie from '@fastify/cookie';
 
 const databaseUrl = process.env.SECURITY_TEST_DATABASE_URL;
 
@@ -211,49 +212,85 @@ describe('SEC-016 distributed authentication rate limiter', () => {
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),
     );
+    await app.register(fastifyCookie);
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
 
-    const loginPayload = { email: 'HTTP@Example.Test', password: 'Password1' };
-    const performLogin = () =>
-      app.inject({
-        method: 'POST',
-        url: '/auth/login',
-        payload: loginPayload,
-      });
-    type LoginResponse = Awaited<ReturnType<typeof performLogin>>;
-    const loginResponses: LoginResponse[] = [];
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      loginResponses.push(await performLogin());
-    }
-    expect(loginResponses.map((response) => response.statusCode)).toEqual([
-      201, 201, 201, 201, 201, 429,
-    ]);
-    expect(loginResponses[5].headers['retry-after']).toBeDefined();
-    expect(fakeAuth.login).toHaveBeenCalledTimes(5);
-
-    const register = await app.inject({
-      method: 'POST',
-      url: '/auth/register',
-      payload: {
-        email: 'register@example.test',
-        name: 'Test User',
-        companyName: 'Test Company',
+    try {
+      const loginPayload = {
+        email: 'HTTP@Example.Test',
         password: 'Password1',
-        systemType: 'padrao',
-      },
-    });
-    const recovery = await app.inject({
-      method: 'POST',
-      url: '/auth/forgot-password',
-      payload: { email: 'missing@example.test' },
-    });
-    expect(register.statusCode).toBe(201);
-    expect(recovery.statusCode).toBe(201);
-    expect(fakeAuth.register).toHaveBeenCalledTimes(1);
-    expect(fakeAuth.forgotPassword).toHaveBeenCalledTimes(1);
+      };
+      const performLogin = () =>
+        app.inject({
+          method: 'POST',
+          url: '/auth/login',
+          payload: loginPayload,
+        });
+      type LoginResponse = Awaited<ReturnType<typeof performLogin>>;
+      const loginResponses: LoginResponse[] = [];
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        loginResponses.push(await performLogin());
+      }
+      const loginDiagnostics = loginResponses.map((response, index) => ({
+        index,
+        route: 'login',
+        statusCode: response.statusCode,
+        response: sanitizedResponseBody(response.body),
+        hasRetryAfter: typeof response.headers['retry-after'] === 'string',
+      }));
+      expect(
+        loginDiagnostics.filter(({ statusCode }) => statusCode === 500),
+      ).toEqual([]);
+      expect(
+        loginDiagnostics.every(({ statusCode }) => statusCode !== 500),
+      ).toBe(true);
+      expect(loginResponses.map((response) => response.statusCode)).toEqual([
+        201, 201, 201, 201, 201, 429,
+      ]);
+      expect(loginResponses[5].headers['retry-after']).toBeDefined();
+      expect(fakeAuth.login).toHaveBeenCalledTimes(5);
 
-    await app.close();
-    await module.close();
+      const register = await app.inject({
+        method: 'POST',
+        url: '/auth/register',
+        payload: {
+          email: 'register@example.test',
+          name: 'Test User',
+          companyName: 'Test Company',
+          password: 'Password1',
+          systemType: 'padrao',
+        },
+      });
+      const recovery = await app.inject({
+        method: 'POST',
+        url: '/auth/forgot-password',
+        payload: { email: 'missing@example.test' },
+      });
+      expect(register.statusCode).toBe(201);
+      expect(recovery.statusCode).toBe(201);
+      expect(fakeAuth.register).toHaveBeenCalledTimes(1);
+      expect(fakeAuth.forgotPassword).toHaveBeenCalledTimes(1);
+    } finally {
+      await app.close();
+      await module.close();
+    }
   });
 });
+
+function sanitizedResponseBody(body: string) {
+  try {
+    const parsed = JSON.parse(body) as {
+      statusCode?: number;
+      error?: string;
+      message?: string;
+    };
+    return {
+      statusCode: parsed.statusCode,
+      hasError: typeof parsed.error === 'string',
+      hasMessage: typeof parsed.message === 'string',
+    };
+  } catch {
+    return { bodyType: body ? 'non-json' : 'empty' };
+  }
+}
