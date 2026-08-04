@@ -6,11 +6,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { StoredFilesService } from './stored-files.service';
 import { UploadQuotaService } from './upload-quota.service';
 import { FileScanner, NoopFileScanner } from './file-scanner.interface';
+import { ImageProcessingCoordinatorService } from './image-processing-coordinator.service';
 
 @Module({
   imports: [SupabaseModule, PrismaModule],
   providers: [
     ImageOptimizerService,
+    ImageProcessingCoordinatorService,
     StoredFilesService,
     UploadQuotaService,
     { provide: FileScanner, useClass: NoopFileScanner },
@@ -18,6 +20,7 @@ import { FileScanner, NoopFileScanner } from './file-scanner.interface';
   ],
   exports: [
     ImageOptimizerService,
+    ImageProcessingCoordinatorService,
     SupabaseStorageService,
     StoredFilesService,
     UploadQuotaService,
