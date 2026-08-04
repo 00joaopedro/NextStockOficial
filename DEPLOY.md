@@ -451,3 +451,20 @@ Rollout order for REL-016:
 The readiness response is intentionally minimal. Failures return `503` with a generic reason (`database_unavailable`, `schema_incompatible`, or `readiness_timeout`) and do not expose hostnames, database names, SQL, migration names, Prisma codes, or stack traces. Detailed canary failure details are logged internally in sanitized structured logs.
 
 Rollback is safe: older code ignores `schema_compatibility_markers`; do not remove or downgrade marker rows, and do not edit an applied migration. Future incompatible schema changes must add a new migration inserting a new monotonic marker row instead of updating version `1`.
+
+## CI-016 workflow validation policy
+
+The full `validate` GitHub Actions job runs for pull requests targeting `dev`,
+for pushes to `dev`, for the existing operational `main` push path, and by
+manual `workflow_dispatch`. Direct pushes to `dev` remain prohibited by branch
+protection; after an authorized merge, confirm that GitHub created a successful
+`push` run on branch `dev` with the `validate` job before marking CI-016 fully
+approved.
+
+The `dev` branch protection/ruleset must require the `validate` check and must
+not allow force pushes or branch deletion. Third-party GitHub Actions in
+workflows are pinned to full 40-character SHAs with the verified release version
+kept in an inline comment. To update an Action, use the upstream official
+repository tag/ref (for example `git ls-remote https://github.com/actions/checkout.git refs/tags/<tag> refs/tags/<tag>^{}`),
+verify the release tag target, replace the SHA and comment together, and let
+Dependabot's `github-actions` ecosystem PRs target `dev` weekly.
