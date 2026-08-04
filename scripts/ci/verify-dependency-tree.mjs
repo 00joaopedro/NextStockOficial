@@ -34,7 +34,6 @@ export function isKnownSharpWasmOrphan(problems, lock, tree) {
   if (!sharp.resolved || !sharp.integrity || !wasm.resolved || !wasm.integrity || !runtime.resolved || !runtime.integrity) return false;
   if (sharp.optionalDependencies?.['@img/sharp-wasm32'] !== wasmVersion) return false;
   if (sharp.version !== sharpVersion || wasm.version !== wasmVersion || runtime.version !== runtimeVersion) return false;
-  if (sharpVersion !== '0.35.2' || wasmVersion !== '0.35.2' || runtimeVersion !== '1.11.3') return false;
   if (sharp.optional !== undefined || wasm.optional !== true || runtime.optional !== true) return false;
   if (wasm.dependencies?.['@emnapi/runtime'] !== `^${runtimeVersion}`) return false;
   return true;

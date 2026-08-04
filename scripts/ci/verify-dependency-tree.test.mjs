@@ -17,7 +17,14 @@ const fastify = 'invalid: @fastify/static@10.1.2 C:\\repo\\node_modules\\@fastif
 
 test('clean tree passes', () => assert.deepEqual(validateTree({ problems: [] }, lock).remaining, []));
 test('exact Sharp/WASM subtree passes', () => assert.equal(isKnownSharpWasmOrphan([wasm, emnapi], lock, tree), true));
+test('lockfile-selected emnapi 1.11.1 also passes without a version allowlist', () => {
+  const lockfile = structuredClone(lock);
+  lockfile.packages['node_modules/@emnapi/runtime'].version = '1.11.1';
+  lockfile.packages['node_modules/@img/sharp-wasm32'].dependencies['@emnapi/runtime'] = '^1.11.1';
+  assert.equal(isKnownSharpWasmOrphan([wasm, emnapi.replace('1.11.3', '1.11.1')], lockfile, tree), true);
+});
 test('Sharp subtree version divergence fails', () => assert.equal(isKnownSharpWasmOrphan([wasm.replace('0.35.2', '0.35.3'), emnapi], lock, tree), false));
+test('installed version different from lockfile fails', () => assert.equal(isKnownSharpWasmOrphan([wasm, emnapi.replace('1.11.3', '1.11.1')], lock, tree), false));
 test('only emnapi or only wasm fails', () => { assert.equal(isKnownSharpWasmOrphan([emnapi], lock, tree), false); assert.equal(isKnownSharpWasmOrphan([wasm], lock, tree), false); });
 test('Sharp WASM without Sharp relation fails', () => assert.equal(isKnownSharpWasmOrphan([wasm, emnapi], { packages: { ...lock.packages, 'node_modules/sharp': { ...lock.packages['node_modules/sharp'], optionalDependencies: {} } } }, tree), false));
 test('exact Fastify compatibility exception passes', () => assert.equal(isFastifyStaticCompatibilityException(fastify, lock, tree), true));
