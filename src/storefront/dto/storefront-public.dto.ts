@@ -16,6 +16,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { FulfillmentType } from '@prisma/client';
+import { IsStorefrontPhone } from '../storefront-phone.validator';
 
 export class PublicProductsQueryDto {
   @IsOptional() @IsString() @MaxLength(80) q?: string;
@@ -41,7 +42,7 @@ class DeliveryAddressDto {
 }
 export class CreateGuestOrderDto {
   @IsString() @MaxLength(120) customerName!: string;
-  @IsString() @Matches(/^\+?[0-9 ()-]{8,24}$/) customerPhone!: string;
+  @IsString() @IsStorefrontPhone() customerPhone!: string;
   @IsOptional() @IsEmail() @MaxLength(160) customerEmail?: string;
   @IsEnum(FulfillmentType) fulfillmentType!: FulfillmentType;
   @ValidateIf(

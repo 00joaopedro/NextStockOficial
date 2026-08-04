@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/require-await */
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { StorefrontStatus, SystemMode } from '@prisma/client';
+import { Prisma, StorefrontStatus, SystemMode } from '@prisma/client';
 import { StorefrontService } from './storefront.service';
 
 describe('StorefrontService security boundaries', () => {
@@ -105,5 +105,38 @@ describe('StorefrontService security boundaries', () => {
         fulfillmentOptions: ['pickup'],
       },
     });
+  });
+  it('repete P2034 no maximo tres vezes', async () => {
+    const { service } = setup();
+    const operation = jest.fn().mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('transient', {
+        code: 'P2034',
+        clientVersion: 'test',
+      }),
+    );
+    await expect(
+      (
+        service as unknown as {
+          withGuestOrderTransactionRetry: <T>(
+            fn: () => Promise<T>,
+          ) => Promise<T>;
+        }
+      ).withGuestOrderTransactionRetry(operation),
+    ).rejects.toMatchObject({ code: 'P2034' });
+    expect(operation).toHaveBeenCalledTimes(3);
+  });
+  it('nao repete erro nao transitorio', async () => {
+    const { service } = setup();
+    const operation = jest.fn().mockRejectedValue(new Error('permanent'));
+    await expect(
+      (
+        service as unknown as {
+          withGuestOrderTransactionRetry: <T>(
+            fn: () => Promise<T>,
+          ) => Promise<T>;
+        }
+      ).withGuestOrderTransactionRetry(operation),
+    ).rejects.toThrow('permanent');
+    expect(operation).toHaveBeenCalledTimes(1);
   });
 });
