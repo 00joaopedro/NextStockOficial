@@ -18,6 +18,7 @@ import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { AuthRateLimitStore } from './auth-rate-limit.store';
 import { BillingCoreModule } from '../billing/billing-core.module';
 import { SessionsModule } from '../sessions/sessions.module';
+import { ObservabilityModule } from '../observability/observability.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SessionsModule } from '../sessions/sessions.module';
     ReferralModule,
     BillingCoreModule,
     SessionsModule,
+    ObservabilityModule,
   ],
   providers: [
     AuthService,
