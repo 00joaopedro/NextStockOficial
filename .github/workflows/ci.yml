@@ -61,6 +61,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Runtime dependency tree integrity
+        run: |
+          npm ls --all
+          npm ls --all --omit=dev
       - name: Static secret and dangerous API checks
         run: npm run security:static
       - run: npx prisma validate
