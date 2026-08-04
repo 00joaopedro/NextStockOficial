@@ -31,6 +31,7 @@ export type CompatibleReply = {
 };
 
 export type Response = {
+  header(name: string, value: string): Response;
   status(statusCode: number): Response;
   send(payload: unknown): unknown;
 };

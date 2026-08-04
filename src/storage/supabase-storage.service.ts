@@ -18,6 +18,7 @@ import { StoredFileScanStatus, StoredFileVisibility } from '@prisma/client';
 import { StoredFilesService } from './stored-files.service';
 import { UploadQuotaService } from './upload-quota.service';
 import { FileScanner } from './file-scanner.interface';
+import { ImageProcessingCoordinatorService } from './image-processing-coordinator.service';
 
 type UploadFile = {
   originalname?: string;
@@ -61,6 +62,8 @@ export class SupabaseStorageService {
     @Optional() private readonly storedFiles?: StoredFilesService,
     @Optional() private readonly quotas?: UploadQuotaService,
     @Optional() private readonly scanner?: FileScanner,
+    @Optional()
+    private readonly imageCoordinator: ImageProcessingCoordinatorService = new ImageProcessingCoordinatorService(),
   ) {}
 
   async uploadPetPhoto(input: {
@@ -74,7 +77,6 @@ export class SupabaseStorageService {
     const originalName = this.cleanFileName(
       input.file.originalname || 'pet-photo',
     );
-    const optimized = await this.imageOptimizer.optimize(input.file);
     const basePath = [
       input.tenantId,
       input.branchId,
@@ -82,15 +84,11 @@ export class SupabaseStorageService {
       randomUUID(),
     ].join('/');
     const paths = this.imageVariantPaths(basePath);
-    const reservation = await this.quotas?.reserve({
-      tenantId: input.tenantId,
-      branchId: input.branchId,
-      ownerProfileId: input.ownerProfileId,
-      incomingBytes: this.optimizedBytes(optimized),
-      incomingFiles: 3,
-      idempotencyKey: randomUUID(),
-      objectKeys: Object.values(paths),
-    });
+    const { optimized, reservation } = await this.prepareImage(
+      input,
+      Object.values(paths),
+      3,
+    );
     return this.uploadImageVariants(
       this.petPhotosBucket,
       basePath,
@@ -119,7 +117,6 @@ export class SupabaseStorageService {
     const originalName = this.cleanFileName(
       input.file.originalname || 'product-image',
     );
-    const optimized = await this.imageOptimizer.optimize(input.file);
     const basePath = [
       input.tenantId,
       input.branchId,
@@ -128,15 +125,11 @@ export class SupabaseStorageService {
       randomUUID(),
     ].join('/');
     const paths = this.imageVariantPaths(basePath);
-    const reservation = await this.quotas?.reserve({
-      tenantId: input.tenantId,
-      branchId: input.branchId,
-      ownerProfileId: input.ownerProfileId,
-      incomingBytes: this.optimizedBytes(optimized),
-      incomingFiles: 3,
-      idempotencyKey: randomUUID(),
-      objectKeys: Object.values(paths),
-    });
+    const { optimized, reservation } = await this.prepareImage(
+      input,
+      Object.values(paths),
+      3,
+    );
 
     const bucket = this.getProductImagesBucket();
     return this.uploadImageVariants(
@@ -171,7 +164,6 @@ export class SupabaseStorageService {
       input.file.originalname || 'expense-file',
     );
     if (fileType === ExpenseFileType.image) {
-      const optimized = await this.imageOptimizer.optimize(input.file);
       const storagePath = [
         input.tenantId,
         input.branchId,
@@ -179,15 +171,11 @@ export class SupabaseStorageService {
         input.expenseId,
         `${randomUUID()}-optimized.webp`,
       ].join('/');
-      const reservation = await this.quotas?.reserve({
-        tenantId: input.tenantId,
-        branchId: input.branchId,
-        ownerProfileId: input.ownerProfileId,
-        incomingBytes: optimized.full.buffer.length,
-        incomingFiles: 1,
-        idempotencyKey: randomUUID(),
-        objectKeys: [storagePath],
-      });
+      const { optimized, reservation } = await this.prepareImage(
+        input,
+        [storagePath],
+        1,
+      );
       try {
         await this.uploadBuffer(
           this.getExpenseFilesBucket(),
@@ -938,11 +926,40 @@ export class SupabaseStorageService {
     };
   }
 
-  private optimizedBytes(optimized: OptimizedImage) {
-    return (
-      optimized.full.buffer.length +
-      optimized.medium.buffer.length +
-      optimized.thumbnail.buffer.length
-    );
+  private prepareImage(
+    input: {
+      tenantId: string;
+      branchId: string;
+      ownerProfileId?: string | null;
+      file: UploadFile;
+    },
+    objectKeys: string[],
+    outputFiles: number,
+  ) {
+    return this.imageCoordinator.run(input.tenantId, async () => {
+      // RC-008 has no resize operation. Reserve the configured maximum output
+      // before libvips starts; this is conservative and never under-reserves.
+      const maxOutputBytes =
+        Number(process.env.IMAGE_MAX_OPTIMIZED_SIZE_MB || 3) *
+        1024 *
+        1024 *
+        outputFiles;
+      const reservation = await this.quotas?.reserve({
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        incomingBytes: maxOutputBytes,
+        incomingFiles: outputFiles,
+        idempotencyKey: randomUUID(),
+        objectKeys,
+      });
+      try {
+        const optimized = await this.imageOptimizer.optimize(input.file);
+        return { optimized, reservation };
+      } catch (error) {
+        if (reservation) await this.quotas?.release(reservation.id);
+        throw error;
+      }
+    });
   }
 }

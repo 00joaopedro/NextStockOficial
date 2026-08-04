@@ -93,6 +93,24 @@ const schema = Joi.object({
   AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
   AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
+  IMAGE_PROCESSING_CONCURRENCY: Joi.number().integer().min(1).max(4).default(1),
+  IMAGE_PROCESSING_MAX_QUEUE: Joi.number().integer().min(1).max(100).default(4),
+  IMAGE_PROCESSING_QUEUE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(15000),
+  IMAGE_PROCESSING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(120000)
+    .default(30000),
+  IMAGE_PROCESSING_PER_TENANT: Joi.number().integer().min(1).max(4).default(1),
+  IMAGE_MAX_INPUT_PIXELS: Joi.number()
+    .integer()
+    .min(1)
+    .max(40000000)
+    .default(20000000),
 }).unknown(true);
 
 export function validateEnvironment(env: NodeJS.ProcessEnv) {
@@ -111,6 +129,11 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   ) {
     throw new Error(
       'Invalid environment configuration: DASHBOARD_CACHE_TTL_MS exceeds DASHBOARD_CACHE_INVALIDATION_SLA_MS',
+    );
+  }
+  if (value.IMAGE_PROCESSING_PER_TENANT > value.IMAGE_PROCESSING_CONCURRENCY) {
+    throw new Error(
+      'Invalid environment configuration: IMAGE_PROCESSING_PER_TENANT exceeds IMAGE_PROCESSING_CONCURRENCY',
     );
   }
   if (
