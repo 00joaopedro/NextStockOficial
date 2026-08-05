@@ -60,6 +60,11 @@ const schema = Joi.object({
     .valid('sandbox', 'test', 'production')
     .optional(),
   AUDIT_HASH_SECRET: Joi.string().min(32).allow('').optional(),
+  AUDIT_OUTBOX_ALERTING_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUDIT_OUTBOX_BACKLOG_ALERT_THRESHOLD: Joi.number().integer().min(1).default(100),
+  AUDIT_OUTBOX_LAG_SLA_SECONDS: Joi.number().integer().min(1).default(300),
+  AUDIT_OUTBOX_SHUTDOWN_TIMEOUT_MS: Joi.number().integer().min(1).default(10000),
+  AUDIT_OUTBOX_ALERT_COOLDOWN_SECONDS: Joi.number().integer().min(1).default(300),
   SESSION_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   STOREFRONT_PUBLIC_READ_ENABLED: Joi.string()
