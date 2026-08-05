@@ -26,6 +26,18 @@ export type TransactionalAuditInput = SecurityAuditInput & {
 const DEFAULT_LEASE_MS = 30_000;
 const DEFAULT_POLL_MS = 5_000;
 const DEFAULT_MAX_ATTEMPTS = 8;
+const DEFAULT_BACKLOG_ALERT_THRESHOLD = 100;
+const DEFAULT_LAG_SLA_SECONDS = 300;
+const DEFAULT_ALERT_COOLDOWN_SECONDS = 300;
+
+type OutboxOperationalSnapshot = {
+  pending: number;
+  processing: number;
+  retryable: number;
+  failedFinal: number;
+  backlog: number;
+  lagSeconds: number;
+};
 
 @Injectable()
 export class AuditOutboxService
@@ -35,6 +47,7 @@ export class AuditOutboxService
   private timer?: NodeJS.Timeout;
   private stopping = false;
   private readonly active = new Set<Promise<unknown>>();
+  private readonly alertSentAt = new Map<string, number>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -91,7 +104,7 @@ export class AuditOutboxService
   async onApplicationShutdown() {
     const timeout = this.positiveInt(
       process.env.AUDIT_OUTBOX_SHUTDOWN_TIMEOUT_MS,
-      5_000,
+      10_000,
     );
     if (!this.active.size) return;
     await Promise.race([
@@ -104,9 +117,80 @@ export class AuditOutboxService
 
   async processBatch(limit = 20) {
     if (this.stopping) return 0;
+    await this.observeOperationalState();
     const claims = await this.claim(Math.max(1, Math.min(limit, 100)));
     await Promise.allSettled(claims.map((claim) => this.deliver(claim)));
     return claims.length;
+  }
+
+  private async observeOperationalState() {
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        pending: bigint;
+        processing: bigint;
+        retryable: bigint;
+        failed_final: bigint;
+        oldest_created_at: Date | null;
+      }>
+    >`SELECT
+      COUNT(*) FILTER (WHERE status = 'PENDING') AS pending,
+      COUNT(*) FILTER (WHERE status = 'PROCESSING') AS processing,
+      COUNT(*) FILTER (WHERE status = 'FAILED_RETRYABLE') AS retryable,
+      COUNT(*) FILTER (WHERE status = 'FAILED_FINAL') AS failed_final,
+      MIN(created_at) FILTER (WHERE status <> 'DELIVERED') AS oldest_created_at
+    FROM audit_outbox_events`;
+    const row = rows[0];
+    if (!row) return;
+    const pending = Number(row.pending);
+    const processing = Number(row.processing);
+    const retryable = Number(row.retryable);
+    const failedFinal = Number(row.failed_final);
+    const lagSeconds = row.oldest_created_at
+      ? Math.max(
+          0,
+          Math.floor((Date.now() - row.oldest_created_at.getTime()) / 1000),
+        )
+      : 0;
+    const metrics: OutboxOperationalSnapshot = {
+      pending,
+      processing,
+      retryable,
+      failedFinal,
+      backlog: pending + processing + retryable,
+      lagSeconds,
+    };
+    this.logger.log(`audit_outbox_metrics ${JSON.stringify(metrics)}`);
+    if (process.env.AUDIT_OUTBOX_ALERTING_ENABLED === 'false') return;
+    const backlogThreshold = this.positiveInt(
+      process.env.AUDIT_OUTBOX_BACKLOG_ALERT_THRESHOLD,
+      DEFAULT_BACKLOG_ALERT_THRESHOLD,
+    );
+    const lagSla = this.positiveInt(
+      process.env.AUDIT_OUTBOX_LAG_SLA_SECONDS,
+      DEFAULT_LAG_SLA_SECONDS,
+    );
+    if (failedFinal > 0) this.alert('failed_final', { count: failedFinal });
+    if (metrics.backlog >= backlogThreshold)
+      this.alert('backlog', {
+        count: metrics.backlog,
+        threshold: backlogThreshold,
+      });
+    if (lagSeconds >= lagSla)
+      this.alert('lag', { seconds: lagSeconds, slaSeconds: lagSla });
+  }
+
+  private alert(kind: string, details: Record<string, number>) {
+    const now = Date.now();
+    const cooldown =
+      this.positiveInt(
+        process.env.AUDIT_OUTBOX_ALERT_COOLDOWN_SECONDS,
+        DEFAULT_ALERT_COOLDOWN_SECONDS,
+      ) * 1000;
+    if (now - (this.alertSentAt.get(kind) ?? 0) < cooldown) return;
+    this.alertSentAt.set(kind, now);
+    this.logger.error(
+      `audit_outbox_alert ${JSON.stringify({ alert: kind, ...details })}`,
+    );
   }
 
   async claim(
