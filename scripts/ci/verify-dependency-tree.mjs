@@ -8,39 +8,54 @@ const FASTIFY_EXCEPTION = 'TEMPORARY_FASTIFY_STATIC_SECURITY_COMPATIBILITY_EXCEP
 
 function readLockfile() { return JSON.parse(readFileSync(path.join(root, 'package-lock.json'), 'utf8')); }
 
-function parseProblem(raw, node = {}) {
+function canonicalPath(value) {
+  if (!value) return null;
+  const normalized = String(value).replaceAll('\\', '/');
+  const marker = '/node_modules/';
+  const index = normalized.lastIndexOf(marker);
+  return index >= 0 ? normalized.slice(index + 1) : normalized.replace(/^\.\//, '');
+}
+
+function parseProblem(raw, node = {}, source = 'root.problems') {
   const text = String(raw);
   const typeMatch = /^(?:([^: ]+):\s*)?(.+?)(?:\s+(extraneous|invalid|missing|peer missing))?$/.exec(text);
-  const type = node.extraneous ? 'extraneous' : node.invalid ? 'invalid' : node.missing ? 'missing' : node.peerMissing ? 'peerMissing' : node.error ? 'error' : typeMatch?.[1] || typeMatch?.[3] || 'error';
+  const type = node.extraneous ? 'extraneous' : node.invalid ? 'invalid' : node.missing ? 'missing' : node.peerMissing ? 'peerMissing' : node.error ? 'other' : typeMatch?.[1] || typeMatch?.[3] || 'other';
   const body = typeMatch?.[2] || text;
   const match = /(@[^@ ]+|[^@ ]+)@([^ ]+)/.exec(body);
-  return { type, name: node.name || match?.[1], version: node.version || match?.[2], path: node.path, raw: text };
+  return { type, name: node.name || match?.[1], version: node.version || match?.[2] || null, path: canonicalPath(node.path || text.match(/(?:[A-Za-z]:)?[^ ]*node_modules[\\/][^ ]+/)?.[0]), sources: new Set([source]), raw: text };
 }
+
+function problemKey(problem) { return JSON.stringify([problem.type, problem.name, problem.version, problem.path]); }
 
 export function collectProblems(npmTree) {
   const collected = [];
+  let rawCount = 0;
   const add = (problem) => {
-    const key = JSON.stringify([problem.type, problem.name, problem.version, problem.path]);
-    if (!collected.some((item) => JSON.stringify([item.type, item.name, item.version, item.path]) === key)) collected.push(problem);
+    rawCount += 1;
+    const candidate = collected.filter((item) => item.type === problem.type && item.name === problem.name && item.version === problem.version && (item.path === problem.path || !item.path || !problem.path));
+    const existing = collected.find((item) => problemKey(item) === problemKey(problem)) || (candidate?.length === 1 ? candidate[0] : null);
+    if (existing) { if (!existing.path && problem.path) existing.path = problem.path; for (const source of problem.sources) existing.sources.add(source); return; }
+    collected.push(problem);
   };
-  for (const raw of npmTree.problems || []) add(parseProblem(raw));
-  const visit = (node, fallbackName, fallbackPath) => {
+  for (const raw of npmTree.problems || []) {
+    const parsed = parseProblem(raw);
+    if (parsed.type === 'other' && npmTree.error?.code === 'ELSPROBLEMS') continue;
+    add(parsed);
+  }
+  const visit = (node, fallbackName, fallbackPath, isRoot = false) => {
     if (!node || typeof node !== 'object') return;
     const current = { ...node, name: node.name || fallbackName, path: node.path || fallbackPath };
-    for (const type of ['extraneous', 'invalid', 'missing', 'peerMissing', 'error']) if (current[type]) add(parseProblem(`${type}: ${current.name || ''}@${current.version || ''}`, current));
-    for (const raw of current.problems || []) add(parseProblem(raw, current));
+    for (const type of ['extraneous', 'invalid', 'missing', 'peerMissing', 'error']) if (current[type] && !(isRoot && type === 'error' && npmTree.error?.code === 'ELSPROBLEMS')) add(parseProblem(`${type}: ${current.name || ''}@${current.version || ''}`, current, 'node.flags'));
+    if (!isRoot) for (const raw of current.problems || []) add(parseProblem(raw, current, 'node.problems'));
     for (const [name, child] of Object.entries(current.dependencies || {})) visit(child, name, child.path || path.join(current.path || root, 'node_modules', ...name.split('/')));
   };
-  visit(npmTree, npmTree.name, npmTree.path || root);
-  for (const problem of collected) if (!problem.path && problem.name) {
-    const found = collected.find((candidate) => candidate.name === problem.name && candidate.version === problem.version && candidate.path);
-    if (found) problem.path = found.path;
-  }
+  visit(npmTree, npmTree.name, npmTree.path || root, true);
+  Object.defineProperty(collected, 'rawCount', { value: rawCount, enumerable: false });
   return collected;
 }
 
 function exactPath(problem, relative) {
-  return problem.path && path.relative(root, problem.path).replaceAll('\\', '/') === relative;
+  return problem.path === relative;
 }
 
 function sharpOptionalReachesWasm(lockfile) {
@@ -86,6 +101,7 @@ export function isFastifyStaticCompatibilityException(problem, lockfile, npmTree
 }
 
 export function validateTree(npmTree, lockfile, installedPackages) {
+  if (npmTree.error && npmTree.error.code !== 'ELSPROBLEMS') throw new Error(`npm ls failed: ${npmTree.error.code || 'unknown error'}`);
   const problems = collectProblems(npmTree);
   const sharp = validateKnownSharpWasmArtifacts({ npmTree, lockfile, installedPackages });
   const tolerated = [];
@@ -94,6 +110,7 @@ export function validateTree(npmTree, lockfile, installedPackages) {
   if (fastify.length === 1) { tolerated.push(fastify[0]); console.log(`${FASTIFY_EXCEPTION}:\n@fastify/static@10.1.2 retained for security while Nest peer ranges remain ^8/^9.`); }
   const remaining = problems.filter((problem) => !tolerated.some((allowed) => allowed.type === problem.type && allowed.name === problem.name && allowed.version === problem.version && allowed.path === problem.path));
   if (remaining.length) throw new Error(`Runtime dependency tree is invalid:\n${remaining.map((p) => p.raw).join('\n')}`);
+  console.log(`Dependency problem normalization:\n${problems.rawCount} raw representations correlated into ${problems.length} unique dependency problems.\n${tolerated.length} known problems were narrowly verified.\n${remaining.length} unexpected dependency problems remain.`);
   console.log(`Runtime dependency tree accepted with ${tolerated.length ? '2 narrowly verified compatibility exceptions' : 'no compatibility exceptions'}.`);
   return { tolerated, remaining };
 }
