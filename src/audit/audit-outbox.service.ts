@@ -124,13 +124,15 @@ export class AuditOutboxService
   }
 
   private async observeOperationalState() {
-    const rows = await this.prisma.$queryRaw<Array<{
-      pending: bigint;
-      processing: bigint;
-      retryable: bigint;
-      failed_final: bigint;
-      oldest_created_at: Date | null;
-    }>>`SELECT
+    const rows = await this.prisma.$queryRaw<
+      Array<{
+        pending: bigint;
+        processing: bigint;
+        retryable: bigint;
+        failed_final: bigint;
+        oldest_created_at: Date | null;
+      }>
+    >`SELECT
       COUNT(*) FILTER (WHERE status = 'PENDING') AS pending,
       COUNT(*) FILTER (WHERE status = 'PROCESSING') AS processing,
       COUNT(*) FILTER (WHERE status = 'FAILED_RETRYABLE') AS retryable,
@@ -144,7 +146,10 @@ export class AuditOutboxService
     const retryable = Number(row.retryable);
     const failedFinal = Number(row.failed_final);
     const lagSeconds = row.oldest_created_at
-      ? Math.max(0, Math.floor((Date.now() - row.oldest_created_at.getTime()) / 1000))
+      ? Math.max(
+          0,
+          Math.floor((Date.now() - row.oldest_created_at.getTime()) / 1000),
+        )
       : 0;
     const metrics: OutboxOperationalSnapshot = {
       pending,
@@ -166,20 +171,26 @@ export class AuditOutboxService
     );
     if (failedFinal > 0) this.alert('failed_final', { count: failedFinal });
     if (metrics.backlog >= backlogThreshold)
-      this.alert('backlog', { count: metrics.backlog, threshold: backlogThreshold });
+      this.alert('backlog', {
+        count: metrics.backlog,
+        threshold: backlogThreshold,
+      });
     if (lagSeconds >= lagSla)
       this.alert('lag', { seconds: lagSeconds, slaSeconds: lagSla });
   }
 
   private alert(kind: string, details: Record<string, number>) {
     const now = Date.now();
-    const cooldown = this.positiveInt(
-      process.env.AUDIT_OUTBOX_ALERT_COOLDOWN_SECONDS,
-      DEFAULT_ALERT_COOLDOWN_SECONDS,
-    ) * 1000;
+    const cooldown =
+      this.positiveInt(
+        process.env.AUDIT_OUTBOX_ALERT_COOLDOWN_SECONDS,
+        DEFAULT_ALERT_COOLDOWN_SECONDS,
+      ) * 1000;
     if (now - (this.alertSentAt.get(kind) ?? 0) < cooldown) return;
     this.alertSentAt.set(kind, now);
-    this.logger.error(`audit_outbox_alert ${JSON.stringify({ alert: kind, ...details })}`);
+    this.logger.error(
+      `audit_outbox_alert ${JSON.stringify({ alert: kind, ...details })}`,
+    );
   }
 
   async claim(
