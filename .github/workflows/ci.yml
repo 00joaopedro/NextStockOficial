@@ -61,6 +61,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify dependency tree
+        run: |
+          node scripts/ci/verify-dependency-tree.mjs
+          git diff --exit-code -- package.json package-lock.json
       - name: Static secret and dangerous API checks
         run: npm run security:static
       - run: npx prisma validate
