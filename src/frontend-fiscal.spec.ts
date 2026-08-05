@@ -12,7 +12,7 @@ function pageSource(root: string, file: string) {
 }
 
 describe('ntfe.html production fiscal integration', () => {
-  const html = readFileSync(join(process.cwd(), 'public', 'ntfe.html'), 'utf8');
+  const html = pageSource(process.cwd(), 'ntfe.html');
   const script = readFileSync(
     join(process.cwd(), 'public', 'Js', 'ntfe.js'),
     'utf8',

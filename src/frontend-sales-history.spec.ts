@@ -12,10 +12,7 @@ function pageSource(root: string, file: string) {
 }
 
 describe('historico.html production sales integration', () => {
-  const html = readFileSync(
-    join(process.cwd(), 'public', 'historico.html'),
-    'utf8',
-  );
+  const html = pageSource(process.cwd(), 'historico.html');
   const script = readFileSync(
     join(process.cwd(), 'public', 'Js', 'historico.js'),
     'utf8',

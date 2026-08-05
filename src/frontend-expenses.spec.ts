@@ -15,7 +15,7 @@ describe('despesas.html production frontend', () => {
   const root = join(__dirname, '..');
 
   it('carrega producao e restringe a demonstracao inline ao preview publico', () => {
-    const html = readFileSync(join(root, 'public', 'despesas.html'), 'utf8');
+    const html = pageSource(root, 'despesas.html');
 
     expect(html).toContain('./Js/despesas.js');
     expect(html).toContain('if (window.isNextStockDemoMode?.()) {');
