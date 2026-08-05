@@ -29,7 +29,8 @@ CREATE INDEX "auth_identities_profile_id_status_idx" ON "auth_identities"("profi
 -- Only deterministic, locally available identities are backfilled. Ambiguous
 -- case-insensitive legacy e-mails remain intentionally pending reconciliation.
 WITH deterministic AS (
-  SELECT lower(btrim(email)) AS canonical_email, min(id) AS profile_id
+  SELECT lower(btrim(email)) AS canonical_email,
+         (array_agg(id ORDER BY id::text))[1] AS profile_id
   FROM profiles
   WHERE "supabase_user_id" IS NOT NULL
   GROUP BY lower(btrim(email))
