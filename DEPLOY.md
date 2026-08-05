@@ -379,9 +379,13 @@ is conditional on checkout/webhook being enabled. Use HTTPS origins only. Set
 Never reuse JWT, Supabase or Mercado Pago secrets for the billing reference
 secret.
 
-Helmet is enabled. CSP starts in report-only mode (`CSP_ENFORCE=false`) because
-legacy pages still contain inline scripts. Review CSP reports and remove the
-remaining inline scripts before enabling enforcement.
+Helmet is enabled. CSP is enforced by default. `script-src` allows only the
+application origin and the existing ApexCharts CDN used by `dashboard.html`; it
+does not allow `unsafe-inline` or `unsafe-eval`. Inline frontend scripts were
+moved to local external files under `public/Js/csp-extracted/`. Use
+`CSP_REPORT_ONLY=true` as the reviewed rollback lever when report-only telemetry
+is needed temporarily. `style-src` still keeps `unsafe-inline` for legacy CSS
+compatibility and should be addressed separately.
 
 Apply the additive migration `20260701020000_security_rls_hardening` with
 `npm run migrate:deploy`. It enables RLS and revokes `anon`/`authenticated`

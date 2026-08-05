@@ -1,8 +1,18 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 function publicFile(path: string) {
-  return readFileSync(join(__dirname, '..', 'public', path), 'utf8');
+  return pageSource(join(__dirname, '..'), path);
 }
 
 describe('Product image upload frontend flow', () => {
@@ -20,7 +30,9 @@ describe('Product image upload frontend flow', () => {
 
     expect(html).toContain('function isRenderableImageUrl');
     expect(html).toContain('image.fileUrl || image.signedUrl || image.url');
-    expect(html).toContain("onerror=\"this.onerror=null;this.src='${productImageFallback()}'\"");
-    expect(html).not.toContain('image.fileUrl || image.storagePath || image.fileName');
+    expect(html).toContain('image.addEventListener("error"');
+    expect(html).not.toContain(
+      'image.fileUrl || image.storagePath || image.fileName',
+    );
   });
 });

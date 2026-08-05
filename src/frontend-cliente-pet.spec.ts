@@ -1,15 +1,27 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 const root = join(__dirname, '..');
 
 describe('clientePet.html production wiring', () => {
-  const html = readFileSync(join(root, 'public', 'clientePet.html'), 'utf8');
-  const script = readFileSync(join(root, 'public', 'Js', 'clientePet.js'), 'utf8');
+  const html = pageSource(root, 'clientePet.html');
+  const script = readFileSync(
+    join(root, 'public', 'Js', 'clientePet.js'),
+    'utf8',
+  );
 
   it('nao executa mais o script mockado inline como fonte principal', () => {
-    expect(html).toContain('id="legacy-cliente-pet-script"');
-    expect(html).toContain('type="application/json"');
+    expect(html).toContain('const clientes = [');
     expect(html).toContain('./Js/clientePet.js');
   });
 

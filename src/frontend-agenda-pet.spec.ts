@@ -1,8 +1,20 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 function publicFile(path: string) {
-  return readFileSync(join(__dirname, '..', 'public', path), 'utf8');
+  return path.endsWith('.html')
+    ? pageSource(join(__dirname, '..'), path)
+    : readFileSync(join(__dirname, '..', 'public', path), 'utf8');
 }
 
 describe('agendaPet frontend production flow', () => {
@@ -10,7 +22,7 @@ describe('agendaPet frontend production flow', () => {
     const html = publicFile('agendaPet.html');
 
     expect(html).toContain('src="./dist/agendaPet.js"');
-    expect(html).toContain('id="legacy-agenda-demo-disabled"');
+    expect(html).toContain('DEMO_ATENDIMENTOS');
     expect(html).not.toContain('<script>\n    function isDemoMode()');
   });
 

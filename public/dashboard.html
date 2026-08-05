@@ -218,54 +218,9 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script>
-    (function () {
-      if (!window.ApexCharts) return;
-      const OriginalApexCharts = window.ApexCharts;
-      function WrappedApexCharts(el, options) {
-        const instance = new OriginalApexCharts(el, options);
-        window.__dashboardChartInstance = instance;
-        window.__dashboardInitialChartOptions = options;
-        return instance;
-      }
-      WrappedApexCharts.prototype = OriginalApexCharts.prototype;
-      Object.setPrototypeOf(WrappedApexCharts, OriginalApexCharts);
-      window.ApexCharts = WrappedApexCharts;
-    })();
-  </script>
+  <script src="./Js/csp-extracted/dashboard-inline1.js"></script>
   <script src="./dist/session-state.js"></script>
-  <script>
-    function getLocalStorageScope() {
-      let branch = null;
-      let user = null;
-      try {
-        branch = JSON.parse(sessionStorage.getItem("nextstockSelectedBranch") || "null");
-        user = JSON.parse(sessionStorage.getItem("nextstockAuthenticatedUser") || "null");
-      } catch {
-        branch = null;
-        user = null;
-      }
-      return [
-        branch?.tenantId || "no-tenant",
-        branch?.id || "no-branch",
-        user?.id || "anonymous"
-      ].join(":");
-    }
-
-    (function carregarMarcaLoja() {
-      const storeBrand = document.getElementById("store-brand");
-      if (!storeBrand) return;
-      const storageScope = getLocalStorageScope();
-      const possiveisChaves = ["marcaLoja", "marca_dono_loja", "nomeMarca", "storeBrand"];
-      for (const chave of possiveisChaves) {
-        const valor = localStorage.getItem(`${chave}:${storageScope}`);
-        if (valor && String(valor).trim()) {
-          storeBrand.value = String(valor).trim();
-          return;
-        }
-      }
-    })();
-  </script>
+  <script src="./Js/csp-extracted/dashboard-inline2.js"></script>
   <script type="module" src="./dist/dashboard.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>

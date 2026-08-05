@@ -1,11 +1,21 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 const root = join(__dirname, '..');
 
 describe('orders frontend production flow', () => {
   it('pedido.html usa script real e deixa DEMO_ORDERS restrito ao modo demo', () => {
-    const html = readFileSync(join(root, 'public', 'pedido.html'), 'utf8');
+    const html = pageSource(root, 'pedido.html');
     const script = readFileSync(
       join(root, 'public', 'Js', 'pedido.js'),
       'utf8',
@@ -22,7 +32,7 @@ describe('orders frontend production flow', () => {
   });
 
   it('produtos.html cria pedido real via /api/orders em producao', () => {
-    const html = readFileSync(join(root, 'public', 'produtos.html'), 'utf8');
+    const html = pageSource(root, 'produtos.html');
 
     expect(html).toContain('ordersApiFetch("/orders"');
     expect(html).toContain('customerName: clientData.fullName');
@@ -31,7 +41,7 @@ describe('orders frontend production flow', () => {
   });
 
   it('ntfe.html busca rascunho fiscal por orderId em vez de depender do pedido inteiro no sessionStorage', () => {
-    const html = readFileSync(join(root, 'public', 'ntfe.html'), 'utf8');
+    const html = pageSource(root, 'ntfe.html');
 
     expect(html).toContain(
       '/api/orders/${encodeURIComponent(orderId)}/nfe-draft',

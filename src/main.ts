@@ -41,14 +41,14 @@ async function bootstrap() {
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       useDefaults: true,
-      reportOnly: process.env.CSP_ENFORCE !== 'true',
+      reportOnly: isCspReportOnly(),
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        imgSrc: ["'self'", 'data:', 'https:'],
+        imgSrc: ["'self'", 'data:', 'blob:', ...assetOrigins()],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-        connectSrc: ["'self'", ...allowedOrigins()],
+        connectSrc: ["'self'", ...allowedOrigins(), ...serviceOrigins()],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
@@ -125,6 +125,13 @@ void bootstrap().catch((error: unknown) => {
   process.exitCode = 1;
 });
 
+function isCspReportOnly() {
+  if (process.env.CSP_REPORT_ONLY) {
+    return process.env.CSP_REPORT_ONLY === 'true';
+  }
+  return process.env.CSP_ENFORCE === 'false';
+}
+
 function allowedOrigins() {
   return (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')
@@ -165,4 +172,26 @@ function sanitizeBootstrapError(error: unknown) {
     .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
     .replace(/[\r\n]+/g, ' ')
     .slice(0, 500);
+}
+
+function serviceOrigins() {
+  return [
+    originFromUrl(process.env.SUPABASE_URL),
+    'https://viacep.com.br',
+  ].filter((origin): origin is string => Boolean(origin));
+}
+
+function assetOrigins() {
+  return [originFromUrl(process.env.SUPABASE_URL)].filter(
+    (origin): origin is string => Boolean(origin),
+  );
+}
+
+function originFromUrl(value?: string) {
+  if (!value) return undefined;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return undefined;
+  }
 }
