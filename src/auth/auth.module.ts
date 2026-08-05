@@ -19,6 +19,8 @@ import { AuthRateLimitStore } from './auth-rate-limit.store';
 import { BillingCoreModule } from '../billing/billing-core.module';
 import { SessionsModule } from '../sessions/sessions.module';
 import { ObservabilityModule } from '../observability/observability.module';
+import { AUTH_IDENTITY_PROVIDER } from './auth-provider';
+import { SupabaseAuthProvider } from './supabase-auth-provider';
 
 @Module({
   imports: [
@@ -39,9 +41,12 @@ import { ObservabilityModule } from '../observability/observability.module';
     OptionalJwtAuthGuard,
     RolesGuard,
     DevSuperAdminGuard,
+    AUTH_IDENTITY_PROVIDER,
     PublicRateLimitGuard,
     AuthRateLimitGuard,
     AuthRateLimitStore,
+    SupabaseAuthProvider,
+    { provide: AUTH_IDENTITY_PROVIDER, useExisting: SupabaseAuthProvider },
   ],
   controllers: [AuthController],
   exports: [

@@ -7,6 +7,7 @@ const schema = Joi.object({
   APP_ENV: Joi.string()
     .valid('development', 'test', 'staging', 'production')
     .optional(),
+  AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
   ADMIN_DATABASE_URL: Joi.string().allow('').optional(),

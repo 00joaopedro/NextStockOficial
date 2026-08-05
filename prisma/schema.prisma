@@ -61,10 +61,42 @@ model UserProfile {
   createdAt                DateTime                      @default(now()) @map("created_at")
   updatedAt                DateTime                      @updatedAt @map("updated_at")
   provisioning             UserProvisioning?             @relation("ProvisionedProfile")
+  authIdentities           AuthIdentity[]
+  authEmailClaim           AuthEmailClaim?
 
   @@index([tenantId])
   @@index([primaryTenantId])
   @@map("profiles")
+}
+
+model AuthEmailClaim {
+  canonicalEmail String         @id @map("canonical_email")
+  profileId      String         @unique @map("profile_id") @db.Uuid
+  profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  identities     AuthIdentity[]
+
+  @@map("auth_email_claims")
+}
+
+model AuthIdentity {
+  id             String         @id @default(uuid()) @db.Uuid
+  profileId      String         @map("profile_id") @db.Uuid
+  profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  provider       String
+  providerUserId String         @map("provider_user_id")
+  canonicalEmail String         @map("canonical_email")
+  emailClaim     AuthEmailClaim @relation(fields: [canonicalEmail], references: [canonicalEmail], onDelete: Restrict)
+  status         String         @default("active")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@unique([provider, providerUserId])
+  @@unique([provider, profileId])
+  @@unique([provider, canonicalEmail])
+  @@index([profileId, status])
+  @@map("auth_identities")
 }
 
 model UserSession {

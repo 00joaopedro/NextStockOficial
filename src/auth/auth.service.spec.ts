@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { Prisma, Role, SystemMode, SystemType } from '@prisma/client';
 import { AuthService } from './auth.service';
+import { AuthProviderError } from './auth-provider';
 
 describe('AuthService', () => {
   const tenant = {
@@ -87,8 +88,8 @@ describe('AuthService', () => {
     return prisma as any;
   };
 
-  const createSupabase = () =>
-    ({
+  const createSupabase = () => {
+    const client = {
       anon: {
         auth: {
           signInWithPassword: jest.fn().mockResolvedValue({
@@ -113,26 +114,72 @@ describe('AuthService', () => {
           },
         },
       },
-    }) as any;
-
-  const createDevWorkspaces = () =>
-    {
-      const devTenant = {
-        ...tenant,
-        id: 'dev-tenant-padrao',
-        name: 'NextStock Dev Padrao',
-        slug: 'nextstock-dev-padrao',
-        systemType: SystemType.padrao,
-        mode: SystemMode.padrao,
+    } as any;
+    client.createUser = async (input: any) => {
+      const { data, error } = await client.admin.auth.admin.createUser({
+        email: input.email,
+        password: input.password,
+        email_confirm: true,
+        user_metadata: input.metadata,
+      });
+      if (error)
+        throw new AuthProviderError(
+          error.message?.toLowerCase().includes('already')
+            ? 'email_already_exists'
+            : 'unknown_provider_error',
+        );
+      return {
+        id: data.user.id,
+        email: data.user.email,
+        metadata: data.user.user_metadata,
       };
-      const devBranch = {
-        ...branch,
-        id: 'dev-branch-padrao',
-        name: 'Matriz Dev Padrao',
-        slug: 'matriz-dev-padrao',
+    };
+    client.login = async (input: any) => {
+      const { data, error } = await client.anon.auth.signInWithPassword(input);
+      if (error) throw new AuthProviderError('invalid_credentials');
+      return {
+        accessToken: data.session?.access_token,
+        identity: {
+          id: data.user.id,
+          email: data.user.email,
+          metadata: data.user.user_metadata,
+        },
       };
+    };
+    client.requestPasswordRecovery = async (
+      email: string,
+      redirectTo?: string,
+    ) => {
+      const result = await client.anon.auth.resetPasswordForEmail(
+        email,
+        redirectTo ? { redirectTo } : undefined,
+      );
+      if (result.error) throw result.error;
+    };
+    client.deleteUser = async (id: string) => {
+      const result = await client.admin.auth.admin.deleteUser(id);
+      if (result.error) throw result.error;
+    };
+    return client;
+  };
 
-      return ({
+  const createDevWorkspaces = () => {
+    const devTenant = {
+      ...tenant,
+      id: 'dev-tenant-padrao',
+      name: 'NextStock Dev Padrao',
+      slug: 'nextstock-dev-padrao',
+      systemType: SystemType.padrao,
+      mode: SystemMode.padrao,
+    };
+    const devBranch = {
+      ...branch,
+      id: 'dev-branch-padrao',
+      name: 'Matriz Dev Padrao',
+      slug: 'matriz-dev-padrao',
+    };
+
+    return {
       ensureDefaultWorkspaces: jest.fn().mockResolvedValue([]),
       ensureDefaultWorkspace: jest.fn().mockResolvedValue({
         tenant: devTenant,
@@ -164,8 +211,8 @@ describe('AuthService', () => {
         systemType: workspace.systemType,
         isDevWorkspace: true,
       })),
-      }) as any;
-    };
+    } as any;
+  };
 
   beforeEach(() => {
     process.env.DEV_SUPER_ADMIN_EMAILS = '';
@@ -208,7 +255,10 @@ describe('AuthService', () => {
     });
     expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ name: tenant.name, systemType: SystemType.padrao }),
+        data: expect.objectContaining({
+          name: tenant.name,
+          systemType: SystemType.padrao,
+        }),
       }),
     );
     expect(prisma.tx.branch.create).toHaveBeenCalledWith(
@@ -351,7 +401,9 @@ describe('AuthService', () => {
         systemType: 'padrao',
       }),
     ).rejects.toMatchObject({ status: 409 });
-    expect(supabase.admin.auth.admin.deleteUser).toHaveBeenCalledWith(profile.id);
+    expect(supabase.admin.auth.admin.deleteUser).toHaveBeenCalledWith(
+      profile.id,
+    );
   });
 
   it('cadastro mapeia Prisma P2022 para 503 operacional, nao 500', async () => {
@@ -476,7 +528,9 @@ describe('AuthService', () => {
     prisma.userProfile.findFirst.mockResolvedValue(profile);
     const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
-    await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
+    await expect(
+      service.getProfile({ id: profile.id } as any),
+    ).resolves.toMatchObject({
       ok: true,
       user: {
         id: profile.id,
@@ -499,7 +553,9 @@ describe('AuthService', () => {
     prisma.userProfile.findFirst.mockResolvedValue(profile);
     const service = new AuthService(supabase, prisma, createDevWorkspaces());
 
-    await expect(service.getProfile({ id: profile.id } as any)).resolves.toMatchObject({
+    await expect(
+      service.getProfile({ id: profile.id } as any),
+    ).resolves.toMatchObject({
       user: {
         branches: [
           {
@@ -518,8 +574,17 @@ describe('AuthService', () => {
   it('login escolhe membership coerente com systemType em vez do primeiro vinculo', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
-    const standardTenant = { ...tenant, id: 'tenant-standard', systemType: SystemType.padrao };
-    const petTenant = { ...tenant, id: 'tenant-pet', systemType: SystemType.petshop, mode: SystemMode.petshop };
+    const standardTenant = {
+      ...tenant,
+      id: 'tenant-standard',
+      systemType: SystemType.padrao,
+    };
+    const petTenant = {
+      ...tenant,
+      id: 'tenant-pet',
+      systemType: SystemType.petshop,
+      mode: SystemMode.petshop,
+    };
     const standardBranch = { ...branch, id: 'branch-standard' };
     const petBranch = { ...branch, id: 'branch-pet' };
     const multiProfile = {
@@ -574,7 +639,12 @@ describe('AuthService', () => {
   it('usuario da branch B continua na branch B depois de novo login', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();
-    const branchB = { ...branch, id: 'branch-b', name: 'Filial B', slug: 'filial-b' };
+    const branchB = {
+      ...branch,
+      id: 'branch-b',
+      name: 'Filial B',
+      slug: 'filial-b',
+    };
     const branchBProfile = {
       ...profile,
       memberships: [
