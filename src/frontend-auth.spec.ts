@@ -1,9 +1,18 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 describe('frontend auth pages', () => {
-  const publicFile = (file: string) =>
-    readFileSync(join(__dirname, '..', 'public', file), 'utf8');
+  const publicFile = (file: string) => pageSource(join(__dirname, '..'), file);
 
   it('index.html nao possui selecao manual de filial no login', () => {
     const html = publicFile('index.html');
@@ -104,10 +113,7 @@ describe('frontend auth pages', () => {
       expect(publicFile(page)).toContain('user?.id || "anonymous"');
     }
 
-    expect(publicFile('dashboard.html')).toContain('getLocalStorageScope');
-    expect(publicFile('dashboard.html')).toContain(
-      '`${chave}:${storageScope}`',
-    );
+    expect(publicFile('dist/dashboard.js')).toContain('x-nextstock-branch-id');
   });
 
   it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {

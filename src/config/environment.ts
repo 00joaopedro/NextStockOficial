@@ -55,6 +55,7 @@ const schema = Joi.object({
   CERT_ENCRYPTION_KEY: Joi.string().base64().allow('').optional(),
   CERT_ENCRYPTION_KEY_VERSION: Joi.string().max(32).allow('').optional(),
   CSP_ENFORCE: Joi.string().valid('true', 'false').optional(),
+  CSP_REPORT_ONLY: Joi.string().valid('true', 'false').optional(),
   MERCADO_PAGO_MODE: Joi.string()
     .valid('sandbox', 'test', 'production')
     .optional(),

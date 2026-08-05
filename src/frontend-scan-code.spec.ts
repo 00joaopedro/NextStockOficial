@@ -1,5 +1,15 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
 import { runInNewContext } from 'vm';
 
 describe('frontend scan code integration', () => {
@@ -7,10 +17,7 @@ describe('frontend scan code integration', () => {
     join(process.cwd(), 'public', 'Js', 'scan-code.js'),
     'utf8',
   );
-  const cadastro = readFileSync(
-    join(process.cwd(), 'public', 'cadastro.html'),
-    'utf8',
-  );
+  const cadastro = pageSource(process.cwd(), 'cadastro.html');
 
   function helper() {
     const window: Record<string, unknown> = {};

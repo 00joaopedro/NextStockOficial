@@ -1,8 +1,18 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
+function pageSource(root: string, file: string) {
+  const html = readFileSync(join(root, 'public', file), 'utf8');
+  const extracted = file.replace(/\.html$/, '-inline1.js');
+  try {
+    return `${html}\n${readFileSync(join(root, 'public', 'Js', 'csp-extracted', extracted), 'utf8')}`;
+  } catch {
+    return html;
+  }
+}
+
 describe('ntfe.html production fiscal integration', () => {
-  const html = readFileSync(join(process.cwd(), 'public', 'ntfe.html'), 'utf8');
+  const html = pageSource(process.cwd(), 'ntfe.html');
   const script = readFileSync(
     join(process.cwd(), 'public', 'Js', 'ntfe.js'),
     'utf8',

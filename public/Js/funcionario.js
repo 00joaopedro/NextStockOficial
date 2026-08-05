@@ -367,11 +367,11 @@
     }, 300);
   });
 
-  window.cadastrarFuncionario = cadastrarFuncionario;
-  window.atualizarFuncionario = atualizarFuncionario;
-  window.deletarFuncionario = deletarFuncionario;
-  window.resetarSenhaFuncionario = resetarSenhaFuncionario;
-  window.limparFormulario = limparFormulario;
+  document.getElementById("cadastrarFuncionarioBtn")?.addEventListener("click", cadastrarFuncionario);
+  document.getElementById("atualizarFuncionarioBtn")?.addEventListener("click", atualizarFuncionario);
+  document.getElementById("deletarFuncionarioBtn")?.addEventListener("click", deletarFuncionario);
+  document.getElementById("resetarSenhaFuncionarioBtn")?.addEventListener("click", resetarSenhaFuncionario);
+  document.getElementById("limparFormularioBtn")?.addEventListener("click", limparFormulario);
 
   document.addEventListener("DOMContentLoaded", async () => {
     if (window.isNextStockDemoMode?.()) {
