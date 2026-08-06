@@ -21,6 +21,7 @@ import { SessionsModule } from '../sessions/sessions.module';
 import { ObservabilityModule } from '../observability/observability.module';
 import { AUTH_IDENTITY_PROVIDER } from './auth-provider';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
+import { FakeSuperTokensAdapter } from './supertokens-adapter';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { SupabaseAuthProvider } from './supabase-auth-provider';
     AuthRateLimitGuard,
     AuthRateLimitStore,
     SupabaseAuthProvider,
+    FakeSuperTokensAdapter,
     { provide: AUTH_IDENTITY_PROVIDER, useExisting: SupabaseAuthProvider },
   ],
   controllers: [AuthController],

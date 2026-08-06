@@ -17,6 +17,12 @@ const schema = Joi.object({
     .valid('development', 'test', 'staging', 'production')
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
+  AUTH_PROVIDER_MODE: Joi.string().valid('supabase_only', 'coexistence').default('supabase_only'),
+  SUPERTOKENS_CONNECTION_URI: Joi.string().uri().allow('').optional(),
+  SUPERTOKENS_API_KEY: Joi.string().allow('').optional(),
+  SUPERTOKENS_APP_NAME: Joi.string().allow('').optional(),
+  SUPERTOKENS_API_DOMAIN: Joi.string().uri().allow('').optional(),
+  SUPERTOKENS_WEBSITE_DOMAIN: Joi.string().uri().allow('').optional(),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
   ADMIN_DATABASE_URL: Joi.string().allow('').optional(),
@@ -185,6 +191,12 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
+  if (value.AUTH_PROVIDER_MODE === 'coexistence') {
+    for (const name of ['SUPERTOKENS_CONNECTION_URI', 'SUPERTOKENS_APP_NAME', 'SUPERTOKENS_API_DOMAIN']) {
+      if (!String(value[name] || '').trim()) throw new Error(`Missing ${name} for auth coexistence.`);
+    }
+    if (appEnv === 'production' && !String(value.SUPERTOKENS_API_KEY || '').trim()) throw new Error('SUPERTOKENS_API_KEY is required for production coexistence.');
+  }
   const deployedRuntime =
     value.NODE_ENV === 'production' ||
     appEnv === 'production' ||
