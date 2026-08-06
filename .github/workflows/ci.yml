@@ -65,6 +65,9 @@ jobs:
         run: node scripts/ci/verify-dockerfile.mjs
       - name: Build reproducible runtime container
         run: docker build --file Dockerfile --tag nextstock:ci --no-cache .
+      - name: Verify migration artifacts in runtime container
+        run: |
+          docker run --rm --entrypoint sh nextstock:ci -c "test -f /app/dist/scripts/migrations/validate-target.js && test -f /app/dist/scripts/migrations/validate-target-lib.js && test -f /app/dist/scripts/lib/admin-database-url.js"
       - name: Verify dependency tree
         run: |
           node scripts/ci/verify-dependency-tree.mjs
@@ -91,6 +94,8 @@ jobs:
       - run: npm run build
       - run: npm run build:frontend
       - run: npm run build:scripts
+      - name: Verify compiled migration runtime
+        run: node scripts/ci/verify-migration-runtime.mjs
       - run: npm test -- --runInBand
       - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts --testPathIgnorePatterns=distributed-auth-rate-limit.security-spec.ts --testPathIgnorePatterns=image-processing-backpressure.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
