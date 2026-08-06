@@ -1,13 +1,14 @@
 import 'dotenv/config';
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import {
   describeDatabaseUrl,
   selectAdministrativeDatabaseUrl,
 } from '../lib/admin-database-url';
 
 type Count = { count: bigint | number };
+type AdvisoryLockMarker = { acquired: number };
 type Role = {
   rolname: string;
   rolcanlogin: boolean;
@@ -57,6 +58,27 @@ function requireCondition(
 ): asserts condition {
   if (!condition)
     throw new Error(`PostgreSQL portability requirement failed: ${message}`);
+}
+
+function assertAdvisoryLockMarker(rows: AdvisoryLockMarker[]) {
+  requireCondition(
+    rows.length === 1 && rows[0]?.acquired === 1,
+    'failed to acquire PostgreSQL advisory transaction lock',
+  );
+}
+
+async function acquireAdvisoryTransactionLock(
+  tx: Prisma.TransactionClient,
+  lockKey: bigint,
+) {
+  const rows = await tx.$queryRaw<AdvisoryLockMarker[]>`
+    WITH lock_acquisition AS MATERIALIZED (
+      SELECT pg_advisory_xact_lock(${lockKey})
+    )
+    SELECT 1::integer AS acquired
+    FROM lock_acquisition
+  `;
+  assertAdvisoryLockMarker(rows);
 }
 
 async function validate() {
@@ -116,7 +138,7 @@ async function validate() {
     const ready = new Promise<void>((resolve) => (lockReady = resolve));
     const release = new Promise<void>((resolve) => (releaseLock = resolve));
     const holder = first.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(2602001)`;
+      await acquireAdvisoryTransactionLock(tx, 2602001n);
       lockReady();
       await release;
     });
@@ -139,6 +161,41 @@ async function validate() {
     requireCondition(
       released.acquired,
       'commit must release transaction advisory lock',
+    );
+
+    let rollbackReady!: () => void;
+    let releaseRollback!: () => void;
+    const rollbackLocked = new Promise<void>(
+      (resolve) => (rollbackReady = resolve),
+    );
+    const rollbackRelease = new Promise<void>(
+      (resolve) => (releaseRollback = resolve),
+    );
+    const expectedRollback = new Error('PHASE2_EXPECTED_LOCK_ROLLBACK');
+    const rollbackHolder = first.$transaction(async (tx) => {
+      await acquireAdvisoryTransactionLock(tx, 2602003n);
+      rollbackReady();
+      await rollbackRelease;
+      throw expectedRollback;
+    });
+    await rollbackLocked;
+    const [blockedBeforeRollback] = await second.$queryRaw<
+      Array<{ acquired: boolean }>
+    >`SELECT pg_try_advisory_xact_lock(2602003::bigint) AS acquired`;
+    requireCondition(
+      !blockedBeforeRollback.acquired,
+      'advisory lock must remain held until rollback',
+    );
+    releaseRollback();
+    await rollbackHolder.catch((error: unknown) => {
+      if (error !== expectedRollback) throw error;
+    });
+    const [releasedAfterRollback] = await second.$queryRaw<
+      Array<{ acquired: boolean }>
+    >`SELECT pg_try_advisory_xact_lock(2602003::bigint) AS acquired`;
+    requireCondition(
+      releasedAfterRollback.acquired,
+      'rollback must release transaction advisory lock',
     );
 
     // Use a shared unlogged probe so both independent sessions see the same rows.
