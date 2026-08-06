@@ -30,6 +30,7 @@
     "test:ci": "npm run lint:check && npm run build && npm run build:frontend && npm test -- --runInBand",
     "migrate:deploy": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy",
+    "platform:postgresql:validate": "ts-node scripts/platform/validate-postgresql-portability.ts",
     "railway:migrate": "ts-node scripts/migrations/validate-target.ts && prisma migrate deploy",
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
