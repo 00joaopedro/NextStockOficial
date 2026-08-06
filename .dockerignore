@@ -1,0 +1,14 @@
+.git
+node_modules
+.env
+.env.*
+coverage
+logs
+*.log
+*.dump
+*.sql.gz
+backups
+.cache
+tmp
+docs
+test

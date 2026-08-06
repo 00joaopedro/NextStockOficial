@@ -47,11 +47,12 @@ import { ObservabilityInterceptor } from './observability/observability.intercep
 import { PrivacyModule } from './privacy/privacy.module';
 import { PreviewMutationInterceptor } from './system/interceptors/preview-mutation.interceptor';
 import { StorefrontModule } from './storefront/storefront.module';
+import { processRole, startsApi } from './config/process-role';
 
 const publicPath = join(__dirname, '..', 'public');
 
 @Module({
-  imports: [
+  imports: startsApi(processRole()) ? [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnvironment,
@@ -116,7 +117,7 @@ const publicPath = join(__dirname, '..', 'public');
     PartnersModule,
     BillingModule,
     StorefrontModule,
-  ],
+  ] : [],
   controllers: [AppController],
   providers: [
     AppService,
