@@ -14,8 +14,14 @@ import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
 import { trustedProxyHops } from './config/trusted-proxy';
+import { processRole } from './config/process-role';
 
 async function bootstrap() {
+  const role = processRole();
+  if (role === 'audit-worker') {
+    await import('./audit-worker');
+    return;
+  }
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ trustProxy: trustedProxyHops() }),
@@ -113,9 +119,7 @@ async function bootstrap() {
       enabled: process.env.AUTH_RATE_LIMIT_ENABLED !== 'false',
       store: process.env.AUTH_RATE_LIMIT_STORE || 'postgres',
       trustedProxyHops: trustedProxyHops(),
-      logicalRestart: process.env.RAILWAY_DEPLOYMENT_ID
-        ? 'deployment'
-        : 'process',
+      processRole: role,
     }),
   );
 }
