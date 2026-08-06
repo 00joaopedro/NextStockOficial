@@ -40,8 +40,8 @@ export function parseDatabaseUrl(value: string): ParsedDatabaseUrl {
     username: parsed.username,
     isSupabasePooler: parsed.hostname.includes('pooler.supabase.com'),
     isTransactionPooler:
-      parsed.hostname.includes('pooler.supabase.com') &&
-      (parsed.port || '5432') === TRANSACTION_POOLER_PORT,
+      (parsed.port || '5432') === TRANSACTION_POOLER_PORT ||
+      parsed.searchParams.get('pgbouncer')?.toLowerCase() === 'true',
   };
 }
 
@@ -87,7 +87,7 @@ export function selectAdministrativeDatabaseUrl(env: DatabaseUrlEnv): string {
 
   if (parsed.isTransactionPooler) {
     throw new Error(
-      `${source} points to the Supabase transaction pooler (${describeDatabaseUrl(value)}). Administrative scripts require DIRECT_URL or ADMIN_DATABASE_URL not using the Supabase transaction pooler.`,
+      `${source} points to a Supabase transaction pooler or equivalent (${describeDatabaseUrl(value)}). Administrative scripts require a direct PostgreSQL connection.`,
     );
   }
 

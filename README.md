@@ -1,5 +1,11 @@
 # NextStock
 
+## Migração de plataforma
+
+- [Fase 0 — decisões permanentes](docs/operations/platform-auth-migration-phase-0.md)
+- [Fase 1 — fundação provider-neutral de autenticação](docs/operations/platform-auth-migration-phase-1.md)
+- [Fase 2 — preparação offline PostgreSQL/Cloud SQL](docs/operations/platform-auth-migration-phase-2.md)
+
 Backend NestJS + Prisma para Supabase PostgreSQL, com frontend HTML/CSS/JS puro servido pela propria aplicacao.
 
 ## Setup local
@@ -270,6 +276,7 @@ npm run uploads:quota-report
 npm run privacy:report-pii
 npm run privacy:report-retention
 ```
+
 # Modo visualização
 
 O NextStock suporta operação read-only por tenant. Em

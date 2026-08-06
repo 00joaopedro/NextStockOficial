@@ -470,6 +470,17 @@ protection; after an authorized merge, confirm that GitHub created a successful
 `push` run on branch `dev` with the `validate` job before marking CI-016 fully
 approved.
 
+## Fase 2: PostgreSQL portátil e Cloud SQL futuro
+
+A conexão atual não muda. `DATABASE_URL` continua exclusiva do runtime e
+`DIRECT_URL`/`ADMIN_DATABASE_URL` continuam sendo conexões diretas para migrations;
+porta `6543` e `pgbouncer=true` são recusados independentemente do provedor. O CI
+cria as roles históricas mínimas, aplica a cadeia append-only em PostgreSQL 16 e
+executa `npm run platform:postgresql:validate`. Nenhuma variável `GCP_*` ou
+`CLOUD_SQL_*` é obrigatória hoje. O provisioning e a ligação futura estão no
+runbook `docs/operations/platform-auth-migration-phase-2.md`; não execute migrations
+automaticamente no boot nem trate a preparação offline como validação real do Cloud SQL.
+
 The `dev` branch protection/ruleset must require the `validate` check and must
 not allow force pushes or branch deletion. Third-party GitHub Actions in
 workflows are pinned to full 40-character SHAs with the verified release version
