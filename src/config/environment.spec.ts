@@ -21,6 +21,16 @@ const base = {
 };
 
 describe('environment isolation guardrails', () => {
+  it('defaults auth provider to supabase', () => {
+    const value = validateEnvironment({ ...base, APP_ENV: 'production' });
+    expect(value.AUTH_PROVIDER).toBe('supabase');
+  });
+
+  it('rejects an unavailable auth provider without echoing its value', () => {
+    expect(() =>
+      validateEnvironment({ ...base, AUTH_PROVIDER: 'supertokens' }),
+    ).toThrow('AUTH_PROVIDER');
+  });
   it('accepts a complete production environment', () => {
     expect(() =>
       validateEnvironment({
@@ -51,9 +61,9 @@ describe('environment isolation guardrails', () => {
   });
 
   it('rejects invalid trusted proxy topology early', () => {
-    expect(() => validateEnvironment({ ...base, TRUSTED_PROXY_HOPS: 'all' })).toThrow(
-      'TRUSTED_PROXY_HOPS',
-    );
+    expect(() =>
+      validateEnvironment({ ...base, TRUSTED_PROXY_HOPS: 'all' }),
+    ).toThrow('TRUSTED_PROXY_HOPS');
   });
 
   it('rejects production without CERT_ENCRYPTION_KEY', () => {

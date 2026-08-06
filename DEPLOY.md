@@ -117,6 +117,11 @@ npm run db:migrate
 
 ## Supabase Storage
 
+Defina `AUTH_PROVIDER=supabase`. A Fase 1 rejeita qualquer outro valor no
+bootstrap; isso não seleciona nem desabilita Supabase Storage. Consulte
+`docs/operations/platform-auth-migration-phase-1.md` antes de aplicar a migration
+de identidades.
+
 Crie os buckets usados pelo backend no Supabase Storage do mesmo projeto
 configurado em `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`:
 
