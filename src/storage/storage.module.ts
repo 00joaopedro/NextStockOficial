@@ -7,6 +7,9 @@ import { StoredFilesService } from './stored-files.service';
 import { UploadQuotaService } from './upload-quota.service';
 import { FileScanner, NoopFileScanner } from './file-scanner.interface';
 import { ImageProcessingCoordinatorService } from './image-processing-coordinator.service';
+import { FakeStorageProvider } from './fake-storage-provider';
+import { StorageProviderRegistry } from './storage-registry';
+import { SupabaseStorageProvider } from './supabase-storage-provider';
 
 @Module({
   imports: [SupabaseModule, PrismaModule],
@@ -17,6 +20,9 @@ import { ImageProcessingCoordinatorService } from './image-processing-coordinato
     UploadQuotaService,
     { provide: FileScanner, useClass: NoopFileScanner },
     SupabaseStorageService,
+    FakeStorageProvider,
+    StorageProviderRegistry,
+    SupabaseStorageProvider,
   ],
   exports: [
     ImageOptimizerService,
@@ -24,6 +30,7 @@ import { ImageProcessingCoordinatorService } from './image-processing-coordinato
     SupabaseStorageService,
     StoredFilesService,
     UploadQuotaService,
+    StorageProviderRegistry,
   ],
 })
 export class StorageModule {}

@@ -98,6 +98,8 @@ jobs:
         run: node scripts/ci/verify-migration-runtime.mjs
       - name: Phase 5 controlled auth coexistence tests
         run: npx jest --runInBand src/common/canonical-email.spec.ts src/auth/auth-provider-mode.spec.ts src/auth/supertokens-adapter.spec.ts src/config/environment.spec.ts
+      - name: Phase 6 controlled storage migration foundation tests
+        run: npx jest --runInBand src/storage/storage-foundation.spec.ts src/storage/stored-files.service.spec.ts src/storage/image-processing-coordinator.service.spec.ts
       - run: npm test -- --runInBand
       - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts --testPathIgnorePatterns=distributed-auth-rate-limit.security-spec.ts --testPathIgnorePatterns=image-processing-backpressure.security-spec.ts
       - name: RC-001 PIX concurrency integration tests

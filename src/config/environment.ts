@@ -23,6 +23,16 @@ const schema = Joi.object({
   SUPERTOKENS_APP_NAME: Joi.string().allow('').optional(),
   SUPERTOKENS_API_DOMAIN: Joi.string().uri().allow('').optional(),
   SUPERTOKENS_WEBSITE_DOMAIN: Joi.string().uri().allow('').optional(),
+  STORAGE_WRITE_PROVIDER: Joi.string().valid('SUPABASE', 'GCS', 'supabase', 'gcs').default('supabase'),
+  GCS_STORAGE_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  GCS_PROJECT_ID: Joi.string().allow('').optional(),
+  GCS_STORAGE_BUCKET: Joi.string().allow('').optional(),
+  GCS_STORAGE_LOCATION: Joi.string().allow('').optional(),
+  GCS_SIGNED_URL_TTL_SECONDS: Joi.number().integer().min(1).max(3600).default(300),
+  STORAGE_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  STORAGE_MIGRATION_CONCURRENCY: Joi.number().integer().min(1).max(4).default(1),
+  STORAGE_MIGRATION_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20),
+  STORAGE_MIGRATION_LEASE_SECONDS: Joi.number().integer().min(1).max(3600).default(60),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
   ADMIN_DATABASE_URL: Joi.string().allow('').optional(),
@@ -196,6 +206,11 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       if (!String(value[name] || '').trim()) throw new Error(`Missing ${name} for auth coexistence.`);
     }
     if (appEnv === 'production' && !String(value.SUPERTOKENS_API_KEY || '').trim()) throw new Error('SUPERTOKENS_API_KEY is required for production coexistence.');
+  }
+  const storageProvider = String(value.STORAGE_WRITE_PROVIDER || 'supabase').toLowerCase();
+  if (!['supabase', 'gcs'].includes(storageProvider)) throw new Error('STORAGE_WRITE_PROVIDER is invalid.');
+  if (storageProvider === 'gcs' || value.GCS_STORAGE_ENABLED === 'true') {
+    if (!String(value.GCS_PROJECT_ID || '').trim() || !String(value.GCS_STORAGE_BUCKET || '').trim()) throw new Error('GCS storage configuration is incomplete.');
   }
   const deployedRuntime =
     value.NODE_ENV === 'production' ||
