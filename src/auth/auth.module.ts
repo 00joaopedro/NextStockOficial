@@ -41,7 +41,6 @@ import { SupabaseAuthProvider } from './supabase-auth-provider';
     OptionalJwtAuthGuard,
     RolesGuard,
     DevSuperAdminGuard,
-    AUTH_IDENTITY_PROVIDER,
     PublicRateLimitGuard,
     AuthRateLimitGuard,
     AuthRateLimitStore,
@@ -55,6 +54,7 @@ import { SupabaseAuthProvider } from './supabase-auth-provider';
     OptionalJwtAuthGuard,
     RolesGuard,
     DevSuperAdminGuard,
+    AUTH_IDENTITY_PROVIDER,
   ],
 })
 export class AuthModule {}
