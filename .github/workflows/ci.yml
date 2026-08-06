@@ -61,6 +61,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build reproducible runtime container
+        run: docker build --file Dockerfile --tag nextstock:ci --no-cache .
       - name: Verify dependency tree
         run: |
           node scripts/ci/verify-dependency-tree.mjs
