@@ -127,6 +127,10 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/image-processing-backpressure.security-spec.ts
       - name: REL-016 readiness schema compatibility integration tests
         run: npx jest --runInBand src/observability/schema-compatibility.service.spec.ts src/observability/health.controller.spec.ts
+      - name: Phase 3 Cloud Run runtime readiness and process isolation tests
+        run: |
+          npx jest --runInBand src/config/process-role.spec.ts src/audit/audit-outbox.service.spec.ts
+          node -e "const fs=require('fs'); for (const f of ['infra/gcp/cloud-run/api.service.yaml','infra/gcp/cloud-run/audit-worker.job.yaml','infra/gcp/cloud-run/migrate.job.yaml']) { const s=fs.readFileSync(f,'utf8'); if (/postgres(?:ql)?:\/\/[^ ]+:[^ ]+@|SUPABASE_SERVICE_ROLE_KEY:\s*[^$]/i.test(s)) process.exit(1); }"
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci

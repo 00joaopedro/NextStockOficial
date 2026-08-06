@@ -1,0 +1,18 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata: {name: CLOUD_RUN_SERVICE-audit-worker}
+spec:
+  template:
+    spec:
+      taskCount: 1
+      maxRetries: 3
+      template:
+        spec:
+          serviceAccountName: SERVICE_ACCOUNT
+          containers:
+            - image: IMAGE_URI
+              command: ["node", "dist/src/audit-worker.js"]
+              env:
+                - {name: NEXTSTOCK_PROCESS_ROLE, value: audit-worker}
+                - {name: DATABASE_URL, valueFrom: {secretKeyRef: {name: SECRET_NAME, key: DATABASE_URL}}}
+          timeoutSeconds: 900

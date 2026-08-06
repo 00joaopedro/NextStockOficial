@@ -488,3 +488,6 @@ kept in an inline comment. To update an Action, use the upstream official
 repository tag/ref (for example `git ls-remote https://github.com/actions/checkout.git refs/tags/<tag> refs/tags/<tag>^{}`),
 verify the release tag target, replace the SHA and comment together, and let
 Dependabot's `github-actions` ecosystem PRs target `dev` weekly.
+## Cloud Run (offline)
+
+Fase 3 fornece `infra/gcp/cloud-run/` como templates sem IDs ou segredos reais. Railway permanece usando `start:railway`/role `all`; não aplique os manifests antes da ativação planejada da Fase 4.

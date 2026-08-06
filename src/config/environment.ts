@@ -1,6 +1,15 @@
 import * as Joi from 'joi';
 
 const schema = Joi.object({
+  NEXTSTOCK_PROCESS_ROLE: Joi.string().valid('api', 'audit-worker', 'all').default('all'),
+  GCP_PROJECT_ID: Joi.string().allow('').optional(),
+  GCP_REGION: Joi.string().allow('').optional(),
+  CLOUD_RUN_SERVICE: Joi.string().allow('').optional(),
+  CLOUD_SQL_INSTANCE_CONNECTION_NAME: Joi.string().allow('').optional(),
+  CLOUD_SQL_CONNECTOR_MODE: Joi.string().valid('off', 'socket', 'connector').default('off'),
+  CLOUD_SQL_DATABASE: Joi.string().allow('').optional(),
+  AUDIT_OUTBOX_WORKER_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUDIT_OUTBOX_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20),
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),

@@ -86,14 +86,15 @@ export class AuditOutboxService
   }
 
   onModuleInit() {
-    if (process.env.AUDIT_OUTBOX_WORKER_ENABLED === 'false') return;
+    const role = process.env.NEXTSTOCK_PROCESS_ROLE || 'all';
+    if (role === 'api' || process.env.AUDIT_OUTBOX_WORKER_ENABLED === 'false') return;
     const pollMs = this.positiveInt(
       process.env.AUDIT_OUTBOX_POLL_MS,
       DEFAULT_POLL_MS,
     );
     this.timer = setInterval(() => this.track(this.processBatch()), pollMs);
     this.timer.unref();
-    this.track(this.processBatch());
+    this.track(this.processBatch(this.positiveInt(process.env.AUDIT_OUTBOX_BATCH_SIZE, 20)));
   }
 
   beforeApplicationShutdown() {
