@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { SupabaseService } from '../supabase/supabase.service';
 import { AuthIdentityProvider, AuthProviderError } from './auth-provider';
+import { canonicalizeEmail } from '../common/canonical-email';
 
 @Injectable()
 export class SupabaseAuthProvider implements AuthIdentityProvider {
@@ -96,7 +97,7 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
     const { data, error } = await this.supabase.admin.auth.admin.listUsers();
     if (error) throw this.error(error);
     const user = data.users.find(
-      (u) => u.email?.trim().toLowerCase() === email,
+      (u) => u.email && canonicalizeEmail(u.email) === canonicalizeEmail(email),
     );
     return user
       ? { id: user.id, email: user.email, metadata: user.user_metadata }
