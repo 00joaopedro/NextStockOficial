@@ -10,6 +10,10 @@ import { ImageProcessingCoordinatorService } from './image-processing-coordinato
 import { FakeStorageProvider } from './fake-storage-provider';
 import { StorageProviderRegistry } from './storage-registry';
 import { SupabaseStorageProvider } from './supabase-storage-provider';
+import {
+  GCS_STORAGE_PROVIDER,
+  SUPABASE_STORAGE_PROVIDER,
+} from './storage-provider.tokens';
 
 @Module({
   imports: [SupabaseModule, PrismaModule],
@@ -23,6 +27,14 @@ import { SupabaseStorageProvider } from './supabase-storage-provider';
     FakeStorageProvider,
     StorageProviderRegistry,
     SupabaseStorageProvider,
+    {
+      provide: SUPABASE_STORAGE_PROVIDER,
+      useExisting: SupabaseStorageProvider,
+    },
+    {
+      provide: GCS_STORAGE_PROVIDER,
+      useExisting: FakeStorageProvider,
+    },
   ],
   exports: [
     ImageOptimizerService,

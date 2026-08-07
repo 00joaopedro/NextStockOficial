@@ -1,12 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { StorageProvider, StorageProviderName } from './storage-provider';
+import {
+  GCS_STORAGE_PROVIDER,
+  SUPABASE_STORAGE_PROVIDER,
+} from './storage-provider.tokens';
 
 export const STORAGE_PROVIDER = Symbol('STORAGE_PROVIDER');
 
 @Injectable()
 export class StorageProviderRegistry {
   constructor(
+    @Inject(SUPABASE_STORAGE_PROVIDER)
     private readonly supabase: StorageProvider,
+    @Inject(GCS_STORAGE_PROVIDER)
     private readonly gcs: StorageProvider,
   ) {}
   writeProvider(env: NodeJS.ProcessEnv = process.env): StorageProviderName {
