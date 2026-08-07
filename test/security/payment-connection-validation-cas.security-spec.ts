@@ -16,45 +16,81 @@ import {
 
 class ValidationBarrierAdapter {
   readonly code = PaymentProviderCode.MERCADO_PAGO;
-  private readonly waiting: Array<{
+  private readonly calls: Array<{
     resolve: (value: {
       externalAccountId: string;
       capabilities: string[];
     }) => void;
     reject: (reason: Error) => void;
   }> = [];
+  private readonly callWaiters: Array<{
+    count: number;
+    resolve: () => void;
+  }> = [];
 
   get pendingCalls() {
-    return this.waiting.length;
+    return this.calls.length;
   }
 
   validateConnection() {
     return new Promise<{
       externalAccountId: string;
       capabilities: string[];
-    }>((resolve, reject) => this.waiting.push({ resolve, reject }));
+    }>((resolve, reject) => {
+      this.calls.push({ resolve, reject });
+      for (let index = this.callWaiters.length - 1; index >= 0; index -= 1) {
+        const waiter = this.callWaiters[index];
+        if (this.calls.length >= waiter.count) {
+          this.callWaiters.splice(index, 1);
+          waiter.resolve();
+        }
+      }
+    });
   }
 
-  async waitForCalls(count: number, timeoutMs = 15_000) {
-    const started = Date.now();
-    while (this.waiting.length < count) {
-      if (Date.now() - started > timeoutMs)
-        throw new Error(
-          `only ${this.waiting.length}/${count} validations started`,
+  waitForCalls(count: number, timeoutMs = 1_000) {
+    if (this.calls.length >= count) return Promise.resolve();
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(
+          new Error(`only ${this.calls.length}/${count} validations started`),
         );
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
+      }, timeoutMs);
+      this.callWaiters.push({
+        count,
+        resolve: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+      });
+    });
   }
 
   releaseSuccess(index = 0) {
-    this.waiting[index].resolve({
+    const call = this.calls[index];
+    if (!call)
+      throw new Error(
+        `cannot release validation ${index}; only ${this.calls.length} arrived`,
+      );
+    call.resolve({
       externalAccountId: `account-${index}`,
       capabilities: ['PIX'],
     });
   }
 
   releaseFailure(index = 0) {
-    this.waiting[index].reject(new Error('deterministic provider rejection'));
+    const call = this.calls[index];
+    if (!call)
+      throw new Error(
+        `cannot release validation ${index}; only ${this.calls.length} arrived`,
+      );
+    call.reject(new Error('deterministic provider rejection'));
+  }
+
+  rejectPending(
+    reason = new Error('RC-011 test cleanup: unresolved validation'),
+  ) {
+    for (const call of this.calls) call.reject(reason);
   }
 }
 
@@ -211,17 +247,11 @@ describe('RC-011 payment connection validation CAS', () => {
     const adapter = new ValidationBarrierAdapter();
     const a = service(prismaA, tenant.id, branch.id, adapter);
     const b = service(prismaB, tenant.id, branch.id, adapter);
+    let first: Promise<unknown> | undefined;
+    let second: Promise<unknown> | undefined;
     try {
-      const first = a.value.validateConnection(
-        undefined,
-        connection.id,
-        branch.id,
-      );
-      const second = b.value.validateConnection(
-        undefined,
-        connection.id,
-        branch.id,
-      );
+      first = a.value.validateConnection(undefined, connection.id, branch.id);
+      second = b.value.validateConnection(undefined, connection.id, branch.id);
       await adapter.waitForCalls(2);
       adapter.releaseSuccess(1);
       await expect(second).resolves.toMatchObject({ valid: true });
@@ -233,6 +263,12 @@ describe('RC-011 payment connection validation CAS', () => {
       expect(final.version).toBe(connection.version + 1);
       expect(final.externalAccountId).toBe('account-1');
     } finally {
+      adapter.rejectPending();
+      await Promise.allSettled(
+        [first, second].filter(
+          (promise): promise is Promise<unknown> => promise !== undefined,
+        ),
+      );
       await cleanup(tenant.id);
     }
   });

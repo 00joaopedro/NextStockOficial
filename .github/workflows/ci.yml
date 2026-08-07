@@ -98,6 +98,8 @@ jobs:
         run: node scripts/ci/verify-migration-runtime.mjs
       - name: Phase 5 controlled auth coexistence tests
         run: npx jest --runInBand src/common/canonical-email.spec.ts src/auth/auth-provider-mode.spec.ts src/auth/supertokens-adapter.spec.ts src/config/environment.spec.ts
+      - name: Phase 6 controlled storage migration foundation tests
+        run: npx jest --runInBand src/storage/storage-foundation.spec.ts src/storage/stored-files.service.spec.ts src/storage/image-processing-coordinator.service.spec.ts
       - run: npm test -- --runInBand
       - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts --testPathIgnorePatterns=distributed-auth-rate-limit.security-spec.ts --testPathIgnorePatterns=image-processing-backpressure.security-spec.ts
       - name: RC-001 PIX concurrency integration tests
@@ -181,6 +183,14 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: {node-version: 22, cache: npm}
       - run: npm ci
+      - name: Bootstrap portable legacy roles for cutover source
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
+      - name: Bootstrap portable legacy roles for cutover target
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/nextstock_target
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
       - run: npm run db:migrate:deploy
       - run: npm run build:scripts
       - name: Offline unit checks and fail-safe preflight
