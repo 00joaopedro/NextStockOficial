@@ -183,6 +183,14 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with: {node-version: 22, cache: npm}
       - run: npm ci
+      - name: Bootstrap portable legacy roles for cutover source
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
+      - name: Bootstrap portable legacy roles for cutover target
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/nextstock_target
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
       - run: npm run db:migrate:deploy
       - run: npm run build:scripts
       - name: Offline unit checks and fail-safe preflight
