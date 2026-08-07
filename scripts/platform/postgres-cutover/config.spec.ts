@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
 import { connectionIdentity, loadConfig } from './config';
 import { dumpPlan, restorePlan } from './plans';
 
