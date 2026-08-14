@@ -236,7 +236,11 @@ jobs:
         with: {node-version: 22, cache: npm}
       - run: npm ci
       - run: psql "$DECOMMISSION_DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
-      - run: npm run db:migrate:deploy
+      - name: Apply Phase 7 migrations to disposable PostgreSQL 16
+        env:
+          DATABASE_URL: ${{ env.DECOMMISSION_DATABASE_URL }}
+          DIRECT_URL: ${{ env.DECOMMISSION_DATABASE_URL }}
+        run: npm run db:migrate:deploy
       - run: npm run build:scripts
       - name: Validate offline gates and fail-closed final targets
         shell: bash
