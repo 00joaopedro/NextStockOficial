@@ -122,6 +122,18 @@ bootstrap; isso não seleciona nem desabilita Supabase Storage. Consulte
 `docs/operations/platform-auth-migration-phase-1.md` antes de aplicar a migration
 de identidades.
 
+## SuperTokens (ativação futura controlada)
+
+`AUTH_PROVIDER_MODE=supabase_only` é o padrão. Os modos `coexistence`,
+`supertokens_primary` e `supertokens_only` exigem configuração explícita e
+`supertokens_only` também exige `AUTH_MIGRATION_ENABLED=true`. O fallback legado
+é controlado por `AUTH_LEGACY_FALLBACK_ENABLED` e permanece habilitado por
+padrão. As variáveis do Core são `SUPERTOKENS_CONNECTION_URI`,
+`SUPERTOKENS_API_KEY`, `SUPERTOKENS_APP_NAME`, `SUPERTOKENS_API_DOMAIN` e
+`SUPERTOKENS_WEBSITE_DOMAIN`; mantenha-as em secrets, nunca no frontend ou logs.
+Consulte `docs/operations/platform-auth-migration-activation.md`. Nenhuma
+identidade real foi importada e Supabase Auth não foi desativado.
+
 Crie os buckets usados pelo backend no Supabase Storage do mesmo projeto
 configurado em `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`:
 
