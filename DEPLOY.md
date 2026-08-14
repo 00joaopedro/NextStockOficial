@@ -491,10 +491,3 @@ Dependabot's `github-actions` ecosystem PRs target `dev` weekly.
 ## Cloud Run (offline)
 
 Fase 3 fornece `infra/gcp/cloud-run/` como templates sem IDs ou segredos reais. Railway permanece usando `start:railway`/role `all`; não aplique os manifests antes da ativação planejada da Fase 4.
-
-## Fase 7: desativação futura de Auth e Storage
-
-`npm run platform:decommission:validate` gera readiness sanitizada em dry-run.
-Supabase Auth/Storage permanecem os providers padrão; modos `supertokens_only` e
-`gcs_only` exigem relatório aprovado, zero blockers, provider readiness e
-aprovação humana. Consulte `docs/operations/platform-auth-storage-decommission-phase-7.md`.

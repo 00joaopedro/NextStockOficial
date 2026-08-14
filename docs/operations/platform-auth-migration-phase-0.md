@@ -464,5 +464,4 @@ Não inserir valores reais. Esta lista classifica variáveis atuais e futuras.
 - Nenhum runtime behavior alterado.
 - Nenhum acesso externo real feito.
 - Nenhuma credencial criada ou exposta.
-- A readiness offline da Fase 7 está em `platform-auth-storage-decommission-phase-7.md`; Supabase permanece ativo e nenhum cutover foi executado.
 - Próximas decisões bloqueantes marcadas como dependentes de documentação oficial.
