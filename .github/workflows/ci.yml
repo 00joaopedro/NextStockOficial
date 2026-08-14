@@ -211,3 +211,41 @@ jobs:
             if pg_restore --no-owner --no-acl --exit-on-error --dbname="$CUTOVER_TARGET_ADMIN_DATABASE_URL" phase4.dump >/dev/null 2>&1; then exit 1; fi
           fi
           rm -f phase4.dump
+
+  decommission_readiness_phase7:
+    name: Phase 7 decommission readiness integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nextstock_phase7}
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nextstock_phase7"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NODE_ENV: test
+      APP_ENV: test
+      DECOMMISSION_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5434/nextstock_phase7
+      DECOMMISSION_TARGET: coexistence
+      DECOMMISSION_DRY_RUN: 'true'
+      DECOMMISSION_PROVIDER_READY: 'false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: psql "$DECOMMISSION_DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
+      - name: Apply Phase 7 migrations to disposable PostgreSQL 16
+        env:
+          DATABASE_URL: ${{ env.DECOMMISSION_DATABASE_URL }}
+          DIRECT_URL: ${{ env.DECOMMISSION_DATABASE_URL }}
+        run: npm run db:migrate:deploy
+      - run: npm run build:scripts
+      - name: Validate offline gates and fail-closed final targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run platform:decommission:validate -- --json
+          if DECOMMISSION_TARGET=gcs-only DECOMMISSION_PROVIDER_READY=false npm run platform:decommission:validate -- --json; then exit 1; fi
+      - run: node --test dist/scripts/platform/decommission/readiness.spec.js

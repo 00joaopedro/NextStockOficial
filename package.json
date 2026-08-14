@@ -37,6 +37,7 @@
     "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
     "platform:cutover:dump-plan": "node dist/scripts/platform/postgres-cutover/cli.js dump-plan",
     "platform:cutover:restore-plan": "node dist/scripts/platform/postgres-cutover/cli.js restore-plan",
+    "platform:decommission:validate": "node dist/scripts/platform/decommission/cli.js --json",
     "railway:migrate": "node dist/scripts/migrations/validate-target.js && prisma migrate deploy",
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
