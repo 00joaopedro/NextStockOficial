@@ -24,10 +24,19 @@ const schema = Joi.object({
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
   AUTH_PROVIDER_MODE: Joi.string()
-    .valid('supabase_only', 'coexistence', 'supertokens_primary', 'supertokens_only')
+    .valid(
+      'supabase_only',
+      'coexistence',
+      'supertokens_primary',
+      'supertokens_only',
+    )
     .default('supabase_only'),
-  AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
-  AUTH_LEGACY_FALLBACK_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUTH_MIGRATION_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('true'),
   SUPERTOKENS_CONNECTION_URI: Joi.string().uri().allow('').optional(),
   SUPERTOKENS_API_KEY: Joi.string().allow('').optional(),
   SUPERTOKENS_APP_NAME: Joi.string().allow('').optional(),
@@ -247,8 +256,13 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       throw new Error(
         'SUPERTOKENS_API_KEY is required for production coexistence.',
       );
-    if (value.AUTH_PROVIDER_MODE === 'supertokens_only' && value.AUTH_MIGRATION_ENABLED !== 'true') {
-      throw new Error('AUTH_MIGRATION_ENABLED must be true for supertokens_only.');
+    if (
+      value.AUTH_PROVIDER_MODE === 'supertokens_only' &&
+      value.AUTH_MIGRATION_ENABLED !== 'true'
+    ) {
+      throw new Error(
+        'AUTH_MIGRATION_ENABLED must be true for supertokens_only.',
+      );
     }
   }
   const storageProvider = String(
