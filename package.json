@@ -33,6 +33,8 @@
     "test:ci": "npm run lint:check && npm run build && npm run build:frontend && npm test -- --runInBand",
     "migrate:deploy": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy",
+    "auth:supertokens:readiness": "node dist/scripts/auth/supertokens-readiness.js",
+    "auth:supertokens:import:dry-run": "node dist/scripts/auth/supertokens-password-import.js",
     "platform:postgresql:validate": "ts-node scripts/platform/validate-postgresql-portability.ts",
     "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
     "platform:cutover:dump-plan": "node dist/scripts/platform/postgres-cutover/cli.js dump-plan",

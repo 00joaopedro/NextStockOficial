@@ -89,6 +89,10 @@ model AuthIdentity {
   canonicalEmail String         @map("canonical_email")
   emailClaim     AuthEmailClaim @relation(fields: [canonicalEmail], references: [canonicalEmail], onDelete: Restrict)
   status         String         @default("active")
+  migrationState String         @default("NOT_REQUIRED") @map("migration_state")
+  passwordStrategy String?      @map("password_strategy")
+  lastMigrationAttemptAt DateTime? @map("last_migration_attempt_at")
+  reconciliationReason String?  @map("reconciliation_reason")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
 
