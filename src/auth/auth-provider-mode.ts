@@ -1,20 +1,20 @@
-export type AuthProviderMode =
-  | 'supabase_only'
-  | 'coexistence'
-  | 'supertokens_primary'
-  | 'supertokens_only';
-
-const MODES: AuthProviderMode[] = [
+const AUTH_PROVIDER_MODES = [
   'supabase_only',
   'coexistence',
   'supertokens_primary',
   'supertokens_only',
-];
+] as const;
+
+export type AuthProviderMode = (typeof AUTH_PROVIDER_MODES)[number];
+
+function isAuthProviderMode(value: string): value is AuthProviderMode {
+  return (AUTH_PROVIDER_MODES as readonly string[]).includes(value);
+}
 
 export function authProviderMode(env: NodeJS.ProcessEnv = process.env): AuthProviderMode {
   const value = env.AUTH_PROVIDER_MODE?.trim() || 'supabase_only';
-  if (!MODES.includes(value as AuthProviderMode)) {
-    throw new Error(`AUTH_PROVIDER_MODE must be one of: ${MODES.join(', ')}`);
+  if (!isAuthProviderMode(value)) {
+    throw new Error(`AUTH_PROVIDER_MODE must be one of: ${AUTH_PROVIDER_MODES.join(', ')}`);
   }
   if (value !== 'supabase_only' && ['SUPERTOKENS_CONNECTION_URI', 'SUPERTOKENS_APP_NAME', 'SUPERTOKENS_API_DOMAIN', 'SUPERTOKENS_WEBSITE_DOMAIN'].some((name) => !env[name]?.trim())) {
     throw new Error('SuperTokens configuration is incomplete');
