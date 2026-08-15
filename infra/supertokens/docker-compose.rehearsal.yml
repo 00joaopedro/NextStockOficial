@@ -1,0 +1,43 @@
+services:
+  core-db:
+    image: postgres:16.4-alpine
+    environment:
+      POSTGRES_USER: ${SUPERTOKENS_DB_USER:?set in secret manager}
+      POSTGRES_PASSWORD: ${SUPERTOKENS_DB_PASSWORD:?set in secret manager}
+      POSTGRES_DB: ${SUPERTOKENS_DB_NAME:?set in secret manager}
+    volumes:
+      - supertokens-core-db:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+  core:
+    image: supertokens/supertokens-postgresql:11.0
+    depends_on:
+      core-db:
+        condition: service_healthy
+    environment:
+      POSTGRESQL_CONNECTION_URI: ${SUPERTOKENS_CONNECTION_URI:?set in secret manager}
+      API_KEYS: ${SUPERTOKENS_API_KEY:?set in secret manager}
+    ports:
+      - "127.0.0.1:3567:3567"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3567/hello | grep -q 'Hello'"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+volumes:
+  supertokens-core-db:

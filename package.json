@@ -35,6 +35,8 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "auth:supertokens:readiness": "node dist/scripts/auth/supertokens-readiness.js",
     "auth:supertokens:import:dry-run": "node dist/scripts/auth/supertokens-password-import.js",
+    "auth:supertokens:rehearsal": "node dist/scripts/auth/supertokens-password-import.js",
+    "auth:supertokens:preflight": "node dist/scripts/auth/supertokens-preflight.js",
     "platform:postgresql:validate": "ts-node scripts/platform/validate-postgresql-portability.ts",
     "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
     "platform:cutover:dump-plan": "node dist/scripts/platform/postgres-cutover/cli.js dump-plan",
@@ -48,6 +50,7 @@
     "privacy:report-pii": "ts-node scripts/privacy/report-pii.ts",
     "privacy:report-retention": "ts-node scripts/privacy/report-retention.ts",
     "security:smoke": "ts-node scripts/maintenance/security-smoke.ts",
+    "ci:verify-supertokens-artifacts": "node scripts/ci/verify-supertokens-artifacts.mjs",
     "backup:verify": "ts-node scripts/backup/verify-backup.ts",
     "postinstall": "prisma generate",
     "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts"
