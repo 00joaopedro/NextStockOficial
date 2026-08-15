@@ -31,9 +31,7 @@ const schema = Joi.object({
       'supertokens_only',
     )
     .default('supabase_only'),
-  AUTH_MIGRATION_ENABLED: Joi.string()
-    .valid('true', 'false')
-    .default('false'),
+  AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
     .valid('true', 'false')
     .default('true'),

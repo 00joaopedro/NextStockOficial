@@ -12,12 +12,17 @@ describe('SuperTokens cutover gates', () => {
     observabilityReady: true,
   };
   it('blocks supertokens_only until every gate is satisfied', () => {
-    expect(evaluateSuperTokensGates({ ...ready, unlinkedSupabase: 1 })).toEqual({
-      ready: false,
-      blockers: ['AUTH_IDENTITIES_UNLINKED'],
-    });
+    expect(evaluateSuperTokensGates({ ...ready, unlinkedSupabase: 1 })).toEqual(
+      {
+        ready: false,
+        blockers: ['AUTH_IDENTITIES_UNLINKED'],
+      },
+    );
   });
   it('approves a completely migrated fixture', () => {
-    expect(evaluateSuperTokensGates(ready)).toEqual({ ready: true, blockers: [] });
+    expect(evaluateSuperTokensGates(ready)).toEqual({
+      ready: true,
+      blockers: [],
+    });
   });
 });

@@ -46,7 +46,7 @@ if (process.argv[1]?.endsWith('supertokens-password-import.ts')) {
     throw new Error('DRY_RUN_REQUIRED');
   void dryRunImport(path)
     .then((report) => console.log(JSON.stringify(report)))
-    .catch((_error: unknown) => {
+    .catch(() => {
       console.error('SuperTokens password import failed.');
       process.exitCode = 1;
     });
