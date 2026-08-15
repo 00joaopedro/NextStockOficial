@@ -32,16 +32,20 @@ export function validateRecord(record: PasswordHashRecord) {
   const email = record?.canonicalEmail ?? record?.email;
   if (
     !record ||
-    provider !== 'supabase' || !subject || !email ||
+    provider !== 'supabase' ||
+    !subject ||
+    !email ||
     !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)
   ) {
     throw new Error('INVALID_SANITIZED_RECORD');
   }
-  const strategy = record.passwordStrategy ?? (record.provider ? 'import_hash' : undefined);
+  const strategy =
+    record.passwordStrategy ?? (record.provider ? 'import_hash' : undefined);
   if (!strategy) throw new Error('PASSWORD_STRATEGY_MISSING');
-  const algorithm = strategy === 'import_hash'
-    ? validatePasswordHash(record.passwordHash || '')
-    : undefined;
+  const algorithm =
+    strategy === 'import_hash'
+      ? validatePasswordHash(record.passwordHash || '')
+      : undefined;
   return { algorithm };
 }
 
@@ -51,32 +55,58 @@ export function inventory(records: PasswordHashRecord[]) {
   const emails = new Set<string>();
   const subjects = new Set<string>();
   for (const record of records) {
-    const state = record.migrationState || 'pending'; states[state] = (states[state] || 0) + 1;
+    const state = record.migrationState || 'pending';
+    states[state] = (states[state] || 0) + 1;
     const email = record.canonicalEmail ?? record.email ?? '';
     const subject = `${record.legacyProvider ?? record.provider}:${record.legacySubject ?? record.subject}`;
-    if (emails.has(email)) blockers.DUPLICATE_CANONICAL_EMAIL = (blockers.DUPLICATE_CANONICAL_EMAIL || 0) + 1;
-    if (subjects.has(subject)) blockers.DUPLICATE_SUBJECT = (blockers.DUPLICATE_SUBJECT || 0) + 1;
-    emails.add(email); subjects.add(subject);
-    try { validateRecord(record); } catch (error) { const code = (error as Error).message; blockers[code] = (blockers[code] || 0) + 1; }
+    if (emails.has(email))
+      blockers.DUPLICATE_CANONICAL_EMAIL =
+        (blockers.DUPLICATE_CANONICAL_EMAIL || 0) + 1;
+    if (subjects.has(subject))
+      blockers.DUPLICATE_SUBJECT = (blockers.DUPLICATE_SUBJECT || 0) + 1;
+    emails.add(email);
+    subjects.add(subject);
+    try {
+      validateRecord(record);
+    } catch (error) {
+      const code = (error as Error).message;
+      blockers[code] = (blockers[code] || 0) + 1;
+    }
   }
-  return { formatVersion: 1, records: records.length, states, blockers, pii: false, mutations: 0 };
+  return {
+    formatVersion: 1,
+    records: records.length,
+    states,
+    blockers,
+    pii: false,
+    mutations: 0,
+  };
 }
 
 export async function loadRehearsal(path: string) {
-  const parsed = JSON.parse(await readFile(path, 'utf8')) as { formatVersion?: number; records?: PasswordHashRecord[] };
-  if (parsed.formatVersion !== 1 || !Array.isArray(parsed.records)) throw new Error('UNSUPPORTED_REHEARSAL_FORMAT');
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as {
+    formatVersion?: number;
+    records?: PasswordHashRecord[];
+  };
+  if (parsed.formatVersion !== 1 || !Array.isArray(parsed.records))
+    throw new Error('UNSUPPORTED_REHEARSAL_FORMAT');
   return parsed.records;
 }
 
 export async function dryRunRehearsal(path: string) {
-  const records = await loadRehearsal(path); const report = inventory(records);
+  const records = await loadRehearsal(path);
+  const report = inventory(records);
   if (Object.keys(report.blockers).length) throw new Error('REHEARSAL_BLOCKED');
   return { ...report, mode: 'dry-run' };
 }
 
 export async function writeCheckpoint(path: string, ids: string[]) {
   const temporary = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify({ formatVersion: 1, completed: [...new Set(ids)] }) + '\n', { mode: 0o600 });
+  await writeFile(
+    temporary,
+    JSON.stringify({ formatVersion: 1, completed: [...new Set(ids)] }) + '\n',
+    { mode: 0o600 },
+  );
   await rename(temporary, path);
 }
 
@@ -94,8 +124,13 @@ export async function dryRunImport(path: string) {
 if (process.argv[1]?.endsWith('supertokens-password-import.ts')) {
   const path = process.argv[2];
   const mode = process.argv[3];
-  if (!path || !['--inventory', '--dry-run'].includes(mode)) throw new Error('OFFLINE_MODE_REQUIRED');
-  void (mode === '--inventory' ? loadRehearsal(path).then(inventory) : dryRunRehearsal(path))
+  if (!path || !['--inventory', '--dry-run'].includes(mode))
+    throw new Error('OFFLINE_MODE_REQUIRED');
+  void (
+    mode === '--inventory'
+      ? loadRehearsal(path).then(inventory)
+      : dryRunRehearsal(path)
+  )
     .then((report) => console.log(JSON.stringify(report)))
     .catch(() => {
       console.error('SuperTokens password import failed.');
