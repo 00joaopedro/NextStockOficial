@@ -19,7 +19,7 @@ services:
           cpus: '1.0'
           memory: 512M
   core:
-    image: supertokens/supertokens-postgresql:11.0
+    image: supertokens/supertokens-postgresql:11.0.0
     depends_on:
       core-db:
         condition: service_healthy
