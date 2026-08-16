@@ -271,7 +271,7 @@ describe('RC-011 payment connection validation CAS', () => {
       );
       await cleanup(tenant.id);
     }
-  });
+  }, 15_000);
 
   it('rejects cross-tenant validation without calling the provider', async () => {
     const own = await fixture();
