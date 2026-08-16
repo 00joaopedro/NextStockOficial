@@ -34,8 +34,9 @@ jobs:
           --health-cmd "pg_isready -U supertokens_ci -d supertokens_ci"
           --health-interval 5s --health-timeout 5s --health-retries 12
     env:
-      SUPERTOKENS_CONNECTION_URI: postgresql://supertokens_ci:supertokens_ci_password@127.0.0.1:5434/supertokens_ci
+      SUPERTOKENS_CONNECTION_URI: http://127.0.0.1:3567
       SUPERTOKENS_API_KEY: ci-synthetic-supertokens-key
+      SUPERTOKENS_POSTGRESQL_CONNECTION_URI: postgresql://supertokens_ci:supertokens_ci_password@127.0.0.1:5434/supertokens_ci
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -44,7 +45,7 @@ jobs:
       - name: Start official SuperTokens Core 11.0.0
         run: |
           docker run -d --name supertokens-core-ci --network host \
-            -e POSTGRESQL_CONNECTION_URI="$SUPERTOKENS_CONNECTION_URI" \
+            -e POSTGRESQL_CONNECTION_URI="$SUPERTOKENS_POSTGRESQL_CONNECTION_URI" \
             -e API_KEYS="$SUPERTOKENS_API_KEY" \
             supertokens/supertokens-postgresql:11.0.0
       - name: Wait for Core healthcheck

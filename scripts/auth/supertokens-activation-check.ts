@@ -24,6 +24,19 @@ export type ActivationReport = {
 const numberEnv = (env: NodeJS.ProcessEnv, name: string) =>
   Number(env[name] || 0);
 
+export function validateSuperTokensConnectionUri(connectionUri: string): URL {
+  const baseUrl = new URL(connectionUri);
+  if (!['http:', 'https:'].includes(baseUrl.protocol)) {
+    throw new Error('SUPERTOKENS_CONNECTION_URI must be an HTTP URL');
+  }
+  if (baseUrl.username || baseUrl.password) {
+    throw new Error(
+      'SUPERTOKENS_CONNECTION_URI must not contain embedded credentials',
+    );
+  }
+  return baseUrl;
+}
+
 export async function runActivationCheck(
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<ActivationReport> {
@@ -61,6 +74,25 @@ export async function runActivationCheck(
       pii: false,
     };
   const apiKey = env.SUPERTOKENS_API_KEY as string;
+  let connectionUri: URL;
+  try {
+    connectionUri = validateSuperTokensConnectionUri(
+      env.SUPERTOKENS_CONNECTION_URI as string,
+    );
+  } catch {
+    return {
+      state: 'CORE_UNREACHABLE',
+      mode,
+      blockers: ['INVALID_SUPERTOKENS_CONNECTION_URI'],
+      core: {
+        configured: false,
+        reachable: false,
+        compatible: false,
+        recipes: false,
+      },
+      pii: false,
+    };
+  }
   let reachable = false;
   let compatible = false;
   let recipes = false;
@@ -70,18 +102,18 @@ export async function runActivationCheck(
       () => controller.abort(),
       Number(env.SUPERTOKENS_REQUEST_TIMEOUT_MS || 3000),
     );
-    const response = await fetch(
-      new URL('/hello', env.SUPERTOKENS_CONNECTION_URI),
-      { headers: { 'api-key': apiKey }, signal: controller.signal },
-    );
+    const response = await fetch(new URL('/hello', connectionUri), {
+      headers: { 'api-key': apiKey },
+      signal: controller.signal,
+    });
     clearTimeout(timer);
     reachable = response.ok;
     const body = await response.text();
     compatible = response.ok && body.includes('Hello');
-    const apiCheck = await fetch(
-      new URL('/recipe/user/list', env.SUPERTOKENS_CONNECTION_URI),
-      { headers: { 'api-key': apiKey }, signal: controller.signal },
-    );
+    const apiCheck = await fetch(new URL('/recipe/user/list', connectionUri), {
+      headers: { 'api-key': apiKey },
+      signal: controller.signal,
+    });
     recipes = apiCheck.ok && env.AUTH_PREFLIGHT_RECIPES_VALIDATED === 'true';
   } catch {
     /* sanitized fail-closed result */
