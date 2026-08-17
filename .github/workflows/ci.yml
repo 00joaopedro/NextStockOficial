@@ -61,8 +61,16 @@ jobs:
         run: node test/integration/supertokens-core-real.mjs
       - name: Validate canary policy and incomplete cutover gate
         run: |
+          set -euo pipefail
           npm run build:scripts
-          AUTH_PROVIDER_MODE=coexistence AUTH_CANARY_ENABLED=true AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 node dist/scripts/auth/supertokens-cutover-check.js --json && exit 1 || test $? -ne 0
+          set +e
+          AUTH_PROVIDER_MODE=coexistence AUTH_CANARY_ENABLED=true AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 node dist/scripts/auth/supertokens-cutover-check.js --json
+          cutover_status=$?
+          set -e
+          if [ "$cutover_status" -eq 0 ]; then
+            echo 'cutover-check unexpectedly approved incomplete state.'
+            exit 1
+          fi
       - name: Cleanup disposable Core
         if: always()
         run: docker rm -f supertokens-core-ci >/dev/null 2>&1 || true
