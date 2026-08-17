@@ -131,6 +131,12 @@ de identidades.
 padrão. As variáveis do Core são `SUPERTOKENS_CONNECTION_URI`,
 `SUPERTOKENS_API_KEY`, `SUPERTOKENS_APP_NAME`, `SUPERTOKENS_API_DOMAIN` e
 `SUPERTOKENS_WEBSITE_DOMAIN`; mantenha-as em secrets, nunca no frontend ou logs.
+
+Antes de qualquer canary, execute `npm run auth:supertokens:activation-check -- --json`.
+O comando é somente leitura, falha fechado e não promove o modo. Use PostgreSQL
+persistente isolado para o Core, Secret Manager para a URI/API key, TLS no proxy,
+healthcheck `/hello`, backup verificado e rollback humano para `coexistence`.
+Cloud Run/Railway são apenas hosts de container futuros; não há deploy neste PR.
 Consulte `docs/operations/platform-auth-migration-activation.md`. Nenhuma
 identidade real foi importada e Supabase Auth não foi desativado.
 
