@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
 import {
   buildHeaders,
   coreRequest,
   createCoreBaseUrl,
+  assertRecoveryResponse,
+  assertRecoveryTokenResponse,
+  requestCore,
   sanitizeCoreBody,
   selectCompatibleVersion,
 } from './supertokens-core-real.mjs';
@@ -84,4 +88,81 @@ test('selects CDI versions by numeric segments, not text ordering', () => {
   assert.equal(selectCompatibleVersion(['5.0', '5.1', '4.10']), '5.1');
   assert.equal(selectCompatibleVersion(['5.10', '5.9']), '5.10');
   assert.throws(() => selectCompatibleVersion([]), /no supported/);
+});
+
+test('does not treat HTTP errors as a successful recovery', () => {
+  for (const status of [400, 401, 404, 500]) {
+    assert.notEqual(status, 200);
+  }
+});
+
+test('requires a successful token payload before recovery can advance', () => {
+  const valid = {
+    response: { status: 200 },
+    json: { status: 'OK', token: 'synthetic-token' },
+  };
+  assert.equal(assertRecoveryTokenResponse(valid), 'synthetic-token');
+  assert.throws(
+    () =>
+      assertRecoveryTokenResponse({
+        response: { status: 200 },
+        json: { status: 'OK' },
+      }),
+    /Expected values to be strictly equal/,
+  );
+  assert.throws(
+    () => assertRecoveryResponse({ response: { status: 400 }, json: {} }),
+    /Expected values to be strictly equal/,
+  );
+});
+
+test('uses an independent timeout and cleans up a response body that stalls', async () => {
+  const server = await new Promise((resolve) => {
+    const instance = createServer((_request, response) => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.write('{"status":"partial"');
+    });
+    instance.listen(0, '127.0.0.1', () => resolve(instance));
+  });
+  try {
+    const address = server.address();
+    await assert.rejects(
+      requestCore(
+        createCoreBaseUrl(`http://127.0.0.1:${address.port}`),
+        '/recipe/user/password/reset',
+        {
+          body: {
+            method: 'token',
+            token: 'synthetic',
+            newPassword: 'synthetic',
+          },
+          apiKey: 'synthetic',
+          cdiVersion: '5.1',
+          timeoutMs: 25,
+        },
+      ),
+      /timed out: \/recipe\/user\/password\/reset/,
+    );
+    await assert.rejects(
+      requestCore(
+        createCoreBaseUrl(`http://127.0.0.1:${address.port}`),
+        '/recipe/user/password/reset',
+        {
+          body: {
+            method: 'token',
+            token: 'synthetic',
+            newPassword: 'synthetic',
+          },
+          apiKey: 'synthetic',
+          cdiVersion: '5.1',
+          timeoutMs: 25,
+        },
+      ),
+      /timed out/,
+    );
+  } finally {
+    await new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
 });
