@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: {node-version: 22, cache: npm}
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Start official SuperTokens Core 11.0.0
         run: |
@@ -112,7 +112,7 @@ jobs:
           test "$reconcile_status" -ne 0
           echo "$inventory" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(!r.blockerCodes.includes("INVENTORY_SOURCE_REQUIRED"))process.exit(1);});'
           echo "$reconcile" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(!r.blockerCodes.includes("RECONCILIATION_SOURCE_REQUIRED"))process.exit(1);});'
-          report=$(AUTH_PROVIDER_MODE=coexistence SUPERTOKENS_CONNECTION_URI=http://127.0.0.1:3567 SUPERTOKENS_API_KEY=ci-synthetic-supertokens-key SUPERTOKENS_APP_NAME=nextstock-ci SUPERTOKENS_API_DOMAIN=http://127.0.0.1 SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1 AUTH_PREFLIGHT_CORE_STATUS=not_checked AUTH_PREFLIGHT_DATABASE_READY=true AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true AUTH_PREFLIGHT_ROLLBACK_READY=true AUTH_PREFLIGHT_RECOVERY_VALIDATED=true AUTH_PREFLIGHT_OBSERVABILITY_READY=true node dist/scripts/auth/supertokens-preflight.js --json 2>&1 || true)
+          report=$(AUTH_PROVIDER_MODE=coexistence SUPERTOKENS_CONNECTION_URI=http://127.0.0.1:3567 SUPERTOKENS_API_KEY=ci-synthetic-supertokens-key SUPERTOKENS_APP_NAME=nextstock-ci SUPERTOKENS_API_DOMAIN=http://127.0.0.1 SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1 AUTH_PREFLIGHT_CORE_STATUS=not_checked AUTH_PREFLIGHT_DATABASE_READY=true AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true AUTH_PREFLIGHT_ROLLBACK_READY=true AUTH_PREFLIGHT_RECOVERY_VALIDATED=true AUTH_PREFLIGHT_OBSERVABILITY_READY=true node -e 'const {runPreflight}=require("./dist/scripts/auth/supertokens-preflight.js"); console.log(JSON.stringify(runPreflight(process.env)));' 2>&1)
           echo "$report" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(r.ready||!r.blockerCodes.includes("SUPERTOKENS_CORE_NOT_CHECKED"))process.exit(1);});'
           node dist/scripts/auth/supertokens-inventory.js test/fixtures/supertokens-evidence-empty.json --json
           node dist/scripts/auth/supertokens-reconcile.js test/fixtures/supertokens-evidence-empty.json --dry-run --json
@@ -272,15 +272,25 @@ jobs:
     services:
       source:
         image: postgres:16
-        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nextstock_source}
-        ports: ["5432:5432"]
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_source,
+          }
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d nextstock_source"
           --health-interval 5s --health-timeout 5s --health-retries 12
       target:
         image: postgres:16
-        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nextstock_target}
-        ports: ["5433:5432"]
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_target,
+          }
+        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d nextstock_target"
           --health-interval 5s --health-timeout 5s --health-retries 12
@@ -297,7 +307,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: {node-version: 22, cache: npm}
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Bootstrap portable legacy roles for cutover source
         env:

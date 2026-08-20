@@ -35,10 +35,7 @@ async function main() {
   const input = await readEvidence(path);
   console.log(
     JSON.stringify(
-      createMigrationPlan(
-        input.records as PasswordHashRecord[],
-        input.aggregates.legacySessions,
-      ),
+      createMigrationPlan(input.records, input.aggregates.legacySessions),
     ),
   );
 }
