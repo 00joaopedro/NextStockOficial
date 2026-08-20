@@ -32,6 +32,25 @@ describe('SuperTokens canary policy', () => {
     );
   });
 
+  it.each(['TRUE', 'False', '1', '0', 'yes', '', 'ture'])(
+    'rejects invalid boolean %s',
+    (value) => {
+      expect(() =>
+        readSuperTokensCanaryPolicy({ AUTH_CANARY_ENABLED: value }),
+      ).toThrow('exactly true or false');
+    },
+  );
+
+  it('defaults absent boolean flags to false', () => {
+    expect(readSuperTokensCanaryPolicy({}).enabled).toBe(false);
+    expect(readSuperTokensCanaryPolicy({}).killSwitch).toBe(false);
+  });
+
+  it('keeps an enabled empty selector on legacy routing', () => {
+    const policy = readSuperTokensCanaryPolicy({ AUTH_CANARY_ENABLED: 'true' });
+    expect(decideSuperTokensCanary('profile-synthetic', policy)).toBe('LEGACY');
+  });
+
   it('kill switch always returns legacy', () => {
     expect(
       decideSuperTokensCanary('profile-synthetic', {

@@ -9,11 +9,31 @@ export type CanaryPolicy = {
   percentage: number;
 };
 
+export class CanaryConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CanaryConfigurationError';
+  }
+}
+
+export function parseStrictBoolean(
+  name: string,
+  value: string | undefined,
+  defaultValue: boolean,
+): boolean {
+  if (value === undefined) return defaultValue;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  throw new CanaryConfigurationError(`${name} must be exactly true or false`);
+}
+
 const parsePercentage = (value: string | undefined) => {
   if (value === undefined || value.trim() === '') return 0;
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100) {
-    throw new Error('AUTH_CANARY_PERCENTAGE must be an integer from 0 to 100');
+    throw new CanaryConfigurationError(
+      'AUTH_CANARY_PERCENTAGE must be an integer from 0 to 100',
+    );
   }
   return parsed;
 };
@@ -27,10 +47,18 @@ export function readSuperTokensCanaryPolicy(
       .map((value) => value.trim())
       .filter(Boolean),
   );
-  const killSwitch = env.AUTH_CANARY_KILL_SWITCH === 'true';
-  const enabled = env.AUTH_CANARY_ENABLED === 'true';
+  const killSwitch = parseStrictBoolean(
+    'AUTH_CANARY_KILL_SWITCH',
+    env.AUTH_CANARY_KILL_SWITCH,
+    false,
+  );
+  const enabled = parseStrictBoolean(
+    'AUTH_CANARY_ENABLED',
+    env.AUTH_CANARY_ENABLED,
+    false,
+  );
   if (killSwitch && enabled)
-    throw new Error(
+    throw new CanaryConfigurationError(
       'AUTH_CANARY_KILL_SWITCH conflicts with AUTH_CANARY_ENABLED',
     );
   return {
@@ -45,7 +73,13 @@ export function decideSuperTokensCanary(
   subject: string,
   policy: CanaryPolicy,
 ): CanaryDecision {
-  if (!subject || policy.killSwitch || !policy.enabled) return 'LEGACY';
+  if (
+    !subject ||
+    policy.killSwitch ||
+    !policy.enabled ||
+    (policy.allowlist.size === 0 && policy.percentage === 0)
+  )
+    return 'LEGACY';
   if (policy.allowlist.has(subject)) return 'SUPERTOKENS';
   if (policy.percentage === 0) return 'LEGACY';
   const bucket =

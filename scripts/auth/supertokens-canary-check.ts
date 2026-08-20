@@ -20,19 +20,16 @@ export async function runCanaryCheck(
   } catch {
     blockers.push('AUTH_CONFIGURATION_INVALID');
   }
+  let policy;
   try {
-    readSuperTokensCanaryPolicy(env);
+    policy = readSuperTokensCanaryPolicy(env);
   } catch {
     blockers.push('AUTH_CANARY_CONFIGURATION_INVALID');
   }
   const activation = await runActivationCheck(env);
   blockers.push(...activation.blockers);
   if (mode === 'supertokens_only') blockers.push('SUPERTOKENS_ONLY_BLOCKED');
-  if (
-    env.AUTH_CANARY_ENABLED === 'true' &&
-    env.AUTH_CANARY_ALLOWLIST?.trim() === '' &&
-    Number(env.AUTH_CANARY_PERCENTAGE || 0) === 0
-  )
+  if (policy?.enabled && policy.allowlist.size === 0 && policy.percentage === 0)
     blockers.push('AUTH_CANARY_SELECTOR_EMPTY');
   return {
     command: 'auth:supertokens:canary-check',

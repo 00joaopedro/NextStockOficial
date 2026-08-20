@@ -64,13 +64,54 @@ jobs:
           set -euo pipefail
           npm run build:scripts
           set +e
-          AUTH_PROVIDER_MODE=coexistence AUTH_CANARY_ENABLED=true AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 node dist/scripts/auth/supertokens-cutover-check.js --json
+          report=$(AUTH_PROVIDER_MODE=coexistence \
+            SUPERTOKENS_APP_NAME=nextstock-ci \
+            SUPERTOKENS_API_DOMAIN=http://127.0.0.1:3000 \
+            SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1:3000 \
+            SUPERTOKENS_CONNECTION_URI=http://127.0.0.1:3567 \
+            SUPERTOKENS_API_KEY=ci-synthetic-supertokens-key \
+            AUTH_CANARY_ENABLED=true AUTH_CANARY_KILL_SWITCH=false \
+            AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 \
+            AUTH_PREFLIGHT_RECOVERY_VALIDATED=true \
+            AUTH_PREFLIGHT_OBSERVABILITY_READY=true \
+            AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true \
+            AUTH_PREFLIGHT_ROLLBACK_READY=true \
+            node dist/scripts/auth/supertokens-cutover-check.js --json)
           cutover_status=$?
           set -e
           if [ "$cutover_status" -eq 0 ]; then
             echo 'cutover-check unexpectedly approved incomplete state.'
             exit 1
           fi
+          printf '%s\n' "$report" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              if (report.ready !== false || !report.blockers.includes("SUPERTOKENS_ONLY_BLOCKED")) {
+                console.error("Expected SUPERTOKENS_ONLY_BLOCKED in a blocked cutover report.");
+                process.exit(1);
+              }
+              if (report.blockers.includes("INVALID_CONFIGURATION")) {
+                console.error("Synthetic cutover configuration was invalid.");
+                process.exit(1);
+              }
+            });
+          '
+      - name: Verify canary check valid fixture can pass initial validation
+        run: |
+          set -euo pipefail
+          report=$(AUTH_PROVIDER_MODE=supabase_only AUTH_CANARY_ENABLED=false AUTH_CANARY_KILL_SWITCH=false \
+            AUTH_CANARY_ALLOWLIST=' ,  ' AUTH_CANARY_PERCENTAGE=0 \
+            node dist/scripts/auth/supertokens-canary-check.js --json || true)
+          printf '%s\n' "$report" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              if (report.blockers.includes("AUTH_CANARY_CONFIGURATION_INVALID")) process.exit(1);
+            });
+          '
       - name: Cleanup disposable Core
         if: always()
         run: docker rm -f supertokens-core-ci >/dev/null 2>&1 || true
