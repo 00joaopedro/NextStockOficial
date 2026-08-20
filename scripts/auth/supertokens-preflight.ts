@@ -77,6 +77,7 @@ export function runPreflight(
 }
 
 if (
+  process.argv.includes('--json') ||
   process.argv.some(
     (argument) =>
       argument.endsWith('supertokens-preflight.ts') ||
@@ -92,7 +93,7 @@ if (
     );
     process.exitCode = result.ready ? 0 : 1;
   } catch {
-    console.error(
+    (process.argv.includes('--json') ? console.log : console.error)(
       process.argv.includes('--json')
         ? JSON.stringify({
             ready: false,
