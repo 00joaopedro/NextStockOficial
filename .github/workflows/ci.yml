@@ -102,22 +102,8 @@ jobs:
         run: |
           set -euo pipefail
           npm run build:scripts
-          set +e
-          inventory=$(node dist/scripts/auth/supertokens-inventory.js --json)
-          inventory_status=$?
-          reconcile=$(node dist/scripts/auth/supertokens-reconcile.js --dry-run --json)
-          reconcile_status=$?
-          set -e
-          test "$inventory_status" -ne 0
-          test "$reconcile_status" -ne 0
-          echo "$inventory" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(!r.blockerCodes.includes("INVENTORY_SOURCE_REQUIRED"))process.exit(1);});'
-          echo "$reconcile" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(!r.blockerCodes.includes("RECONCILIATION_SOURCE_REQUIRED"))process.exit(1);});'
-          AUTH_PROVIDER_MODE=coexistence SUPERTOKENS_CONNECTION_URI=http://127.0.0.1:3567 SUPERTOKENS_API_KEY=ci-synthetic-supertokens-key SUPERTOKENS_APP_NAME=nextstock-ci SUPERTOKENS_API_DOMAIN=http://127.0.0.1 SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1 AUTH_PREFLIGHT_CORE_STATUS=not_checked AUTH_PREFLIGHT_DATABASE_READY=true AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true AUTH_PREFLIGHT_ROLLBACK_READY=true AUTH_PREFLIGHT_RECOVERY_VALIDATED=true AUTH_PREFLIGHT_OBSERVABILITY_READY=true node dist/scripts/auth/supertokens-preflight.js --json > preflight-report.json 2>&1 || true
-          report=$(cat preflight-report.json)
-          test -n "$report"
-          echo "$report" | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const r=JSON.parse(s);if(r.ready||!r.blockerCodes.includes("SUPERTOKENS_CORE_NOT_CHECKED"))process.exit(1);});'
-          node dist/scripts/auth/supertokens-inventory.js test/fixtures/supertokens-evidence-empty.json --json
-          node dist/scripts/auth/supertokens-reconcile.js test/fixtures/supertokens-evidence-empty.json --dry-run --json
+          node scripts/auth/validate-supertokens-evidence.mjs
+          node --test scripts/auth/validate-supertokens-evidence.test.mjs
       - name: Verify canary check valid fixture can pass initial validation
         run: |
           set -euo pipefail

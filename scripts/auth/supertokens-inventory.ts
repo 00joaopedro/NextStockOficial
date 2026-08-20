@@ -48,9 +48,12 @@ async function main() {
   );
   if (Object.keys(report.blockers).length) process.exitCode = 1;
 }
-if (process.argv[1]?.endsWith('supertokens-inventory.js'))
+if (
+  process.argv.includes('--json') ||
+  process.argv.some((argument) => argument.endsWith('supertokens-inventory.js'))
+)
   void main().catch((error: unknown) => {
-    console.error(
+    console.log(
       JSON.stringify({
         ready: false,
         blockerCodes: [(error as Error).message],

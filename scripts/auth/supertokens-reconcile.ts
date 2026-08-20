@@ -23,9 +23,12 @@ async function main() {
     JSON.stringify(reconcileDryRun(evidence.aggregates.reconciliationPending)),
   );
 }
-if (process.argv[1]?.endsWith('supertokens-reconcile.js'))
+if (
+  process.argv.includes('--json') ||
+  process.argv.some((argument) => argument.endsWith('supertokens-reconcile.js'))
+)
   void main().catch((error: unknown) => {
-    console.error(
+    console.log(
       JSON.stringify({
         dryRun: true,
         mutations: 0,
