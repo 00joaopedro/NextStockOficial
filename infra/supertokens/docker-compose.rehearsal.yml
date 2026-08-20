@@ -19,7 +19,9 @@ services:
           cpus: '1.0'
           memory: 512M
   core:
-    image: supertokens/supertokens-postgresql:11.0.0
+    # Core 11.0.0 is the validated release. Pin a registry digest in the
+    # deployment environment before any non-disposable deployment.
+    image: ${SUPERTOKENS_CORE_IMAGE:-supertokens/supertokens-postgresql:11.0.0}
     depends_on:
       core-db:
         condition: service_healthy

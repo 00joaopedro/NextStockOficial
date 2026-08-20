@@ -254,9 +254,32 @@ describe('RC-011 payment connection validation CAS', () => {
       second = b.value.validateConnection(undefined, connection.id, branch.id);
       await adapter.waitForCalls(2);
       adapter.releaseSuccess(1);
-      await expect(second).resolves.toMatchObject({ valid: true });
+      const firstResponse = first.then(
+        (result) => ({ promise: 'first', result }),
+        () => ({ promise: 'first', rejected: true }),
+      );
+      const secondResponse = second.then(
+        (result) => ({ promise: 'second', result }),
+        () => ({ promise: 'second', rejected: true }),
+      );
+      await expect(
+        Promise.race([firstResponse, secondResponse]),
+      ).resolves.toMatchObject({
+        result: { valid: true },
+      });
       adapter.releaseSuccess(0);
-      await expect(first).rejects.toBeInstanceOf(ConflictException);
+      const results = await Promise.allSettled([first, second]);
+      expect(
+        results.filter((result) => result.status === 'fulfilled'),
+      ).toHaveLength(1);
+      expect(
+        results.filter((result) => result.status === 'rejected'),
+      ).toHaveLength(1);
+      const rejected = results.find(
+        (result): result is PromiseRejectedResult =>
+          result.status === 'rejected',
+      );
+      expect(rejected?.reason).toBeInstanceOf(ConflictException);
       const final = await prismaA.paymentConnection.findUniqueOrThrow({
         where: { id: connection.id },
       });
