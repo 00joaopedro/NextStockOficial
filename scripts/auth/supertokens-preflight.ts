@@ -76,7 +76,10 @@ export function runPreflight(
   };
 }
 
-if (process.argv[1]?.endsWith('supertokens-preflight.ts')) {
+if (
+  process.argv[1]?.endsWith('supertokens-preflight.ts') ||
+  process.argv[1]?.endsWith('supertokens-preflight.js')
+) {
   try {
     const result = runPreflight();
     console.log(
