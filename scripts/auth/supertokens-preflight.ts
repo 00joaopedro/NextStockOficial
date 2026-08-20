@@ -36,18 +36,42 @@ export function runPreflight(
       mode === 'supabase_only',
   });
   const blockers = [...gates.blockers];
-  if (env.AUTH_PREFLIGHT_FALLBACK_CONFIGURED !== 'true' && mode !== 'supabase_only')
+  const coreStatus = env.AUTH_PREFLIGHT_CORE_STATUS?.trim();
+  if (mode !== 'supabase_only' && coreStatus !== 'healthy') {
+    blockers.push(
+      coreStatus
+        ? `SUPERTOKENS_CORE_${coreStatus.toUpperCase()}`
+        : 'SUPERTOKENS_CORE_NOT_VALIDATED',
+    );
+  }
+  if (
+    env.AUTH_PREFLIGHT_FALLBACK_CONFIGURED !== 'true' &&
+    mode !== 'supabase_only'
+  )
     blockers.push('AUTH_FALLBACK_NOT_CONFIGURED');
   if (env.AUTH_PREFLIGHT_ROLLBACK_READY !== 'true' && mode !== 'supabase_only')
     blockers.push('AUTH_ROLLBACK_NOT_READY');
-  if (mode !== 'supabase_only' && env.AUTH_PREFLIGHT_DATABASE_READY !== 'true') blockers.push('AUTH_PREFLIGHT_DATABASE_UNAVAILABLE');
+  if (mode !== 'supabase_only' && env.AUTH_PREFLIGHT_DATABASE_READY !== 'true')
+    blockers.push('AUTH_PREFLIGHT_DATABASE_UNAVAILABLE');
   const unique = [...new Set(blockers)].sort();
   return {
     ready: gates.ready && unique.length === 0,
     mode,
     blockers: unique,
     blockerCodes: unique,
-    checks: { core: mode === 'supabase_only' ? 'not_required' : env.AUTH_PREFLIGHT_CORE_STATUS || 'not_checked', database: mode === 'supabase_only' ? 'not_required' : env.AUTH_PREFLIGHT_DATABASE_READY === 'true' ? 'ok' : 'blocked', gates: unique.length === 0 ? 'ok' : 'blocked' },
+    checks: {
+      core:
+        mode === 'supabase_only'
+          ? 'not_required'
+          : env.AUTH_PREFLIGHT_CORE_STATUS || 'not_checked',
+      database:
+        mode === 'supabase_only'
+          ? 'not_required'
+          : env.AUTH_PREFLIGHT_DATABASE_READY === 'true'
+            ? 'ok'
+            : 'blocked',
+      gates: unique.length === 0 ? 'ok' : 'blocked',
+    },
     pii: false,
   };
 }

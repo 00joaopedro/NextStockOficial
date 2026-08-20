@@ -1,0 +1,8 @@
+{
+  "formatVersion": 1,
+  "records": [],
+  "aggregates": {
+    "legacySessions": 0,
+    "reconciliationPending": 0
+  }
+}
