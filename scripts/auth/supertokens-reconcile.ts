@@ -1,0 +1,2 @@
+export function reconcileDryRun(pending: number) { return { dryRun: true, mutations: 0, pending: Math.max(0, pending), blockerCodes: pending > 0 ? ['AUTH_RECONCILIATION_REQUIRED'] : [], pii: false as const }; }
+if (process.argv[1]?.endsWith('supertokens-reconcile.js')) { if (!process.argv.includes('--dry-run')) { console.error('reconcile=blocked'); process.exitCode = 1; } else console.log(JSON.stringify(reconcileDryRun(Number(process.env.AUTH_PREFLIGHT_RECONCILIATION || 0)))); }

@@ -5,6 +5,8 @@ export type PreflightResult = {
   ready: boolean;
   mode: string;
   blockers: string[];
+  blockerCodes: string[];
+  checks: { core: string; database: string; gates: string };
   pii: false;
 };
 
@@ -34,14 +36,18 @@ export function runPreflight(
       mode === 'supabase_only',
   });
   const blockers = [...gates.blockers];
-  if (env.AUTH_PREFLIGHT_FALLBACK_CONFIGURED === 'false')
+  if (env.AUTH_PREFLIGHT_FALLBACK_CONFIGURED !== 'true' && mode !== 'supabase_only')
     blockers.push('AUTH_FALLBACK_NOT_CONFIGURED');
-  if (env.AUTH_PREFLIGHT_ROLLBACK_READY === 'false')
+  if (env.AUTH_PREFLIGHT_ROLLBACK_READY !== 'true' && mode !== 'supabase_only')
     blockers.push('AUTH_ROLLBACK_NOT_READY');
+  if (mode !== 'supabase_only' && env.AUTH_PREFLIGHT_DATABASE_READY !== 'true') blockers.push('AUTH_PREFLIGHT_DATABASE_UNAVAILABLE');
+  const unique = [...new Set(blockers)].sort();
   return {
-    ready: gates.ready && blockers.length === 0,
+    ready: gates.ready && unique.length === 0,
     mode,
-    blockers,
+    blockers: unique,
+    blockerCodes: unique,
+    checks: { core: mode === 'supabase_only' ? 'not_required' : env.AUTH_PREFLIGHT_CORE_STATUS || 'not_checked', database: mode === 'supabase_only' ? 'not_required' : env.AUTH_PREFLIGHT_DATABASE_READY === 'true' ? 'ok' : 'blocked', gates: unique.length === 0 ? 'ok' : 'blocked' },
     pii: false,
   };
 }
@@ -60,7 +66,9 @@ if (process.argv[1]?.endsWith('supertokens-preflight.ts')) {
       process.argv.includes('--json')
         ? JSON.stringify({
             ready: false,
-            blockers: ['INVALID_CONFIGURATION'],
+            blockers: ['AUTH_CONFIGURATION_INVALID'],
+            blockerCodes: ['AUTH_CONFIGURATION_INVALID'],
+            checks: { core: 'invalid', database: 'unknown', gates: 'blocked' },
             pii: false,
           })
         : 'preflight=blocked\nblocker=INVALID_CONFIGURATION',
