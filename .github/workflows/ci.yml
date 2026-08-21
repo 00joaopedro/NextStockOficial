@@ -40,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: {node-version: 22, cache: npm}
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Start official SuperTokens Core 11.0.0
         run: |
@@ -98,6 +98,12 @@ jobs:
               }
             });
           '
+      - name: Validate fail-closed operational evidence CLIs
+        run: |
+          set -euo pipefail
+          npm run build:scripts
+          node scripts/auth/validate-supertokens-evidence.mjs
+          node --test scripts/auth/validate-supertokens-evidence.test.mjs
       - name: Verify canary check valid fixture can pass initial validation
         run: |
           set -euo pipefail
@@ -254,15 +260,25 @@ jobs:
     services:
       source:
         image: postgres:16
-        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nextstock_source}
-        ports: ["5432:5432"]
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_source,
+          }
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d nextstock_source"
           --health-interval 5s --health-timeout 5s --health-retries 12
       target:
         image: postgres:16
-        env: {POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: nextstock_target}
-        ports: ["5433:5432"]
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_target,
+          }
+        ports: ['5433:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d nextstock_target"
           --health-interval 5s --health-timeout 5s --health-retries 12
@@ -279,7 +295,7 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with: {node-version: 22, cache: npm}
+        with: { node-version: 22, cache: npm }
       - run: npm ci
       - name: Bootstrap portable legacy roles for cutover source
         env:
