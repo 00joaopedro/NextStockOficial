@@ -156,8 +156,11 @@ describe('frontend auth pages', () => {
     expect(source).toContain('const contextResponsePromise = fetch');
     expect(source).toContain('const billingResponsePromise = fetch');
     expect(source).toContain('Promise.all([');
-    expect(source).toContain("performance.mark('nextstock-sidebar-shell')");
-    expect(source).toContain("performance.mark('nextstock-sidebar-ready')");
+    expect(source).toContain('function markSidebarPerformance');
+    expect(source).toContain('function measureSidebarPerformance');
+    expect(source).toContain('billingResponsePromise.catch(() => null)');
+    expect(source).not.toContain("performance.mark('nextstock-sidebar-shell')");
+    expect(source).not.toContain("performance.mark('nextstock-sidebar-ready')");
     expect(source).not.toContain('await response.json();\n  if (\n    context.systemMode');
   });
 });

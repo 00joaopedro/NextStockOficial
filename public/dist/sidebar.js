@@ -356,7 +356,7 @@ async function fetchSystemContext() {
     });
     const [response, billingResponse] = await Promise.all([
         contextResponsePromise,
-        billingResponsePromise,
+        billingResponsePromise.catch(() => null),
     ]);
     if (!response.ok) {
         throw new Error(`System context failed with status ${response.status}`);
@@ -372,7 +372,7 @@ async function fetchSystemContext() {
             context.systemType = 'petshop';
         }
     }
-    if (billingResponse.ok) {
+    if (billingResponse?.ok) {
         const billing = await billingResponse.json();
         context.billingAllowed =
             billing?.enforcementEnabled !== true ||
@@ -387,7 +387,20 @@ function renderSidebarShell(container) {
       <div class="sidebar-brand"><h2>NextStock</h2></div>
     </aside>
   `;
-    performance.mark('nextstock-sidebar-shell');
+    markSidebarPerformance('nextstock-sidebar-shell');
+}
+function markSidebarPerformance(name) {
+    if (typeof performance?.mark === 'function') {
+        performance.mark(name);
+    }
+}
+function measureSidebarPerformance() {
+    if (typeof performance?.measure === 'function' &&
+        typeof performance?.getEntriesByName === 'function' &&
+        performance.getEntriesByName('nextstock-sidebar-shell').length > 0 &&
+        performance.getEntriesByName('nextstock-sidebar-ready').length > 0) {
+        performance.measure('nextstock-sidebar-shell-to-ready', 'nextstock-sidebar-shell', 'nextstock-sidebar-ready');
+    }
 }
 function renderSidebar(container, context) {
     injectSidebarStyles();
@@ -474,8 +487,8 @@ async function loadSidebar() {
         const context = await fetchSystemContext();
         renderSidebar(container, context);
         container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
-        performance.mark('nextstock-sidebar-ready');
-        performance.measure('nextstock-sidebar-shell-to-ready', 'nextstock-sidebar-shell', 'nextstock-sidebar-ready');
+        markSidebarPerformance('nextstock-sidebar-ready');
+        measureSidebarPerformance();
         recordPageView(context);
     }
     catch (error) {
@@ -488,8 +501,8 @@ async function loadSidebar() {
         }
         renderSidebar(container, context);
         container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
-        performance.mark('nextstock-sidebar-ready');
-        performance.measure('nextstock-sidebar-shell-to-ready', 'nextstock-sidebar-shell', 'nextstock-sidebar-ready');
+        markSidebarPerformance('nextstock-sidebar-ready');
+        measureSidebarPerformance();
         recordPageView(context);
     }
 }

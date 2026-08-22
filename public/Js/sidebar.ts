@@ -468,7 +468,7 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
 
   const [response, billingResponse] = await Promise.all([
     contextResponsePromise,
-    billingResponsePromise,
+    billingResponsePromise.catch(() => null),
   ]);
 
   if (!response.ok) {
@@ -488,7 +488,7 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
       context.systemType = 'petshop';
     }
   }
-  if (billingResponse.ok) {
+  if (billingResponse?.ok) {
     const billing = await billingResponse.json();
     context.billingAllowed =
       billing?.enforcementEnabled !== true ||
@@ -505,7 +505,28 @@ function renderSidebarShell(container: HTMLElement): void {
       <div class="sidebar-brand"><h2>NextStock</h2></div>
     </aside>
   `;
-  performance.mark('nextstock-sidebar-shell');
+  markSidebarPerformance('nextstock-sidebar-shell');
+}
+
+function markSidebarPerformance(name: string): void {
+  if (typeof performance?.mark === 'function') {
+    performance.mark(name);
+  }
+}
+
+function measureSidebarPerformance(): void {
+  if (
+    typeof performance?.measure === 'function' &&
+    typeof performance?.getEntriesByName === 'function' &&
+    performance.getEntriesByName('nextstock-sidebar-shell').length > 0 &&
+    performance.getEntriesByName('nextstock-sidebar-ready').length > 0
+  ) {
+    performance.measure(
+      'nextstock-sidebar-shell-to-ready',
+      'nextstock-sidebar-shell',
+      'nextstock-sidebar-ready',
+    );
+  }
 }
 
 function renderSidebar(
@@ -609,12 +630,8 @@ async function loadSidebar(): Promise<void> {
     const context = await fetchSystemContext();
     renderSidebar(container, context);
     container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
-    performance.mark('nextstock-sidebar-ready');
-    performance.measure(
-      'nextstock-sidebar-shell-to-ready',
-      'nextstock-sidebar-shell',
-      'nextstock-sidebar-ready',
-    );
+    markSidebarPerformance('nextstock-sidebar-ready');
+    measureSidebarPerformance();
     recordPageView(context);
   } catch (error) {
     console.warn('Using fallback sidebar context.', error);
@@ -626,12 +643,8 @@ async function loadSidebar(): Promise<void> {
     }
     renderSidebar(container, context);
     container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
-    performance.mark('nextstock-sidebar-ready');
-    performance.measure(
-      'nextstock-sidebar-shell-to-ready',
-      'nextstock-sidebar-shell',
-      'nextstock-sidebar-ready',
-    );
+    markSidebarPerformance('nextstock-sidebar-ready');
+    measureSidebarPerformance();
     recordPageView(context);
   }
 }
