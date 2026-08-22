@@ -448,17 +448,28 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
   }
 
   const selectedBranchId = getSelectedBranchId();
-  const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
+  const headers = {
+    Accept: 'application/json',
+    ...(selectedBranchId
+      ? { 'x-nextstock-branch-id': selectedBranchId }
+      : {}),
+    ...getDevContextHeader(selectedBranchId),
+  };
+  const contextResponsePromise = fetch(SYSTEM_CONTEXT_ENDPOINT, {
     method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      ...(selectedBranchId
-        ? { 'x-nextstock-branch-id': selectedBranchId }
-        : {}),
-      ...getDevContextHeader(selectedBranchId),
-    },
+    headers,
     credentials: 'include',
   });
+  const billingResponsePromise = fetch('/api/billing/subscription', {
+    method: 'GET',
+    headers,
+    credentials: 'include',
+  });
+
+  const [response, billingResponse] = await Promise.all([
+    contextResponsePromise,
+    billingResponsePromise,
+  ]);
 
   if (!response.ok) {
     throw new Error(`System context failed with status ${response.status}`);
@@ -477,18 +488,6 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
       context.systemType = 'petshop';
     }
   }
-  const billingResponse = await fetch('/api/billing/subscription', {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-      ...(selectedBranchId
-        ? { 'x-nextstock-branch-id': selectedBranchId }
-        : {}),
-      ...getDevContextHeader(selectedBranchId),
-    },
-    credentials: 'include',
-  });
-
   if (billingResponse.ok) {
     const billing = await billingResponse.json();
     context.billingAllowed =
@@ -497,6 +496,16 @@ async function fetchSystemContext(): Promise<SystemContextResponse> {
   }
 
   return context;
+}
+
+function renderSidebarShell(container: HTMLElement): void {
+  injectSidebarStyles();
+  container.innerHTML = `
+    <aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true">
+      <div class="sidebar-brand"><h2>NextStock</h2></div>
+    </aside>
+  `;
+  performance.mark('nextstock-sidebar-shell');
 }
 
 function renderSidebar(
@@ -594,9 +603,18 @@ async function loadSidebar(): Promise<void> {
     return;
   }
 
+  renderSidebarShell(container);
+
   try {
     const context = await fetchSystemContext();
     renderSidebar(container, context);
+    container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+    performance.mark('nextstock-sidebar-ready');
+    performance.measure(
+      'nextstock-sidebar-shell-to-ready',
+      'nextstock-sidebar-shell',
+      'nextstock-sidebar-ready',
+    );
     recordPageView(context);
   } catch (error) {
     console.warn('Using fallback sidebar context.', error);
@@ -607,6 +625,13 @@ async function loadSidebar(): Promise<void> {
       context.systemType = 'petshop';
     }
     renderSidebar(container, context);
+    container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+    performance.mark('nextstock-sidebar-ready');
+    performance.measure(
+      'nextstock-sidebar-shell-to-ready',
+      'nextstock-sidebar-shell',
+      'nextstock-sidebar-ready',
+    );
     recordPageView(context);
   }
 }

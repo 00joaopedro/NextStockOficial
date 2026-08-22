@@ -146,4 +146,18 @@ describe('frontend auth pages', () => {
     expect(source).not.toContain('RAILWAY_API_TOKEN');
     expect(source).not.toContain('SUPABASE_ACCESS_TOKEN');
   });
+
+  it('sidebar pinta um shell neutro antes da autorizacao e paraleliza contexto e billing', () => {
+    const source = publicFile('Js/sidebar.ts');
+
+    expect(source).toContain('function renderSidebarShell');
+    expect(source).toContain("class=\"sidebar sidebar-loading\"");
+    expect(source).toContain('renderSidebarShell(container);');
+    expect(source).toContain('const contextResponsePromise = fetch');
+    expect(source).toContain('const billingResponsePromise = fetch');
+    expect(source).toContain('Promise.all([');
+    expect(source).toContain("performance.mark('nextstock-sidebar-shell')");
+    expect(source).toContain("performance.mark('nextstock-sidebar-ready')");
+    expect(source).not.toContain('await response.json();\n  if (\n    context.systemMode');
+  });
 });
