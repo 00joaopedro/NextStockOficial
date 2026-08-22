@@ -11,14 +11,17 @@
     "start:dev": "nest start --watch",
     "build": "prisma generate && nest build",
     "build:frontend": "tsc -p tsconfig.frontend.json",
-    "build:scripts": "tsc -p tsconfig.scripts.json",
+    "build:scripts": "tsc -p tsconfig.scripts.build.json",
     "start:prod": "node dist/src/main.js",
     "start:railway": "npm run start:prod",
+    "start:api": "node dist/src/main.js",
+    "start:audit-worker": "node dist/src/audit-worker.js",
+    "migration:job": "ts-node scripts/migrations/cloud-run-migrate.ts",
     "db:migrate": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate deploy",
     "start:debug": "nest start --debug --watch",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "lint:check": "eslint \"src/{audit,sessions,observability,privacy}/**/*.ts\" \"src/storage/{stored-files.service,upload-quota.service,file-scanner.interface}.ts\" \"src/config/environment.ts\" \"src/auth/{auth.controller,roles.guard,jwt-auth.guard}.ts\" \"src/security/public-rate-limit.guard.ts\" \"src/tenancy/branch-context.guard.ts\" \"src/system/system.service.ts\" \"src/system/dto/system-context-response.dto.ts\" \"src/system/interfaces/system-context.interface.ts\" \"test/{security,helpers,factories}/**/*.ts\" \"scripts/**/*.ts\"",
+    "lint:check": "eslint \"src/{audit,sessions,observability,privacy}/**/*.ts\" \"src/storage/{stored-files.service,upload-quota.service,file-scanner.interface}.ts\" \"src/config/{environment,trusted-proxy}.ts\" \"src/auth/{auth.controller,roles.guard,jwt-auth.guard,auth-rate-limit.guard,auth-rate-limit.store}.ts\" \"src/security/public-rate-limit.guard.ts\" \"src/tenancy/branch-context.guard.ts\" \"src/system/system.service.ts\" \"src/system/dto/system-context-response.dto.ts\" \"src/system/interfaces/system-context.interface.ts\" \"test/{security,helpers,factories}/**/*.ts\" \"scripts/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
@@ -30,7 +33,21 @@
     "test:ci": "npm run lint:check && npm run build && npm run build:frontend && npm test -- --runInBand",
     "migrate:deploy": "prisma migrate deploy",
     "db:migrate:deploy": "prisma migrate deploy",
-    "railway:migrate": "ts-node scripts/migrations/validate-target.ts && prisma migrate deploy",
+    "auth:supertokens:readiness": "node dist/scripts/auth/supertokens-readiness.js",
+    "auth:supertokens:import:dry-run": "node dist/scripts/auth/supertokens-password-import.js",
+    "auth:supertokens:rehearsal": "node dist/scripts/auth/supertokens-password-import.js",
+    "auth:supertokens:preflight": "node dist/scripts/auth/supertokens-preflight.js",
+    "auth:supertokens:inventory": "node dist/scripts/auth/supertokens-inventory.js --json",
+    "auth:supertokens:migration-plan": "node dist/scripts/auth/supertokens-migration-plan.js",
+    "auth:supertokens:reconcile": "node dist/scripts/auth/supertokens-reconcile.js",
+    "auth:supertokens:activation-check": "node dist/scripts/auth/supertokens-activation-check.js",
+    "auth:supertokens:canary-check": "node dist/scripts/auth/supertokens-canary-check.js --json",
+    "auth:supertokens:cutover-check": "node dist/scripts/auth/supertokens-cutover-check.js --json",
+    "platform:postgresql:validate": "ts-node scripts/platform/validate-postgresql-portability.ts",
+    "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
+    "platform:cutover:dump-plan": "node dist/scripts/platform/postgres-cutover/cli.js dump-plan",
+    "platform:cutover:restore-plan": "node dist/scripts/platform/postgres-cutover/cli.js restore-plan",
+    "railway:migrate": "node dist/scripts/migrations/validate-target.js && prisma migrate deploy",
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
     "storage:orphan-report": "ts-node scripts/maintenance/storage-orphan-report.ts",
@@ -39,15 +56,17 @@
     "privacy:report-pii": "ts-node scripts/privacy/report-pii.ts",
     "privacy:report-retention": "ts-node scripts/privacy/report-retention.ts",
     "security:smoke": "ts-node scripts/maintenance/security-smoke.ts",
+    "ci:verify-supertokens-artifacts": "node scripts/ci/verify-supertokens-artifacts.mjs",
     "backup:verify": "ts-node scripts/backup/verify-backup.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
     "@fastify/cookie": "^11.0.2",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^9.0.3",
-    "@fastify/static": "^8.3.0",
+    "@fastify/static": "10.1.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -95,6 +114,22 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.1",
+    "find-my-way": "9.7.0",
+    "minimatch@10.2.5": {
+      "brace-expansion": "5.0.9"
+    },
+    "ajv@^8.0.0": {
+      "fast-uri": "3.1.5"
+    },
+    "@fastify/ajv-compiler": {
+      "fast-uri": "3.1.5"
+    },
+    "fast-json-stringify@7.0.1": {
+      "fast-uri": "4.1.2"
+    }
   },
   "jest": {
     "moduleFileExtensions": [

@@ -13,11 +13,18 @@ import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
+import { trustedProxyHops } from './config/trusted-proxy';
+import { processRole } from './config/process-role';
 
 async function bootstrap() {
+  const role = processRole();
+  if (role === 'audit-worker') {
+    await import('./audit-worker');
+    return;
+  }
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: true }),
+    new FastifyAdapter({ trustProxy: trustedProxyHops() }),
   );
 
   app.useGlobalPipes(
@@ -40,14 +47,14 @@ async function bootstrap() {
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       useDefaults: true,
-      reportOnly: process.env.CSP_ENFORCE !== 'true',
+      reportOnly: isCspReportOnly(),
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
-        imgSrc: ["'self'", 'data:', 'https:'],
+        imgSrc: ["'self'", 'data:', 'blob:', ...assetOrigins()],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-        connectSrc: ["'self'", ...allowedOrigins()],
+        connectSrc: ["'self'", ...allowedOrigins(), ...serviceOrigins()],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
@@ -64,15 +71,19 @@ async function bootstrap() {
         ? { maxAge: 15_552_000, includeSubDomains: true }
         : false,
   });
-  app.getHttpAdapter().getInstance().addHook('onRequest', (request, reply, done) => {
-    const header = request.headers['x-request-id'];
-    const requestId =
-      sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
-      randomUUID();
-    reply.header('X-Request-Id', requestId);
-    (request as typeof request & { requestId?: string }).requestId = requestId;
-    done();
-  });
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onRequest', (request, reply, done) => {
+      const header = request.headers['x-request-id'];
+      const requestId =
+        sanitizeRequestId(Array.isArray(header) ? header[0] : header) ??
+        randomUUID();
+      reply.header('X-Request-Id', requestId);
+      (request as typeof request & { requestId?: string }).requestId =
+        requestId;
+      done();
+    });
 
   app.enableCors({
     origin(origin, callback) {
@@ -90,6 +101,7 @@ async function bootstrap() {
     exclude: [
       { path: 'dev.html', method: RequestMethod.GET },
       { path: 'parceiros.html', method: RequestMethod.GET },
+      { path: 'loja/:slug', method: RequestMethod.GET },
     ],
   });
 
@@ -101,12 +113,28 @@ async function bootstrap() {
   console.log(`Health: /api/health`);
   console.log(`Readiness: /api/health/ready`);
   console.log(`Public: /`);
+  console.log(
+    JSON.stringify({
+      event: 'auth_rate_limit_configuration',
+      enabled: process.env.AUTH_RATE_LIMIT_ENABLED !== 'false',
+      store: process.env.AUTH_RATE_LIMIT_STORE || 'postgres',
+      trustedProxyHops: trustedProxyHops(),
+      processRole: role,
+    }),
+  );
 }
 void bootstrap().catch((error: unknown) => {
   const message = sanitizeBootstrapError(error);
   console.error(`Bootstrap failed: ${message}`);
   process.exitCode = 1;
 });
+
+function isCspReportOnly() {
+  if (process.env.CSP_REPORT_ONLY) {
+    return process.env.CSP_REPORT_ONLY === 'true';
+  }
+  return process.env.CSP_ENFORCE === 'false';
+}
 
 function allowedOrigins() {
   return (process.env.CORS_ALLOWED_ORIGINS || '')
@@ -148,4 +176,26 @@ function sanitizeBootstrapError(error: unknown) {
     .replace(/\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi, 'Bearer [REDACTED]')
     .replace(/[\r\n]+/g, ' ')
     .slice(0, 500);
+}
+
+function serviceOrigins() {
+  return [
+    originFromUrl(process.env.SUPABASE_URL),
+    'https://viacep.com.br',
+  ].filter((origin): origin is string => Boolean(origin));
+}
+
+function assetOrigins() {
+  return [originFromUrl(process.env.SUPABASE_URL)].filter(
+    (origin): origin is string => Boolean(origin),
+  );
+}
+
+function originFromUrl(value?: string) {
+  if (!value) return undefined;
+  try {
+    return new URL(value).origin;
+  } catch {
+    return undefined;
+  }
 }

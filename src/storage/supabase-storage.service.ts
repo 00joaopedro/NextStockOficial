@@ -18,6 +18,7 @@ import { StoredFileScanStatus, StoredFileVisibility } from '@prisma/client';
 import { StoredFilesService } from './stored-files.service';
 import { UploadQuotaService } from './upload-quota.service';
 import { FileScanner } from './file-scanner.interface';
+import { ImageProcessingCoordinatorService } from './image-processing-coordinator.service';
 
 type UploadFile = {
   originalname?: string;
@@ -61,6 +62,8 @@ export class SupabaseStorageService {
     @Optional() private readonly storedFiles?: StoredFilesService,
     @Optional() private readonly quotas?: UploadQuotaService,
     @Optional() private readonly scanner?: FileScanner,
+    @Optional()
+    private readonly imageCoordinator: ImageProcessingCoordinatorService = new ImageProcessingCoordinatorService(),
   ) {}
 
   async uploadPetPhoto(input: {
@@ -71,32 +74,36 @@ export class SupabaseStorageService {
     file: UploadFile;
   }) {
     this.assertImage(input.file, this.petPhotoMaxSizeBytes);
-    await this.quotas?.assertAllowed({
-      tenantId: input.tenantId,
-      ownerProfileId: input.ownerProfileId,
-      incomingBytes: input.file.buffer!.length,
-      incomingFiles: 3,
-    });
-
     const originalName = this.cleanFileName(
       input.file.originalname || 'pet-photo',
     );
-    const optimized = await this.imageOptimizer.optimize(input.file);
     const basePath = [
       input.tenantId,
       input.branchId,
       input.petId,
       randomUUID(),
     ].join('/');
-    return this.uploadImageVariants(this.petPhotosBucket, basePath, optimized, {
-      fileName: originalName,
-      tenantId: input.tenantId,
-      branchId: input.branchId,
-      ownerProfileId: input.ownerProfileId,
-      module: 'pets',
-      targetType: 'pet',
-      targetId: input.petId,
-    });
+    const paths = this.imageVariantPaths(basePath);
+    const { optimized, reservation } = await this.prepareImage(
+      input,
+      Object.values(paths),
+      3,
+    );
+    return this.uploadImageVariants(
+      this.petPhotosBucket,
+      basePath,
+      optimized,
+      {
+        fileName: originalName,
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        module: 'pets',
+        targetType: 'pet',
+        targetId: input.petId,
+      },
+      reservation?.id,
+    );
   }
 
   async uploadProductImage(input: {
@@ -107,17 +114,9 @@ export class SupabaseStorageService {
     file: UploadFile;
   }) {
     this.assertImage(input.file, this.productImageMaxSizeBytes);
-    await this.quotas?.assertAllowed({
-      tenantId: input.tenantId,
-      ownerProfileId: input.ownerProfileId,
-      incomingBytes: input.file.buffer!.length,
-      incomingFiles: 3,
-    });
-
     const originalName = this.cleanFileName(
       input.file.originalname || 'product-image',
     );
-    const optimized = await this.imageOptimizer.optimize(input.file);
     const basePath = [
       input.tenantId,
       input.branchId,
@@ -125,17 +124,29 @@ export class SupabaseStorageService {
       input.productId,
       randomUUID(),
     ].join('/');
+    const paths = this.imageVariantPaths(basePath);
+    const { optimized, reservation } = await this.prepareImage(
+      input,
+      Object.values(paths),
+      3,
+    );
 
     const bucket = this.getProductImagesBucket();
-    return this.uploadImageVariants(bucket, basePath, optimized, {
-      fileName: originalName,
-      tenantId: input.tenantId,
-      branchId: input.branchId,
-      ownerProfileId: input.ownerProfileId,
-      module: 'products',
-      targetType: 'product',
-      targetId: input.productId,
-    });
+    return this.uploadImageVariants(
+      bucket,
+      basePath,
+      optimized,
+      {
+        fileName: originalName,
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        module: 'products',
+        targetType: 'product',
+        targetId: input.productId,
+      },
+      reservation?.id,
+    );
   }
 
   async uploadExpenseFile(input: {
@@ -149,17 +160,10 @@ export class SupabaseStorageService {
       input.file,
       this.expenseFileMaxSizeBytes,
     );
-    await this.quotas?.assertAllowed({
-      tenantId: input.tenantId,
-      ownerProfileId: input.ownerProfileId,
-      incomingBytes: input.file.buffer!.length,
-    });
-
     const originalName = this.cleanFileName(
       input.file.originalname || 'expense-file',
     );
     if (fileType === ExpenseFileType.image) {
-      const optimized = await this.imageOptimizer.optimize(input.file);
       const storagePath = [
         input.tenantId,
         input.branchId,
@@ -167,27 +171,40 @@ export class SupabaseStorageService {
         input.expenseId,
         `${randomUUID()}-optimized.webp`,
       ].join('/');
-      await this.uploadBuffer(
-        this.getExpenseFilesBucket(),
-        storagePath,
-        optimized.full.buffer,
-        optimized.full.mimeType,
+      const { optimized, reservation } = await this.prepareImage(
+        input,
+        [storagePath],
+        1,
       );
-      await this.storedFiles?.register({
-        tenantId: input.tenantId,
-        branchId: input.branchId,
-        ownerProfileId: input.ownerProfileId,
-        module: 'expenses',
-        targetType: 'expense',
-        targetId: input.expenseId,
-        bucket: this.getExpenseFilesBucket(),
-        storagePath,
-        originalName,
-        mimeType: optimized.full.mimeType,
-        buffer: optimized.full.buffer,
-        visibility: StoredFileVisibility.SIGNED_ONLY,
-        scanStatus: StoredFileScanStatus.NOT_REQUIRED,
-      });
+      try {
+        await this.uploadBuffer(
+          this.getExpenseFilesBucket(),
+          storagePath,
+          optimized.full.buffer,
+          optimized.full.mimeType,
+        );
+        await this.storedFiles?.register({
+          tenantId: input.tenantId,
+          branchId: input.branchId,
+          ownerProfileId: input.ownerProfileId,
+          module: 'expenses',
+          targetType: 'expense',
+          targetId: input.expenseId,
+          bucket: this.getExpenseFilesBucket(),
+          storagePath,
+          originalName,
+          mimeType: optimized.full.mimeType,
+          buffer: optimized.full.buffer,
+          visibility: StoredFileVisibility.SIGNED_ONLY,
+          scanStatus: StoredFileScanStatus.NOT_REQUIRED,
+          quotaReservationId: reservation?.id,
+        });
+        if (reservation) await this.quotas?.confirm(reservation.id);
+      } catch (error) {
+        if (reservation)
+          await this.quotas?.requireReconciliation(reservation.id, error);
+        throw error;
+      }
       return {
         fileName: this.withWebpExtension(originalName),
         fileUrl: await this.createSignedUrl(
@@ -216,29 +233,46 @@ export class SupabaseStorageService {
     ].join('/');
 
     const bucket = this.getExpenseFilesBucket();
-    await this.uploadToBucket(bucket, storagePath, input.file);
-    const scanStatus = this.scanner
-      ? await this.scanner.classify({
-          mimeType: input.file.mimetype!,
-          buffer: input.file.buffer!,
-          originalName,
-        })
-      : StoredFileScanStatus.PENDING;
-    await this.storedFiles?.register({
+    const reservation = await this.quotas?.reserve({
       tenantId: input.tenantId,
       branchId: input.branchId,
       ownerProfileId: input.ownerProfileId,
-      module: 'expenses',
-      targetType: 'expense',
-      targetId: input.expenseId,
-      bucket,
-      storagePath,
-      originalName,
-      mimeType: input.file.mimetype!,
-      buffer: input.file.buffer!,
-      visibility: StoredFileVisibility.SIGNED_ONLY,
-      scanStatus,
+      incomingBytes: input.file.buffer!.length,
+      incomingFiles: 1,
+      idempotencyKey: randomUUID(),
+      objectKeys: [storagePath],
     });
+    try {
+      await this.uploadToBucket(bucket, storagePath, input.file);
+      const scanStatus = this.scanner
+        ? await this.scanner.classify({
+            mimeType: input.file.mimetype!,
+            buffer: input.file.buffer!,
+            originalName,
+          })
+        : StoredFileScanStatus.PENDING;
+      await this.storedFiles?.register({
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        module: 'expenses',
+        targetType: 'expense',
+        targetId: input.expenseId,
+        bucket,
+        storagePath,
+        originalName,
+        mimeType: input.file.mimetype!,
+        buffer: input.file.buffer!,
+        visibility: StoredFileVisibility.SIGNED_ONLY,
+        scanStatus,
+        quotaReservationId: reservation?.id,
+      });
+      if (reservation) await this.quotas?.confirm(reservation.id);
+    } catch (error) {
+      if (reservation)
+        await this.quotas?.requireReconciliation(reservation.id, error);
+      throw error;
+    }
 
     return {
       fileName: originalName,
@@ -356,27 +390,44 @@ export class SupabaseStorageService {
       input.documentId,
       'nfe55.xml',
     ].join('/');
-    await this.uploadPrivateBuffer(
-      this.getSaleDocumentsBucket(),
-      storagePath,
-      input.content,
-      'application/xml',
-    );
-    await this.storedFiles?.register({
+    const reservation = await this.quotas?.reserve({
       tenantId: input.tenantId,
       branchId: input.branchId,
       ownerProfileId: input.ownerProfileId,
-      module: 'fiscal',
-      targetType: 'sale_document',
-      targetId: input.documentId,
-      bucket: this.getSaleDocumentsBucket(),
-      storagePath,
-      originalName: 'nfe55.xml',
-      mimeType: 'application/xml',
-      buffer: input.content,
-      visibility: StoredFileVisibility.PRIVATE,
-      scanStatus: StoredFileScanStatus.CLEAN,
+      incomingBytes: input.content.length,
+      incomingFiles: 1,
+      idempotencyKey: `fiscal:${input.documentId}:xml`,
+      objectKeys: [storagePath],
     });
+    try {
+      await this.uploadPrivateBuffer(
+        this.getSaleDocumentsBucket(),
+        storagePath,
+        input.content,
+        'application/xml',
+      );
+      await this.storedFiles?.register({
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        module: 'fiscal',
+        targetType: 'sale_document',
+        targetId: input.documentId,
+        bucket: this.getSaleDocumentsBucket(),
+        storagePath,
+        originalName: 'nfe55.xml',
+        mimeType: 'application/xml',
+        buffer: input.content,
+        visibility: StoredFileVisibility.PRIVATE,
+        scanStatus: StoredFileScanStatus.CLEAN,
+        quotaReservationId: reservation?.id,
+      });
+      if (reservation) await this.quotas?.confirm(reservation.id);
+    } catch (error) {
+      if (reservation)
+        await this.quotas?.requireReconciliation(reservation.id, error);
+      throw error;
+    }
     return storagePath;
   }
 
@@ -397,27 +448,44 @@ export class SupabaseStorageService {
       input.documentId,
       'danfe.pdf',
     ].join('/');
-    await this.uploadPrivateBuffer(
-      this.getSaleDocumentsBucket(),
-      storagePath,
-      input.content,
-      'application/pdf',
-    );
-    await this.storedFiles?.register({
+    const reservation = await this.quotas?.reserve({
       tenantId: input.tenantId,
       branchId: input.branchId,
       ownerProfileId: input.ownerProfileId,
-      module: 'fiscal',
-      targetType: 'sale_document',
-      targetId: input.documentId,
-      bucket: this.getSaleDocumentsBucket(),
-      storagePath,
-      originalName: 'danfe.pdf',
-      mimeType: 'application/pdf',
-      buffer: input.content,
-      visibility: StoredFileVisibility.PRIVATE,
-      scanStatus: StoredFileScanStatus.CLEAN,
+      incomingBytes: input.content.length,
+      incomingFiles: 1,
+      idempotencyKey: `fiscal:${input.documentId}:pdf`,
+      objectKeys: [storagePath],
     });
+    try {
+      await this.uploadPrivateBuffer(
+        this.getSaleDocumentsBucket(),
+        storagePath,
+        input.content,
+        'application/pdf',
+      );
+      await this.storedFiles?.register({
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        module: 'fiscal',
+        targetType: 'sale_document',
+        targetId: input.documentId,
+        bucket: this.getSaleDocumentsBucket(),
+        storagePath,
+        originalName: 'danfe.pdf',
+        mimeType: 'application/pdf',
+        buffer: input.content,
+        visibility: StoredFileVisibility.PRIVATE,
+        scanStatus: StoredFileScanStatus.CLEAN,
+        quotaReservationId: reservation?.id,
+      });
+      if (reservation) await this.quotas?.confirm(reservation.id);
+    } catch (error) {
+      if (reservation)
+        await this.quotas?.requireReconciliation(reservation.id, error);
+      throw error;
+    }
     return storagePath;
   }
 
@@ -549,12 +617,9 @@ export class SupabaseStorageService {
       targetType: string;
       targetId: string;
     },
+    quotaReservationId?: string,
   ) {
-    const paths = {
-      storagePath: `${basePath}-optimized.webp`,
-      mediumPath: `${basePath}-medium.webp`,
-      thumbnailPath: `${basePath}-thumb.webp`,
-    };
+    const paths = this.imageVariantPaths(basePath);
     const uploadedPaths: string[] = [];
 
     try {
@@ -585,6 +650,7 @@ export class SupabaseStorageService {
           bucket,
           paths.storagePath,
           optimized.full.buffer,
+          quotaReservationId,
         ),
         this.registerImageVariant(
           input,
@@ -599,6 +665,7 @@ export class SupabaseStorageService {
           optimized.thumbnail.buffer,
         ),
       ]);
+      if (quotaReservationId) await this.quotas?.confirm(quotaReservationId);
 
       return {
         fileName: this.withWebpExtension(input.fileName),
@@ -618,6 +685,8 @@ export class SupabaseStorageService {
     } catch (error) {
       await this.removeManyFromBucket(bucket, uploadedPaths);
       await this.storedFiles?.markDeleted(uploadedPaths);
+      if (quotaReservationId)
+        await this.quotas?.requireReconciliation(quotaReservationId, error);
       throw error;
     }
   }
@@ -827,6 +896,7 @@ export class SupabaseStorageService {
     bucket: string,
     storagePath: string,
     buffer: Buffer,
+    quotaReservationId?: string,
   ) {
     return this.storedFiles?.register({
       tenantId: input.tenantId,
@@ -844,6 +914,52 @@ export class SupabaseStorageService {
         ? StoredFileVisibility.SIGNED_ONLY
         : StoredFileVisibility.PUBLIC,
       scanStatus: StoredFileScanStatus.NOT_REQUIRED,
+      quotaReservationId,
+    });
+  }
+
+  private imageVariantPaths(basePath: string) {
+    return {
+      storagePath: `${basePath}-optimized.webp`,
+      mediumPath: `${basePath}-medium.webp`,
+      thumbnailPath: `${basePath}-thumb.webp`,
+    };
+  }
+
+  private prepareImage(
+    input: {
+      tenantId: string;
+      branchId: string;
+      ownerProfileId?: string | null;
+      file: UploadFile;
+    },
+    objectKeys: string[],
+    outputFiles: number,
+  ) {
+    return this.imageCoordinator.run(input.tenantId, async () => {
+      // RC-008 has no resize operation. Reserve the configured maximum output
+      // before libvips starts; this is conservative and never under-reserves.
+      const maxOutputBytes =
+        Number(process.env.IMAGE_MAX_OPTIMIZED_SIZE_MB || 3) *
+        1024 *
+        1024 *
+        outputFiles;
+      const reservation = await this.quotas?.reserve({
+        tenantId: input.tenantId,
+        branchId: input.branchId,
+        ownerProfileId: input.ownerProfileId,
+        incomingBytes: maxOutputBytes,
+        incomingFiles: outputFiles,
+        idempotencyKey: randomUUID(),
+        objectKeys,
+      });
+      try {
+        const optimized = await this.imageOptimizer.optimize(input.file);
+        return { optimized, reservation };
+      } catch (error) {
+        if (reservation) await this.quotas?.release(reservation.id);
+        throw error;
+      }
     });
   }
 }

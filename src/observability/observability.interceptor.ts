@@ -21,7 +21,12 @@ export class ObservabilityInterceptor implements NestInterceptor {
     const base = () => ({
       requestId: request.requestId,
       method: request.method,
-      path: request.route?.path || request.path || request.originalUrl || request.url || 'unknown',
+      path:
+        request.route?.path ||
+        request.path ||
+        request.originalUrl ||
+        request.url ||
+        'unknown',
       actorProfileId: request.user?.id,
       tenantId: request.tenantContext?.tenantId || request.user?.tenantId,
       branchId: request.tenantContext?.branchId || request.user?.branchId,

@@ -16,7 +16,9 @@ export class AuditInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler) {
     const request = context.switchToHttp().getRequest();
     const method = String(request.method || 'GET').toUpperCase();
-    const path = String(request.originalUrl || request.path || request.url || '');
+    const path = String(
+      request.originalUrl || request.path || request.url || '',
+    );
     const shouldRecord =
       !['GET', 'HEAD', 'OPTIONS'].includes(method) ||
       /\/(?:download|xml|pdf|support\/branches)(?:\/|$)/i.test(path);
@@ -25,7 +27,7 @@ export class AuditInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(() => {
         if (!shouldRecord) return;
-        void this.audit.record({
+        void this.audit.recordBestEffort({
           ...this.audit.fromRequest(request),
           eventType: `${eventType}.success`,
           action: `${method} ${request.route?.path || request.path || request.url || 'unknown'}`,
@@ -40,7 +42,7 @@ export class AuditInterceptor implements NestInterceptor {
         if (shouldRecord || error instanceof HttpException) {
           const status =
             error instanceof HttpException ? error.getStatus() : 500;
-          void this.audit.record({
+          void this.audit.recordBestEffort({
             ...this.audit.fromRequest(request),
             eventType:
               status === 403 ? 'authorization.denied' : `${eventType}.failed`,

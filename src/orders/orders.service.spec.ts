@@ -1,5 +1,15 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
-import { OrderPaymentMethod, OrderStatus, Role, SystemMode, SystemType } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  OrderPaymentMethod,
+  OrderStatus,
+  Role,
+  SystemMode,
+  SystemType,
+} from '@prisma/client';
 import { OrdersService } from './orders.service';
 
 describe('OrdersService', () => {
@@ -24,6 +34,7 @@ describe('OrdersService', () => {
 
   const order = {
     id: 'order-id',
+    version: 1,
     tenantId: 'tenant-id',
     branchId: 'branch-id',
     customerName: 'Cliente Teste',
@@ -41,6 +52,7 @@ describe('OrdersService', () => {
     cancellationReason: null,
     createdById: 'user-id',
     updatedById: 'user-id',
+    stockRestoredAt: null,
     deletedAt: null,
     createdAt: new Date('2026-06-09T10:00:00.000Z'),
     updatedAt: new Date('2026-06-09T10:00:00.000Z'),
@@ -78,13 +90,18 @@ describe('OrdersService', () => {
       order: {
         create: jest.fn().mockResolvedValue(order),
         findFirst: jest.fn().mockResolvedValue(order),
+        findFirstOrThrow: jest.fn().mockResolvedValue(order),
         update: jest.fn().mockResolvedValue(order),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       orderItem: {
         deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       sale: {
         findFirst: jest.fn().mockResolvedValue(null),
+      },
+      securityAuditEvent: {
+        create: jest.fn().mockResolvedValue({ id: 'audit-id' }),
       },
     };
     const prisma: any = {
@@ -166,7 +183,11 @@ describe('OrdersService', () => {
 
     await expect(
       service.create(
-        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {
+          ...user,
+          systemType: SystemType.petshop,
+          allowedSystemTypes: [SystemType.petshop],
+        },
         {
           customerName: 'Cliente Pet',
           paymentMethod: OrderPaymentMethod.pix,
@@ -200,7 +221,11 @@ describe('OrdersService', () => {
 
     await expect(
       service.findAll(
-        { ...user, systemType: SystemType.petshop, allowedSystemTypes: [SystemType.petshop] },
+        {
+          ...user,
+          systemType: SystemType.petshop,
+          allowedSystemTypes: [SystemType.petshop],
+        },
         {},
       ),
     ).resolves.toMatchObject({
@@ -250,16 +275,81 @@ describe('OrdersService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('edita com CAS escopado, calcula o diff protegido e incrementa a versao', async () => {
+    const { service, tx } = makeService();
+    tx.order.findFirst
+      .mockResolvedValueOnce(order)
+      .mockResolvedValueOnce({ ...order, items: order.items })
+      .mockResolvedValueOnce({
+        ...order,
+        version: 2,
+        subtotalCents: 4500,
+        totalCents: 4500,
+        items: [{ ...order.items[0], quantity: 3, totalPriceCents: 4500 }],
+      });
+
+    await expect(
+      service.update(user, 'order-id', {
+        expectedVersion: 1,
+        items: [{ productId: 'product-id', quantity: 3 }],
+      }),
+    ).resolves.toMatchObject({
+      ok: true,
+      order: { id: 'order-id', version: 2, totalCents: 4500 },
+    });
+
+    expect(tx.order.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'order-id',
+        tenantId: 'tenant-id',
+        branchId: 'branch-id',
+        deletedAt: null,
+        version: 1,
+      },
+      data: { version: { increment: 1 } },
+    });
+    expect(tx.product.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { quantity: { increment: -1 } } }),
+    );
+    expect(tx.securityAuditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: 'order.admin_updated',
+          metadata: { previousVersion: 1, version: 2 },
+        }),
+      }),
+    );
+  });
+
+  it('responde conflito quando perde o CAS sem alterar itens ou estoque', async () => {
+    const { service, tx } = makeService();
+    tx.order.updateMany.mockResolvedValueOnce({ count: 0 });
+
+    const updateResult = service.update(user, 'order-id', {
+      expectedVersion: 1,
+      items: [{ productId: 'product-id', quantity: 3 }],
+    });
+    await expect(updateResult).rejects.toBeInstanceOf(ConflictException);
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.orderItem.deleteMany).not.toHaveBeenCalled();
+    expect(tx.securityAuditEvent.create).not.toHaveBeenCalled();
+    await updateResult
+      .catch((error: ConflictException) => expect(error.getStatus()).toBe(409));
+  });
+
   it('cancelar pedido devolve estoque e marca canceledAt', async () => {
     const { service, tx } = makeService();
-    tx.order.update.mockResolvedValueOnce({
+    tx.order.findFirstOrThrow.mockResolvedValueOnce({
       ...order,
       status: OrderStatus.canceled,
       canceledAt: new Date('2026-06-09T11:00:00.000Z'),
+      stockRestoredAt: new Date('2026-06-09T11:00:00.000Z'),
     });
 
     await expect(
-      service.cancel(user, 'order-id', { cancellationReason: 'Cliente desistiu' }),
+      service.cancel(user, 'order-id', {
+        cancellationReason: 'Cliente desistiu',
+      }),
     ).resolves.toMatchObject({
       ok: true,
       order: { status: OrderStatus.canceled },
@@ -269,6 +359,22 @@ describe('OrdersService', () => {
         data: { quantity: { increment: 2 } },
       }),
     );
+    expect(tx.order.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'order-id',
+          tenantId: 'tenant-id',
+          branchId: 'branch-id',
+          status: { in: [OrderStatus.pending, OrderStatus.preparing] },
+          stockRestoredAt: null,
+        }),
+        data: expect.objectContaining({
+          status: OrderStatus.canceled,
+          stockRestoredAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(tx.securityAuditEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it('nao cancela pedido que ja possui Sale paga vinculada', async () => {
@@ -279,13 +385,13 @@ describe('OrdersService', () => {
       service.cancel(user, 'order-id', {
         cancellationReason: 'Cancelamento solicitado',
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('entregar pedido muda status sem nova baixa de estoque', async () => {
-    const { service, prisma } = makeService();
-    prisma.order.update.mockResolvedValueOnce({
+    const { service, tx } = makeService();
+    tx.order.findFirst.mockResolvedValueOnce(order).mockResolvedValueOnce({
       ...order,
       status: OrderStatus.delivered,
       deliveredAt: new Date('2026-06-09T11:00:00.000Z'),

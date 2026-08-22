@@ -1,4 +1,4 @@
-import { PrismaClient, Role } from '@prisma/client';
+import { PrismaClient, Role, SystemMode, SystemType } from '@prisma/client';
 import * as request from 'supertest';
 import {
   createBillingPayment,
@@ -60,6 +60,11 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
       role: Role.Comprador,
       tenantId: tenantA.id,
     });
+    await createProfile(prisma, {
+      id: devId,
+      email: 'dev-security@test.local',
+      role: Role.superAdmin,
+    });
     await createMembership(prisma, adminA, tenantA, branchA, Role.Admin);
     await createMembership(prisma, sellerA, tenantA, branchA, Role.Vendedor);
     await createMembership(prisma, buyerA, tenantA, branchA, Role.Comprador);
@@ -74,6 +79,8 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         role,
         tenantId: tenantA.id,
         branchId: branchA.id,
+        systemType: SystemType.padrao,
+        mode: SystemMode.padrao,
       });
     }
     process.env.DEV_SUPER_ADMIN_USER_IDS = devId;
@@ -96,6 +103,27 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
     'x-test-user-id': profile.id,
     'x-nextstock-branch-id': branchId,
     origin: 'http://security.test',
+  });
+
+  it('authenticates only registered identities without accepting context headers', async () => {
+    expect((await request(app.getHttpServer()).get('/api/users')).status).toBe(
+      401,
+    );
+    expect(
+      (
+        await request(app.getHttpServer())
+          .get('/api/users')
+          .set('x-test-user-id', '00000000-0000-4000-8000-000000000000')
+      ).status,
+    ).toBe(401);
+    const known = await request(app.getHttpServer())
+      .get('/api/users')
+      .set(auth(adminA))
+      .set('x-role', Role.superAdmin)
+      .set('x-system-mode', SystemMode.visualizacao)
+      .set('x-system-type', SystemType.petshop);
+    expect(known.status).toBe(200);
+    expect(JSON.stringify(known.body)).not.toContain(tenantB.id);
   });
 
   it('isolates products and rejects a foreign branch header', async () => {
@@ -143,7 +171,8 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         await request(app.getHttpServer())
           .patch(`/api/products/${foreign.id}`)
           .set(auth(adminA))
-          .send({ name: 'blocked' })
+          .set('content-type', 'application/json')
+          .send({ nome: 'blocked' })
       ).status,
     ).toBe(404);
     expect(
@@ -175,7 +204,10 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
     for (const operation of [
       request(app.getHttpServer())
         .patch(`/api/orders/${foreignOrder.id}`)
-        .send({ notes: 'blocked' }),
+        .send({
+          notes: 'blocked',
+          expectedVersion: foreignOrder.version,
+        }),
       request(app.getHttpServer())
         .patch(`/api/orders/${foreignOrder.id}/cancel`)
         .send({ cancellationReason: 'blocked cross tenant' }),
@@ -192,6 +224,16 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
         items: [{ productId: foreignProduct.id, quantity: 1 }],
       });
     expect([400, 404]).toContain(create.status);
+    await expect(
+      prisma!.order.findUniqueOrThrow({ where: { id: foreignOrder.id } }),
+    ).resolves.toMatchObject({
+      status: foreignOrder.status,
+      notes: foreignOrder.notes,
+      version: foreignOrder.version,
+    });
+    await expect(
+      prisma!.product.findUniqueOrThrow({ where: { id: foreignProduct.id } }),
+    ).resolves.toMatchObject({ quantity: foreignProduct.quantity });
   });
 
   it('blocks foreign sales and buyer cancellation', async () => {
@@ -339,20 +381,28 @@ describeDatabase('HTTP multi-tenant IDOR/BOLA critical paths', () => {
       ).status,
     ).toBe(200);
     const support = await request(app.getHttpServer())
-      .get('/api/products')
+      .get('/api/products/lookup')
+      .query({ search: 'Security' })
       .set('x-test-user-id', devId)
       .set('x-nextstock-branch-id', branchB.id)
       .set('x-nextstock-dev-context', 'support');
     expect(support.status).toBe(200);
-    await new Promise((resolve) => setTimeout(resolve, 25));
     await expect(
-      prisma!.securityAuditEvent.count({
+      prisma!.securityAuditEvent.findFirst({
         where: {
           eventType: 'dev_support.tenant_access',
+          actorProfileId: devId,
           tenantId: tenantB.id,
           branchId: branchB.id,
+          action: 'access_real_tenant',
         },
       }),
-    ).resolves.toBeGreaterThan(0);
+    ).resolves.toMatchObject({
+      eventType: 'dev_support.tenant_access',
+      actorProfileId: devId,
+      tenantId: tenantB.id,
+      branchId: branchB.id,
+      action: 'access_real_tenant',
+    });
   });
 });

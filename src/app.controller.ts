@@ -43,6 +43,13 @@ export class AppController {
     return this.streamPublicHtml('parceiros.html');
   }
 
+  @Get('loja/:slug')
+  @Header('Cache-Control', 'no-cache')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  storefrontHtml() {
+    return this.streamPublicHtml('loja.html');
+  }
+
   private streamPublicHtml(fileName: string) {
     const filePath = join(this.resolvePublicPath(), fileName);
 

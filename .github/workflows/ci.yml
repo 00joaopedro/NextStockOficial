@@ -2,13 +2,126 @@ name: CI security
 
 on:
   pull_request:
+    branches:
+      - dev
   push:
-    branches: [main]
+    branches:
+      - dev
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  supertokens_core_real:
+    name: SuperTokens Core real integration
+    runs-on: ubuntu-latest
+    services:
+      supertokens-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: supertokens_ci
+          POSTGRES_PASSWORD: supertokens_ci_password
+          POSTGRES_DB: supertokens_ci
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U supertokens_ci -d supertokens_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      SUPERTOKENS_CONNECTION_URI: http://127.0.0.1:3567
+      SUPERTOKENS_API_KEY: ci-synthetic-supertokens-key
+      SUPERTOKENS_POSTGRESQL_CONNECTION_URI: postgresql://supertokens_ci:supertokens_ci_password@127.0.0.1:5434/supertokens_ci
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Start official SuperTokens Core 11.0.0
+        run: |
+          docker run -d --name supertokens-core-ci --network host \
+            -e POSTGRESQL_CONNECTION_URI="$SUPERTOKENS_POSTGRESQL_CONNECTION_URI" \
+            -e API_KEYS="$SUPERTOKENS_API_KEY" \
+            supertokens/supertokens-postgresql:11.0.0
+      - name: Wait for Core healthcheck
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3567/hello | grep -q Hello; then exit 0; fi
+            sleep 2
+          done
+          echo 'SuperTokens Core did not become healthy.'
+          docker logs supertokens-core-ci 2>&1 | sed -E 's/(api-key|API_KEYS|password|PASSWORD|postgresql:\/\/[^ ]+)/[REDACTED]/gi' | tail -100
+          exit 1
+      - name: Run real Core authentication lifecycle
+        run: node test/integration/supertokens-core-real.mjs
+      - name: Validate canary policy and incomplete cutover gate
+        run: |
+          set -euo pipefail
+          npm run build:scripts
+          set +e
+          report=$(AUTH_PROVIDER_MODE=coexistence \
+            SUPERTOKENS_APP_NAME=nextstock-ci \
+            SUPERTOKENS_API_DOMAIN=http://127.0.0.1:3000 \
+            SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1:3000 \
+            SUPERTOKENS_CONNECTION_URI=http://127.0.0.1:3567 \
+            SUPERTOKENS_API_KEY=ci-synthetic-supertokens-key \
+            AUTH_CANARY_ENABLED=true AUTH_CANARY_KILL_SWITCH=false \
+            AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 \
+            AUTH_PREFLIGHT_RECOVERY_VALIDATED=true \
+            AUTH_PREFLIGHT_OBSERVABILITY_READY=true \
+            AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true \
+            AUTH_PREFLIGHT_ROLLBACK_READY=true \
+            node dist/scripts/auth/supertokens-cutover-check.js --json)
+          cutover_status=$?
+          set -e
+          if [ "$cutover_status" -eq 0 ]; then
+            echo 'cutover-check unexpectedly approved incomplete state.'
+            exit 1
+          fi
+          printf '%s\n' "$report" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              if (report.ready !== false || !report.blockers.includes("SUPERTOKENS_ONLY_BLOCKED")) {
+                console.error("Expected SUPERTOKENS_ONLY_BLOCKED in a blocked cutover report.");
+                process.exit(1);
+              }
+              if (report.blockers.includes("INVALID_CONFIGURATION")) {
+                console.error("Synthetic cutover configuration was invalid.");
+                process.exit(1);
+              }
+            });
+          '
+      - name: Validate fail-closed operational evidence CLIs
+        run: |
+          set -euo pipefail
+          npm run build:scripts
+          node scripts/auth/validate-supertokens-evidence.mjs
+          node --test scripts/auth/validate-supertokens-evidence.test.mjs
+      - name: Verify canary check valid fixture can pass initial validation
+        run: |
+          set -euo pipefail
+          report=$(AUTH_PROVIDER_MODE=supabase_only AUTH_CANARY_ENABLED=false AUTH_CANARY_KILL_SWITCH=false \
+            AUTH_CANARY_ALLOWLIST=' ,  ' AUTH_CANARY_PERCENTAGE=0 \
+            node dist/scripts/auth/supertokens-canary-check.js --json || true)
+          printf '%s\n' "$report" | node -e '
+            let input = "";
+            process.stdin.on("data", chunk => input += chunk);
+            process.stdin.on("end", () => {
+              const report = JSON.parse(input);
+              if (report.blockers.includes("AUTH_CANARY_CONFIGURATION_INVALID")) process.exit(1);
+            });
+          '
+      - name: Cleanup disposable Core
+        if: always()
+        run: docker rm -f supertokens-core-ci >/dev/null 2>&1 || true
+
   validate:
     runs-on: ubuntu-latest
     services:
@@ -28,7 +141,7 @@ jobs:
     env:
       NODE_ENV: test
       APP_ENV: test
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_security_test?schema=public
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_security_test
       DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_security_test?schema=public
       SECURITY_TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_security_test?schema=public
       SUPABASE_URL: http://local-test.localhost:54321
@@ -38,31 +151,177 @@ jobs:
       SUPABASE_JWT_SECRET: test-jwt-secret-at-least-twenty-characters
       AUDIT_HASH_SECRET: test-audit-secret-at-least-thirty-two-characters
       SESSION_HASH_SECRET: test-session-secret-at-least-thirty-two-characters
-      SESSION_ENFORCEMENT_ENABLED: "false"
+      SESSION_ENFORCEMENT_ENABLED: 'false'
+      AUTH_RATE_LIMIT_ENABLED: 'true'
+      AUTH_RATE_LIMIT_STORE: postgres
+      AUTH_RATE_LIMIT_HMAC_SECRET: test-auth-rate-limit-secret-at-least-thirty-two-characters
+      TRUSTED_PROXY_HOPS: '0'
       BILLING_EXTERNAL_REFERENCE_SECRET: test-billing-secret-at-least-thirty-two-characters
       MERCADO_PAGO_MODE: sandbox
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Dockerfile packaging order
+        run: node scripts/ci/verify-dockerfile.mjs
+      - name: Build reproducible runtime container
+        run: docker build --file Dockerfile --tag nextstock:ci --no-cache .
+      - name: Verify migration artifacts in runtime container
+        run: |
+          docker run --rm --entrypoint sh nextstock:ci -c "test -f /app/dist/scripts/migrations/validate-target.js && test -f /app/dist/scripts/migrations/validate-target-lib.js && test -f /app/dist/scripts/lib/admin-database-url.js"
+      - name: Verify dependency tree
+        run: |
+          node scripts/ci/verify-dependency-tree.mjs
+          git diff --exit-code -- package.json package-lock.json
       - name: Static secret and dangerous API checks
         run: npm run security:static
       - run: npx prisma validate
       - run: npx prisma generate
+      - name: Bootstrap portable legacy roles in isolated CI database
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -f scripts/platform/bootstrap-legacy-database-roles.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+            -f scripts/platform/bootstrap-legacy-database-roles.sql
       - name: Apply migrations to isolated CI database
         run: npm run db:migrate:deploy
+      - name: Verify migration status
+        run: npx prisma migrate status
+      - name: Phase 2 PostgreSQL portability and Cloud SQL readiness tests
+        run: |
+          npm run platform:postgresql:validate
+          npx jest --runInBand src/postgresql-portability.spec.ts src/observability/schema-compatibility.service.spec.ts src/observability/health.controller.spec.ts
       - run: npm run lint:check
       - run: npm run build
       - run: npm run build:frontend
       - run: npm run build:scripts
+      - name: Verify compiled migration runtime
+        run: node scripts/ci/verify-migration-runtime.mjs
+      - name: Phase 5 controlled auth coexistence tests
+        run: npx jest --runInBand src/common/canonical-email.spec.ts src/auth/auth-provider-mode.spec.ts src/auth/supertokens-adapter.spec.ts src/config/environment.spec.ts
+      - name: Phase 6 controlled storage migration foundation tests
+        run: npx jest --runInBand src/storage/storage-foundation.spec.ts src/storage/stored-files.service.spec.ts src/storage/image-processing-coordinator.service.spec.ts
       - run: npm test -- --runInBand
-      - run: npm run test:security
+      - run: npm run test:security -- --testPathIgnorePatterns=payment-idempotency.security-spec.ts --testPathIgnorePatterns=order-cancel-concurrency.security-spec.ts --testPathIgnorePatterns=billing-state-order.security-spec.ts --testPathIgnorePatterns=billing-checkout-idempotency.security-spec.ts --testPathIgnorePatterns=order-edit-concurrency.security-spec.ts --testPathIgnorePatterns=order-status-cas.security-spec.ts --testPathIgnorePatterns=upload-quota-concurrency.security-spec.ts --testPathIgnorePatterns=user-provisioning-concurrency.security-spec.ts --testPathIgnorePatterns=webhook-inbox-claim.security-spec.ts --testPathIgnorePatterns=payment-connection-validation-cas.security-spec.ts --testPathIgnorePatterns=receipt-print-numbering.security-spec.ts --testPathIgnorePatterns=audit-outbox-delivery.security-spec.ts --testPathIgnorePatterns=dashboard-cache-coherence.security-spec.ts --testPathIgnorePatterns=storefront-order-limit-concurrency.security-spec.ts --testPathIgnorePatterns=distributed-auth-rate-limit.security-spec.ts --testPathIgnorePatterns=image-processing-backpressure.security-spec.ts
+      - name: RC-001 PIX concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-idempotency.security-spec.ts
+      - name: RC-002 fiscal send claim integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/fiscal-send-claim.security-spec.ts
+      - name: RC-003 order cancellation concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/order-cancel-concurrency.security-spec.ts
+      - name: RC-004 billing state ordering integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-state-order.security-spec.ts
+      - name: RC-005 billing checkout idempotency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/billing-checkout-idempotency.security-spec.ts
+      - name: RC-006 order edit CAS concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/order-edit-concurrency.security-spec.ts
+      - name: RC-007 order status CAS integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/order-status-cas.security-spec.ts
+      - name: RC-008 upload quota reservation concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/upload-quota-concurrency.security-spec.ts
+      - name: RC-009 user provisioning integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/user-provisioning-concurrency.security-spec.ts
+      - name: RC-010 webhook inbox claim integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/webhook-inbox-claim.security-spec.ts
+      - name: RC-011 payment connection validation CAS tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/payment-connection-validation-cas.security-spec.ts
+      - name: RC-012 receipt print numbering integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/receipt-print-numbering.security-spec.ts
+      - name: RC-013 transactional audit outbox integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/audit-outbox-delivery.security-spec.ts
+      - name: RC-014 dashboard cache coherence integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/dashboard-cache-coherence.security-spec.ts
+      - name: RC-015 storefront order limit concurrency tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/storefront-order-limit-concurrency.security-spec.ts
+      - name: SEC-016 distributed auth rate limit integration tests
+        env:
+          NODE_OPTIONS: --experimental-vm-modules
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/distributed-auth-rate-limit.security-spec.ts
+      - name: MEM-016 upload processing backpressure integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/image-processing-backpressure.security-spec.ts
+      - name: REL-016 readiness schema compatibility integration tests
+        run: npx jest --runInBand src/observability/schema-compatibility.service.spec.ts src/observability/health.controller.spec.ts
+      - name: Phase 3 Cloud Run runtime readiness and process isolation tests
+        run: |
+          npx jest --runInBand src/config/process-role.spec.ts src/audit/audit-outbox.service.spec.ts
+          node -e "const fs=require('fs'); for (const f of ['infra/gcp/cloud-run/api.service.yaml','infra/gcp/cloud-run/audit-worker.job.yaml','infra/gcp/cloud-run/migrate.job.yaml']) { const s=fs.readFileSync(f,'utf8'); if (/postgres(?:ql)?:\/\/[^ ]+:[^ ]+@|SUPABASE_SERVICE_ROLE_KEY:\s*[^$]/i.test(s)) process.exit(1); }"
       - run: npm run test:e2e -- --runInBand
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci
-      - name: High severity dependency report
-        continue-on-error: true
+      - name: High severity dependency audit (blocking)
         run: npm audit --omit=dev --audit-level=high
+
+  cutover_readiness_postgres16:
+    name: Phase 4 offline PostgreSQL 16 cutover readiness
+    runs-on: ubuntu-latest
+    services:
+      source:
+        image: postgres:16
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_source,
+          }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nextstock_source"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+      target:
+        image: postgres:16
+        env:
+          {
+            POSTGRES_USER: postgres,
+            POSTGRES_PASSWORD: postgres,
+            POSTGRES_DB: nextstock_target,
+          }
+        ports: ['5433:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres -d nextstock_target"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      NODE_ENV: test
+      APP_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+      DIRECT_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+      CUTOVER_SOURCE_ADMIN_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+      CUTOVER_TARGET_ADMIN_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/nextstock_target
+      SUPABASE_URL: http://local-test.localhost:54321
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key-at-least-twenty-characters
+      SUPABASE_JWT_SECRET: test-jwt-secret-at-least-twenty-characters
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Bootstrap portable legacy roles for cutover source
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/nextstock_source
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
+      - name: Bootstrap portable legacy roles for cutover target
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5433/nextstock_target
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/ci/bootstrap-supabase-roles.sql
+      - run: npm run db:migrate:deploy
+      - run: npm run build:scripts
+      - name: Offline unit checks and fail-safe preflight
+        run: node --test dist/scripts/platform/postgres-cutover/config.spec.js
+      - name: Synthetic dump and restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PGPASSWORD=postgres
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS phase4_fixture (id integer PRIMARY KEY, value text NOT NULL); INSERT INTO phase4_fixture VALUES (1, 'synthetic') ON CONFLICT DO NOTHING;"
+          pg_dump --format=custom --no-owner --no-acl --file=phase4.dump "$DATABASE_URL"
+          test -s phase4.dump
+          sha256sum phase4.dump
+          test "$(psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -tAc "SELECT COUNT(*) FROM pg_catalog.pg_class WHERE relkind IN ('r','p') AND relnamespace = 'public'::regnamespace")" -eq 0
+          pg_restore --no-owner --no-acl --exit-on-error --dbname="$CUTOVER_TARGET_ADMIN_DATABASE_URL" phase4.dump
+          test "$(psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -tAc "SELECT COUNT(*) FROM phase4_fixture WHERE id=1 AND value='synthetic'")" -eq 1
+          if psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE phase4_fixture_blocker (id integer);" >/dev/null; then
+            if pg_restore --no-owner --no-acl --exit-on-error --dbname="$CUTOVER_TARGET_ADMIN_DATABASE_URL" phase4.dump >/dev/null 2>&1; then exit 1; fi
+          fi
+          rm -f phase4.dump

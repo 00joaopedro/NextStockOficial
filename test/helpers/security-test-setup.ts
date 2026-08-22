@@ -31,4 +31,9 @@ if (process.env.SECURITY_TEST_DATABASE_URL) {
   );
   process.env.DATABASE_URL = safeUrl;
   process.env.DIRECT_URL = safeUrl;
+} else {
+  const unavailableLocalDatabaseUrl =
+    'postgresql://security_test:security_test@127.0.0.1:65535/security_test';
+  process.env.DATABASE_URL = unavailableLocalDatabaseUrl;
+  process.env.DIRECT_URL = unavailableLocalDatabaseUrl;
 }

@@ -9,77 +9,116 @@ datasource db {
 }
 
 model UserProfile {
-  id                      String                        @id @db.Uuid
-  supabaseUserId          String?                       @unique @map("supabase_user_id") @db.Uuid
-  tenantId                String?                       @map("tenant_id") @db.Uuid
-  tenant                  Tenant?                       @relation("TenantProfiles", fields: [tenantId], references: [id], onDelete: SetNull)
-  email                   String                        @unique
-  name                    String
-  fullName                String?                       @map("full_name")
-  accessNameNormalized    String                        @unique @map("access_name_normalized")
-  role                    Role                          @default(Comprador)
-  systemType              SystemType?                   @map("system_type")
-  allowedSystemTypes      SystemType[]                  @default([]) @map("allowed_system_types")
-  isSuperAdmin            Boolean                       @default(false) @map("is_super_admin")
-  primaryTenantId         String?                       @map("primary_tenant_id") @db.Uuid
-  primaryTenant           Tenant?                       @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
-  memberships             TenantMember[]
-  devWorkspaces           DevWorkspace[]
-  createdAgendaPets       AgendaPet[]                   @relation("AgendaPetCreatedBy")
-  updatedAgendaPets       AgendaPet[]                   @relation("AgendaPetUpdatedBy")
-  canceledAgendaPets      AgendaPet[]                   @relation("AgendaPetCanceledBy")
-  createdOrders           Order[]                       @relation("OrderCreatedBy")
-  updatedOrders           Order[]                       @relation("OrderUpdatedBy")
-  employee                Employee?                     @relation("EmployeeProfile")
-  createdEmployees        Employee[]                    @relation("EmployeeCreatedBy")
-  updatedEmployees        Employee[]                    @relation("EmployeeUpdatedBy")
-  createdSuppliers        Supplier[]                    @relation("SupplierCreatedBy")
-  updatedSuppliers        Supplier[]                    @relation("SupplierUpdatedBy")
-  createdExpenses         Expense[]                     @relation("ExpenseCreatedBy")
-  updatedExpenses         Expense[]                     @relation("ExpenseUpdatedBy")
-  sales                   Sale[]                        @relation("SaleSeller")
-  canceledSales           Sale[]                        @relation("SaleCanceledBy")
-  createdFiscalDocuments  SaleDocument[]                @relation("SaleDocumentCreatedBy")
-  updatedFiscalDocuments  SaleDocument[]                @relation("SaleDocumentUpdatedBy")
-  fiscalEvents            FiscalDocumentEvent[]         @relation("FiscalEventCreatedBy")
+  id                       String                        @id @db.Uuid
+  supabaseUserId           String?                       @unique @map("supabase_user_id") @db.Uuid
+  tenantId                 String?                       @map("tenant_id") @db.Uuid
+  tenant                   Tenant?                       @relation("TenantProfiles", fields: [tenantId], references: [id], onDelete: SetNull)
+  email                    String                        @unique
+  name                     String
+  fullName                 String?                       @map("full_name")
+  accessNameNormalized     String                        @map("access_name_normalized")
+  role                     Role                          @default(Comprador)
+  systemType               SystemType?                   @map("system_type")
+  allowedSystemTypes       SystemType[]                  @default([]) @map("allowed_system_types")
+  isSuperAdmin             Boolean                       @default(false) @map("is_super_admin")
+  primaryTenantId          String?                       @map("primary_tenant_id") @db.Uuid
+  primaryTenant            Tenant?                       @relation("PrimaryTenantProfiles", fields: [primaryTenantId], references: [id], onDelete: SetNull)
+  memberships              TenantMember[]
+  devWorkspaces            DevWorkspace[]
+  createdAgendaPets        AgendaPet[]                   @relation("AgendaPetCreatedBy")
+  updatedAgendaPets        AgendaPet[]                   @relation("AgendaPetUpdatedBy")
+  canceledAgendaPets       AgendaPet[]                   @relation("AgendaPetCanceledBy")
+  createdOrders            Order[]                       @relation("OrderCreatedBy")
+  updatedOrders            Order[]                       @relation("OrderUpdatedBy")
+  employee                 Employee?                     @relation("EmployeeProfile")
+  createdEmployees         Employee[]                    @relation("EmployeeCreatedBy")
+  updatedEmployees         Employee[]                    @relation("EmployeeUpdatedBy")
+  createdSuppliers         Supplier[]                    @relation("SupplierCreatedBy")
+  updatedSuppliers         Supplier[]                    @relation("SupplierUpdatedBy")
+  createdExpenses          Expense[]                     @relation("ExpenseCreatedBy")
+  updatedExpenses          Expense[]                     @relation("ExpenseUpdatedBy")
+  sales                    Sale[]                        @relation("SaleSeller")
+  canceledSales            Sale[]                        @relation("SaleCanceledBy")
+  createdFiscalDocuments   SaleDocument[]                @relation("SaleDocumentCreatedBy")
+  updatedFiscalDocuments   SaleDocument[]                @relation("SaleDocumentUpdatedBy")
+  fiscalEvents             FiscalDocumentEvent[]         @relation("FiscalEventCreatedBy")
   fiscalProductionsEnabled CompanyFiscalConfig[]         @relation("FiscalProductionEnabledBy")
-  createdPaymentMachines  PaymentMachine[]              @relation("PaymentMachineCreatedBy")
-  updatedPaymentMachines  PaymentMachine[]              @relation("PaymentMachineUpdatedBy")
-  createdPartners         Partner[]                     @relation("PartnerCreatedBy")
-  updatedPartners         Partner[]                     @relation("PartnerUpdatedBy")
-  referredProfiles        PartnerReferral[]             @relation("PartnerReferredProfile")
-  seenPartnerReferrals    PartnerReferral[]             @relation("PartnerReferralSeenBy")
-  partnerLinkEvents       PartnerLinkEvent[]            @relation("PartnerLinkEventActor")
-  partnerPaymentChanges   PartnerReferralPaymentEvent[] @relation("PartnerPaymentChangedBy")
-  partnerSeenChanges      PartnerReferralSeenEvent[]    @relation("PartnerSeenChangedBy")
-  createdBillingCheckouts CheckoutSession[]             @relation("BillingCheckoutCreatedBy")
-  billingEvents           BillingEvent[]                @relation("BillingEventActor")
-  sessions                UserSession[]
-  ownedStoredFiles        StoredFile[]                   @relation("StoredFileOwner")
-  createdAt               DateTime                      @default(now()) @map("created_at")
-  updatedAt               DateTime                      @updatedAt @map("updated_at")
+  createdPaymentMachines   PaymentMachine[]              @relation("PaymentMachineCreatedBy")
+  updatedPaymentMachines   PaymentMachine[]              @relation("PaymentMachineUpdatedBy")
+  createdPartners          Partner[]                     @relation("PartnerCreatedBy")
+  updatedPartners          Partner[]                     @relation("PartnerUpdatedBy")
+  referredProfiles         PartnerReferral[]             @relation("PartnerReferredProfile")
+  seenPartnerReferrals     PartnerReferral[]             @relation("PartnerReferralSeenBy")
+  partnerLinkEvents        PartnerLinkEvent[]            @relation("PartnerLinkEventActor")
+  partnerPaymentChanges    PartnerReferralPaymentEvent[] @relation("PartnerPaymentChangedBy")
+  partnerSeenChanges       PartnerReferralSeenEvent[]    @relation("PartnerSeenChangedBy")
+  createdBillingCheckouts  CheckoutSession[]             @relation("BillingCheckoutCreatedBy")
+  billingEvents            BillingEvent[]                @relation("BillingEventActor")
+  sessions                 UserSession[]
+  ownedStoredFiles         StoredFile[]                  @relation("StoredFileOwner")
+  uploadQuotaCounters      UploadQuotaCounter[]
+  uploadQuotaReservations  UploadQuotaReservation[]
+  createdAt                DateTime                      @default(now()) @map("created_at")
+  updatedAt                DateTime                      @updatedAt @map("updated_at")
+  provisioning             UserProvisioning?             @relation("ProvisionedProfile")
+  authIdentities           AuthIdentity[]
+  authEmailClaim           AuthEmailClaim?
 
   @@index([tenantId])
   @@index([primaryTenantId])
   @@map("profiles")
 }
 
+model AuthEmailClaim {
+  canonicalEmail String         @id @map("canonical_email")
+  profileId      String         @unique @map("profile_id") @db.Uuid
+  profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  identities     AuthIdentity[]
+
+  @@map("auth_email_claims")
+}
+
+model AuthIdentity {
+  id                     String         @id @default(uuid()) @db.Uuid
+  profileId              String         @map("profile_id") @db.Uuid
+  profile                UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  provider               String
+  providerUserId         String         @map("provider_user_id")
+  canonicalEmail         String         @map("canonical_email")
+  emailClaim             AuthEmailClaim @relation(fields: [canonicalEmail], references: [canonicalEmail], onDelete: Restrict)
+  status                 String         @default("active")
+  migrationState         String         @default("NOT_REQUIRED") @map("migration_state")
+  passwordStrategy       String?        @map("password_strategy")
+  lastMigrationAttemptAt DateTime?      @map("last_migration_attempt_at")
+  reconciliationReason   String?        @map("reconciliation_reason")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime       @updatedAt @map("updated_at")
+
+  @@unique([provider, providerUserId])
+  @@unique([provider, profileId])
+  @@unique([provider, canonicalEmail])
+  @@index([profileId, status])
+  @@map("auth_identities")
+}
+
 model UserSession {
-  id               String    @id @default(uuid()) @db.Uuid
-  profileId        String    @map("profile_id") @db.Uuid
-  profile          UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  tenantId         String?   @map("tenant_id") @db.Uuid
-  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  tokenIdHash      String    @unique @map("token_id_hash")
-  jwtSubject       String?   @map("jwt_subject")
-  expiresAt        DateTime  @map("expires_at")
-  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
-  revokedAt        DateTime? @map("revoked_at")
-  revokedReason    String?   @map("revoked_reason")
-  ipHash           String?   @map("ip_hash")
-  userAgentHash    String?   @map("user_agent_hash")
-  deviceLabel      String?   @map("device_label")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id            String      @id @default(uuid()) @db.Uuid
+  profileId     String      @map("profile_id") @db.Uuid
+  profile       UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tenantId      String?     @map("tenant_id") @db.Uuid
+  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tokenIdHash   String      @unique @map("token_id_hash")
+  jwtSubject    String?     @map("jwt_subject")
+  expiresAt     DateTime    @map("expires_at")
+  lastSeenAt    DateTime    @default(now()) @map("last_seen_at")
+  revokedAt     DateTime?   @map("revoked_at")
+  revokedReason String?     @map("revoked_reason")
+  ipHash        String?     @map("ip_hash")
+  userAgentHash String?     @map("user_agent_hash")
+  deviceLabel   String?     @map("device_label")
+  createdAt     DateTime    @default(now()) @map("created_at")
 
   @@index([profileId, createdAt])
   @@index([profileId, revokedAt])
@@ -90,38 +129,91 @@ model UserSession {
 }
 
 model StoredFile {
-  id              String               @id @default(uuid()) @db.Uuid
-  tenantId        String               @map("tenant_id") @db.Uuid
-  tenant          Tenant               @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  branchId        String?              @map("branch_id") @db.Uuid
-  branch          Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  ownerProfileId  String?              @map("owner_profile_id") @db.Uuid
-  ownerProfile    UserProfile?         @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
-  module          String
-  targetType      String?              @map("target_type")
-  targetId        String?              @map("target_id")
-  bucket          String
-  storagePath     String               @map("storage_path")
-  originalName    String?              @map("original_name")
-  mimeType        String               @map("mime_type")
-  extension       String?
-  sizeBytes       BigInt               @map("size_bytes")
-  sha256          String?
-  visibility      StoredFileVisibility @default(SIGNED_ONLY)
-  scanStatus      StoredFileScanStatus @default(NOT_REQUIRED) @map("scan_status")
-  status          StoredFileStatus     @default(ACTIVE)
-  uploadedAt      DateTime             @default(now()) @map("uploaded_at")
-  deletedAt       DateTime?            @map("deleted_at")
-  lastAccessedAt  DateTime?            @map("last_accessed_at")
-  metadata        Json?
+  id                 String                  @id @default(uuid()) @db.Uuid
+  tenantId           String                  @map("tenant_id") @db.Uuid
+  tenant             Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branchId           String?                 @map("branch_id") @db.Uuid
+  branch             Branch?                 @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  ownerProfileId     String?                 @map("owner_profile_id") @db.Uuid
+  ownerProfile       UserProfile?            @relation("StoredFileOwner", fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  module             String
+  targetType         String?                 @map("target_type")
+  targetId           String?                 @map("target_id")
+  bucket             String
+  storagePath        String                  @map("storage_path")
+  originalName       String?                 @map("original_name")
+  mimeType           String                  @map("mime_type")
+  extension          String?
+  sizeBytes          BigInt                  @map("size_bytes")
+  sha256             String?
+  visibility         StoredFileVisibility    @default(SIGNED_ONLY)
+  scanStatus         StoredFileScanStatus    @default(NOT_REQUIRED) @map("scan_status")
+  status             StoredFileStatus        @default(ACTIVE)
+  uploadedAt         DateTime                @default(now()) @map("uploaded_at")
+  deletedAt          DateTime?               @map("deleted_at")
+  lastAccessedAt     DateTime?               @map("last_accessed_at")
+  metadata           Json?
+  quotaReservation   UploadQuotaReservation? @relation(fields: [quotaReservationId], references: [id], onDelete: SetNull)
+  quotaReservationId String?                 @unique @map("quota_reservation_id") @db.Uuid
 
+  @@unique([bucket, storagePath])
   @@index([tenantId, module, uploadedAt])
   @@index([tenantId, status])
   @@index([targetType, targetId])
   @@index([sha256])
   @@index([ownerProfileId, uploadedAt])
-  @@unique([bucket, storagePath])
   @@map("stored_files")
+}
+
+model UploadQuotaCounter {
+  id             String           @id @default(uuid()) @db.Uuid
+  tenantId       String           @map("tenant_id") @db.Uuid
+  tenant         Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ownerProfileId String?          @map("owner_profile_id") @db.Uuid
+  ownerProfile   UserProfile?     @relation(fields: [ownerProfileId], references: [id], onDelete: Cascade)
+  scope          UploadQuotaScope
+  windowStart    DateTime         @map("window_start") @db.Date
+  byteLimit      BigInt           @map("byte_limit")
+  fileLimit      Int              @map("file_limit")
+  confirmedBytes BigInt           @default(0) @map("confirmed_bytes")
+  confirmedFiles Int              @default(0) @map("confirmed_files")
+  reservedBytes  BigInt           @default(0) @map("reserved_bytes")
+  reservedFiles  Int              @default(0) @map("reserved_files")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@unique([tenantId, scope, ownerProfileId, windowStart])
+  @@index([tenantId, windowStart])
+  @@map("upload_quota_counters")
+}
+
+model UploadQuotaReservation {
+  id               String                      @id @default(uuid()) @db.Uuid
+  tenantId         String                      @map("tenant_id") @db.Uuid
+  tenant           Tenant                      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId         String?                     @map("branch_id") @db.Uuid
+  ownerProfileId   String?                     @map("owner_profile_id") @db.Uuid
+  ownerProfile     UserProfile?                @relation(fields: [ownerProfileId], references: [id], onDelete: SetNull)
+  idempotencyKey   String                      @map("idempotency_key")
+  intentHash       String                      @map("intent_hash")
+  requestedBytes   BigInt                      @map("requested_bytes")
+  requestedFiles   Int                         @map("requested_files")
+  state            UploadQuotaReservationState @default(RESERVED)
+  objectKeys       Json                        @map("object_keys")
+  storedFile       StoredFile?
+  expiresAt        DateTime                    @map("expires_at")
+  claimedAt        DateTime?                   @map("claimed_at")
+  confirmedAt      DateTime?                   @map("confirmed_at")
+  releasedAt       DateTime?                   @map("released_at")
+  lastError        String?                     @map("last_error")
+  reconciliationAt DateTime?                   @map("reconciliation_at")
+  createdAt        DateTime                    @default(now()) @map("created_at")
+  updatedAt        DateTime                    @updatedAt @map("updated_at")
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([state, expiresAt])
+  @@index([tenantId, branchId])
+  @@map("upload_quota_reservations")
 }
 
 model SecurityAuditEvent {
@@ -145,6 +237,7 @@ model SecurityAuditEvent {
   beforeState    Json?            @map("before_state")
   afterState     Json?            @map("after_state")
   createdAt      DateTime         @default(now()) @map("created_at")
+  outboxEventId  String?          @unique @map("outbox_event_id") @db.Uuid
 
   @@index([tenantId, createdAt])
   @@index([actorProfileId, createdAt])
@@ -153,6 +246,47 @@ model SecurityAuditEvent {
   @@index([outcome, severity, createdAt])
   @@index([requestId])
   @@map("security_audit_events")
+}
+
+model AuditOutboxEvent {
+  id             String            @id @default(uuid()) @db.Uuid
+  tenantId       String            @map("tenant_id") @db.Uuid
+  branchId       String?           @map("branch_id") @db.Uuid
+  actorProfileId String?           @map("actor_profile_id") @db.Uuid
+  actorRole      String?           @map("actor_role")
+  requestId      String?           @map("request_id")
+  operationId    String            @map("operation_id")
+  payloadHash    String            @map("payload_hash")
+  eventType      String            @map("event_type")
+  action         String
+  outcome        AuditOutcome
+  severity       AuditSeverity
+  contextKind    AuditContextKind  @default(NORMAL) @map("context_kind")
+  targetType     String?           @map("target_type")
+  targetId       String?           @map("target_id")
+  reasonCode     String?           @map("reason_code")
+  ipHash         String?           @map("ip_hash")
+  userAgentHash  String?           @map("user_agent_hash")
+  metadata       Json?
+  beforeState    Json?             @map("before_state")
+  afterState     Json?             @map("after_state")
+  status         AuditOutboxStatus @default(PENDING)
+  attemptCount   Int               @default(0) @map("attempt_count")
+  claimToken     String?           @map("claim_token") @db.Uuid
+  claimedAt      DateTime?         @map("claimed_at")
+  leaseExpiresAt DateTime?         @map("lease_expires_at")
+  availableAt    DateTime          @default(now()) @map("available_at")
+  deliveredAt    DateTime?         @map("delivered_at")
+  lastErrorCode  String?           @map("last_error_code")
+  lastError      String?           @map("last_error")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  @@unique([tenantId, operationId])
+  @@index([status, availableAt])
+  @@index([status, leaseExpiresAt])
+  @@index([tenantId, branchId, createdAt])
+  @@map("audit_outbox_events")
 }
 
 model DevWorkspace {
@@ -175,72 +309,83 @@ model DevWorkspace {
 }
 
 model Tenant {
-  id               String                @id @default(uuid()) @db.Uuid
-  name             String
-  slug             String                @unique
-  cnpj             String?
-  contactEmail     String?               @map("contact_email")
-  contactPhone     String?               @map("contact_phone")
-  systemType       SystemType            @default(padrao) @map("system_type")
-  mode             SystemMode            @default(visualizacao)
-  currentPlanId    String?               @map("current_plan_id") @db.Uuid
-  currentPlan      Plan?                 @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
-  subscriptions    Subscription[]
-  branches         Branch[]
-  members          TenantMember[]
-  primaryProfiles  UserProfile[]         @relation("PrimaryTenantProfiles")
-  profiles         UserProfile[]         @relation("TenantProfiles")
-  agendaPets       AgendaPet[]
-  petClients       PetClient[]
-  pets             Pet[]
-  petPhotos        PetPhoto[]
-  products         Product[]
-  orders           Order[]
-  employees        Employee[]
-  suppliers        Supplier[]
-  expenses         Expense[]
-  expenseFiles     ExpenseFile[]
-  sales            Sale[]
-  saleDocuments    SaleDocument[]
-  fiscalConfigs    CompanyFiscalConfig[]
-  fiscalSequences  FiscalSequence[]
-  paymentMachines  PaymentMachine[]
-  devWorkspaces    DevWorkspace[]
-  partnerReferrals PartnerReferral[]
-  checkoutSessions CheckoutSession[]
-  billingPayments  BillingPayment[]
-  billingInvoices  BillingInvoice[]
-  billingEvents    BillingEvent[]
-  userSessions     UserSession[]
-  storedFiles      StoredFile[]
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  id                           String                        @id @default(uuid()) @db.Uuid
+  name                         String
+  slug                         String                        @unique
+  cnpj                         String?                       @unique
+  contactEmail                 String?                       @map("contact_email")
+  contactPhone                 String?                       @map("contact_phone")
+  systemType                   SystemType                    @default(padrao) @map("system_type")
+  mode                         SystemMode                    @default(visualizacao)
+  currentPlanId                String?                       @map("current_plan_id") @db.Uuid
+  currentPlan                  Plan?                         @relation("CurrentPlanTenants", fields: [currentPlanId], references: [id], onDelete: SetNull)
+  subscriptions                Subscription[]
+  branches                     Branch[]
+  members                      TenantMember[]
+  primaryProfiles              UserProfile[]                 @relation("PrimaryTenantProfiles")
+  profiles                     UserProfile[]                 @relation("TenantProfiles")
+  agendaPets                   AgendaPet[]
+  petClients                   PetClient[]
+  pets                         Pet[]
+  petPhotos                    PetPhoto[]
+  products                     Product[]
+  orders                       Order[]
+  employees                    Employee[]
+  suppliers                    Supplier[]
+  expenses                     Expense[]
+  expenseFiles                 ExpenseFile[]
+  sales                        Sale[]
+  saleDocuments                SaleDocument[]
+  fiscalConfigs                CompanyFiscalConfig[]
+  fiscalSequences              FiscalSequence[]
+  paymentMachines              PaymentMachine[]
+  paymentTerminals             PaymentTerminal[]
+  paymentConnections           PaymentConnection[]
+  paymentRoutingPreferences    PaymentRoutingPreference[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
+  devWorkspaces                DevWorkspace[]
+  partnerReferrals             PartnerReferral[]
+  userProvisionings            UserProvisioning[]
+  checkoutSessions             CheckoutSession[]
+  billingCheckoutIntents       BillingCheckoutIntent[]
+  billingPayments              BillingPayment[]
+  billingInvoices              BillingInvoice[]
+  billingEvents                BillingEvent[]
+  userSessions                 UserSession[]
+  storedFiles                  StoredFile[]
+  uploadQuotaCounters          UploadQuotaCounter[]
+  uploadQuotaReservations      UploadQuotaReservation[]
+  storefronts                  Storefront[]
+  createdAt                    DateTime                      @default(now()) @map("created_at")
+  updatedAt                    DateTime                      @updatedAt @map("updated_at")
 
   @@index([currentPlanId])
   @@map("tenants")
 }
 
 model Plan {
-  id               String               @id @default(uuid()) @db.Uuid
+  id               String                  @id @default(uuid()) @db.Uuid
   name             String
-  slug             String               @unique
-  priceCents       Int                  @map("price_cents")
-  currency         String               @default("BRL")
-  interval         PlanInterval         @default(MONTHLY)
-  intervalCount    Int                  @default(1) @map("interval_count")
+  slug             String                  @unique
+  priceCents       Int                     @map("price_cents")
+  currency         String                  @default("BRL")
+  interval         PlanInterval            @default(MONTHLY)
+  intervalCount    Int                     @default(1) @map("interval_count")
   features         Json?
-  sortOrder        Int                  @default(0) @map("sort_order")
+  sortOrder        Int                     @default(0) @map("sort_order")
   description      String?
-  isActive         Boolean              @default(true) @map("is_active")
-  deletedAt        DateTime?            @map("deleted_at")
-  tenants          Tenant[]             @relation("CurrentPlanTenants")
+  isActive         Boolean                 @default(true) @map("is_active")
+  deletedAt        DateTime?               @map("deleted_at")
+  tenants          Tenant[]                @relation("CurrentPlanTenants")
   subscriptions    Subscription[]
   gatewayMappings  GatewayPlanMapping[]
   checkoutSessions CheckoutSession[]
+  checkoutIntents  BillingCheckoutIntent[]
   billingPayments  BillingPayment[]
   billingInvoices  BillingInvoice[]
-  createdAt        DateTime             @default(now()) @map("created_at")
-  updatedAt        DateTime             @updatedAt @map("updated_at")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
 
   @@index([isActive, sortOrder])
   @@map("plans")
@@ -277,6 +422,176 @@ model PaymentMachine {
   @@map("payment_machines")
 }
 
+model PaymentTerminal {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  tenantId           String                         @map("tenant_id") @db.Uuid
+  branchId           String                         @map("branch_id") @db.Uuid
+  cashRegisterCode   String?                        @map("cash_register_code")
+  connectionId       String?                        @map("connection_id") @db.Uuid
+  nickname           String
+  providerCode       PaymentProviderCode            @map("provider_code")
+  manufacturer       String?
+  model              String?
+  serialNumberMasked String?                        @map("serial_number_masked")
+  externalDeviceId   String?                        @map("external_device_id")
+  status             PaymentTerminalStatus          @default(ACTIVE)
+  capabilities       Json?
+  lastSynchronizedAt DateTime?                      @map("last_synchronized_at")
+  integrationMode    PaymentTerminalIntegrationMode @default(MANUAL) @map("integration_mode")
+  notes              String?
+  metadata           Json?
+  createdAt          DateTime                       @default(now()) @map("created_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+
+  tenant       Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch       Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  connection   PaymentConnection?   @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  transactions PaymentTransaction[]
+
+  @@unique([tenantId, branchId, externalDeviceId, providerCode])
+  @@unique([tenantId, id])
+  @@index([tenantId, branchId, status])
+  @@index([tenantId, connectionId])
+  @@map("payment_terminals")
+}
+
+model PaymentConnection {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  tenantId             String                  @map("tenant_id") @db.Uuid
+  providerCode         PaymentProviderCode     @map("provider_code")
+  displayName          String                  @map("display_name")
+  externalAccountId    String?                 @map("external_account_id")
+  status               PaymentConnectionStatus @default(PENDING)
+  capabilities         Json?
+  encryptedCredentials String?                 @map("encrypted_credentials")
+  credentialsExpireAt  DateTime?               @map("credentials_expire_at")
+  scopes               String[]                @default([])
+  lastValidatedAt      DateTime?               @map("last_validated_at")
+  sanitizedError       String?                 @map("sanitized_error")
+  version              Int                     @default(1)
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  tenant                Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  terminals             PaymentTerminal[]
+  routes                PaymentRoutingPreference[]
+  transactions          PaymentTransaction[]
+  idempotencyExecutions PaymentIdempotencyExecution[]
+
+  @@unique([tenantId, id])
+  @@index([tenantId, providerCode, status])
+  @@map("payment_connections")
+}
+
+model PaymentRoutingPreference {
+  id           String                @id @default(uuid()) @db.Uuid
+  tenantId     String                @map("tenant_id") @db.Uuid
+  connectionId String                @map("connection_id") @db.Uuid
+  method       PaymentMethod
+  context      PaymentRoutingContext
+  isActive     Boolean               @default(true) @map("is_active")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  connection PaymentConnection @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Cascade)
+
+  @@unique([tenantId, method, context])
+  @@index([tenantId, connectionId])
+  @@map("payment_routing_preferences")
+}
+
+model PaymentTransaction {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  orderId           String?                  @map("order_id") @db.Uuid
+  saleId            String?                  @map("sale_id") @db.Uuid
+  providerCode      PaymentProviderCode      @map("provider_code")
+  connectionId      String                   @map("connection_id") @db.Uuid
+  terminalId        String?                  @map("terminal_id") @db.Uuid
+  externalReference String                   @map("external_reference")
+  externalPaymentId String?                  @map("external_payment_id")
+  method            PaymentMethod
+  amountCents       Int                      @map("amount_cents")
+  currency          String                   @default("BRL")
+  status            PaymentTransactionStatus @default(PENDING)
+  externalStatus    String?                  @map("external_status")
+  idempotencyKey    String                   @map("idempotency_key")
+  sanitizedError    String?                  @map("sanitized_error")
+  metadata          Json?
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  completedAt       DateTime?                @map("completed_at")
+
+  tenant               Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  order                Order?                       @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  sale                 Sale?                        @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  connection           PaymentConnection            @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  terminal             PaymentTerminal?             @relation(fields: [tenantId, terminalId], references: [tenantId, id], onDelete: Restrict)
+  idempotencyExecution PaymentIdempotencyExecution?
+
+  @@unique([tenantId, idempotencyKey])
+  @@unique([tenantId, id])
+  @@unique([providerCode, externalPaymentId])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+  @@map("payment_transactions")
+}
+
+model PaymentIdempotencyExecution {
+  id                String                           @id @default(uuid()) @db.Uuid
+  tenantId          String                           @map("tenant_id") @db.Uuid
+  operationType     PaymentIdempotencyOperationType  @map("operation_type")
+  idempotencyKey    String                           @map("idempotency_key")
+  requestHash       String                           @map("request_hash")
+  providerCode      PaymentProviderCode              @map("provider_code")
+  connectionId      String                           @map("connection_id") @db.Uuid
+  externalReference String                           @map("external_reference")
+  externalPaymentId String?                          @map("external_payment_id")
+  state             PaymentIdempotencyExecutionState @default(CLAIMED)
+  claimToken        String?                          @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime?                        @map("lease_expires_at")
+  providerStartedAt DateTime?                        @map("provider_started_at")
+  orderId           String?                          @map("order_id") @db.Uuid
+  saleId            String?                          @map("sale_id") @db.Uuid
+  transactionId     String?                          @unique @map("transaction_id") @db.Uuid
+  failureCode       String?                          @map("failure_code")
+  createdAt         DateTime                         @default(now()) @map("created_at")
+  updatedAt         DateTime                         @updatedAt @map("updated_at")
+  completedAt       DateTime?                        @map("completed_at")
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  connection  PaymentConnection   @relation(fields: [tenantId, connectionId], references: [tenantId, id], onDelete: Restrict)
+  order       Order?              @relation(fields: [tenantId, orderId], references: [tenantId, id], onDelete: Restrict)
+  sale        Sale?               @relation(fields: [tenantId, saleId], references: [tenantId, id], onDelete: Restrict)
+  transaction PaymentTransaction? @relation(fields: [tenantId, transactionId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, operationType, idempotencyKey])
+  @@unique([tenantId, transactionId])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@index([tenantId, orderId])
+  @@index([tenantId, saleId])
+  @@map("payment_idempotency_executions")
+}
+
+model PaymentWebhookEvent {
+  id                 String                         @id @default(uuid()) @db.Uuid
+  providerCode       PaymentProviderCode            @map("provider_code")
+  externalEventId    String                         @map("external_event_id")
+  signatureValidated Boolean                        @default(false) @map("signature_validated")
+  status             PaymentWebhookProcessingStatus @default(RECEIVED)
+  attempts           Int                            @default(0)
+  payloadHash        String                         @map("payload_hash")
+  sanitizedPayload   Json?                          @map("sanitized_payload")
+  receivedAt         DateTime                       @default(now()) @map("received_at")
+  processedAt        DateTime?                      @map("processed_at")
+  updatedAt          DateTime                       @updatedAt @map("updated_at")
+
+  @@unique([providerCode, externalEventId])
+  @@index([status, receivedAt])
+  @@map("payment_webhook_events")
+}
+
 model Subscription {
   id                     String                  @id @default(uuid()) @db.Uuid
   tenantId               String                  @map("tenant_id") @db.Uuid
@@ -292,6 +607,8 @@ model Subscription {
   lastPaymentAt          DateTime?               @map("last_payment_at")
   cancelAtPeriodEnd      Boolean                 @default(false) @map("cancel_at_period_end")
   version                Int                     @default(1)
+  lastProviderEventAt    DateTime?               @map("last_provider_event_at")
+  lastPaymentState       BillingPaymentStatus?   @map("last_payment_state")
   canceledAt             DateTime?               @map("canceled_at")
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
@@ -300,6 +617,7 @@ model Subscription {
   plan                 Plan?                         @relation(fields: [planId], references: [id], onDelete: Restrict)
   partnerPaymentEvents PartnerReferralPaymentEvent[]
   checkoutSessions     CheckoutSession[]
+  checkoutIntents      BillingCheckoutIntent[]
   billingPayments      BillingPayment[]
   billingInvoices      BillingInvoice[]
   billingEvents        BillingEvent[]
@@ -309,6 +627,34 @@ model Subscription {
   @@index([planId])
   @@index([gatewayProvider, gatewaySubscriptionId])
   @@map("subscriptions")
+}
+
+model BillingCheckoutIntent {
+  id                String                     @id @default(uuid()) @db.Uuid
+  tenantId          String                     @map("tenant_id") @db.Uuid
+  subscriptionId    String                     @map("subscription_id") @db.Uuid
+  planId            String                     @map("plan_id") @db.Uuid
+  provider          PaymentGatewayProvider
+  operation         String                     @default("CREATE_CHECKOUT")
+  idempotencyKey    String                     @map("idempotency_key")
+  payloadHash       String                     @map("payload_hash")
+  externalReference String                     @unique @map("external_reference")
+  state             BillingCheckoutIntentState @default(CLAIMED)
+  claimToken        String                     @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime                   @map("lease_expires_at")
+  checkoutSessionId String?                    @unique @map("checkout_session_id") @db.Uuid
+  failureCode       String?                    @map("failure_code")
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription    Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  plan            Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
+  checkoutSession CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, operation, idempotencyKey])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@map("billing_checkout_intents")
 }
 
 model GatewayPlanMapping {
@@ -346,15 +692,18 @@ model CheckoutSession {
   createdById         String?                @map("created_by_id") @db.Uuid
   completedAt         DateTime?              @map("completed_at")
   lastReconciledAt    DateTime?              @map("last_reconciled_at")
+  lastProviderEventAt DateTime?              @map("last_provider_event_at")
+  lastPaymentState    BillingPaymentStatus?  @map("last_payment_state")
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
-  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  plan          Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
-  subscription  Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
-  createdBy     UserProfile?     @relation("BillingCheckoutCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  tenant        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  plan          Plan                   @relation(fields: [planId], references: [id], onDelete: Restrict)
+  subscription  Subscription?          @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  createdBy     UserProfile?           @relation("BillingCheckoutCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   payments      BillingPayment[]
   billingEvents BillingEvent[]
+  intent        BillingCheckoutIntent?
 
   @@index([tenantId, status, createdAt])
   @@index([planId])
@@ -364,24 +713,26 @@ model CheckoutSession {
 }
 
 model BillingPayment {
-  id                String                 @id @default(uuid()) @db.Uuid
-  tenantId          String                 @map("tenant_id") @db.Uuid
-  subscriptionId    String?                @map("subscription_id") @db.Uuid
-  planId            String                 @map("plan_id") @db.Uuid
-  checkoutSessionId String?                @map("checkout_session_id") @db.Uuid
-  invoiceId         String?                @map("invoice_id") @db.Uuid
-  provider          PaymentGatewayProvider
-  gatewayPaymentId  String?                @map("gateway_payment_id")
-  externalReference String                 @map("external_reference")
-  status            BillingPaymentStatus   @default(PENDING)
-  amountCents       Int                    @map("amount_cents")
-  currency          String                 @default("BRL")
-  rawGatewayStatus  String?                @map("raw_gateway_status")
-  paidAt            DateTime?              @map("paid_at")
-  refundedAt        DateTime?              @map("refunded_at")
-  metadata          Json?
-  createdAt         DateTime               @default(now()) @map("created_at")
-  updatedAt         DateTime               @updatedAt @map("updated_at")
+  id                 String                 @id @default(uuid()) @db.Uuid
+  tenantId           String                 @map("tenant_id") @db.Uuid
+  subscriptionId     String?                @map("subscription_id") @db.Uuid
+  planId             String                 @map("plan_id") @db.Uuid
+  checkoutSessionId  String?                @map("checkout_session_id") @db.Uuid
+  invoiceId          String?                @map("invoice_id") @db.Uuid
+  provider           PaymentGatewayProvider
+  gatewayPaymentId   String?                @map("gateway_payment_id")
+  externalReference  String                 @map("external_reference")
+  status             BillingPaymentStatus   @default(PENDING)
+  amountCents        Int                    @map("amount_cents")
+  currency           String                 @default("BRL")
+  rawGatewayStatus   String?                @map("raw_gateway_status")
+  paidAt             DateTime?              @map("paid_at")
+  refundedAt         DateTime?              @map("refunded_at")
+  metadata           Json?
+  providerOccurredAt DateTime?              @map("provider_occurred_at")
+  version            Int                    @default(1)
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
 
   tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   subscription    Subscription?    @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
@@ -399,23 +750,25 @@ model BillingPayment {
 }
 
 model BillingInvoice {
-  id                String               @id @default(uuid()) @db.Uuid
-  tenantId          String               @map("tenant_id") @db.Uuid
-  subscriptionId    String               @map("subscription_id") @db.Uuid
-  planId            String               @map("plan_id") @db.Uuid
-  provider          PaymentGatewayProvider
-  gatewayInvoiceId  String?              @map("gateway_invoice_id")
-  externalReference String               @map("external_reference")
-  status            BillingInvoiceStatus @default(OPEN)
-  periodStartedAt   DateTime             @map("period_started_at")
-  periodEndsAt      DateTime?            @map("period_ends_at")
-  dueAt             DateTime?            @map("due_at")
-  amountCents       Int                  @map("amount_cents")
-  currency          String               @default("BRL")
-  paidAt            DateTime?            @map("paid_at")
-  metadata          Json?
-  createdAt         DateTime             @default(now()) @map("created_at")
-  updatedAt         DateTime             @updatedAt @map("updated_at")
+  id                  String                 @id @default(uuid()) @db.Uuid
+  tenantId            String                 @map("tenant_id") @db.Uuid
+  subscriptionId      String                 @map("subscription_id") @db.Uuid
+  planId              String                 @map("plan_id") @db.Uuid
+  provider            PaymentGatewayProvider
+  gatewayInvoiceId    String?                @map("gateway_invoice_id")
+  externalReference   String                 @map("external_reference")
+  status              BillingInvoiceStatus   @default(OPEN)
+  periodStartedAt     DateTime               @map("period_started_at")
+  periodEndsAt        DateTime?              @map("period_ends_at")
+  dueAt               DateTime?              @map("due_at")
+  amountCents         Int                    @map("amount_cents")
+  currency            String                 @default("BRL")
+  paidAt              DateTime?              @map("paid_at")
+  metadata            Json?
+  lastProviderEventAt DateTime?              @map("last_provider_event_at")
+  lastPaymentState    BillingPaymentStatus?  @map("last_payment_state")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
 
   tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   subscription Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
@@ -437,17 +790,23 @@ model GatewayWebhookEvent {
   requestId        String?                        @map("request_id")
   signatureValid   Boolean                        @default(false) @map("signature_valid")
   payloadHash      String                         @map("payload_hash")
+  identityKey      String?                        @unique @map("identity_key")
+  accountScope     String                         @default("platform") @map("account_scope")
   rawPayload       Json?                          @map("raw_payload")
   processingStatus GatewayWebhookProcessingStatus @default(RECEIVED) @map("processing_status")
   attemptCount     Int                            @default(0) @map("attempt_count")
+  claimToken       String?                        @map("claim_token") @db.Uuid
+  claimedAt        DateTime?                      @map("claimed_at")
+  leaseExpiresAt   DateTime?                      @map("lease_expires_at")
   processedAt      DateTime?                      @map("processed_at")
   processingError  String?                        @map("processing_error")
+  failureCode      String?                        @map("failure_code")
   createdAt        DateTime                       @default(now()) @map("created_at")
   updatedAt        DateTime                       @updatedAt @map("updated_at")
 
   @@index([payloadHash])
   @@index([provider, gatewayEventId])
-  @@index([processingStatus, createdAt])
+  @@index([processingStatus, leaseExpiresAt])
   @@map("gateway_webhook_events")
 }
 
@@ -477,56 +836,111 @@ model BillingEvent {
 }
 
 model Branch {
-  id               String                @id @default(uuid()) @db.Uuid
-  tenantId         String                @map("tenant_id") @db.Uuid
-  tenant           Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name             String
-  slug             String
-  isDefault        Boolean               @default(false) @map("is_default")
-  isActive         Boolean               @default(true) @map("is_active")
-  members          TenantMember[]
-  petClients       PetClient[]
-  pets             Pet[]
-  petPhotos        PetPhoto[]
-  agendaPets       AgendaPet[]
-  products         Product[]
-  orders           Order[]
-  employees        Employee[]
-  suppliers        Supplier[]
-  expenses         Expense[]
-  expenseFiles     ExpenseFile[]
-  sales            Sale[]
-  saleDocuments    SaleDocument[]
-  fiscalConfigs    CompanyFiscalConfig[]
-  fiscalSequences  FiscalSequence[]
-  paymentMachines  PaymentMachine[]
-  devWorkspaces    DevWorkspace[]
-  partnerReferrals PartnerReferral[]
+  id                String                @id @default(uuid()) @db.Uuid
+  tenantId          String                @map("tenant_id") @db.Uuid
+  tenant            Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name              String
+  slug              String
+  isDefault         Boolean               @default(false) @map("is_default")
+  isActive          Boolean               @default(true) @map("is_active")
+  members           TenantMember[]
+  petClients        PetClient[]
+  pets              Pet[]
+  petPhotos         PetPhoto[]
+  agendaPets        AgendaPet[]
+  products          Product[]
+  orders            Order[]
+  employees         Employee[]
+  suppliers         Supplier[]
+  expenses          Expense[]
+  expenseFiles      ExpenseFile[]
+  sales             Sale[]
+  saleDocuments     SaleDocument[]
+  fiscalConfigs     CompanyFiscalConfig[]
+  fiscalSequences   FiscalSequence[]
+  paymentMachines   PaymentMachine[]
+  paymentTerminals  PaymentTerminal[]
+  devWorkspaces     DevWorkspace[]
+  partnerReferrals  PartnerReferral[]
   storedFiles       StoredFile[]
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
+  storefront        Storefront?
+  userProvisionings UserProvisioning[]
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   @@unique([tenantId, slug])
+  @@unique([id, tenantId])
   @@index([tenantId])
   @@map("branches")
 }
 
 model TenantMember {
-  id            String      @id @default(uuid()) @db.Uuid
-  tenantId      String      @map("tenant_id") @db.Uuid
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userProfileId String      @map("user_profile_id") @db.Uuid
-  userProfile   UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
-  branchId      String?     @map("branch_id") @db.Uuid
-  branch        Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  role          Role        @default(Comprador)
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id            String            @id @default(uuid()) @db.Uuid
+  tenantId      String            @map("tenant_id") @db.Uuid
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userProfileId String            @map("user_profile_id") @db.Uuid
+  userProfile   UserProfile       @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  branchId      String?           @map("branch_id") @db.Uuid
+  branch        Branch?           @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  role          Role              @default(Comprador)
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  provisioning  UserProvisioning? @relation("ProvisionedMembership")
 
   @@unique([tenantId, userProfileId])
   @@index([userProfileId])
   @@index([branchId])
   @@map("tenant_members")
+}
+
+model UserProvisioning {
+  id                String                  @id @default(uuid()) @db.Uuid
+  tenantId          String                  @map("tenant_id") @db.Uuid
+  branchId          String?                 @map("branch_id") @db.Uuid
+  canonicalEmail    String                  @unique @map("canonical_email")
+  idempotencyKey    String                  @unique @map("idempotency_key")
+  payloadHash       String                  @map("payload_hash")
+  state             UserProvisioningState   @default(CLAIMED)
+  authUserId        String?                 @unique @map("auth_user_id") @db.Uuid
+  profileId         String?                 @unique @map("profile_id") @db.Uuid
+  membershipId      String?                 @unique @map("membership_id") @db.Uuid
+  claimToken        String?                 @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime?               @map("lease_expires_at")
+  attempts          Int                     @default(1)
+  lastErrorCode     String?                 @map("last_error_code")
+  compensationState String?                 @map("compensation_state")
+  actorProfileId    String                  @map("actor_profile_id") @db.Uuid
+  requestedName     String                  @map("requested_name")
+  requestedRole     Role                    @map("requested_role")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  completedAt       DateTime?               @map("completed_at")
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch            Branch?                 @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  profile           UserProfile?            @relation("ProvisionedProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  membership        TenantMember?           @relation("ProvisionedMembership", fields: [membershipId], references: [id], onDelete: Restrict)
+  events            UserProvisioningEvent[]
+
+  @@index([state, leaseExpiresAt])
+  @@index([tenantId, branchId])
+  @@map("user_provisionings")
+}
+
+model UserProvisioningEvent {
+  id             BigInt                 @id @default(autoincrement())
+  provisioningId String                 @map("provisioning_id") @db.Uuid
+  tenantId       String                 @map("tenant_id") @db.Uuid
+  branchId       String?                @map("branch_id") @db.Uuid
+  decision       String
+  fromState      UserProvisioningState? @map("from_state")
+  toState        UserProvisioningState  @map("to_state")
+  errorCode      String?                @map("error_code")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  provisioning   UserProvisioning       @relation(fields: [provisioningId], references: [id], onDelete: Restrict)
+
+  @@index([provisioningId, createdAt])
+  @@index([tenantId, branchId, createdAt])
+  @@map("user_provisioning_events")
 }
 
 model AgendaPet {
@@ -677,44 +1091,45 @@ model PetPhoto {
 
 model Product {
   /// Products are branch-wide. Legacy rows without branchId are not exposed.
-  id             String               @id @default(uuid()) @db.Uuid
-  tenantId       String               @map("tenant_id") @db.Uuid
-  tenant         Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId       String?              @map("branch_id") @db.Uuid
-  branch         Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
-  name           String
-  costPriceCents Int                  @map("cost_price_cents")
-  profitPercent  Decimal              @map("profit_percent") @db.Decimal(7, 2)
-  salePriceCents Int                  @map("sale_price_cents")
-  quantity       Int
-  brand          String?
-  category       String?
-  supplier       String?
-  sku            String?
-  barcode        String?
-  description    String?
-  weight         String?
-  height         String?
-  width          String?
-  externalLink   String?              @map("external_link")
-  clothingSize   String?              @map("clothing_size")
-  apparelSize    String?              @map("apparel_size")
-  images         ProductImage[]
-  orderItems     OrderItem[]
-  expenseItems   ExpenseItem[]
-  saleItems      SaleItem[]
-  fiscalItems    FiscalDocumentItem[]
-  ncm            String?
-  cfopDefault    String?              @map("cfop_default")
-  cest           String?
-  origin         String?
-  unit           String?
-  icmsRate       Decimal?             @map("icms_rate") @db.Decimal(7, 4)
-  ipiRate        Decimal?             @map("ipi_rate") @db.Decimal(7, 4)
-  pisRate        Decimal?             @map("pis_rate") @db.Decimal(7, 4)
-  cofinsRate     Decimal?             @map("cofins_rate") @db.Decimal(7, 4)
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  id                 String               @id @default(uuid()) @db.Uuid
+  tenantId           String               @map("tenant_id") @db.Uuid
+  tenant             Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId           String?              @map("branch_id") @db.Uuid
+  branch             Branch?              @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  name               String
+  costPriceCents     Int                  @map("cost_price_cents")
+  profitPercent      Decimal              @map("profit_percent") @db.Decimal(7, 2)
+  salePriceCents     Int                  @map("sale_price_cents")
+  quantity           Int
+  brand              String?
+  category           String?
+  supplier           String?
+  sku                String?
+  barcode            String?
+  description        String?
+  weight             String?
+  height             String?
+  width              String?
+  externalLink       String?              @map("external_link")
+  clothingSize       String?              @map("clothing_size")
+  apparelSize        String?              @map("apparel_size")
+  images             ProductImage[]
+  orderItems         OrderItem[]
+  expenseItems       ExpenseItem[]
+  saleItems          SaleItem[]
+  fiscalItems        FiscalDocumentItem[]
+  storefrontListings StorefrontProduct[]
+  ncm                String?
+  cfopDefault        String?              @map("cfop_default")
+  cest               String?
+  origin             String?
+  unit               String?
+  icmsRate           Decimal?             @map("icms_rate") @db.Decimal(7, 4)
+  ipiRate            Decimal?             @map("ipi_rate") @db.Decimal(7, 4)
+  pisRate            Decimal?             @map("pis_rate") @db.Decimal(7, 4)
+  cofinsRate         Decimal?             @map("cofins_rate") @db.Decimal(7, 4)
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
 
   @@unique([tenantId, branchId, sku])
   @@unique([tenantId, branchId, barcode])
@@ -725,43 +1140,122 @@ model Product {
 }
 
 model Order {
-  id                 String             @id @default(uuid()) @db.Uuid
-  tenantId           String             @map("tenant_id") @db.Uuid
-  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branchId           String             @map("branch_id") @db.Uuid
-  branch             Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  customerName       String             @map("customer_name")
-  customerDocument   String?            @map("customer_document")
-  customerPhone      String?            @map("customer_phone")
-  customerEmail      String?            @map("customer_email")
-  paymentMethod      OrderPaymentMethod @default(other) @map("payment_method")
-  status             OrderStatus        @default(pending)
-  subtotalCents      Int                @map("subtotal_cents")
-  discountCents      Int                @default(0) @map("discount_cents")
-  totalCents         Int                @map("total_cents")
-  notes              String?
-  deliveredAt        DateTime?          @map("delivered_at")
-  canceledAt         DateTime?          @map("canceled_at")
-  cancellationReason String?            @map("cancellation_reason")
-  createdById        String?            @map("created_by_id") @db.Uuid
-  updatedById        String?            @map("updated_by_id") @db.Uuid
-  deletedAt          DateTime?          @map("deleted_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                     String             @id @default(uuid()) @db.Uuid
+  tenantId               String             @map("tenant_id") @db.Uuid
+  tenant                 Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId               String             @map("branch_id") @db.Uuid
+  branch                 Branch             @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customerName           String             @map("customer_name")
+  customerDocument       String?            @map("customer_document")
+  customerPhone          String?            @map("customer_phone")
+  customerEmail          String?            @map("customer_email")
+  paymentMethod          OrderPaymentMethod @default(other) @map("payment_method")
+  status                 OrderStatus        @default(pending)
+  subtotalCents          Int                @map("subtotal_cents")
+  discountCents          Int                @default(0) @map("discount_cents")
+  totalCents             Int                @map("total_cents")
+  notes                  String?
+  deliveredAt            DateTime?          @map("delivered_at")
+  canceledAt             DateTime?          @map("canceled_at")
+  cancellationReason     String?            @map("cancellation_reason")
+  createdById            String?            @map("created_by_id") @db.Uuid
+  updatedById            String?            @map("updated_by_id") @db.Uuid
+  deletedAt              DateTime?          @map("deleted_at")
+  createdAt              DateTime           @default(now()) @map("created_at")
+  updatedAt              DateTime           @updatedAt @map("updated_at")
+  source                 OrderSource        @default(admin)
+  storefrontId           String?            @map("storefront_id") @db.Uuid
+  storefront             Storefront?        @relation(fields: [storefrontId], references: [id], onDelete: SetNull)
+  publicReference        String?            @unique @map("public_reference")
+  publicAccessTokenHash  String?            @map("public_access_token_hash")
+  idempotencyKeyHash     String?            @map("idempotency_key_hash")
+  idempotencyRequestHash String?            @map("idempotency_request_hash")
+  fulfillmentType        FulfillmentType?   @map("fulfillment_type")
+  deliveryAddress        Json?              @map("delivery_address")
+  reservationExpiresAt   DateTime?          @map("reservation_expires_at")
+  stockRestoredAt        DateTime?          @map("stock_restored_at")
+  version                Int                @default(1)
 
-  createdBy       UserProfile?   @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  updatedBy       UserProfile?   @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
-  items           OrderItem[]
-  sale            Sale?
-  fiscalDocuments SaleDocument[]
+  createdBy                    UserProfile?                  @relation("OrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy                    UserProfile?                  @relation("OrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items                        OrderItem[]
+  sale                         Sale?
+  fiscalDocuments              SaleDocument[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
 
+  @@unique([storefrontId, idempotencyKeyHash])
+  @@unique([tenantId, id])
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, branchId, deletedAt, createdAt])
   @@index([tenantId, branchId, status])
   @@index([tenantId, branchId, status, deletedAt, createdAt])
   @@index([tenantId, branchId, customerName])
   @@index([deletedAt])
+  @@index([storefrontId, status, createdAt])
+  @@index([source, reservationExpiresAt, stockRestoredAt])
   @@map("orders")
+}
+
+model Storefront {
+  id                String                   @id @default(uuid()) @db.Uuid
+  tenantId          String                   @map("tenant_id") @db.Uuid
+  tenant            Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branchId          String                   @unique @map("branch_id") @db.Uuid
+  branch            Branch                   @relation(fields: [branchId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  publicSlug        String                   @unique @map("public_slug")
+  status            StorefrontStatus         @default(draft)
+  publicName        String                   @map("public_name")
+  publicDescription String?                  @map("public_description")
+  orderingEnabled   Boolean                  @default(false) @map("ordering_enabled")
+  pickupEnabled     Boolean                  @default(true) @map("pickup_enabled")
+  deliveryEnabled   Boolean                  @default(true) @map("delivery_enabled")
+  publishedAt       DateTime?                @map("published_at")
+  products          StorefrontProduct[]
+  orders            Order[]
+  redirects         StorefrontSlugRedirect[]
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([branchId, tenantId])
+  @@index([tenantId, status])
+  @@map("storefronts")
+}
+
+model StorefrontProduct {
+  id                      String     @id @default(uuid()) @db.Uuid
+  storefrontId            String     @map("storefront_id") @db.Uuid
+  storefront              Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  productId               String     @map("product_id") @db.Uuid
+  product                 Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  publicSlug              String     @map("public_slug")
+  isPublished             Boolean    @default(false) @map("is_published")
+  availableForOnlineOrder Boolean    @default(false) @map("available_for_online_order")
+  publicName              String?    @map("public_name")
+  publicDescription       String?    @map("public_description")
+  sortOrder               Int        @default(0) @map("sort_order")
+  minimumOrderQuantity    Int        @default(1) @map("minimum_order_quantity")
+  maximumOrderQuantity    Int?       @map("maximum_order_quantity")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+
+  @@unique([storefrontId, productId])
+  @@unique([storefrontId, publicSlug])
+  @@index([storefrontId, isPublished, sortOrder])
+  @@index([productId])
+  @@map("storefront_products")
+}
+
+model StorefrontSlugRedirect {
+  id           String     @id @default(uuid()) @db.Uuid
+  storefrontId String     @map("storefront_id") @db.Uuid
+  storefront   Storefront @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  oldSlug      String     @unique @map("old_slug")
+  expiresAt    DateTime?  @map("expires_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([storefrontId])
+  @@map("storefront_slug_redirects")
 }
 
 model OrderItem {
@@ -814,17 +1308,20 @@ model Sale {
   updatedAt                  DateTime          @updatedAt @map("updated_at")
   deletedAt                  DateTime?         @map("deleted_at")
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  order          Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  seller         UserProfile?    @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
-  canceledBy     UserProfile?    @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
-  paymentMachine PaymentMachine? @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
-  items          SaleItem[]
-  payments       SalePayment[]
-  documents      SaleDocument[]
+  tenant                       Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                       Branch                        @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order                        Order?                        @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  seller                       UserProfile?                  @relation("SaleSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  canceledBy                   UserProfile?                  @relation("SaleCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
+  paymentMachine               PaymentMachine?               @relation("SalePrimaryPaymentMachine", fields: [paymentMachineId], references: [id], onDelete: SetNull)
+  items                        SaleItem[]
+  payments                     SalePayment[]
+  documents                    SaleDocument[]
+  paymentTransactions          PaymentTransaction[]
+  paymentIdempotencyExecutions PaymentIdempotencyExecution[]
 
   @@unique([tenantId, branchId, idempotencyKey])
+  @@unique([tenantId, id])
   @@index([tenantId, branchId, soldAt])
   @@index([tenantId, branchId, deletedAt, soldAt])
   @@index([tenantId, branchId, documentType, deletedAt, soldAt])
@@ -890,36 +1387,40 @@ model SalePayment {
 }
 
 model SaleDocument {
-  id                 String             @id @default(uuid()) @db.Uuid
-  saleId             String             @map("sale_id") @db.Uuid
-  tenantId           String?            @map("tenant_id") @db.Uuid
-  branchId           String?            @map("branch_id") @db.Uuid
-  orderId            String?            @map("order_id") @db.Uuid
-  type               SaleDocumentType
-  model              String?
-  environment        FiscalEnvironment?
-  number             String?
-  series             String?
-  accessKey          String?            @map("access_key")
-  protocol           String?
-  provider           String?
-  providerRef        String?            @map("provider_ref")
-  idempotencyKey     String?            @map("idempotency_key")
-  normalizedPayload  Json?              @map("normalized_payload")
-  providerResponse   Json?              @map("provider_response")
-  errorMessage       String?            @map("error_message")
-  status             SaleDocumentStatus @default(draft)
-  xmlPath            String?            @map("xml_path")
-  pdfPath            String?            @map("pdf_path")
-  issuedAt           DateTime?          @map("issued_at")
-  sentAt             DateTime?          @map("sent_at")
-  canceledAt         DateTime?          @map("canceled_at")
-  cancellationReason String?            @map("cancellation_reason")
-  createdById        String?            @map("created_by_id") @db.Uuid
-  updatedById        String?            @map("updated_by_id") @db.Uuid
-  deletedAt          DateTime?          @map("deleted_at")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                  String                  @id @default(uuid()) @db.Uuid
+  saleId              String                  @map("sale_id") @db.Uuid
+  tenantId            String?                 @map("tenant_id") @db.Uuid
+  branchId            String?                 @map("branch_id") @db.Uuid
+  orderId             String?                 @map("order_id") @db.Uuid
+  type                SaleDocumentType
+  model               String?
+  environment         FiscalEnvironment?
+  number              String?
+  series              String?
+  accessKey           String?                 @map("access_key")
+  protocol            String?
+  provider            String?
+  providerRef         String?                 @map("provider_ref")
+  idempotencyKey      String?                 @map("idempotency_key")
+  normalizedPayload   Json?                   @map("normalized_payload")
+  providerResponse    Json?                   @map("provider_response")
+  errorMessage        String?                 @map("error_message")
+  status              SaleDocumentStatus      @default(draft)
+  xmlPath             String?                 @map("xml_path")
+  pdfPath             String?                 @map("pdf_path")
+  issuedAt            DateTime?               @map("issued_at")
+  sentAt              DateTime?               @map("sent_at")
+  sendAttemptId       String?                 @map("send_attempt_id") @db.Uuid
+  sendAttemptState    FiscalSendAttemptState? @map("send_attempt_state")
+  printCounter        Int                     @default(0) @map("print_counter")
+  processingStartedAt DateTime?               @map("processing_started_at")
+  canceledAt          DateTime?               @map("canceled_at")
+  cancellationReason  String?                 @map("cancellation_reason")
+  createdById         String?                 @map("created_by_id") @db.Uuid
+  updatedById         String?                 @map("updated_by_id") @db.Uuid
+  deletedAt           DateTime?               @map("deleted_at")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
 
   sale      Sale                  @relation(fields: [saleId], references: [id], onDelete: Cascade)
   tenant    Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -935,62 +1436,63 @@ model SaleDocument {
   @@index([tenantId, branchId, type, status, createdAt])
   @@index([orderId])
   @@index([idempotencyKey])
+  @@index([tenantId, branchId, id, sendAttemptId])
   @@map("sale_documents")
 }
 
 model CompanyFiscalConfig {
-  id                    String            @id @default(uuid()) @db.Uuid
-  tenantId              String            @map("tenant_id") @db.Uuid
-  branchId              String            @map("branch_id") @db.Uuid
-  legalName             String            @map("legal_name")
-  tradeName             String?           @map("trade_name")
-  cnpj                  String
-  stateRegistration     String?           @map("state_registration")
-  municipalRegistration String?           @map("municipal_registration")
-  crt                   Int
-  taxRegime             String            @map("tax_regime")
-  street                String
-  number                String
-  complement            String?
-  district              String
-  city                  String
-  cityCodeIbge          String            @map("city_code_ibge")
-  state                 String
-  zipCode               String            @map("zip_code")
-  country               String            @default("Brasil")
-  environment           FiscalEnvironment @default(homologacao)
-  certificatePath       String?           @map("certificate_path")
-  certificateSecretRef  String?           @map("certificate_secret_ref")
-  certificateOriginalName String?         @map("certificate_original_name")
-  certificateMimeType     String?         @map("certificate_mime_type")
-  certificateSize         Int?            @map("certificate_size")
-  certificatePasswordEncrypted String?    @map("certificate_password_encrypted")
-  certificatePasswordKeyVersion String?   @map("certificate_password_key_version")
-  certificateUploadedAt   DateTime?       @map("certificate_uploaded_at")
-  certificateValidFrom    DateTime?       @map("certificate_valid_from")
-  certificateExpiresAt  DateTime?         @map("certificate_expires_at")
-  certificateSubject      String?         @map("certificate_subject")
-  certificateIssuer       String?         @map("certificate_issuer")
-  certificateSerialNumber String?         @map("certificate_serial_number")
-  certificateCnpj         String?         @map("certificate_cnpj")
-  certificateFingerprintSha256 String?    @map("certificate_fingerprint_sha256")
-  certificateValidatedAt  DateTime?       @map("certificate_validated_at")
-  certificateValidationStatus CertificateValidationStatus? @map("certificate_validation_status")
-  certificateValidationErrorCode String?  @map("certificate_validation_error_code")
-  productionEnabledAt     DateTime?       @map("production_enabled_at")
-  productionEnabledById   String?         @map("production_enabled_by_id") @db.Uuid
-  deletedAt               DateTime?       @map("deleted_at")
-  nfeSeries             String            @default("1") @map("nfe_series")
-  nfceSeries            String            @default("1") @map("nfce_series")
-  nextNfeNumber         Int               @default(1) @map("next_nfe_number")
-  nextNfceNumber        Int               @default(1) @map("next_nfce_number")
-  provider              String            @default("mock")
-  providerConfig        Json?             @map("provider_config")
-  createdAt             DateTime          @default(now()) @map("created_at")
-  updatedAt             DateTime          @updatedAt @map("updated_at")
+  id                             String                       @id @default(uuid()) @db.Uuid
+  tenantId                       String                       @map("tenant_id") @db.Uuid
+  branchId                       String                       @map("branch_id") @db.Uuid
+  legalName                      String                       @map("legal_name")
+  tradeName                      String?                      @map("trade_name")
+  cnpj                           String
+  stateRegistration              String?                      @map("state_registration")
+  municipalRegistration          String?                      @map("municipal_registration")
+  crt                            Int
+  taxRegime                      String                       @map("tax_regime")
+  street                         String
+  number                         String
+  complement                     String?
+  district                       String
+  city                           String
+  cityCodeIbge                   String                       @map("city_code_ibge")
+  state                          String
+  zipCode                        String                       @map("zip_code")
+  country                        String                       @default("Brasil")
+  environment                    FiscalEnvironment            @default(homologacao)
+  certificatePath                String?                      @map("certificate_path")
+  certificateSecretRef           String?                      @map("certificate_secret_ref")
+  certificateOriginalName        String?                      @map("certificate_original_name")
+  certificateMimeType            String?                      @map("certificate_mime_type")
+  certificateSize                Int?                         @map("certificate_size")
+  certificatePasswordEncrypted   String?                      @map("certificate_password_encrypted")
+  certificatePasswordKeyVersion  String?                      @map("certificate_password_key_version")
+  certificateUploadedAt          DateTime?                    @map("certificate_uploaded_at")
+  certificateValidFrom           DateTime?                    @map("certificate_valid_from")
+  certificateExpiresAt           DateTime?                    @map("certificate_expires_at")
+  certificateSubject             String?                      @map("certificate_subject")
+  certificateIssuer              String?                      @map("certificate_issuer")
+  certificateSerialNumber        String?                      @map("certificate_serial_number")
+  certificateCnpj                String?                      @map("certificate_cnpj")
+  certificateFingerprintSha256   String?                      @map("certificate_fingerprint_sha256")
+  certificateValidatedAt         DateTime?                    @map("certificate_validated_at")
+  certificateValidationStatus    CertificateValidationStatus? @map("certificate_validation_status")
+  certificateValidationErrorCode String?                      @map("certificate_validation_error_code")
+  productionEnabledAt            DateTime?                    @map("production_enabled_at")
+  productionEnabledById          String?                      @map("production_enabled_by_id") @db.Uuid
+  deletedAt                      DateTime?                    @map("deleted_at")
+  nfeSeries                      String                       @default("1") @map("nfe_series")
+  nfceSeries                     String                       @default("1") @map("nfce_series")
+  nextNfeNumber                  Int                          @default(1) @map("next_nfe_number")
+  nextNfceNumber                 Int                          @default(1) @map("next_nfce_number")
+  provider                       String                       @default("mock")
+  providerConfig                 Json?                        @map("provider_config")
+  createdAt                      DateTime                     @default(now()) @map("created_at")
+  updatedAt                      DateTime                     @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tenant              Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch              Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
   productionEnabledBy UserProfile? @relation("FiscalProductionEnabledBy", fields: [productionEnabledById], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, branchId])
@@ -1053,12 +1555,16 @@ model FiscalDocumentEvent {
   errorMessage    String?            @map("error_message")
   createdById     String?            @map("created_by_id") @db.Uuid
   createdAt       DateTime           @default(now()) @map("created_at")
+  attemptId       String?            @map("attempt_id") @db.Uuid
+  printNumber     Int?               @map("print_number")
 
   document  SaleDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
   createdBy UserProfile? @relation("FiscalEventCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([documentId, printNumber])
   @@index([documentId, createdAt])
   @@index([providerRef])
+  @@index([documentId, attemptId])
   @@map("fiscal_document_events")
 }
 
@@ -1212,21 +1718,21 @@ model ExpenseItem {
 }
 
 model ExpenseFile {
-  id          String          @id @default(uuid()) @db.Uuid
-  expenseId   String          @map("expense_id") @db.Uuid
-  tenantId    String          @map("tenant_id") @db.Uuid
-  branchId    String          @map("branch_id") @db.Uuid
-  fileName    String          @map("file_name")
-  mimeType    String          @map("mime_type")
-  fileType    ExpenseFileType @map("file_type")
-  fileSize    Int             @map("file_size")
-  originalSize Int?           @map("original_size")
-  width       Int?
-  height      Int?
-  storagePath String          @map("storage_path")
-  fileUrl     String?         @map("file_url")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  deletedAt   DateTime?       @map("deleted_at")
+  id           String          @id @default(uuid()) @db.Uuid
+  expenseId    String          @map("expense_id") @db.Uuid
+  tenantId     String          @map("tenant_id") @db.Uuid
+  branchId     String          @map("branch_id") @db.Uuid
+  fileName     String          @map("file_name")
+  mimeType     String          @map("mime_type")
+  fileType     ExpenseFileType @map("file_type")
+  fileSize     Int             @map("file_size")
+  originalSize Int?            @map("original_size")
+  width        Int?
+  height       Int?
+  storagePath  String          @map("storage_path")
+  fileUrl      String?         @map("file_url")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  deletedAt    DateTime?       @map("deleted_at")
 
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1309,6 +1815,22 @@ model ResourceUsageSnapshot {
 
   @@index([provider, metricName, periodStart, periodEnd])
   @@map("resource_usage_snapshots")
+}
+
+model AuthRateLimitBucket {
+  id           String                @id @default(uuid()) @db.Uuid
+  action       String
+  identityType AuthRateLimitIdentity @map("identity_type")
+  identityHash String                @map("identity_hash")
+  windowStart  DateTime              @map("window_start")
+  windowEndsAt DateTime              @map("window_ends_at")
+  attemptCount Int                   @default(0) @map("attempt_count")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+
+  @@unique([action, identityType, identityHash, windowStart])
+  @@index([windowEndsAt])
+  @@map("auth_rate_limit_buckets")
 }
 
 model Partner {
@@ -1429,6 +1951,22 @@ model PartnerReferralSeenEvent {
   @@map("partner_referral_seen_events")
 }
 
+enum UserProvisioningState {
+  CLAIMED
+  AUTH_CREATED
+  PROFILE_CREATED
+  COMPLETED
+  COMPENSATION_REQUIRED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+  UNKNOWN
+}
+
+enum AuthRateLimitIdentity {
+  IP
+  ACCOUNT
+}
+
 enum Role {
   superAdmin
   Admin
@@ -1456,6 +1994,14 @@ enum AuditContextKind {
   SYSTEM
 }
 
+enum AuditOutboxStatus {
+  PENDING
+  PROCESSING
+  DELIVERED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
 enum StoredFileVisibility {
   PRIVATE
   PUBLIC
@@ -1476,6 +2022,20 @@ enum StoredFileStatus {
   DELETED
   ORPHANED
   QUARANTINED
+}
+
+enum UploadQuotaScope {
+  TENANT_TOTAL
+  TENANT_DAILY
+  USER_DAILY
+}
+
+enum UploadQuotaReservationState {
+  RESERVED
+  CONFIRMED
+  RELEASED
+  EXPIRED
+  RECONCILIATION_REQUIRED
 }
 
 enum SystemType {
@@ -1519,6 +2079,15 @@ enum CheckoutSessionStatus {
   FAILED
 }
 
+enum BillingCheckoutIntentState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
 enum BillingPaymentStatus {
   PENDING
   APPROVED
@@ -1540,8 +2109,11 @@ enum BillingInvoiceStatus {
 
 enum GatewayWebhookProcessingStatus {
   RECEIVED
+  PROCESSING
   PROCESSED
   FAILED
+  FAILED_RETRYABLE
+  FAILED_FINAL
   IGNORED
 }
 
@@ -1591,6 +2163,24 @@ enum OrderPaymentMethod {
   other
 }
 
+enum StorefrontStatus {
+  draft
+  active
+  paused
+  suspended
+  archived
+}
+
+enum OrderSource {
+  admin
+  storefront_guest
+}
+
+enum FulfillmentType {
+  pickup
+  delivery
+}
+
 enum SaleStatus {
   pending
   paid
@@ -1621,6 +2211,14 @@ enum SaleDocumentStatus {
   internal_issued
   rejected
   canceled
+}
+
+enum FiscalSendAttemptState {
+  claimed
+  dispatching
+  unknown
+  completed
+  failed_pre_network
 }
 
 enum SalePaymentStatus {
@@ -1700,6 +2298,81 @@ enum PaymentProvider {
   pagseguro
   mercado_pago
   outro
+}
+
+enum PaymentProviderCode {
+  MERCADO_PAGO
+  PAGARME
+  STONE
+  PAGBANK
+  ASAAS
+  OTHER
+}
+
+enum PaymentConnectionStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  REVOKED
+  ERROR
+}
+
+enum PaymentTerminalIntegrationMode {
+  MANUAL
+  REMOTE_API
+  LOCAL_SDK
+  TEF
+  UNAVAILABLE
+}
+
+enum PaymentTerminalStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  OFFLINE
+}
+
+enum PaymentMethod {
+  PIX
+  ONLINE_CARD
+  TERMINAL_CARD
+  BOLETO
+}
+
+enum PaymentRoutingContext {
+  CHECKOUT
+  POS
+  STOREFRONT
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  CANCELED
+  REFUNDED
+  ERROR
+}
+
+enum PaymentIdempotencyOperationType {
+  CREATE_PIX
+}
+
+enum PaymentIdempotencyExecutionState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
+enum PaymentWebhookProcessingStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+  IGNORED
 }
 
 enum PartnerLinkStatus {

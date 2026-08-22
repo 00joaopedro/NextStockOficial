@@ -21,7 +21,7 @@ describe('Railway deploy configuration', () => {
     const packageJson = readJson('package.json');
 
     expect(packageJson.scripts['railway:migrate']).toBe(
-      'ts-node scripts/migrations/validate-target.ts && prisma migrate deploy',
+      'node dist/scripts/migrations/validate-target.js && prisma migrate deploy',
     );
     expect(packageJson.scripts['start:railway']).toBe('npm run start:prod');
     expect(packageJson.scripts['start:prod']).not.toMatch(/migrat|db push/i);

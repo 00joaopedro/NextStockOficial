@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { getRequestHeader } from '../../src/common/http-types';
 
 @Injectable()
@@ -9,11 +14,14 @@ export class DeterministicTestAuthGuard implements CanActivate {
     }
     const request = context.switchToHttp().getRequest();
     const testUserId = getRequestHeader(request, 'x-test-user-id');
-    const users = request.app?.locals?.securityTestUsers as
+    const users = (request.app?.locals?.securityTestUsers ??
+      request.server?.securityTestUsers) as
       | Map<string, AuthenticatedUser>
       | undefined;
-    const user = request.testUser || users?.get(testUserId);
-    if (!user) return false;
+    const user = testUserId ? users?.get(testUserId) : undefined;
+    if (!user) {
+      throw new UnauthorizedException('Unknown security test identity.');
+    }
     request.user = user;
     return true;
   }

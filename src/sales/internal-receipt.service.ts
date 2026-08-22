@@ -39,80 +39,71 @@ export class InternalReceiptService {
   }) {
     const { sale, context } = input;
     const audit = await this.prisma.$transaction(async (tx) => {
-      let document = await tx.saleDocument.findFirst({
+      // The partial UNIQUE index is the exact arbiter. ON CONFLICT converges
+      // every replica on one active receipt without aborting the transaction.
+      await tx.$executeRaw`
+        INSERT INTO "sale_documents" (
+          "id", "sale_id", "tenant_id", "branch_id", "order_id", "type",
+          "status", "issued_at", "created_by_id", "updated_by_id",
+          "created_at", "updated_at"
+        )
+        SELECT gen_random_uuid(), "sales"."id", "sales"."tenant_id",
+          "sales"."branch_id", "sales"."order_id", 'receipt',
+          'internal_issued', NOW(), ${context.userId}::uuid,
+          ${context.userId}::uuid, NOW(), NOW()
+        FROM "sales"
+        WHERE "sales"."id" = ${sale.id}::uuid
+          AND "sales"."tenant_id" = ${context.tenantId}::uuid
+          AND "sales"."branch_id" = ${context.branchId}::uuid
+          AND "sales"."deleted_at" IS NULL
+        ON CONFLICT ("sale_id", "type")
+          WHERE "type" = 'receipt' AND "deleted_at" IS NULL
+        DO UPDATE SET
+          "tenant_id" = EXCLUDED."tenant_id", "branch_id" = EXCLUDED."branch_id",
+          "order_id" = EXCLUDED."order_id", "status" = 'internal_issued',
+          "model" = NULL, "environment" = NULL, "number" = NULL,
+          "series" = NULL, "access_key" = NULL, "protocol" = NULL,
+          "provider" = NULL, "provider_ref" = NULL, "xml_path" = NULL,
+          "pdf_path" = NULL, "updated_by_id" = EXCLUDED."updated_by_id",
+          "updated_at" = NOW()
+        WHERE ("sale_documents"."tenant_id" IS NULL AND "sale_documents"."branch_id" IS NULL)
+           OR ("sale_documents"."tenant_id" = EXCLUDED."tenant_id"
+               AND "sale_documents"."branch_id" = EXCLUDED."branch_id")
+      `;
+
+      const document = await tx.saleDocument.findFirst({
         where: {
           saleId: sale.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId,
           type: SaleDocumentType.receipt,
           deletedAt: null,
-          OR: [
-            {
-              tenantId: context.tenantId,
-              branchId: context.branchId,
-            },
-            {
-              tenantId: null,
-              branchId: null,
-            },
-          ],
         },
         select: { id: true },
       });
-
       if (!document) {
-        document = await tx.saleDocument.create({
-          data: {
-            saleId: sale.id,
-            tenantId: context.tenantId,
-            branchId: context.branchId,
-            orderId: sale.orderId,
-            type: SaleDocumentType.receipt,
-            model: null,
-            environment: null,
-            number: null,
-            series: null,
-            accessKey: null,
-            protocol: null,
-            provider: null,
-            providerRef: null,
-            status: SaleDocumentStatus.internal_issued,
-            issuedAt: new Date(),
-            createdById: context.userId,
-            updatedById: context.userId,
-          },
-          select: { id: true },
-        });
-      } else {
-        await tx.saleDocument.update({
-          where: { id: document.id },
-          data: {
-            tenantId: context.tenantId,
-            branchId: context.branchId,
-            status: SaleDocumentStatus.internal_issued,
-            model: null,
-            environment: null,
-            number: null,
-            series: null,
-            accessKey: null,
-            protocol: null,
-            provider: null,
-            providerRef: null,
-            xmlPath: null,
-            pdfPath: null,
-            updatedById: context.userId,
-          },
-        });
+        throw new Error(
+          'Receipt allocation could not recover its scoped document.',
+        );
       }
 
-      const previousPrints = await tx.fiscalDocumentEvent.count({
+      // Prisma emits one UPDATE ... SET print_counter = print_counter + 1
+      // ... RETURNING print_counter. There is no read/update race.
+      const allocated = await tx.saleDocument.update({
         where: {
-          documentId: document.id,
-          eventType: {
-            in: ['internal_receipt_printed', 'internal_receipt_reprinted'],
-          },
+          id: document.id,
+          saleId: sale.id,
+          tenantId: context.tenantId,
+          branchId: context.branchId,
+          type: SaleDocumentType.receipt,
+          deletedAt: null,
         },
+        data: { printCounter: { increment: 1 } },
+        select: { printCounter: true },
       });
+      const printNumber = allocated.printCounter;
       const eventType =
-        previousPrints === 0
+        printNumber === 1
           ? 'internal_receipt_printed'
           : 'internal_receipt_reprinted';
       await tx.fiscalDocumentEvent.create({
@@ -120,21 +111,18 @@ export class InternalReceiptService {
           documentId: document.id,
           eventType,
           status: SaleDocumentStatus.internal_issued,
+          printNumber,
           requestPayload: {
             tenantId: context.tenantId,
             branchId: context.branchId,
             saleId: sale.id,
             origin: input.origin,
-            printNumber: previousPrints + 1,
+            printNumber,
           } satisfies Prisma.InputJsonValue,
           createdById: context.userId,
         },
       });
-      return {
-        documentId: document.id,
-        eventType,
-        printNumber: previousPrints + 1,
-      };
+      return { documentId: document.id, eventType, printNumber };
     });
 
     const [company, branch] = await Promise.all([

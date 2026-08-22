@@ -1,4 +1,4 @@
-import { PayloadTooLargeException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { UploadQuotaService } from './upload-quota.service';
 
 describe('UploadQuotaService', () => {
@@ -10,28 +10,16 @@ describe('UploadQuotaService', () => {
     process.env.UPLOAD_DAILY_FILES_PER_TENANT = '10';
   });
 
-  it('blocks a tenant above total storage quota', async () => {
-    const prisma = {
-      storedFile: {
-        aggregate: jest
-          .fn()
-          .mockResolvedValueOnce({
-            _sum: { sizeBytes: 90n },
-            _count: { _all: 1 },
-          })
-          .mockResolvedValueOnce({ _sum: { sizeBytes: 90n } })
-          .mockResolvedValueOnce({ _sum: { sizeBytes: 90n } }),
-      },
-      tenant: { findUnique: jest.fn().mockResolvedValue(null) },
-    };
-    const service = new UploadQuotaService(prisma as any);
+  it('rejects a path outside the authoritative tenant namespace', async () => {
+    const service = new UploadQuotaService({} as any);
     await expect(
-      service.assertAllowed({
+      service.reserve({
         tenantId: 'tenant-1',
-        ownerProfileId: 'profile-1',
         incomingBytes: 20,
+        idempotencyKey: 'intent-1',
+        objectKeys: ['tenant-2/file'],
       }),
-    ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('does nothing while the feature flag is disabled', async () => {
@@ -39,6 +27,6 @@ describe('UploadQuotaService', () => {
     const service = new UploadQuotaService({} as any);
     await expect(
       service.assertAllowed({ tenantId: 'tenant-1', incomingBytes: 999 }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBeNull();
   });
 });

@@ -96,15 +96,10 @@ export class DashboardService {
         statusMode: query.statusMode ?? 'confirmed',
       },
     });
-    const configuredTtl = Number(process.env.DASHBOARD_CACHE_TTL_MS || 5_000);
-    const ttlMs =
-      Number.isFinite(configuredTtl) && configuredTtl >= 1_000
-        ? configuredTtl
-        : 5_000;
     return this.cache.getOrSet(
       key,
       { tenantId: context.tenantId, branchId: context.branchId },
-      ttlMs,
+      this.cache.ttlMs,
       load,
     );
   }

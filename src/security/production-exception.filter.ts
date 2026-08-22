@@ -94,6 +94,13 @@ export class ProductionExceptionFilter implements ExceptionFilter {
       error instanceof HttpException
         ? error.getResponse()
         : { message: 'Erro interno do servidor.' };
+    const retryAfter =
+      error && typeof error === 'object' && 'retryAfterSeconds' in error
+        ? Number((error as { retryAfterSeconds: unknown }).retryAfterSeconds)
+        : 0;
+    if (Number.isSafeInteger(retryAfter) && retryAfter > 0) {
+      response.header('Retry-After', String(retryAfter));
+    }
 
     if (status >= 500) {
       const name = error instanceof Error ? error.name : 'UnknownError';

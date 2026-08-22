@@ -23,6 +23,7 @@ describe('SupabaseStorageService', () => {
       process.env.SUPABASE_STORAGE_SIGNED_URLS = previousSignedUrls;
     }
     jest.restoreAllMocks();
+    jest.clearAllMocks();
   });
 
   function makeSupabase(error?: {
@@ -162,7 +163,7 @@ describe('SupabaseStorageService', () => {
   it('bloqueia antes do Storage quando a quota e excedida', async () => {
     const supabase = makeSupabase();
     const quotas = {
-      assertAllowed: jest
+      reserve: jest
         .fn()
         .mockRejectedValue(new BadRequestException('quota exceeded')),
     };
@@ -187,6 +188,51 @@ describe('SupabaseStorageService', () => {
         },
       }),
     ).rejects.toThrow('quota exceeded');
+    expect(optimizer.optimize).not.toHaveBeenCalled();
+    expect(supabase.admin.storage.from).not.toHaveBeenCalled();
+  });
+
+  it('reserva RC-008 antes do Sharp e libera quando a otimizacao falha', async () => {
+    const events: string[] = [];
+    const supabase = makeSupabase();
+    const quotas = {
+      reserve: jest.fn(async () => {
+        events.push('reserve');
+        return { id: 'reservation-id' };
+      }),
+      release: jest.fn(async () => {
+        events.push('release');
+      }),
+    };
+    const failingOptimizer = {
+      optimize: jest.fn(async () => {
+        events.push('sharp');
+        throw new BadRequestException('invalid image');
+      }),
+    };
+    const service = new SupabaseStorageService(
+      supabase as any,
+      failingOptimizer as any,
+      undefined,
+      quotas as any,
+    );
+
+    await expect(
+      service.uploadProductImage({
+        tenantId: 'tenant-id',
+        branchId: 'branch-id',
+        productId: 'product-id',
+        file: {
+          originalname: 'produto.jpg',
+          mimetype: 'image/jpeg',
+          size: 10,
+          buffer: Buffer.from('ok'),
+        },
+      }),
+    ).rejects.toThrow('invalid image');
+
+    expect(events).toEqual(['reserve', 'sharp', 'release']);
+    expect(quotas.release).toHaveBeenCalledTimes(1);
     expect(supabase.admin.storage.from).not.toHaveBeenCalled();
   });
 });

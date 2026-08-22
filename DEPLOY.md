@@ -117,6 +117,29 @@ npm run db:migrate
 
 ## Supabase Storage
 
+Defina `AUTH_PROVIDER=supabase`. A Fase 1 rejeita qualquer outro valor no
+bootstrap; isso não seleciona nem desabilita Supabase Storage. Consulte
+`docs/operations/platform-auth-migration-phase-1.md` antes de aplicar a migration
+de identidades.
+
+## SuperTokens (ativação futura controlada)
+
+`AUTH_PROVIDER_MODE=supabase_only` é o padrão. Os modos `coexistence`,
+`supertokens_primary` e `supertokens_only` exigem configuração explícita e
+`supertokens_only` também exige `AUTH_MIGRATION_ENABLED=true`. O fallback legado
+é controlado por `AUTH_LEGACY_FALLBACK_ENABLED` e permanece habilitado por
+padrão. As variáveis do Core são `SUPERTOKENS_CONNECTION_URI`,
+`SUPERTOKENS_API_KEY`, `SUPERTOKENS_APP_NAME`, `SUPERTOKENS_API_DOMAIN` e
+`SUPERTOKENS_WEBSITE_DOMAIN`; mantenha-as em secrets, nunca no frontend ou logs.
+
+Antes de qualquer canary, execute `npm run auth:supertokens:activation-check -- --json`.
+O comando é somente leitura, falha fechado e não promove o modo. Use PostgreSQL
+persistente isolado para o Core, Secret Manager para a URI/API key, TLS no proxy,
+healthcheck `/hello`, backup verificado e rollback humano para `coexistence`.
+Cloud Run/Railway são apenas hosts de container futuros; não há deploy neste PR.
+Consulte `docs/operations/platform-auth-migration-activation.md`. Nenhuma
+identidade real foi importada e Supabase Auth não foi desativado.
+
 Crie os buckets usados pelo backend no Supabase Storage do mesmo projeto
 configurado em `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY`:
 
@@ -379,9 +402,13 @@ is conditional on checkout/webhook being enabled. Use HTTPS origins only. Set
 Never reuse JWT, Supabase or Mercado Pago secrets for the billing reference
 secret.
 
-Helmet is enabled. CSP starts in report-only mode (`CSP_ENFORCE=false`) because
-legacy pages still contain inline scripts. Review CSP reports and remove the
-remaining inline scripts before enabling enforcement.
+Helmet is enabled. CSP is enforced by default. `script-src` allows only the
+application origin and the existing ApexCharts CDN used by `dashboard.html`; it
+does not allow `unsafe-inline` or `unsafe-eval`. Inline frontend scripts were
+moved to local external files under `public/Js/csp-extracted/`. Use
+`CSP_REPORT_ONLY=true` as the reviewed rollback lever when report-only telemetry
+is needed temporarily. `style-src` still keeps `unsafe-inline` for legacy CSS
+compatibility and should be addressed separately.
 
 Apply the additive migration `20260701020000_security_rls_hardening` with
 `npm run migrate:deploy`. It enables RLS and revokes `anon`/`authenticated`
@@ -431,3 +458,54 @@ authorized by the backend. The current UI persists public URLs, so changing the
 `pet-photos` bucket to private requires a coordinated signed-URL read flow before the
 bucket policy changes. Keep this as an explicit production decision; do not make the
 bucket private without releasing the signed-URL flow at the same time.
+
+## Pagamentos operacionais por tenant
+
+Antes de habilitar a configuração de gateways, defina `PAYMENT_CREDENTIALS_ENCRYPTION_KEY`, `PAYMENT_CREDENTIALS_KEY_VERSION` e `MERCADO_PAGO_APP_WEBHOOK_SECRET` somente no backend. Aplique `20260722000000_tenant_payment_processing` em job controlado, valide o webhook e uma conta de teste em staging, e só então exponha o recurso em produção. Consulte `docs/PAYMENTS.md`.
+
+## REL-016 schema compatibility readiness
+
+`GET /api/health` remains a liveness probe and does not access PostgreSQL. `GET /api/health/ready` is the deployment readiness probe and returns `200` only after PostgreSQL has the `schema_compatibility_markers` table with marker version `1` or higher and the critical structural canaries used by the current runtime.
+
+Rollout order for REL-016:
+
+1. Railway pre-deploy runs `npm run railway:migrate` and applies `20260804010000_schema_compatibility_marker`.
+2. The append-only marker row `version = 1` exists.
+3. The new application code starts with `REQUIRED_SCHEMA_COMPATIBILITY_VERSION = 1`.
+4. Railway healthcheck calls `/api/health/ready`.
+5. Traffic is sent only after readiness returns `{"status":"ready"}`.
+
+The readiness response is intentionally minimal. Failures return `503` with a generic reason (`database_unavailable`, `schema_incompatible`, or `readiness_timeout`) and do not expose hostnames, database names, SQL, migration names, Prisma codes, or stack traces. Detailed canary failure details are logged internally in sanitized structured logs.
+
+Rollback is safe: older code ignores `schema_compatibility_markers`; do not remove or downgrade marker rows, and do not edit an applied migration. Future incompatible schema changes must add a new migration inserting a new monotonic marker row instead of updating version `1`.
+
+## CI-016 workflow validation policy
+
+The full `validate` GitHub Actions job runs for pull requests targeting `dev`,
+for pushes to `dev`, for the existing operational `main` push path, and by
+manual `workflow_dispatch`. Direct pushes to `dev` remain prohibited by branch
+protection; after an authorized merge, confirm that GitHub created a successful
+`push` run on branch `dev` with the `validate` job before marking CI-016 fully
+approved.
+
+## Fase 2: PostgreSQL portátil e Cloud SQL futuro
+
+A conexão atual não muda. `DATABASE_URL` continua exclusiva do runtime e
+`DIRECT_URL`/`ADMIN_DATABASE_URL` continuam sendo conexões diretas para migrations;
+porta `6543` e `pgbouncer=true` são recusados independentemente do provedor. O CI
+cria as roles históricas mínimas, aplica a cadeia append-only em PostgreSQL 16 e
+executa `npm run platform:postgresql:validate`. Nenhuma variável `GCP_*` ou
+`CLOUD_SQL_*` é obrigatória hoje. O provisioning e a ligação futura estão no
+runbook `docs/operations/platform-auth-migration-phase-2.md`; não execute migrations
+automaticamente no boot nem trate a preparação offline como validação real do Cloud SQL.
+
+The `dev` branch protection/ruleset must require the `validate` check and must
+not allow force pushes or branch deletion. Third-party GitHub Actions in
+workflows are pinned to full 40-character SHAs with the verified release version
+kept in an inline comment. To update an Action, use the upstream official
+repository tag/ref (for example `git ls-remote https://github.com/actions/checkout.git refs/tags/<tag> refs/tags/<tag>^{}`),
+verify the release tag target, replace the SHA and comment together, and let
+Dependabot's `github-actions` ecosystem PRs target `dev` weekly.
+## Cloud Run (offline)
+
+Fase 3 fornece `infra/gcp/cloud-run/` como templates sem IDs ou segredos reais. Railway permanece usando `start:railway`/role `all`; não aplique os manifests antes da ativação planejada da Fase 4.

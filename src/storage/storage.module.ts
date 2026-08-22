@@ -6,21 +6,43 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { StoredFilesService } from './stored-files.service';
 import { UploadQuotaService } from './upload-quota.service';
 import { FileScanner, NoopFileScanner } from './file-scanner.interface';
+import { ImageProcessingCoordinatorService } from './image-processing-coordinator.service';
+import { FakeStorageProvider } from './fake-storage-provider';
+import { StorageProviderRegistry } from './storage-registry';
+import { SupabaseStorageProvider } from './supabase-storage-provider';
+import {
+  GCS_STORAGE_PROVIDER,
+  SUPABASE_STORAGE_PROVIDER,
+} from './storage-provider.tokens';
 
 @Module({
   imports: [SupabaseModule, PrismaModule],
   providers: [
     ImageOptimizerService,
+    ImageProcessingCoordinatorService,
     StoredFilesService,
     UploadQuotaService,
     { provide: FileScanner, useClass: NoopFileScanner },
     SupabaseStorageService,
+    FakeStorageProvider,
+    StorageProviderRegistry,
+    SupabaseStorageProvider,
+    {
+      provide: SUPABASE_STORAGE_PROVIDER,
+      useExisting: SupabaseStorageProvider,
+    },
+    {
+      provide: GCS_STORAGE_PROVIDER,
+      useExisting: FakeStorageProvider,
+    },
   ],
   exports: [
     ImageOptimizerService,
+    ImageProcessingCoordinatorService,
     SupabaseStorageService,
     StoredFilesService,
     UploadQuotaService,
+    StorageProviderRegistry,
   ],
 })
 export class StorageModule {}

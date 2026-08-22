@@ -42,13 +42,11 @@ describe('Security hardening regressions', () => {
   });
 
   it('catalogo usa criacao segura de imagem e bloqueia esquemas perigosos', () => {
-    const source = readFileSync(
-      join(workspace, 'public', 'produtos.html'),
-      'utf8',
-    );
+    const source = `${readFileSync(join(workspace, 'public', 'produtos.html'), 'utf8')}\n${readFileSync(join(workspace, 'public', 'Js', 'csp-extracted', 'produtos-inline1.js'), 'utf8')}`;
     expect(source).toContain('function safeImageUrl');
-    expect(source).toContain('createSafeImage(product.images[0], product.name)');
+    expect(source).toContain(
+      'createSafeImage(product.images[0], product.name)',
+    );
     expect(source).toContain('title.textContent');
-    expect(source).toContain('Legacy template intentionally disabled');
   });
 });

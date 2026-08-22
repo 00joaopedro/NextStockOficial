@@ -1,12 +1,75 @@
 import * as Joi from 'joi';
 
 const schema = Joi.object({
+  NEXTSTOCK_PROCESS_ROLE: Joi.string()
+    .valid('api', 'audit-worker', 'all')
+    .default('all'),
+  GCP_PROJECT_ID: Joi.string().allow('').optional(),
+  GCP_REGION: Joi.string().allow('').optional(),
+  CLOUD_RUN_SERVICE: Joi.string().allow('').optional(),
+  CLOUD_SQL_INSTANCE_CONNECTION_NAME: Joi.string().allow('').optional(),
+  CLOUD_SQL_CONNECTOR_MODE: Joi.string()
+    .valid('off', 'socket', 'connector')
+    .default('off'),
+  CLOUD_SQL_DATABASE: Joi.string().allow('').optional(),
+  AUDIT_OUTBOX_WORKER_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('true'),
+  AUDIT_OUTBOX_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20),
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
   APP_ENV: Joi.string()
     .valid('development', 'test', 'staging', 'production')
     .optional(),
+  AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
+  AUTH_PROVIDER_MODE: Joi.string()
+    .valid(
+      'supabase_only',
+      'coexistence',
+      'supertokens_primary',
+      'supertokens_only',
+    )
+    .default('supabase_only'),
+  AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('true'),
+  SUPERTOKENS_CONNECTION_URI: Joi.string().uri().allow('').optional(),
+  SUPERTOKENS_API_KEY: Joi.string().allow('').optional(),
+  SUPERTOKENS_APP_NAME: Joi.string().allow('').optional(),
+  SUPERTOKENS_API_DOMAIN: Joi.string().uri().allow('').optional(),
+  SUPERTOKENS_WEBSITE_DOMAIN: Joi.string().uri().allow('').optional(),
+  STORAGE_WRITE_PROVIDER: Joi.string()
+    .valid('SUPABASE', 'GCS', 'supabase', 'gcs')
+    .default('supabase'),
+  GCS_STORAGE_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  GCS_PROJECT_ID: Joi.string().allow('').optional(),
+  GCS_STORAGE_BUCKET: Joi.string().allow('').optional(),
+  GCS_STORAGE_LOCATION: Joi.string().allow('').optional(),
+  GCS_SIGNED_URL_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3600)
+    .default(300),
+  STORAGE_MIGRATION_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  STORAGE_MIGRATION_CONCURRENCY: Joi.number()
+    .integer()
+    .min(1)
+    .max(4)
+    .default(1),
+  STORAGE_MIGRATION_BATCH_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .max(100)
+    .default(20),
+  STORAGE_MIGRATION_LEASE_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .max(3600)
+    .default(60),
   DATABASE_URL: Joi.string().required(),
   DIRECT_URL: Joi.string().allow('').optional(),
   ADMIN_DATABASE_URL: Joi.string().allow('').optional(),
@@ -37,18 +100,102 @@ const schema = Joi.object({
   MERCADO_PAGO_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
   MERCADO_PAGO_ACCESS_TOKEN: Joi.string().allow('').optional(),
   MERCADO_PAGO_COLLECTOR_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_CLIENT_ID: Joi.string().allow('').optional(),
+  MERCADO_PAGO_CLIENT_SECRET: Joi.string().allow('').optional(),
+  MERCADO_PAGO_OAUTH_REDIRECT_URI: Joi.string()
+    .uri({ scheme: ['https', 'http'] })
+    .allow('')
+    .optional(),
+  MERCADO_PAGO_APP_WEBHOOK_SECRET: Joi.string().min(16).allow('').optional(),
+  PAYMENT_CREDENTIALS_ENCRYPTION_KEY: Joi.string()
+    .base64()
+    .allow('')
+    .optional(),
+  PAYMENT_CREDENTIALS_KEY_VERSION: Joi.string().max(40).allow('').optional(),
   MERCADO_PAGO_PLAN_ID_OURO: Joi.string().allow('').optional(),
   MERCADO_PAGO_PLAN_ID_ESMERALDA: Joi.string().allow('').optional(),
   MERCADO_PAGO_PLAN_ID_DIAMANTE: Joi.string().allow('').optional(),
   CERT_ENCRYPTION_KEY: Joi.string().base64().allow('').optional(),
   CERT_ENCRYPTION_KEY_VERSION: Joi.string().max(32).allow('').optional(),
   CSP_ENFORCE: Joi.string().valid('true', 'false').optional(),
+  CSP_REPORT_ONLY: Joi.string().valid('true', 'false').optional(),
   MERCADO_PAGO_MODE: Joi.string()
     .valid('sandbox', 'test', 'production')
     .optional(),
   AUDIT_HASH_SECRET: Joi.string().min(32).allow('').optional(),
+  AUDIT_OUTBOX_ALERTING_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('true'),
+  AUDIT_OUTBOX_BACKLOG_ALERT_THRESHOLD: Joi.number()
+    .integer()
+    .min(1)
+    .default(100),
+  AUDIT_OUTBOX_LAG_SLA_SECONDS: Joi.number().integer().min(1).default(300),
+  AUDIT_OUTBOX_SHUTDOWN_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1)
+    .default(10000),
+  AUDIT_OUTBOX_ALERT_COOLDOWN_SECONDS: Joi.number()
+    .integer()
+    .min(1)
+    .default(300),
   SESSION_HASH_SECRET: Joi.string().min(32).allow('').optional(),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
+  STOREFRONT_PUBLIC_READ_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  STOREFRONT_ORDERING_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  STOREFRONT_TOKEN_SECRET: Joi.string().min(32).allow('').optional(),
+  DASHBOARD_CACHE_MODE: Joi.string()
+    .valid('auto', 'local', 'disabled')
+    .default('auto'),
+  DASHBOARD_CACHE_SINGLE_REPLICA: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  DASHBOARD_CACHE_TTL_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
+  DASHBOARD_CACHE_INVALIDATION_SLA_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(30000)
+    .default(5000),
+  DASHBOARD_CACHE_MAX_ENTRIES: Joi.number()
+    .integer()
+    .min(1)
+    .max(10000)
+    .default(500),
+  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
+  AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
+  TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
+  READINESS_DATABASE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(250)
+    .max(5000)
+    .default(2000),
+  IMAGE_PROCESSING_CONCURRENCY: Joi.number().integer().min(1).max(4).default(1),
+  IMAGE_PROCESSING_MAX_QUEUE: Joi.number().integer().min(1).max(100).default(4),
+  IMAGE_PROCESSING_QUEUE_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(100)
+    .max(120000)
+    .default(15000),
+  IMAGE_PROCESSING_TIMEOUT_MS: Joi.number()
+    .integer()
+    .min(1000)
+    .max(120000)
+    .default(30000),
+  IMAGE_PROCESSING_PER_TENANT: Joi.number().integer().min(1).max(4).default(1),
+  IMAGE_MAX_INPUT_PIXELS: Joi.number()
+    .integer()
+    .min(1)
+    .max(40000000)
+    .default(20000000),
 }).unknown(true);
 
 export function validateEnvironment(env: NodeJS.ProcessEnv) {
@@ -63,6 +210,26 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   if (
+    value.DASHBOARD_CACHE_TTL_MS > value.DASHBOARD_CACHE_INVALIDATION_SLA_MS
+  ) {
+    throw new Error(
+      'Invalid environment configuration: DASHBOARD_CACHE_TTL_MS exceeds DASHBOARD_CACHE_INVALIDATION_SLA_MS',
+    );
+  }
+  if (value.IMAGE_PROCESSING_PER_TENANT > value.IMAGE_PROCESSING_CONCURRENCY) {
+    throw new Error(
+      'Invalid environment configuration: IMAGE_PROCESSING_PER_TENANT exceeds IMAGE_PROCESSING_CONCURRENCY',
+    );
+  }
+  if (
+    String(value.AUTH_RATE_LIMIT_ENABLED).toLowerCase() === 'true' &&
+    String(value.AUTH_RATE_LIMIT_HMAC_SECRET || '').length < 32
+  ) {
+    throw new Error(
+      'Missing required environment variable: AUTH_RATE_LIMIT_HMAC_SECRET',
+    );
+  }
+  if (
     !String(value.SUPABASE_ANON_KEY || '').trim() &&
     !String(value.SUPABASE_PUBLISHABLE_KEY || '').trim()
   ) {
@@ -71,6 +238,43 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
+  if (value.AUTH_PROVIDER_MODE !== 'supabase_only') {
+    for (const name of [
+      'SUPERTOKENS_CONNECTION_URI',
+      'SUPERTOKENS_APP_NAME',
+      'SUPERTOKENS_API_DOMAIN',
+    ]) {
+      if (!String(value[name] || '').trim())
+        throw new Error(`Missing ${name} for auth coexistence.`);
+    }
+    if (
+      appEnv === 'production' &&
+      !String(value.SUPERTOKENS_API_KEY || '').trim()
+    )
+      throw new Error(
+        'SUPERTOKENS_API_KEY is required for production coexistence.',
+      );
+    if (
+      value.AUTH_PROVIDER_MODE === 'supertokens_only' &&
+      value.AUTH_MIGRATION_ENABLED !== 'true'
+    ) {
+      throw new Error(
+        'AUTH_MIGRATION_ENABLED must be true for supertokens_only.',
+      );
+    }
+  }
+  const storageProvider = String(
+    value.STORAGE_WRITE_PROVIDER || 'supabase',
+  ).toLowerCase();
+  if (!['supabase', 'gcs'].includes(storageProvider))
+    throw new Error('STORAGE_WRITE_PROVIDER is invalid.');
+  if (storageProvider === 'gcs' || value.GCS_STORAGE_ENABLED === 'true') {
+    if (
+      !String(value.GCS_PROJECT_ID || '').trim() ||
+      !String(value.GCS_STORAGE_BUCKET || '').trim()
+    )
+      throw new Error('GCS storage configuration is incomplete.');
+  }
   const deployedRuntime =
     value.NODE_ENV === 'production' ||
     appEnv === 'production' ||
@@ -88,6 +292,9 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       'SUPABASE_PROJECT_REF',
       'PRODUCTION_SUPABASE_PROJECT_REF',
     ].filter((name) => !String(value[name] ?? '').trim());
+    if (String(value.STOREFRONT_ORDERING_ENABLED).toLowerCase() === 'true') {
+      requireWhenEmpty(required, value, 'STOREFRONT_TOKEN_SECRET');
+    }
     if (appEnv === 'staging') {
       requireWhenEmpty(required, value, 'STAGING_SUPABASE_PROJECT_REF');
     }

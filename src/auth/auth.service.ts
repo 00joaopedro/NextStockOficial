@@ -18,16 +18,18 @@ import {
   SystemType,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { SupabaseService } from '../supabase/supabase.service';
+import {
+  AuthIdentityProvider,
+  AuthProviderError,
+  InjectAuthIdentityProvider,
+} from './auth-provider';
+import { canonicalizeEmail } from '../common/canonical-email';
 import {
   generateUniqueTenantSlug,
   toTenantSummary,
 } from '../tenancy/tenant.utils';
 import { UsageService } from '../usage/usage.service';
-import {
-  canAccessDev,
-  isSuperAdmin,
-} from './super-admin.util';
+import { canAccessDev, isSuperAdmin } from './super-admin.util';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { BillingEntitlementService } from '../billing/billing-entitlement.service';
 import { SubscriptionsService } from '../billing/subscriptions.service';
@@ -114,7 +116,8 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly supabase: SupabaseService,
+    @InjectAuthIdentityProvider()
+    private readonly authProvider: AuthIdentityProvider,
     private readonly prisma: PrismaService,
     private readonly devWorkspaces: DevWorkspaceService,
     @Optional() private readonly usageService?: UsageService,
@@ -130,7 +133,8 @@ export class AuthService {
     const password = this.normalizePassword(input.password);
     let referral: ValidReferral | null = null;
     if (input.referralCode) {
-      referral = (await this.referrals?.resolveActive(input.referralCode)) ?? null;
+      referral =
+        (await this.referrals?.resolveActive(input.referralCode)) ?? null;
       if (!referral) {
         await this.referrals?.recordRejected(input.referralCode);
         throw new BadRequestException(
@@ -148,48 +152,42 @@ export class AuthService {
 
     const existingProfile = await this.prisma.userProfile
       .findFirst({
-        where: {
-          OR: [{ email }, { accessNameNormalized }],
-        },
+        where: { email },
         select: { id: true },
       })
-      .catch((error) => this.handleKnownPrismaAuthError(error, 'register.lookup'));
+      .catch((error) =>
+        this.handleKnownPrismaAuthError(error, 'register.lookup'),
+      );
 
     if (existingProfile) {
-      throw new ConflictException('email or name is already registered');
+      throw new ConflictException('email is already registered');
     }
 
-    const { data, error } = await this.supabase.admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        name,
-        full_name: name,
-        companyName,
-        systemType,
-        role: Role.Admin,
-        access_name_normalized: accessNameNormalized,
-        allowed_system_types: [systemType],
-        is_super_admin: false,
-        isSuperAdmin: false,
-      },
-    });
-
-    if (error) {
-      if (isConflictError(error.message)) {
-        throw new ConflictException('E-mail ou nome ja cadastrado.');
+    let authUser;
+    try {
+      authUser = await this.authProvider.createUser({
+        email,
+        password,
+        metadata: {
+          name,
+          full_name: name,
+          companyName,
+          systemType,
+          role: Role.Admin,
+          access_name_normalized: accessNameNormalized,
+          allowed_system_types: [systemType],
+          is_super_admin: false,
+          isSuperAdmin: false,
+        },
+      });
+    } catch (error) {
+      if (
+        error instanceof AuthProviderError &&
+        error.code === 'email_already_exists'
+      ) {
+        throw new ConflictException('E-mail ja cadastrado.');
       }
-
-      throw this.buildSupabaseAuthException(error);
-    }
-
-    const authUser = data.user;
-
-    if (!authUser) {
-      throw new InternalServerErrorException(
-        'Supabase did not return the created user.',
-      );
+      throw this.buildSupabaseAuthException(error as SupabaseAuthError);
     }
 
     let result!: {
@@ -322,7 +320,9 @@ export class AuthService {
     } catch (error) {
       await this.rollbackAuthenticationUser(authUser.id);
       this.handleKnownPrismaAuthError(error, 'register.transaction');
-      throw new InternalServerErrorException('Nao foi possivel concluir o cadastro.');
+      throw new InternalServerErrorException(
+        'Nao foi possivel concluir o cadastro.',
+      );
     }
 
     const accessToken = await this.signInAfterRegister(email, password);
@@ -370,8 +370,8 @@ export class AuthService {
     const email = this.normalizeEmail(input.email);
     const password = this.normalizePassword(input.password);
 
-    const { data, error } = await withTimeout(
-      this.supabase.anon.auth.signInWithPassword({
+    const session = await withTimeout(
+      this.authProvider.login({
         email,
         password,
       }),
@@ -381,37 +381,31 @@ export class AuthService {
       if (error instanceof RequestTimeoutException) {
         throw error;
       }
+      if (
+        error instanceof AuthProviderError &&
+        ['invalid_credentials', 'email_not_verified'].includes(error.code)
+      ) {
+        throw new UnauthorizedException('Invalid email or password.');
+      }
 
       throw new ServiceUnavailableException(
         'Supabase Auth is temporarily unavailable.',
       );
     });
 
-    if (error) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-
-    const accessToken = data.session?.access_token;
-
-    if (!accessToken) {
-      throw new InternalServerErrorException(
-        'Supabase did not return an access token.',
-      );
-    }
-
-    if (!data.user?.id) {
-      throw new UnauthorizedException('Invalid Supabase session.');
-    }
+    const accessToken = session.accessToken;
 
     const profile = await this.findOrCreateProfileForLogin({
-      supabaseUserId: data.user.id,
+      supabaseUserId: session.identity.id,
       email,
-      metadata: data.user.user_metadata,
-    }).catch((error) => this.handleKnownPrismaAuthError(error, 'login.profile'));
-    this.assertEmployeeCanAuthenticate(profile);
-    const { user, selectedBranch } = await this.prepareLoginContext(profile).catch(
-      (error) => this.handleKnownPrismaAuthError(error, 'login.context'),
+      metadata: session.identity.metadata,
+    }).catch((error) =>
+      this.handleKnownPrismaAuthError(error, 'login.profile'),
     );
+    this.assertEmployeeCanAuthenticate(profile);
+    const { user, selectedBranch } = await this.prepareLoginContext(
+      profile,
+    ).catch((error) => this.handleKnownPrismaAuthError(error, 'login.context'));
     const billingState = this.billingEntitlement
       ? await this.billingEntitlement.forUser(user)
       : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
@@ -463,7 +457,8 @@ export class AuthService {
     const formattedUser = await this.withDevWorkspaceBranches(
       this.formatProfileWithMembership(profile),
     );
-    const currentSelectedBranch = this.resolveSelectedBranchFromUser(formattedUser);
+    const currentSelectedBranch =
+      this.resolveSelectedBranchFromUser(formattedUser);
 
     if (canAccessDev(profile) && !currentSelectedBranch) {
       const context = await this.prepareSuperAdminLoginContext(profile);
@@ -473,7 +468,8 @@ export class AuthService {
         branchId: context.selectedBranch?.id ?? context.user.branchId,
         email: context.user.email,
         name: context.user.name,
-        systemType: context.selectedBranch?.systemType ?? context.user.systemType,
+        systemType:
+          context.selectedBranch?.systemType ?? context.user.systemType,
         branchName: context.selectedBranch?.name ?? context.user.branch?.name,
         eventType: 'profile',
         weight: 1,
@@ -558,12 +554,13 @@ export class AuthService {
     const email = this.normalizeEmail(input.email);
     const redirectTo = process.env.SUPABASE_PASSWORD_REDIRECT_URL;
 
-    const { error } = await this.supabase.anon.auth.resetPasswordForEmail(
-      email,
-      redirectTo ? { redirectTo } : undefined,
-    );
-
-    if (error) this.logger.warn('Password recovery provider request was not completed.');
+    await this.authProvider
+      .requestPasswordRecovery(email, redirectTo)
+      .catch(() =>
+        this.logger.warn(
+          'Password recovery provider request was not completed.',
+        ),
+      );
 
     return {
       ok: true,
@@ -624,11 +621,16 @@ export class AuthService {
         this.logger.error(
           `SECURITY_PROFILE_BINDING_MISMATCH profile=${byProfileId.id.slice(0, 8)} auth=${input.supabaseUserId.slice(0, 8)}`,
         );
-        throw new UnauthorizedException('Perfil nao corresponde ao usuario autenticado.');
+        throw new UnauthorizedException(
+          'Perfil nao corresponde ao usuario autenticado.',
+        );
       }
 
       if (!byProfileId.supabaseUserId) {
-        await this.linkProfileToSupabaseUser(byProfileId.id, input.supabaseUserId);
+        await this.linkProfileToSupabaseUser(
+          byProfileId.id,
+          input.supabaseUserId,
+        );
         return this.findProfileRecord({ profileId: byProfileId.id });
       }
 
@@ -648,14 +650,19 @@ export class AuthService {
       this.logger.error(
         `SECURITY_PROFILE_BINDING_MISMATCH profile=${byEmail.id.slice(0, 8)} auth=${input.supabaseUserId.slice(0, 8)} emailMatch=true`,
       );
-      throw new UnauthorizedException('Perfil nao corresponde ao usuario autenticado.');
+      throw new UnauthorizedException(
+        'Perfil nao corresponde ao usuario autenticado.',
+      );
     }
 
     await this.linkProfileToSupabaseUser(byEmail.id, input.supabaseUserId);
     return this.findProfileRecord({ profileId: byEmail.id });
   }
 
-  private async linkProfileToSupabaseUser(profileId: string, supabaseUserId: string) {
+  private async linkProfileToSupabaseUser(
+    profileId: string,
+    supabaseUserId: string,
+  ) {
     await this.prisma.userProfile.update({
       where: { id: profileId },
       data: { supabaseUserId },
@@ -690,7 +697,9 @@ export class AuthService {
     return this.prisma.userProfile.findFirst({
       where: {
         OR: [
-          input.supabaseUserId ? { supabaseUserId: input.supabaseUserId } : undefined,
+          input.supabaseUserId
+            ? { supabaseUserId: input.supabaseUserId }
+            : undefined,
           input.profileId ? { id: input.profileId } : undefined,
           input.email ? { email: input.email } : undefined,
         ].filter(Boolean) as any,
@@ -876,7 +885,10 @@ export class AuthService {
       );
     }
 
-    const user = this.formatProfileWithMembership(profile, membership.branch.slug);
+    const user = this.formatProfileWithMembership(
+      profile,
+      membership.branch.slug,
+    );
 
     return {
       user,
@@ -892,7 +904,9 @@ export class AuthService {
     profile: Awaited<ReturnType<AuthService['findProfileRecord']>>,
   ) {
     await this.devWorkspaces.ensureDefaultWorkspaces(profile.id);
-    const systemType = this.devWorkspaces.normalizeSystemType(profile.systemType);
+    const systemType = this.devWorkspaces.normalizeSystemType(
+      profile.systemType,
+    );
     const context = await this.devWorkspaces.ensureDefaultWorkspace(
       profile.id,
       systemType,
@@ -1014,19 +1028,24 @@ export class AuthService {
     };
   }
 
-  private resolveSelectedBranchFromUser(user: ReturnType<AuthService['formatAuthUser']>) {
+  private resolveSelectedBranchFromUser(
+    user: ReturnType<AuthService['formatAuthUser']>,
+  ) {
     const firstBranch =
       user.branches?.find((branch) => branch.systemType === user.systemType) ??
       user.branches?.[0];
 
     if (user.branch?.id && user.tenantId) {
-      const realBranch = user.branches?.find((branch) => branch.id === user.branch?.id);
+      const realBranch = user.branches?.find(
+        (branch) => branch.id === user.branch?.id,
+      );
 
       return {
         id: user.branch.id,
         name: user.branch.name,
         tenantId: realBranch?.tenantId ?? user.tenantId,
-        systemType: realBranch?.systemType ?? user.systemType ?? SystemType.padrao,
+        systemType:
+          realBranch?.systemType ?? user.systemType ?? SystemType.padrao,
         ...(realBranch?.isDevWorkspace ? { isDevWorkspace: true } : {}),
       };
     }
@@ -1036,7 +1055,8 @@ export class AuthService {
         id: firstBranch.id,
         name: firstBranch.name,
         tenantId: firstBranch.tenantId,
-        systemType: firstBranch.systemType ?? user.systemType ?? SystemType.padrao,
+        systemType:
+          firstBranch.systemType ?? user.systemType ?? SystemType.padrao,
         ...(firstBranch.isDevWorkspace ? { isDevWorkspace: true } : {}),
       };
     }
@@ -1085,7 +1105,9 @@ export class AuthService {
     const hasDevAccess = canAccessDev(profile);
     const tenantSystemType = profile.tenant?.systemType;
     const allowedSystemTypes = hasDevAccess
-      ? [tenantSystemType ?? profile.systemType ?? SystemType.padrao].filter(Boolean)
+      ? [tenantSystemType ?? profile.systemType ?? SystemType.padrao].filter(
+          Boolean,
+        )
       : profile.allowedSystemTypes?.length
         ? profile.allowedSystemTypes
         : [profile.systemType ?? tenantSystemType ?? SystemType.padrao];
@@ -1129,13 +1151,7 @@ export class AuthService {
 
   private async rollbackAuthenticationUser(userId: string) {
     try {
-      const result = await this.supabase.admin.auth.admin.deleteUser(userId);
-      if (result.error) {
-        this.logger.error(
-          `Registration authentication rollback failed code=${this.sanitizeLogToken(result.error.code ?? result.error.name ?? 'provider_error')}`,
-        );
-        return false;
-      }
+      await this.authProvider.deleteUser(userId);
       this.logger.warn('Registration authentication user rollback completed.');
       return true;
     } catch (error) {
@@ -1157,7 +1173,9 @@ export class AuthService {
 
   private buildSupabaseAuthException(error: SupabaseAuthError) {
     this.logger.warn(
-      `Supabase Auth operation rejected code=${String(error.code ?? 'unknown').replace(/[\r\n]/g, '').slice(0, 40)}`,
+      `Supabase Auth operation rejected code=${String(error.code ?? 'unknown')
+        .replace(/[\r\n]/g, '')
+        .slice(0, 40)}`,
     );
     return new BadRequestException('Nao foi possivel concluir o cadastro.');
   }
@@ -1169,7 +1187,7 @@ export class AuthService {
       );
 
       if (error.code === 'P2002') {
-        throw new ConflictException('E-mail ou nome ja cadastrado.');
+        throw new ConflictException('E-mail ou identificador ja cadastrado.');
       }
 
       if (error.code === 'P2003' || error.code === 'P2025') {
@@ -1178,7 +1196,11 @@ export class AuthService {
         );
       }
 
-      if (error.code === 'P2021' || error.code === 'P2022' || error.code === 'P2010') {
+      if (
+        error.code === 'P2021' ||
+        error.code === 'P2022' ||
+        error.code === 'P2010'
+      ) {
         throw new ServiceUnavailableException(
           'Banco de dados indisponivel ou desatualizado. Execute as migrations pendentes.',
           { cause: error },
@@ -1199,19 +1221,30 @@ export class AuthService {
       return '{}';
     }
 
-    const allowedKeys = new Set(['modelName', 'target', 'field_name', 'column', 'table']);
+    const allowedKeys = new Set([
+      'modelName',
+      'target',
+      'field_name',
+      'column',
+      'table',
+    ]);
     const sanitized = Object.fromEntries(
       Object.entries(meta as Record<string, unknown>)
         .filter(([key]) => allowedKeys.has(key))
-        .map(([key, value]) => [key, String(value).replace(/[\r\n\t]/g, ' ').slice(0, 120)]),
+        .map(([key, value]) => [
+          key,
+          String(value)
+            .replace(/[\r\n\t]/g, ' ')
+            .slice(0, 120),
+        ]),
     );
 
     return JSON.stringify(sanitized);
   }
 
   private async signInAfterRegister(email: string, password: string) {
-    const { data, error } = await withTimeout(
-      this.supabase.anon.auth.signInWithPassword({ email, password }),
+    const session = await withTimeout(
+      this.authProvider.login({ email, password }),
       SUPABASE_AUTH_TIMEOUT_MS,
       'Supabase Auth did not respond in time.',
     ).catch((error) => {
@@ -1224,23 +1257,11 @@ export class AuthService {
       );
     });
 
-    if (error || !data.session?.access_token) {
-      throw new BadRequestException(
-        'Cadastro criado, mas login automatico nao foi concluido.',
-      );
-    }
-
-    return data.session.access_token;
+    return session.accessToken;
   }
 
   private normalizeEmail(email?: string) {
-    const normalizedEmail = email?.trim().toLowerCase();
-
-    if (!normalizedEmail) {
-      throw new BadRequestException('email is required');
-    }
-
-    return normalizedEmail;
+    return canonicalizeEmail(email);
   }
 
   private normalizeName(name?: string) {

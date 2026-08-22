@@ -1,0 +1,18 @@
+apiVersion: run.googleapis.com/v1
+kind: Job
+metadata: {name: CLOUD_RUN_SERVICE-migrate}
+spec:
+  template:
+    spec:
+      taskCount: 1
+      maxRetries: 0
+      template:
+        spec:
+          serviceAccountName: SERVICE_ACCOUNT
+          containers:
+            - image: IMAGE_URI
+              command: ["node", "-r", "ts-node/register", "scripts/migrations/cloud-run-migrate.ts"]
+              env:
+                - {name: APP_ENV, value: staging}
+                - {name: DIRECT_URL, valueFrom: {secretKeyRef: {name: SECRET_NAME, key: DIRECT_URL}}}
+          timeoutSeconds: 900
