@@ -337,17 +337,27 @@ async function fetchSystemContext() {
         return normalizeContext(publicPreview);
     }
     const selectedBranchId = getSelectedBranchId();
-    const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
+    const headers = {
+        Accept: 'application/json',
+        ...(selectedBranchId
+            ? { 'x-nextstock-branch-id': selectedBranchId }
+            : {}),
+        ...getDevContextHeader(selectedBranchId),
+    };
+    const contextResponsePromise = fetch(SYSTEM_CONTEXT_ENDPOINT, {
         method: 'GET',
-        headers: {
-            Accept: 'application/json',
-            ...(selectedBranchId
-                ? { 'x-nextstock-branch-id': selectedBranchId }
-                : {}),
-            ...getDevContextHeader(selectedBranchId),
-        },
+        headers,
         credentials: 'include',
     });
+    const billingResponsePromise = fetch('/api/billing/subscription', {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+    });
+    const [response, billingResponse] = await Promise.all([
+        contextResponsePromise,
+        billingResponsePromise.catch(() => null),
+    ]);
     if (!response.ok) {
         throw new Error(`System context failed with status ${response.status}`);
     }
@@ -362,24 +372,35 @@ async function fetchSystemContext() {
             context.systemType = 'petshop';
         }
     }
-    const billingResponse = await fetch('/api/billing/subscription', {
-        method: 'GET',
-        headers: {
-            Accept: 'application/json',
-            ...(selectedBranchId
-                ? { 'x-nextstock-branch-id': selectedBranchId }
-                : {}),
-            ...getDevContextHeader(selectedBranchId),
-        },
-        credentials: 'include',
-    });
-    if (billingResponse.ok) {
+    if (billingResponse?.ok) {
         const billing = await billingResponse.json();
         context.billingAllowed =
             billing?.enforcementEnabled !== true ||
                 billing?.entitlement?.allowed !== false;
     }
     return context;
+}
+function renderSidebarShell(container) {
+    injectSidebarStyles();
+    container.innerHTML = `
+    <aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true">
+      <div class="sidebar-brand"><h2>NextStock</h2></div>
+    </aside>
+  `;
+    markSidebarPerformance('nextstock-sidebar-shell');
+}
+function markSidebarPerformance(name) {
+    if (typeof performance?.mark === 'function') {
+        performance.mark(name);
+    }
+}
+function measureSidebarPerformance() {
+    if (typeof performance?.measure === 'function' &&
+        typeof performance?.getEntriesByName === 'function' &&
+        performance.getEntriesByName('nextstock-sidebar-shell').length > 0 &&
+        performance.getEntriesByName('nextstock-sidebar-ready').length > 0) {
+        performance.measure('nextstock-sidebar-shell-to-ready', 'nextstock-sidebar-shell', 'nextstock-sidebar-ready');
+    }
 }
 function renderSidebar(container, context) {
     injectSidebarStyles();
@@ -461,9 +482,13 @@ async function loadSidebar() {
     if (!container) {
         return;
     }
+    renderSidebarShell(container);
     try {
         const context = await fetchSystemContext();
         renderSidebar(container, context);
+        container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+        markSidebarPerformance('nextstock-sidebar-ready');
+        measureSidebarPerformance();
         recordPageView(context);
     }
     catch (error) {
@@ -475,6 +500,9 @@ async function loadSidebar() {
             context.systemType = 'petshop';
         }
         renderSidebar(container, context);
+        container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+        markSidebarPerformance('nextstock-sidebar-ready');
+        measureSidebarPerformance();
         recordPageView(context);
     }
 }

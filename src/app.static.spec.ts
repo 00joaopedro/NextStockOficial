@@ -2,9 +2,24 @@ import {
   FastifyAdapter,
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
-import { Test } from '@nestjs/testing';
-import { AppModule } from './app.module';
+import { RequestMethod } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
 import { PrismaService } from './prisma/prisma.service';
+
+jest.mock('jwks-rsa', () => ({
+  passportJwtSecret: jest.fn(
+    () =>
+      (
+        _request: unknown,
+        _rawToken: string,
+        done: (error: Error | null, secret?: string | Buffer) => void,
+      ) => {
+        done(
+          new Error('JWKS is not available in the static delivery test.'),
+        );
+      },
+  ),
+}));
 
 describe('public static delivery', () => {
   let app: NestFastifyApplication;
@@ -13,6 +28,7 @@ describe('public static delivery', () => {
     Object.assign(process.env, {
       APP_ENV: 'test',
       NODE_ENV: 'test',
+      NEXTSTOCK_PROCESS_ROLE: 'api',
       DATABASE_URL:
         'postgresql://test:test@127.0.0.1:5432/nextstock_static_test?schema=public',
       DIRECT_URL: '',
@@ -29,22 +45,31 @@ describe('public static delivery', () => {
       CERT_ENCRYPTION_KEY_VERSION: 'test-v1',
     });
 
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({})
-      .compile();
+    const { AppModule } = await import('./app.module');
 
-    app = moduleRef.createNestApplication<NestFastifyApplication>(
+    jest.spyOn(PrismaService.prototype, '$connect').mockResolvedValue();
+    jest.spyOn(PrismaService.prototype, '$disconnect').mockResolvedValue();
+
+    app = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
       new FastifyAdapter(),
+      { logger: false },
     );
+    // Keep public static delivery and the API prefix aligned with src/main.ts.
+    app.setGlobalPrefix('api', {
+      exclude: [
+        { path: 'dev.html', method: RequestMethod.GET },
+        { path: 'parceiros.html', method: RequestMethod.GET },
+        { path: 'loja/:slug', method: RequestMethod.GET },
+      ],
+    });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
   });
 
   afterAll(async () => {
     await app.close();
+    jest.restoreAllMocks();
   });
 
   it.each(['/index.html', '/cadastro.html'])(
@@ -69,6 +94,14 @@ describe('public static delivery', () => {
     expect(root.headers['content-type']).toMatch(/text\/html/);
     expect(asset.statusCode).toBe(200);
     expect(asset.headers['content-type']).toMatch(/javascript|typescript|text/);
+  });
+
+  it('keeps the AppController JSON route under the API prefix', async () => {
+    const apiRoot = await app.inject({ method: 'GET', url: '/api' });
+
+    expect(apiRoot.statusCode).toBe(200);
+    expect(apiRoot.headers['content-type']).toMatch(/application\/json/);
+    expect(apiRoot.headers['content-type']).not.toMatch(/text\/html/);
   });
 
   it('does not turn a missing favicon or route into a TypeError response', async () => {
