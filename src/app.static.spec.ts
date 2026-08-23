@@ -67,6 +67,13 @@ describe('public static delivery', () => {
     });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
+    const fastify = app.getHttpAdapter().getInstance();
+    console.log('STATIC_DIAGNOSTIC', {
+      cwd: process.cwd(),
+      testDir: __dirname,
+      sendFile: fastify.hasDecorator('sendFile'),
+      routes: fastify.printRoutes(),
+    });
   });
 
   afterAll(async () => {
