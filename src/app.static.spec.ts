@@ -3,7 +3,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { RequestMethod } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
+import { NestFactory } from '@nestjs/core';
 import { PrismaService } from './prisma/prisma.service';
 
 jest.mock('jwks-rsa', () => ({
@@ -47,15 +47,13 @@ describe('public static delivery', () => {
 
     const { AppModule } = await import('./app.module');
 
-    const moduleRef = await Test.createTestingModule({
-      imports: [AppModule],
-    })
-      .overrideProvider(PrismaService)
-      .useValue({})
-      .compile();
+    jest.spyOn(PrismaService.prototype, '$connect').mockResolvedValue();
+    jest.spyOn(PrismaService.prototype, '$disconnect').mockResolvedValue();
 
-    app = moduleRef.createNestApplication<NestFastifyApplication>(
+    app = await NestFactory.create<NestFastifyApplication>(
+      AppModule,
       new FastifyAdapter(),
+      { logger: false },
     );
     // Keep public static delivery and the API prefix aligned with src/main.ts.
     app.setGlobalPrefix('api', {
@@ -67,18 +65,11 @@ describe('public static delivery', () => {
     });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
-    const fastify = app.getHttpAdapter().getInstance();
-    console.log('STATIC_DIAGNOSTIC', {
-      cwd: process.cwd(),
-      testDir: __dirname,
-      processRole: process.env.NEXTSTOCK_PROCESS_ROLE,
-      sendFile: fastify.hasDecorator('sendFile'),
-      routes: fastify.printRoutes(),
-    });
   });
 
   afterAll(async () => {
     await app.close();
+    jest.restoreAllMocks();
   });
 
   it.each(['/index.html', '/cadastro.html'])(
