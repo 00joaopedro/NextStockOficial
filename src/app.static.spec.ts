@@ -71,6 +71,7 @@ describe('public static delivery', () => {
     console.log('STATIC_DIAGNOSTIC', {
       cwd: process.cwd(),
       testDir: __dirname,
+      processRole: process.env.NEXTSTOCK_PROCESS_ROLE,
       sendFile: fastify.hasDecorator('sendFile'),
       routes: fastify.printRoutes(),
     });
