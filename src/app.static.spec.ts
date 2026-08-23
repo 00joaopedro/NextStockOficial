@@ -6,6 +6,21 @@ import { Test } from '@nestjs/testing';
 import { AppModule } from './app.module';
 import { PrismaService } from './prisma/prisma.service';
 
+jest.mock('jwks-rsa', () => ({
+  passportJwtSecret: jest.fn(
+    () =>
+      (
+        _request: unknown,
+        _rawToken: string,
+        done: (error: Error | null, secret?: string | Buffer) => void,
+      ) => {
+        done(
+          new Error('JWKS is not available in the static delivery test.'),
+        );
+      },
+  ),
+}));
+
 describe('public static delivery', () => {
   let app: NestFastifyApplication;
 
