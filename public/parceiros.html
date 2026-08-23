@@ -59,6 +59,7 @@
       .table-wrap { overflow:auto; }
     }
   </style>
+  <link rel="modulepreload" href="./dist/sidebar.js">
 </head>
 <body data-locked="true">
   <div id="accessGate" class="access"><h2>Validando acesso...</h2><p>Painel restrito ao Dev SuperAdmin.</p></div>
@@ -149,7 +150,7 @@
     </main>
   </div>
   <script src="./dist/session-state.js"></script>
-  <script src="./dist/sidebar.js"></script>
+  <script type="module" src="./dist/sidebar.js"></script>
   <script src="./dist/parceiros.js"></script>
 </body>
 </html>

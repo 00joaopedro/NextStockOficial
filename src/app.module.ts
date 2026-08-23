@@ -84,6 +84,10 @@ const publicPath = join(__dirname, '..', 'public');
             );
             return;
           }
+          if (/[/\\]sidebar\.js$/i.test(filePath)) {
+            reply.header('Cache-Control', 'public, max-age=0, must-revalidate');
+            return;
+          }
           reply.header('Cache-Control', 'public, max-age=3600');
         },
       } as NonNullable<ServeStaticModuleOptions['serveStaticOptions']> &
