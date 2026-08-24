@@ -1,5 +1,9 @@
 const SYSTEM_CONTEXT_ENDPOINT = '/api/system/context';
+const BILLING_ENDPOINT = '/api/billing/subscription';
 const PAGE_VIEW_ENDPOINT = '/api/usage/page-view';
+const SIDEBAR_CACHE_KEY = 'nextstock.sidebar.snapshot';
+const SIDEBAR_CACHE_SCHEMA = 1;
+const SIDEBAR_CACHE_TTL_MS = 3 * 60 * 1000;
 const FALLBACK_CONTEXT = {
     systemMode: 'PREVIEW',
     tenantType: 'STANDARD',
@@ -197,6 +201,79 @@ function getSelectedBranchId() {
         return sessionStorage.getItem('nextstockBranchId');
     }
 }
+function getSelectedTenantId() {
+    try {
+        const branch = JSON.parse(sessionStorage.getItem('nextstockSelectedBranch') || 'null');
+        return branch?.tenantId || sessionStorage.getItem('nextstockTenantId');
+    }
+    catch {
+        return sessionStorage.getItem('nextstockTenantId');
+    }
+}
+function markSidebarPerformance(name) {
+    if (typeof performance !== 'undefined' && typeof performance.mark === 'function')
+        performance.mark(name);
+}
+function snapshotScope(context = {}) {
+    return {
+        tenantId: context.selectedBranch?.tenantId || getSelectedTenantId(),
+        branchId: context.selectedBranch?.id || getSelectedBranchId(),
+        mode: context.mode || sessionStorage.getItem('nextstockBackendMode'),
+        systemType: context.systemType || sessionStorage.getItem('nextstockSystemType'),
+        role: context.role || null,
+    };
+}
+function clearSidebarSnapshot() {
+    try {
+        sessionStorage.removeItem(SIDEBAR_CACHE_KEY);
+    }
+    catch { }
+}
+function readSidebarSnapshot() {
+    try {
+        const raw = sessionStorage.getItem(SIDEBAR_CACHE_KEY);
+        if (!raw) {
+            markSidebarPerformance('nextstock-sidebar-cache-miss');
+            return null;
+        }
+        const candidate = JSON.parse(raw);
+        const scope = snapshotScope(candidate.context);
+        const valid = candidate.schemaVersion === SIDEBAR_CACHE_SCHEMA &&
+            candidate.expiresAt > Date.now() && raw.length <= 64 * 1024 &&
+            Array.isArray(candidate.menu) && candidate.context &&
+            Object.keys(scope).every((key) => candidate.scope?.[key] === scope[key]);
+        if (!valid) {
+            clearSidebarSnapshot();
+            markSidebarPerformance('nextstock-sidebar-cache-miss');
+            return null;
+        }
+        markSidebarPerformance('nextstock-sidebar-cache-hit');
+        return candidate;
+    }
+    catch {
+        clearSidebarSnapshot();
+        markSidebarPerformance('nextstock-sidebar-cache-miss');
+        return null;
+    }
+}
+function writeSidebarSnapshot(context, menu) {
+    try {
+        const generatedAt = Date.now();
+        const snapshot = {
+            schemaVersion: SIDEBAR_CACHE_SCHEMA,
+            generatedAt,
+            expiresAt: generatedAt + SIDEBAR_CACHE_TTL_MS,
+            scope: snapshotScope(context),
+            context: normalizeContext(context),
+            menu: menu.map(({ label, href, key, module }) => ({ label, href, key, module })),
+        };
+        const encoded = JSON.stringify(snapshot);
+        if (encoded.length <= 64 * 1024)
+            sessionStorage.setItem(SIDEBAR_CACHE_KEY, encoded);
+    }
+    catch { }
+}
+window.clearNextStockSidebarSnapshot = clearSidebarSnapshot;
 function getDevContextHeader(selectedBranchId) {
     if (!selectedBranchId) {
         return {};
@@ -337,28 +414,21 @@ async function fetchSystemContext() {
         return normalizeContext(publicPreview);
     }
     const selectedBranchId = getSelectedBranchId();
-    const headers = {
-        Accept: 'application/json',
-        ...(selectedBranchId
-            ? { 'x-nextstock-branch-id': selectedBranchId }
-            : {}),
-        ...getDevContextHeader(selectedBranchId),
-    };
-    const contextResponsePromise = fetch(SYSTEM_CONTEXT_ENDPOINT, {
+    markSidebarPerformance('nextstock-sidebar-context-start');
+    const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
         method: 'GET',
-        headers,
+        headers: {
+            Accept: 'application/json',
+            ...(selectedBranchId
+                ? { 'x-nextstock-branch-id': selectedBranchId }
+                : {}),
+            ...getDevContextHeader(selectedBranchId),
+        },
         credentials: 'include',
     });
-    const billingResponsePromise = fetch('/api/billing/subscription', {
-        method: 'GET',
-        headers,
-        credentials: 'include',
-    });
-    const [response, billingResponse] = await Promise.all([
-        contextResponsePromise,
-        billingResponsePromise.catch(() => null),
-    ]);
     if (!response.ok) {
+        if (response.status === 401 || response.status === 403)
+            clearSidebarSnapshot();
         throw new Error(`System context failed with status ${response.status}`);
     }
     const context = normalizeContext(await response.json());
@@ -372,39 +442,39 @@ async function fetchSystemContext() {
             context.systemType = 'petshop';
         }
     }
-    if (billingResponse?.ok) {
+    markSidebarPerformance('nextstock-sidebar-context-ready');
+    return context;
+}
+async function fetchBilling(context) {
+    markSidebarPerformance('nextstock-sidebar-billing-start');
+    const selectedBranchId = getSelectedBranchId();
+    const billingResponse = await fetch(BILLING_ENDPOINT, {
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+            ...(selectedBranchId
+                ? { 'x-nextstock-branch-id': selectedBranchId }
+                : {}),
+            ...getDevContextHeader(selectedBranchId),
+        },
+        credentials: 'include',
+    });
+    if (billingResponse.status === 401 || billingResponse.status === 403) {
+        clearSidebarSnapshot();
+        throw new Error(`Billing failed with status ${billingResponse.status}`);
+    }
+    if (billingResponse.ok) {
         const billing = await billingResponse.json();
         context.billingAllowed =
             billing?.enforcementEnabled !== true ||
                 billing?.entitlement?.allowed !== false;
     }
+    markSidebarPerformance('nextstock-sidebar-billing-ready');
     return context;
 }
-function renderSidebarShell(container) {
+function renderSidebar(container, context, menuOverride) {
     injectSidebarStyles();
-    container.innerHTML = `
-    <aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true">
-      <div class="sidebar-brand"><h2>NextStock</h2></div>
-    </aside>
-  `;
-    markSidebarPerformance('nextstock-sidebar-shell');
-}
-function markSidebarPerformance(name) {
-    if (typeof performance?.mark === 'function') {
-        performance.mark(name);
-    }
-}
-function measureSidebarPerformance() {
-    if (typeof performance?.measure === 'function' &&
-        typeof performance?.getEntriesByName === 'function' &&
-        performance.getEntriesByName('nextstock-sidebar-shell').length > 0 &&
-        performance.getEntriesByName('nextstock-sidebar-ready').length > 0) {
-        performance.measure('nextstock-sidebar-shell-to-ready', 'nextstock-sidebar-shell', 'nextstock-sidebar-ready');
-    }
-}
-function renderSidebar(container, context) {
-    injectSidebarStyles();
-    const menu = getMenuByContext(context);
+    const menu = menuOverride || getMenuByContext(context);
     container.innerHTML = buildSidebarHtml(menu, context);
     document.documentElement.dataset.systemMode = context.systemMode;
     document.documentElement.dataset.tenantType = context.tenantType;
@@ -482,16 +552,39 @@ async function loadSidebar() {
     if (!container) {
         return;
     }
-    renderSidebarShell(container);
+    markSidebarPerformance('nextstock-sidebar-script-start');
+    const snapshot = readSidebarSnapshot();
+    if (snapshot) {
+        renderSidebar(container, snapshot.context, snapshot.menu);
+        container.querySelector('#sidebar')?.setAttribute('data-sidebar-state', 'revalidating');
+        markSidebarPerformance('nextstock-sidebar-first-menu');
+    }
+    else {
+        injectSidebarStyles();
+        container.innerHTML = '<aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true"><div class="sidebar-brand"><h2>NextStock</h2></div><ul class="menu"><li class="menu-item"><a href="perfil.html">Perfil</a></li></ul></aside>';
+        markSidebarPerformance('nextstock-sidebar-shell');
+    }
     try {
         const context = await fetchSystemContext();
-        renderSidebar(container, context);
-        container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
-        markSidebarPerformance('nextstock-sidebar-ready');
-        measureSidebarPerformance();
-        recordPageView(context);
+        const provisional = snapshot
+            ? getMenuByContext({ ...context, billingAllowed: snapshot.context.billingAllowed })
+            : getMenuByContext({ ...context, billingAllowed: false });
+        renderSidebar(container, context, provisional);
+        markSidebarPerformance('nextstock-sidebar-first-menu');
+        void fetchBilling(context).then((resolved) => {
+            const menu = getMenuByContext(resolved);
+            renderSidebar(container, resolved, menu);
+            writeSidebarSnapshot(resolved, menu);
+            container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+            markSidebarPerformance('nextstock-sidebar-ready');
+            recordPageView(resolved);
+        }).catch(() => {
+            container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
+            markSidebarPerformance('nextstock-sidebar-ready');
+        });
     }
     catch (error) {
+        clearSidebarSnapshot();
         console.warn('Using fallback sidebar context.', error);
         const context = { ...getRuntimeFallbackContext() };
         const selected = sessionStorage.getItem('nextstockSelectedSystemType');
@@ -502,7 +595,6 @@ async function loadSidebar() {
         renderSidebar(container, context);
         container.querySelector('#sidebar')?.setAttribute('aria-busy', 'false');
         markSidebarPerformance('nextstock-sidebar-ready');
-        measureSidebarPerformance();
         recordPageView(context);
     }
 }

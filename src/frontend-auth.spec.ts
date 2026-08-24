@@ -147,20 +147,44 @@ describe('frontend auth pages', () => {
     expect(source).not.toContain('SUPABASE_ACCESS_TOKEN');
   });
 
-  it('sidebar pinta um shell neutro antes da autorizacao e paraleliza contexto e billing', () => {
+  it('sidebar reutiliza snapshot seguro e revalida contexto e billing separadamente', () => {
     const source = publicFile('Js/sidebar.ts');
 
-    expect(source).toContain('function renderSidebarShell');
-    expect(source).toContain("class=\"sidebar sidebar-loading\"");
-    expect(source).toContain('renderSidebarShell(container);');
-    expect(source).toContain('const contextResponsePromise = fetch');
-    expect(source).toContain('const billingResponsePromise = fetch');
-    expect(source).toContain('Promise.all([');
-    expect(source).toContain('function markSidebarPerformance');
-    expect(source).toContain('function measureSidebarPerformance');
-    expect(source).toContain('billingResponsePromise.catch(() => null)');
-    expect(source).not.toContain("performance.mark('nextstock-sidebar-shell')");
-    expect(source).not.toContain("performance.mark('nextstock-sidebar-ready')");
-    expect(source).not.toContain('await response.json();\n  if (\n    context.systemMode');
+    expect(source).toContain('function readSidebarSnapshot');
+    expect(source).toContain('function writeSidebarSnapshot');
+    expect(source).toContain('function clearSidebarSnapshot');
+    expect(source).toContain('const SIDEBAR_CACHE_SCHEMA = 1');
+    expect(source).toContain('const SIDEBAR_CACHE_TTL_MS = 3 * 60 * 1000');
+    expect(source).toContain('raw.length <= 64 * 1024');
+    expect(source).toContain('candidate.expiresAt > Date.now()');
+    expect(source).toContain('JSON.parse(raw)');
+    expect(source).toContain('clearSidebarSnapshot();');
+
+    expect(source).toContain('renderSidebar(container, snapshot.context, snapshot.menu);');
+    expect(source).toContain('const snapshot = readSidebarSnapshot();');
+    expect(source).toContain('void fetchBilling(context).then');
+    expect(source).toContain('writeSidebarSnapshot(resolved, menu);');
+    expect(source).toContain('data-sidebar-state\', \'revalidating\'');
+
+    expect(source).toContain('function fetchSystemContext');
+    expect(source).toContain('function fetchBilling');
+    expect(source).toContain('nextstock-sidebar-context-start');
+    expect(source).toContain('nextstock-sidebar-context-ready');
+    expect(source).toContain('nextstock-sidebar-billing-start');
+    expect(source).toContain('nextstock-sidebar-billing-ready');
+    expect(source).toContain('nextstock-sidebar-cache-hit');
+    expect(source).toContain('nextstock-sidebar-cache-miss');
+    expect(source).toContain('nextstock-sidebar-first-menu');
+    expect(source).toContain('nextstock-sidebar-ready');
+
+    expect(source).toContain("if (response.status === 401 || response.status === 403) clearSidebarSnapshot();");
+    expect(source).toContain("if (billingResponse.status === 401 || billingResponse.status === 403)");
+    expect(source).toContain("renderSidebar(container, context, provisional);");
+    expect(source).toContain("billingAllowed: false");
+    expect(source).not.toContain('function renderSidebarShell');
+    expect(source).not.toContain('const contextResponsePromise = fetch');
+    expect(source).not.toContain('const billingResponsePromise = fetch');
+    expect(source).not.toContain('await Promise.all([contextResponsePromise');
+    expect(source).not.toContain('billingResponsePromise.catch(() => null)');
   });
 });
