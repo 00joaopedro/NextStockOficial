@@ -5,6 +5,7 @@ import { readEvidence } from '../../scripts/auth/supertokens-evidence';
 
 const configured = {
   AUTH_PROVIDER_MODE: 'coexistence',
+  AUTH_MIGRATION_ENABLED: 'true',
   SUPERTOKENS_CONNECTION_URI: 'http://core.test',
   SUPERTOKENS_APP_NAME: 'test',
   SUPERTOKENS_API_DOMAIN: 'http://api.test',

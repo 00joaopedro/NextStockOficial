@@ -28,13 +28,21 @@ describe('SessionsService', () => {
           expiresAt: stored.expiresAt,
           revokedAt: null,
           lastSeenAt: new Date(),
+          credentialVersion: stored.credentialVersion,
         })),
         update: jest.fn(),
+      },
+      localCredential: {
+        findUnique: jest.fn().mockResolvedValue({
+          credentialVersion: 1,
+          status: 'active',
+        }),
       },
     };
     const service = new SessionsService(prisma as any);
     const created = await service.create({
       profileId: 'profile-1',
+      credentialVersion: 1,
       expiresAt: new Date(Date.now() + 60_000),
     });
     expect(stored.tokenIdHash).toMatch(/^[a-f0-9]{64}$/);

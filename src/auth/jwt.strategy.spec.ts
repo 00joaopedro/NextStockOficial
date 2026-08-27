@@ -110,7 +110,11 @@ describe('JwtStrategy', () => {
       { cookies: { nextstock_session: 'opaque' } },
       { sub: 'auth-user-id', email: 'user@test.com' },
     );
-    expect(sessions.assertActive).toHaveBeenCalledWith('opaque', profile.id);
+    expect(sessions.assertActive).toHaveBeenCalledWith(
+      'opaque',
+      profile.id,
+      false,
+    );
   });
 
   it('validate escolhe membership coerente com systemType em vez do primeiro vinculo', async () => {
