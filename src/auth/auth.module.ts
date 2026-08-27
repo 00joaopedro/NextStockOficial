@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
 
 import { SupabaseModule } from '../supabase/supabase.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -22,12 +23,15 @@ import { ObservabilityModule } from '../observability/observability.module';
 import { AUTH_IDENTITY_PROVIDER } from './auth-provider';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
 import { FakeSuperTokensAdapter } from './supertokens-adapter';
+import { LocalJwtService } from './local-jwt.service';
+import { PasswordHasher } from './local-password';
 
 @Module({
   imports: [
     SupabaseModule,
     PrismaModule,
     PassportModule,
+    JwtModule.register({}),
     UsageModule,
     TenancyModule,
     ReferralModule,
@@ -45,6 +49,8 @@ import { FakeSuperTokensAdapter } from './supertokens-adapter';
     PublicRateLimitGuard,
     AuthRateLimitGuard,
     AuthRateLimitStore,
+    LocalJwtService,
+    PasswordHasher,
     SupabaseAuthProvider,
     FakeSuperTokensAdapter,
     { provide: AUTH_IDENTITY_PROVIDER, useExisting: SupabaseAuthProvider },

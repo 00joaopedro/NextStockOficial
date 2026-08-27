@@ -398,6 +398,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     await this.sessions?.assertActive(
       request?.cookies?.[SESSION_COOKIE_NAME],
       profile.id,
+      payload?.iss === (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth'),
     );
 
     if (!membership && !hasFullAccess) {
