@@ -56,8 +56,13 @@ export class SessionsService {
     return { token, ...session };
   }
 
-  async assertActive(token: string | undefined, profileId: string, required = false) {
-    if (!required && process.env.SESSION_ENFORCEMENT_ENABLED !== 'true') return null;
+  async assertActive(
+    token: string | undefined,
+    profileId: string,
+    required = false,
+  ) {
+    if (!required && process.env.SESSION_ENFORCEMENT_ENABLED !== 'true')
+      return null;
     if (!token) {
       throw new UnauthorizedException(
         'SESSION_REQUIRED: Sessao revogavel ausente.',
@@ -95,9 +100,18 @@ export class SessionsService {
         'SESSION_REVOKED: Sessao expirada ou revogada.',
       );
     }
-    const credential = await this.prisma.localCredential.findUnique({ where: { profileId }, select: { credentialVersion: true, status: true } });
-    if (credential && (credential.status !== 'active' || session.credentialVersion !== credential.credentialVersion)) {
-      throw new UnauthorizedException('SESSION_REVOKED: Credencial alterada ou indisponivel.');
+    const credential = await this.prisma.localCredential.findUnique({
+      where: { profileId },
+      select: { credentialVersion: true, status: true },
+    });
+    if (
+      credential &&
+      (credential.status !== 'active' ||
+        session.credentialVersion !== credential.credentialVersion)
+    ) {
+      throw new UnauthorizedException(
+        'SESSION_REVOKED: Credencial alterada ou indisponivel.',
+      );
     }
     if (now.getTime() - session.lastSeenAt.getTime() > 5 * 60_000) {
       await this.prisma.userSession.update({
