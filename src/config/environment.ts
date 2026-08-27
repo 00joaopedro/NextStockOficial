@@ -24,12 +24,7 @@ const schema = Joi.object({
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
   AUTH_PROVIDER_MODE: Joi.string()
-    .valid(
-      'supabase_only',
-      'coexistence',
-      'local_primary',
-      'local_only',
-    )
+    .valid('supabase_only', 'coexistence', 'local_primary', 'local_only')
     .default('supabase_only'),
   AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
@@ -41,7 +36,11 @@ const schema = Joi.object({
   LOCAL_AUTH_JWT_PREVIOUS_KID: Joi.string().max(80).allow('').optional(),
   LOCAL_AUTH_JWT_ISSUER: Joi.string().allow('').optional(),
   LOCAL_AUTH_JWT_AUDIENCE: Joi.string().allow('').optional(),
-  LOCAL_AUTH_JWT_TTL_SECONDS: Joi.number().integer().min(60).max(900).default(300),
+  LOCAL_AUTH_JWT_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(900)
+    .default(300),
   LOCAL_BCRYPT_ROUNDS: Joi.number().integer().min(10).max(14).default(12),
   SUPERTOKENS_CONNECTION_URI: Joi.string().uri().allow('').optional(),
   SUPERTOKENS_API_KEY: Joi.string().allow('').optional(),
@@ -248,10 +247,17 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
   if (value.AUTH_PROVIDER_MODE !== 'supabase_only') {
     if (value.AUTH_MIGRATION_ENABLED !== 'true') {
-      throw new Error('AUTH_MIGRATION_ENABLED must be true outside supabase_only.');
+      throw new Error(
+        'AUTH_MIGRATION_ENABLED must be true outside supabase_only.',
+      );
     }
-    if (value.AUTH_PROVIDER_MODE === 'local_primary' || value.AUTH_PROVIDER_MODE === 'local_only') {
-      throw new Error('Local-primary and local-only modes are blocked by rollout gates.');
+    if (
+      value.AUTH_PROVIDER_MODE === 'local_primary' ||
+      value.AUTH_PROVIDER_MODE === 'local_only'
+    ) {
+      throw new Error(
+        'Local-primary and local-only modes are blocked by rollout gates.',
+      );
     }
   }
   const storageProvider = String(
