@@ -8,6 +8,11 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum AuthIdentityProvider {
+  GOOGLE   @map("google")
+  SUPABASE @map("supabase")
+}
+
 model UserProfile {
   id                       String                        @id @db.Uuid
   supabaseUserId           String?                       @unique @map("supabase_user_id") @db.Uuid
@@ -77,31 +82,31 @@ model AuthEmailClaim {
   profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
-  identities     AuthIdentity[]
-
   @@map("auth_email_claims")
 }
 
 model AuthIdentity {
-  id                     String         @id @default(uuid()) @db.Uuid
-  profileId              String         @map("profile_id") @db.Uuid
-  profile                UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  provider               String
-  providerUserId         String         @map("provider_user_id")
-  canonicalEmail         String         @map("canonical_email")
-  emailClaim             AuthEmailClaim @relation(fields: [canonicalEmail], references: [canonicalEmail], onDelete: Restrict)
-  status                 String         @default("active")
-  migrationState         String         @default("NOT_REQUIRED") @map("migration_state")
-  passwordStrategy       String?        @map("password_strategy")
-  lastMigrationAttemptAt DateTime?      @map("last_migration_attempt_at")
-  reconciliationReason   String?        @map("reconciliation_reason")
-  createdAt              DateTime       @default(now()) @map("created_at")
-  updatedAt              DateTime       @updatedAt @map("updated_at")
+  id                     String               @id @default(uuid()) @db.Uuid
+  userProfileId          String               @map("profile_id") @db.Uuid
+  userProfile            UserProfile          @relation(fields: [userProfileId], references: [id], onDelete: Restrict)
+  provider               AuthIdentityProvider
+  providerSubject        String               @map("provider_user_id")
+  canonicalEmail         String?              @map("canonical_email")
+  emailVerifiedAt        DateTime?            @map("email_verified_at")
+  status                 String               @default("active")
+  migrationState         String               @default("NOT_REQUIRED") @map("migration_state")
+  passwordStrategy       String?              @map("password_strategy")
+  lastMigrationAttemptAt DateTime?            @map("last_migration_attempt_at")
+  reconciliationReason   String?              @map("reconciliation_reason")
+  lastUsedAt             DateTime?            @map("last_used_at")
+  disabledAt             DateTime?            @map("disabled_at")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
 
-  @@unique([provider, providerUserId])
-  @@unique([provider, profileId])
-  @@unique([provider, canonicalEmail])
-  @@index([profileId, status])
+  @@unique([provider, providerSubject])
+  @@unique([userProfileId, provider])
+  @@index([userProfileId])
+  @@index([provider, canonicalEmail])
   @@map("auth_identities")
 }
 
