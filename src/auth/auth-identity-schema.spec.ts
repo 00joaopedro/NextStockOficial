@@ -33,7 +33,7 @@ describe('authentication identity foundation schema', () => {
     expect(schema).toContain('lastUsedAt             DateTime?');
     expect(schema).toContain('disabledAt             DateTime?');
     expect(schema).toContain('@@unique([provider, providerSubject])');
-    expect(schema).toContain('@@unique([userProfileId, provider])');
+    expect(schema).toContain('@@unique([userProfileId, provider], map: "auth_identities_profile_id_provider_key")');
     expect(schema).toContain('userProfile            UserProfile');
   });
 
@@ -43,7 +43,7 @@ describe('authentication identity foundation schema', () => {
     expect(migration).toContain('auth_identities_canonical_email_normalized_check');
     expect(migration).toContain('"canonical_email" IS NULL OR');
     expect(schema).toContain('@@unique([provider, providerSubject])');
-    expect(schema).toContain('@@unique([userProfileId, provider])');
+    expect(schema).toContain('@@unique([userProfileId, provider], map: "auth_identities_profile_id_provider_key")');
     expect(migration).not.toContain('INSERT INTO "auth_identities"');
     expect(migration).not.toContain('DROP TABLE');
   });
@@ -51,7 +51,13 @@ describe('authentication identity foundation schema', () => {
   it('retains the existing table and profile identifiers without takeover on disable', () => {
     expect(migration).toContain('CREATE TYPE "AuthIdentityProvider"');
     expect(migration).toContain('ADD COLUMN "disabled_at"');
-    expect(schema).toContain('@@unique([provider, providerSubject])');
+    expect(migration).toContain('DROP CONSTRAINT "auth_identities_profile_id_fkey"');
+    expect(migration).toContain('ADD CONSTRAINT "auth_identities_profile_id_fkey"');
+    expect(migration).toContain('ON DELETE RESTRICT ON UPDATE NO ACTION');
+    expect(migration).not.toContain('profile_id")\n  ON DELETE CASCADE');
+    expect(migration).toContain('CREATE UNIQUE INDEX "auth_identities_profile_id_provider_key"');
+    expect(migration).toContain('ON "auth_identities"("profile_id", "provider")');
+    expect(migration).not.toContain('ON "auth_identities"("provider", "profile_id")');
     expect(migration).toContain('ALTER COLUMN "canonical_email" DROP NOT NULL');
     expect(schema).toContain('userProfileId          String               @map("profile_id")');
   });

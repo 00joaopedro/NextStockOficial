@@ -3,7 +3,13 @@
 CREATE TYPE "AuthIdentityProvider" AS ENUM ('google', 'supabase');
 
 ALTER TABLE "auth_identities"
-  DROP CONSTRAINT "auth_identities_canonical_email_fkey";
+  DROP CONSTRAINT "auth_identities_canonical_email_fkey",
+  DROP CONSTRAINT "auth_identities_profile_id_fkey";
+
+ALTER TABLE "auth_identities"
+  ADD CONSTRAINT "auth_identities_profile_id_fkey"
+    FOREIGN KEY ("profile_id") REFERENCES "profiles"("id")
+    ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 DROP INDEX "auth_identities_provider_canonical_email_key";
 
@@ -22,8 +28,8 @@ ALTER TABLE "auth_identities"
     CHECK ("canonical_email" IS NULL OR "canonical_email" = lower(btrim("canonical_email")));
 
 DROP INDEX "auth_identities_provider_profile_id_key";
-CREATE UNIQUE INDEX "auth_identities_provider_profile_id_key"
-  ON "auth_identities"("provider", "profile_id");
+CREATE UNIQUE INDEX "auth_identities_profile_id_provider_key"
+  ON "auth_identities"("profile_id", "provider");
 CREATE INDEX "auth_identities_profile_id_idx" ON "auth_identities"("profile_id");
 CREATE INDEX "auth_identities_provider_canonical_email_idx"
   ON "auth_identities"("provider", "canonical_email");
