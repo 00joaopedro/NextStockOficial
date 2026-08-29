@@ -14,6 +14,10 @@ import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { PasswordLifecycleService } from './password-lifecycle.service';
+import { authProviderMode } from './auth-provider-mode';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RateLimit } from '../security/public-rate-limit.guard';
@@ -41,6 +45,7 @@ export class AuthController {
     private readonly authService: AuthService,
     @Optional() private readonly audit?: AuditService,
     @Optional() private readonly sessions?: SessionsService,
+    @Optional() private readonly passwordLifecycle?: PasswordLifecycleService,
   ) {}
 
   @Post('register')
@@ -121,13 +126,57 @@ export class AuthController {
     @Body() body: ForgotPasswordDto,
     @Req() req: AuthenticatedHttpRequest,
   ) {
-    const result = await this.authService.forgotPassword(body);
+    const result =
+      authProviderMode() === 'coexistence' && this.passwordLifecycle
+        ? await this.passwordLifecycle.request(body.email.trim().toLowerCase())
+        : await this.authService.forgotPassword(body);
     void this.audit?.record({
       ...this.audit.fromRequest(req),
       eventType: 'auth.password_recovery.requested',
       action: 'forgot_password',
       outcome: AuditOutcome.SUCCESS,
       severity: AuditSeverity.MEDIUM,
+    });
+    return result;
+  }
+
+  @Post('reset-password')
+  @CsrfExempt()
+  async resetPassword(
+    @Body() body: ResetPasswordDto,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+  ) {
+    const result = await this.passwordLifecycle!.reset(
+      body.token,
+      body.newPassword,
+    );
+    clearAuthCookies(reply);
+    reply.header('Cache-Control', 'no-store');
+    return result;
+  }
+
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
+  async changePassword(
+    @Body() body: ChangePasswordDto,
+    @Req() req: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+  ) {
+    const result = await this.passwordLifecycle!.change(
+      req.user!.id,
+      body.currentPassword,
+      body.newPassword,
+    );
+    clearAuthCookies(reply);
+    reply.header('Cache-Control', 'no-store');
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.password_changed',
+      action: 'change_password',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.HIGH,
+      actorProfileId: req.user!.id,
     });
     return result;
   }
@@ -167,6 +216,15 @@ export class AuthController {
     );
     clearAuthCookies(reply);
     reply.header('Cache-Control', 'no-store');
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.logout_all',
+      action: 'logout_all',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.MEDIUM,
+      actorProfileId: req.user!.id,
+      metadata: { revokedCount: revoked ?? 0 },
+    });
     return { ok: true, revoked: revoked ?? 0 };
   }
 

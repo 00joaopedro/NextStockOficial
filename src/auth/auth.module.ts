@@ -28,6 +28,12 @@ import { PasswordHasher } from './local-password';
 import { LocalAuthProvider } from './local-auth-provider';
 import { authProviderMode } from './auth-provider-mode';
 import { CoexistenceAuthProvider } from './coexistence-auth-provider';
+import { PasswordResetTokenService } from './password-reset-token.service';
+import {
+  ConfiguredPasswordEmailDelivery,
+  PASSWORD_EMAIL_DELIVERY,
+} from './password-delivery';
+import { PasswordLifecycleService } from './password-lifecycle.service';
 
 @Module({
   imports: [
@@ -56,13 +62,27 @@ import { CoexistenceAuthProvider } from './coexistence-auth-provider';
     PasswordHasher,
     LocalAuthProvider,
     CoexistenceAuthProvider,
+    PasswordResetTokenService,
+    PasswordLifecycleService,
+    ConfiguredPasswordEmailDelivery,
+    {
+      provide: PASSWORD_EMAIL_DELIVERY,
+      useExisting: ConfiguredPasswordEmailDelivery,
+    },
     SupabaseAuthProvider,
     FakeSuperTokensAdapter,
     {
       provide: AUTH_IDENTITY_PROVIDER,
-      inject: [SupabaseAuthProvider, LocalAuthProvider, CoexistenceAuthProvider],
-      useFactory: (supabase: SupabaseAuthProvider, local: LocalAuthProvider, coexistence: CoexistenceAuthProvider) =>
-        authProviderMode() === 'coexistence' ? coexistence : supabase,
+      inject: [
+        SupabaseAuthProvider,
+        LocalAuthProvider,
+        CoexistenceAuthProvider,
+      ],
+      useFactory: (
+        supabase: SupabaseAuthProvider,
+        local: LocalAuthProvider,
+        coexistence: CoexistenceAuthProvider,
+      ) => (authProviderMode() === 'coexistence' ? coexistence : supabase),
     },
   ],
   controllers: [AuthController],
