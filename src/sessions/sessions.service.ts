@@ -26,12 +26,21 @@ export class SessionsService {
     metadata?: SessionRequestMetadata;
   }) {
     const token = randomBytes(32).toString('base64url');
+    const credentialVersion =
+      input.credentialVersion ??
+      (
+        await this.prisma.localCredential.findUnique({
+          where: { profileId: input.profileId },
+          select: { credentialVersion: true },
+        })
+      )?.credentialVersion ??
+      null;
     const session = await this.prisma.userSession.create({
       data: {
         profileId: input.profileId,
         tenantId: input.tenantId || null,
         jwtSubject: input.jwtSubject || null,
-        credentialVersion: input.credentialVersion ?? null,
+        credentialVersion,
         tokenIdHash: this.hash(token),
         expiresAt: input.expiresAt,
         ipHash: this.fingerprint(input.metadata?.ip),

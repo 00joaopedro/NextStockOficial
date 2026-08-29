@@ -25,6 +25,9 @@ import { SupabaseAuthProvider } from './supabase-auth-provider';
 import { FakeSuperTokensAdapter } from './supertokens-adapter';
 import { LocalJwtService } from './local-jwt.service';
 import { PasswordHasher } from './local-password';
+import { LocalAuthProvider } from './local-auth-provider';
+import { authProviderMode } from './auth-provider-mode';
+import { CoexistenceAuthProvider } from './coexistence-auth-provider';
 
 @Module({
   imports: [
@@ -51,9 +54,16 @@ import { PasswordHasher } from './local-password';
     AuthRateLimitStore,
     LocalJwtService,
     PasswordHasher,
+    LocalAuthProvider,
+    CoexistenceAuthProvider,
     SupabaseAuthProvider,
     FakeSuperTokensAdapter,
-    { provide: AUTH_IDENTITY_PROVIDER, useExisting: SupabaseAuthProvider },
+    {
+      provide: AUTH_IDENTITY_PROVIDER,
+      inject: [SupabaseAuthProvider, LocalAuthProvider, CoexistenceAuthProvider],
+      useFactory: (supabase: SupabaseAuthProvider, local: LocalAuthProvider, coexistence: CoexistenceAuthProvider) =>
+        authProviderMode() === 'coexistence' ? coexistence : supabase,
+    },
   ],
   controllers: [AuthController],
   exports: [
