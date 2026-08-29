@@ -251,7 +251,9 @@ export class AuthService {
           where: { id: authUser.id },
           create: {
             id: authUser.id,
-            supabaseUserId: authUser.id,
+            ...(this.authProvider.name === 'supabase'
+              ? { supabaseUserId: authUser.id }
+              : {}),
             email: authUser.email ?? email,
             name,
             fullName: name,
@@ -264,7 +266,9 @@ export class AuthService {
             primaryTenantId: tenant.id,
           },
           update: {
-            supabaseUserId: authUser.id,
+            ...(this.authProvider.name === 'supabase'
+              ? { supabaseUserId: authUser.id }
+              : {}),
             email: authUser.email ?? email,
             name,
             fullName: name,
@@ -283,6 +287,25 @@ export class AuthService {
             createdAt: true,
           },
         });
+
+        if (this.authProvider.name === 'local') {
+          const passwordHash = authUser.metadata?.passwordHash;
+          if (typeof passwordHash !== 'string') {
+            throw new Error('LOCAL_CREDENTIAL_HASH_MISSING');
+          }
+          await tx.localCredential.create({
+            data: {
+              profileId: profile.id,
+              passwordHash,
+              algorithm: 'bcryptjs',
+              parameters: {
+                rounds: Number(process.env.LOCAL_BCRYPT_ROUNDS || 12),
+              },
+              credentialVersion: 1,
+              status: 'active',
+            },
+          });
+        }
 
         await tx.tenantMember.upsert({
           where: {
@@ -583,6 +606,17 @@ export class AuthService {
     email: string;
     metadata?: Record<string, any> | null;
   }) {
+    if (this.authProvider.name === 'local') {
+      const localProfile = await this.findProfileRecordOrNull({
+        profileId: input.supabaseUserId,
+      });
+      if (!localProfile) {
+        throw new ConflictException(
+          'Cadastro incompleto: usuario sem perfil vinculado. Solicite suporte.',
+        );
+      }
+      return localProfile;
+    }
     const profile = await this.findProfileForSupabaseIdentity(input);
 
     if (profile) {

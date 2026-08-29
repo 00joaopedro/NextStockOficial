@@ -144,11 +144,36 @@ function buildJwtOptions() {
       const alg = header?.alg;
       const kid = header?.kid ? `${header.kid.slice(0, 8)}...` : 'none';
 
+      let localIssuer = false;
+      try {
+        const payloadPart = rawJwtToken.split('.')[1];
+        const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = normalized.padEnd(
+          normalized.length + ((4 - (normalized.length % 4)) % 4),
+          '=',
+        );
+        localIssuer =
+          JSON.parse(Buffer.from(padded, 'base64').toString('utf8')).iss ===
+          (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth');
+      } catch {
+        localIssuer = false;
+      }
+
       if (process.env.JWT_DIAGNOSTIC_LOGS === 'true') {
         jwtLogger.log(`JWT header decoded alg=${alg ?? 'unknown'} kid=${kid}`);
       }
 
       if (alg === 'HS256') {
+        if (localIssuer) {
+          const localKey = process.env.LOCAL_AUTH_JWT_ACTIVE_KEY;
+          const localKid = process.env.LOCAL_AUTH_JWT_KID || 'active';
+          if (!localKey || localKey.length < 32 || header?.kid !== localKid) {
+            done(new Error('INVALID_LOCAL_JWT'));
+            return;
+          }
+          done(null, localKey);
+          return;
+        }
         if (!legacySecret) {
           done(
             new Error(
@@ -398,7 +423,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     await this.sessions?.assertActive(
       request?.cookies?.[SESSION_COOKIE_NAME],
       profile.id,
-      payload?.iss === (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth'),
+      payload?.iss ===
+        (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth'),
     );
 
     if (!membership && !hasFullAccess) {
