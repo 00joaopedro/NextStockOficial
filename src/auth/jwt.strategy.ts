@@ -11,6 +11,7 @@ import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { Optional } from '@nestjs/common';
 import { SessionsService } from '../sessions/sessions.service';
 import { SESSION_COOKIE_NAME } from '../sessions/session-cookie';
+import { localJwtConfig, localJwtKeyForKid } from './local-jwt-config';
 
 const jwtLogger = new Logger('JwtStrategy');
 
@@ -165,9 +166,10 @@ function buildJwtOptions() {
 
       if (alg === 'HS256') {
         if (localIssuer) {
-          const localKey = process.env.LOCAL_AUTH_JWT_ACTIVE_KEY;
-          const localKid = process.env.LOCAL_AUTH_JWT_KID || 'active';
-          if (!localKey || localKey.length < 32 || header?.kid !== localKid) {
+          let localKey: string;
+          try {
+            localKey = localJwtKeyForKid(header?.kid).secret;
+          } catch {
             done(new Error('INVALID_LOCAL_JWT'));
             return;
           }

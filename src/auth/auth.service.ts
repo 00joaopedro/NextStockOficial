@@ -10,6 +10,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import {
   EmployeeStatus,
   Prisma,
@@ -37,6 +38,7 @@ import {
   ReferralRegistrationService,
   ValidReferral,
 } from '../partners/referral-registration.service';
+import { LocalJwtService } from './local-jwt.service';
 
 type RegisterInput = {
   email?: string;
@@ -124,6 +126,7 @@ export class AuthService {
     @Optional() private readonly referrals?: ReferralRegistrationService,
     @Optional() private readonly subscriptions?: SubscriptionsService,
     @Optional() private readonly billingEntitlement?: BillingEntitlementService,
+    @Optional() private readonly localJwt?: LocalJwtService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -131,6 +134,9 @@ export class AuthService {
     const name = this.normalizeName(input.name);
     const companyName = this.normalizeCompanyName(input.companyName);
     const password = this.normalizePassword(input.password);
+    if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
+      this.localJwt?.assertSigningConfigured();
+    }
     let referral: ValidReferral | null = null;
     if (input.referralCode) {
       referral =
@@ -288,7 +294,7 @@ export class AuthService {
           },
         });
 
-        if (this.authProvider.name === 'local') {
+        if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
           const passwordHash = authUser.metadata?.passwordHash;
           if (typeof passwordHash !== 'string') {
             throw new Error('LOCAL_CREDENTIAL_HASH_MISSING');
@@ -348,7 +354,14 @@ export class AuthService {
       );
     }
 
-    const accessToken = await this.signInAfterRegister(email, password);
+    const accessToken =
+      this.authProvider.name === 'local' || this.authProvider.name === 'coexistence'
+        ? await this.localJwt!.sign({
+            sub: result.profile.id,
+            jti: randomUUID(),
+            credentialVersion: 1,
+          })
+        : await this.signInAfterRegister(email, password);
     const user = this.formatAuthUser({
       ...result.profile,
       role: Role.Admin,
@@ -422,6 +435,7 @@ export class AuthService {
       supabaseUserId: session.identity.id,
       email,
       metadata: session.identity.metadata,
+      provider: session.provider,
     }).catch((error) =>
       this.handleKnownPrismaAuthError(error, 'login.profile'),
     );
@@ -602,11 +616,12 @@ export class AuthService {
   }
 
   private async findOrCreateProfileForLogin(input: {
-    supabaseUserId: string;
-    email: string;
-    metadata?: Record<string, any> | null;
+  supabaseUserId: string;
+  email: string;
+  metadata?: Record<string, any> | null;
+  provider?: 'supabase' | 'local';
   }) {
-    if (this.authProvider.name === 'local') {
+    if (this.authProvider.name === 'local' || input.provider === 'local') {
       const localProfile = await this.findProfileRecordOrNull({
         profileId: input.supabaseUserId,
       });

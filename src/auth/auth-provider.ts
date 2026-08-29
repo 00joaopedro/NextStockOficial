@@ -30,11 +30,12 @@ export interface AuthSessionResult {
   accessToken: string;
   refreshToken?: string;
   identity: AuthIdentity;
+  provider?: 'supabase' | 'local';
 }
 
 /** Provider boundary. Domain authorization and tenancy deliberately do not belong here. */
 export interface AuthIdentityProvider {
-  readonly name: 'supabase' | 'local' | 'google';
+  readonly name: 'supabase' | 'local' | 'coexistence' | 'google';
   createUser(input: {
     email: string;
     password: string;
