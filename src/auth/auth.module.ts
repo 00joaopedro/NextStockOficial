@@ -82,7 +82,13 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
         supabase: SupabaseAuthProvider,
         local: LocalAuthProvider,
         coexistence: CoexistenceAuthProvider,
-      ) => (authProviderMode() === 'coexistence' ? coexistence : supabase),
+      ) => {
+        const mode = authProviderMode();
+        if (mode === 'coexistence') return coexistence;
+        if (mode === 'local_primary' || mode === 'local_only') return local;
+        if (mode === 'supabase_only' || mode === 'supertokens_primary') return supabase;
+        throw new Error('Unsupported auth provider mode.');
+      },
     },
   ],
   controllers: [AuthController],

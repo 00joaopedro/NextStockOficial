@@ -33,7 +33,7 @@ export class PasswordLifecycleService {
   ) {}
 
   private localEnabled() {
-    return authProviderMode() === 'coexistence';
+    return ['coexistence', 'local_primary', 'local_only'].includes(authProviderMode());
   }
 
   async request(email: string) {
@@ -68,7 +68,7 @@ export class PasswordLifecycleService {
     const { raw, hash } = this.tokens.generate();
     const base = process.env.PUBLIC_APP_URL?.trim();
     if (!base || !/^https?:\/\/[^\s]+$/i.test(base)) return generic;
-    const resetUrl = new URL('/reset-password', base);
+    const resetUrl = new URL('/reset-password.html', base);
     resetUrl.searchParams.set('token', raw);
     try {
       await this.delivery.send({
