@@ -1,4 +1,5 @@
 import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { LOCAL_PASSWORD_MIN_LENGTH } from '../local-password';
 
 export class RegisterDto {
   @IsEmail()
@@ -16,7 +17,7 @@ export class RegisterDto {
   companyName!: string;
 
   @IsString()
-  @MinLength(8)
+  @MinLength(LOCAL_PASSWORD_MIN_LENGTH)
   @MaxLength(200)
   @Matches(/^[A-Za-z0-9]+$/, {
     message: 'password must contain only letters and numbers',

@@ -127,7 +127,9 @@ export class AuthController {
     @Req() req: AuthenticatedHttpRequest,
   ) {
     const result =
-      authProviderMode() === 'coexistence' && this.passwordLifecycle
+      authProviderMode() === 'coexistence' &&
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true' &&
+      this.passwordLifecycle
         ? await this.passwordLifecycle.request(body.email.trim().toLowerCase())
         : await this.authService.forgotPassword(body);
     void this.audit?.record({

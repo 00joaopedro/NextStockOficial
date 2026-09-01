@@ -145,4 +145,45 @@ describe('AuthController', () => {
       expect.objectContaining({ path: '/' }),
     );
   });
+
+  it('coexistence desabilitado delega recovery ao fluxo legado', async () => {
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    const previousLocal = process.env.LOCAL_PASSWORD_RECOVERY_ENABLED;
+    process.env.AUTH_PROVIDER_MODE = 'coexistence';
+    process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = 'false';
+    const lifecycle = { request: jest.fn() } as any;
+    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    authService.forgotPassword.mockResolvedValue({ ok: true });
+    try {
+      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
+        { email: 'USER@Test.com' } as any,
+        {} as any,
+      );
+      expect(authService.forgotPassword).toHaveBeenCalledTimes(1);
+      expect(lifecycle.request).not.toHaveBeenCalled();
+    } finally {
+      process.env.AUTH_PROVIDER_MODE = previousMode;
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = previousLocal;
+    }
+  });
+
+  it('coexistence habilitado usa somente o lifecycle local', async () => {
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    const previousLocal = process.env.LOCAL_PASSWORD_RECOVERY_ENABLED;
+    process.env.AUTH_PROVIDER_MODE = 'coexistence';
+    process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = 'true';
+    const lifecycle = { request: jest.fn().mockResolvedValue({ ok: true }) } as any;
+    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    try {
+      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
+        { email: 'USER@Test.com' } as any,
+        {} as any,
+      );
+      expect(lifecycle.request).toHaveBeenCalledTimes(1);
+      expect(authService.forgotPassword).not.toHaveBeenCalled();
+    } finally {
+      process.env.AUTH_PROVIDER_MODE = previousMode;
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = previousLocal;
+    }
+  });
 });
