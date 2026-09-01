@@ -25,7 +25,14 @@ const schema = Joi.object({
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
   AUTH_PROVIDER_MODE: Joi.string()
-    .valid('supabase_only', 'coexistence', 'local_primary', 'local_only')
+    .valid(
+      'supabase_only',
+      'coexistence',
+      'supertokens_primary',
+      'supertokens_only',
+      'local_primary',
+      'local_only',
+    )
     .default('supabase_only'),
   AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
@@ -250,20 +257,34 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
   if (value.AUTH_PROVIDER_MODE !== 'supabase_only') {
-    if (value.AUTH_MIGRATION_ENABLED !== 'true') {
+    for (const name of [
+      'SUPERTOKENS_CONNECTION_URI',
+      'SUPERTOKENS_APP_NAME',
+      'SUPERTOKENS_API_DOMAIN',
+    ]) {
+      if (!String(value[name] || '').trim())
+        throw new Error(`Missing ${name} for auth coexistence.`);
+    }
+    if (
+      appEnv === 'production' &&
+      !String(value.SUPERTOKENS_API_KEY || '').trim()
+    )
       throw new Error(
-        'AUTH_MIGRATION_ENABLED must be true outside supabase_only.',
+        'SUPERTOKENS_API_KEY is required for production coexistence.',
+      );
+    if (
+      value.AUTH_PROVIDER_MODE === 'supertokens_only' &&
+      value.AUTH_MIGRATION_ENABLED !== 'true'
+    ) {
+      throw new Error(
+        'AUTH_MIGRATION_ENABLED must be true for supertokens_only.',
       );
     }
     if (
       value.AUTH_PROVIDER_MODE === 'local_primary' ||
       value.AUTH_PROVIDER_MODE === 'local_only'
-    ) {
-      throw new Error(
-        'Local-primary and local-only modes are blocked by rollout gates.',
-      );
-    }
-    assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
+    )
+      assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
   }
   const storageProvider = String(
     value.STORAGE_WRITE_PROVIDER || 'supabase',

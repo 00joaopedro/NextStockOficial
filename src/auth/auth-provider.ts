@@ -35,7 +35,12 @@ export interface AuthSessionResult {
 
 /** Provider boundary. Domain authorization and tenancy deliberately do not belong here. */
 export interface AuthIdentityProvider {
-  readonly name: 'supabase' | 'local' | 'coexistence' | 'google';
+  readonly name:
+    | 'supabase'
+    | 'local'
+    | 'coexistence'
+    | 'google'
+    | 'supertokens';
   createUser(input: {
     email: string;
     password: string;

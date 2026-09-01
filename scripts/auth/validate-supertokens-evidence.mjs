@@ -71,7 +71,6 @@ export function validateOperationalEvidence() {
     [dist('supertokens-preflight.js'), '--json'],
     {
       AUTH_PROVIDER_MODE: 'coexistence',
-      AUTH_MIGRATION_ENABLED: 'true',
       SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
       SUPERTOKENS_API_KEY: 'ci-synthetic-supertokens-key',
       SUPERTOKENS_APP_NAME: 'nextstock-ci',
