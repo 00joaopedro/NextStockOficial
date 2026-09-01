@@ -256,7 +256,11 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
-  if (['coexistence', 'supertokens_primary', 'supertokens_only'].includes(value.AUTH_PROVIDER_MODE)) {
+  if (
+    ['coexistence', 'supertokens_primary', 'supertokens_only'].includes(
+      value.AUTH_PROVIDER_MODE,
+    )
+  ) {
     for (const name of [
       'SUPERTOKENS_CONNECTION_URI',
       'SUPERTOKENS_APP_NAME',
@@ -280,11 +284,17 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
         'AUTH_MIGRATION_ENABLED must be true for supertokens_only.',
       );
     }
-    if (['coexistence', 'local_primary', 'local_only'].includes(value.AUTH_PROVIDER_MODE))
+    if (
+      ['coexistence', 'local_primary', 'local_only'].includes(
+        value.AUTH_PROVIDER_MODE,
+      )
+    )
       assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
   }
   if (value.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true') {
-    throw new Error('LOCAL_PASSWORD_RECOVERY_ENABLED requires a configured password email adapter.');
+    throw new Error(
+      'LOCAL_PASSWORD_RECOVERY_ENABLED requires a configured password email adapter.',
+    );
   }
   const storageProvider = String(
     value.STORAGE_WRITE_PROVIDER || 'supabase',
