@@ -97,6 +97,9 @@ const schema = Joi.object({
     .uri({ scheme: ['https', 'http'] })
     .allow('')
     .optional(),
+  LOCAL_PASSWORD_RECOVERY_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
   BILLING_EXTERNAL_REFERENCE_SECRET: Joi.string().min(32).allow('').optional(),
   BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
