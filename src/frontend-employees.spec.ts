@@ -43,4 +43,26 @@ describe('reset password frontend', () => {
     expect(script).toContain('window.location.pathname');
     expect(script).not.toContain("'/reset-password'");
   });
+
+  it('announces the 12 character registration minimum', () => {
+    const html = readFileSync(
+      join(__dirname, '..', 'public', 'index.html'),
+      'utf8',
+    );
+    const script = readFileSync(
+      join(
+        __dirname,
+        '..',
+        'public',
+        'Js',
+        'csp-extracted',
+        'index-inline1.js',
+      ),
+      'utf8',
+    );
+    expect(html).toContain('minlength="12"');
+    expect(html).toContain('m&iacute;nimo 12');
+    expect(script).toContain('{12,}');
+    expect(script).toContain('minimo 12');
+  });
 });

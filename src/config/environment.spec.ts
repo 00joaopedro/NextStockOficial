@@ -62,9 +62,25 @@ describe('environment isolation guardrails', () => {
 
   it('disables auth rate limiting by default and accepts a valid enabled secret', () => {
     const { AUTH_RATE_LIMIT_HMAC_SECRET: _secret, ...withoutSecret } = base;
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production' }).AUTH_RATE_LIMIT_ENABLED).toBe('false');
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production', AUTH_RATE_LIMIT_ENABLED: 'false' }).AUTH_RATE_LIMIT_ENABLED).toBe('false');
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production', AUTH_RATE_LIMIT_ENABLED: 'true', AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32) }).AUTH_RATE_LIMIT_ENABLED).toBe('true');
+    expect(
+      validateEnvironment({ ...withoutSecret, APP_ENV: 'production' })
+        .AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('true');
+    expect(
+      validateEnvironment({
+        ...withoutSecret,
+        APP_ENV: 'production',
+        AUTH_RATE_LIMIT_ENABLED: 'false',
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('false');
+    expect(
+      validateEnvironment({
+        ...withoutSecret,
+        APP_ENV: 'production',
+        AUTH_RATE_LIMIT_ENABLED: 'true',
+        AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32),
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('true');
   });
 
   it('rejects invalid trusted proxy topology early', () => {

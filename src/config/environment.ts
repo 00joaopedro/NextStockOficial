@@ -187,7 +187,7 @@ const schema = Joi.object({
     .min(1)
     .max(10000)
     .default(500),
-  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
   AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
   AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
@@ -292,6 +292,10 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     )
   )
     assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
+  if (['local_primary', 'local_only'].includes(value.AUTH_PROVIDER_MODE))
+    throw new Error(
+      'Local auth modes require a configured password recovery adapter.',
+    );
   if (value.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true') {
     throw new Error(
       'LOCAL_PASSWORD_RECOVERY_ENABLED requires a configured password email adapter.',
