@@ -148,10 +148,27 @@ describe('AuthController', () => {
   });
 
   it('coexistence desabilitado delega recovery ao fluxo legado', async () => {
-    const previousMode = process.env.AUTH_PROVIDER_MODE;
-    const previousLocal = process.env.LOCAL_PASSWORD_RECOVERY_ENABLED;
-    process.env.AUTH_PROVIDER_MODE = 'coexistence';
-    process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = 'false';
+    const envKeys = [
+      'APP_ENV',
+      'AUTH_PROVIDER_MODE',
+      'LOCAL_PASSWORD_RECOVERY_ENABLED',
+      'SUPERTOKENS_CONNECTION_URI',
+      'SUPERTOKENS_APP_NAME',
+      'SUPERTOKENS_API_DOMAIN',
+      'SUPERTOKENS_WEBSITE_DOMAIN',
+    ] as const;
+    const previousEnv = Object.fromEntries(
+      envKeys.map((key) => [key, process.env[key]]),
+    );
+    Object.assign(process.env, {
+      APP_ENV: 'test',
+      AUTH_PROVIDER_MODE: 'coexistence',
+      LOCAL_PASSWORD_RECOVERY_ENABLED: 'false',
+      SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
+      SUPERTOKENS_APP_NAME: 'test',
+      SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
+      SUPERTOKENS_WEBSITE_DOMAIN: 'http://localhost:3000',
+    });
     const lifecycle = { request: jest.fn() } as any;
     const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
     authService.forgotPassword.mockResolvedValue({ ok: true });
@@ -163,8 +180,11 @@ describe('AuthController', () => {
       expect(authService.forgotPassword).toHaveBeenCalledTimes(1);
       expect(lifecycle.request).not.toHaveBeenCalled();
     } finally {
-      process.env.AUTH_PROVIDER_MODE = previousMode;
-      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = previousLocal;
+      envKeys.forEach((key) => {
+        const value = previousEnv[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
     }
   });
 
