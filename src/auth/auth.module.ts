@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PassportModule } from '@nestjs/passport';
+import { JwtModule } from '@nestjs/jwt';
 
 import { SupabaseModule } from '../supabase/supabase.module';
 import { PrismaModule } from '../prisma/prisma.module';
@@ -22,12 +23,24 @@ import { ObservabilityModule } from '../observability/observability.module';
 import { AUTH_IDENTITY_PROVIDER } from './auth-provider';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
 import { FakeSuperTokensAdapter } from './supertokens-adapter';
+import { LocalJwtService } from './local-jwt.service';
+import { PasswordHasher } from './local-password';
+import { LocalAuthProvider } from './local-auth-provider';
+import { authProviderMode } from './auth-provider-mode';
+import { CoexistenceAuthProvider } from './coexistence-auth-provider';
+import { PasswordResetTokenService } from './password-reset-token.service';
+import {
+  ConfiguredPasswordEmailDelivery,
+  PASSWORD_EMAIL_DELIVERY,
+} from './password-delivery';
+import { PasswordLifecycleService } from './password-lifecycle.service';
 
 @Module({
   imports: [
     SupabaseModule,
     PrismaModule,
     PassportModule,
+    JwtModule.register({}),
     UsageModule,
     TenancyModule,
     ReferralModule,
@@ -45,9 +58,38 @@ import { FakeSuperTokensAdapter } from './supertokens-adapter';
     PublicRateLimitGuard,
     AuthRateLimitGuard,
     AuthRateLimitStore,
+    LocalJwtService,
+    PasswordHasher,
+    LocalAuthProvider,
+    CoexistenceAuthProvider,
+    PasswordResetTokenService,
+    PasswordLifecycleService,
+    ConfiguredPasswordEmailDelivery,
+    {
+      provide: PASSWORD_EMAIL_DELIVERY,
+      useExisting: ConfiguredPasswordEmailDelivery,
+    },
     SupabaseAuthProvider,
     FakeSuperTokensAdapter,
-    { provide: AUTH_IDENTITY_PROVIDER, useExisting: SupabaseAuthProvider },
+    {
+      provide: AUTH_IDENTITY_PROVIDER,
+      inject: [
+        SupabaseAuthProvider,
+        LocalAuthProvider,
+        CoexistenceAuthProvider,
+      ],
+      useFactory: (
+        supabase: SupabaseAuthProvider,
+        local: LocalAuthProvider,
+        coexistence: CoexistenceAuthProvider,
+      ) => {
+        const mode = authProviderMode();
+        if (mode === 'coexistence') return coexistence;
+        if (mode === 'local_primary' || mode === 'local_only') return local;
+        if (mode === 'supabase_only' || mode === 'supertokens_primary') return supabase;
+        throw new Error('Unsupported auth provider mode.');
+      },
+    },
   ],
   controllers: [AuthController],
   exports: [

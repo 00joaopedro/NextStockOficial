@@ -1,4 +1,5 @@
 import * as Joi from 'joi';
+import { assertLocalJwtConfigured } from '../auth/local-jwt-config';
 
 const schema = Joi.object({
   NEXTSTOCK_PROCESS_ROLE: Joi.string()
@@ -29,12 +30,26 @@ const schema = Joi.object({
       'coexistence',
       'supertokens_primary',
       'supertokens_only',
+      'local_primary',
+      'local_only',
     )
     .default('supabase_only'),
   AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
     .valid('true', 'false')
     .default('true'),
+  LOCAL_AUTH_JWT_ACTIVE_KEY: Joi.string().min(32).allow('').optional(),
+  LOCAL_AUTH_JWT_PREVIOUS_KEY: Joi.string().min(32).allow('').optional(),
+  LOCAL_AUTH_JWT_KID: Joi.string().max(80).allow('').optional(),
+  LOCAL_AUTH_JWT_PREVIOUS_KID: Joi.string().max(80).allow('').optional(),
+  LOCAL_AUTH_JWT_ISSUER: Joi.string().allow('').optional(),
+  LOCAL_AUTH_JWT_AUDIENCE: Joi.string().allow('').optional(),
+  LOCAL_AUTH_JWT_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(60)
+    .max(900)
+    .default(300),
+  LOCAL_BCRYPT_ROUNDS: Joi.number().integer().min(10).max(14).default(12),
   SUPERTOKENS_CONNECTION_URI: Joi.string().uri().allow('').optional(),
   SUPERTOKENS_API_KEY: Joi.string().allow('').optional(),
   SUPERTOKENS_APP_NAME: Joi.string().allow('').optional(),
@@ -89,6 +104,9 @@ const schema = Joi.object({
     .uri({ scheme: ['https', 'http'] })
     .allow('')
     .optional(),
+  LOCAL_PASSWORD_RECOVERY_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
   BILLING_EXTERNAL_REFERENCE_SECRET: Joi.string().min(32).allow('').optional(),
   BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
@@ -169,7 +187,7 @@ const schema = Joi.object({
     .min(1)
     .max(10000)
     .default(500),
-  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
+  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('false'),
   AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
   AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
@@ -238,7 +256,12 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
-  if (value.AUTH_PROVIDER_MODE !== 'supabase_only') {
+  const usesSuperTokens = [
+    'coexistence',
+    'supertokens_primary',
+    'supertokens_only',
+  ].includes(value.AUTH_PROVIDER_MODE);
+  if (usesSuperTokens) {
     for (const name of [
       'SUPERTOKENS_CONNECTION_URI',
       'SUPERTOKENS_APP_NAME',
@@ -262,6 +285,17 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
         'AUTH_MIGRATION_ENABLED must be true for supertokens_only.',
       );
     }
+  }
+  if (
+    ['coexistence', 'local_primary', 'local_only'].includes(
+      value.AUTH_PROVIDER_MODE,
+    )
+  )
+    assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
+  if (value.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true') {
+    throw new Error(
+      'LOCAL_PASSWORD_RECOVERY_ENABLED requires a configured password email adapter.',
+    );
   }
   const storageProvider = String(
     value.STORAGE_WRITE_PROVIDER || 'supabase',

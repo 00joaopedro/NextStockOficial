@@ -66,8 +66,18 @@ const publicPath = join(__dirname, '..', 'public');
         etag: true,
         globIgnore: ['dev.html', 'parceiros.html'],
         setHeaders(res, filePath) {
+          const reply = res as unknown as {
+            header(name: string, value: string): unknown;
+          };
           if (/\.html$/i.test(filePath)) {
-            res.setHeader('Cache-Control', 'no-cache');
+            reply.header(
+              'Cache-Control',
+              /[/\\]reset-password\.html$/i.test(filePath)
+                ? 'no-store'
+                : 'no-cache',
+            );
+            if (/[/\\]reset-password\.html$/i.test(filePath))
+              reply.header('Referrer-Policy', 'no-referrer');
             return;
           }
           if (
@@ -75,13 +85,17 @@ const publicPath = join(__dirname, '..', 'public');
               filePath,
             )
           ) {
-            res.setHeader(
+            reply.header(
               'Cache-Control',
               'public, max-age=31536000, immutable',
             );
             return;
           }
-          res.setHeader('Cache-Control', 'public, max-age=3600');
+          if (/[/\\]sidebar\.js$/i.test(filePath)) {
+            reply.header('Cache-Control', 'public, max-age=0, must-revalidate');
+            return;
+          }
+          reply.header('Cache-Control', 'public, max-age=3600');
         },
       } as NonNullable<ServeStaticModuleOptions['serveStaticOptions']> &
         Pick<FastifyStaticOptions, 'globIgnore'>,

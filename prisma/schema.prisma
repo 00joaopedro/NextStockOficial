@@ -8,6 +8,11 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum AuthIdentityProvider {
+  GOOGLE   @map("google")
+  SUPABASE @map("supabase")
+}
+
 model UserProfile {
   id                       String                        @id @db.Uuid
   supabaseUserId           String?                       @unique @map("supabase_user_id") @db.Uuid
@@ -63,6 +68,8 @@ model UserProfile {
   provisioning             UserProvisioning?             @relation("ProvisionedProfile")
   authIdentities           AuthIdentity[]
   authEmailClaim           AuthEmailClaim?
+  localCredential          LocalCredential?
+  passwordResetTokens      PasswordResetToken[]
 
   @@index([tenantId])
   @@index([primaryTenantId])
@@ -75,50 +82,85 @@ model AuthEmailClaim {
   profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
-  identities     AuthIdentity[]
-
   @@map("auth_email_claims")
 }
 
 model AuthIdentity {
-  id             String         @id @default(uuid()) @db.Uuid
-  profileId      String         @map("profile_id") @db.Uuid
-  profile        UserProfile    @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  provider       String
-  providerUserId String         @map("provider_user_id")
-  canonicalEmail String         @map("canonical_email")
-  emailClaim     AuthEmailClaim @relation(fields: [canonicalEmail], references: [canonicalEmail], onDelete: Restrict)
-  status         String         @default("active")
-  migrationState String         @default("NOT_REQUIRED") @map("migration_state")
-  passwordStrategy String?      @map("password_strategy")
-  lastMigrationAttemptAt DateTime? @map("last_migration_attempt_at")
-  reconciliationReason String?  @map("reconciliation_reason")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  id                     String               @id @default(uuid()) @db.Uuid
+  userProfileId          String               @map("profile_id") @db.Uuid
+  userProfile            UserProfile          @relation(fields: [userProfileId], references: [id], onDelete: Restrict)
+  provider               AuthIdentityProvider
+  providerSubject        String               @map("provider_user_id")
+  canonicalEmail         String?              @map("canonical_email")
+  emailVerifiedAt        DateTime?            @map("email_verified_at")
+  status                 String               @default("active")
+  migrationState         String               @default("NOT_REQUIRED") @map("migration_state")
+  passwordStrategy       String?              @map("password_strategy")
+  lastMigrationAttemptAt DateTime?            @map("last_migration_attempt_at")
+  reconciliationReason   String?              @map("reconciliation_reason")
+  lastUsedAt             DateTime?            @map("last_used_at")
+  disabledAt             DateTime?            @map("disabled_at")
+  createdAt              DateTime             @default(now()) @map("created_at")
+  updatedAt              DateTime             @updatedAt @map("updated_at")
 
-  @@unique([provider, providerUserId])
-  @@unique([provider, profileId])
-  @@unique([provider, canonicalEmail])
-  @@index([profileId, status])
+  @@unique([provider, providerSubject])
+  @@unique([userProfileId, provider], map: "auth_identities_profile_id_provider_key")
+  @@index([userProfileId])
+  @@index([provider, canonicalEmail])
   @@map("auth_identities")
 }
 
+model LocalCredential {
+  id                String      @id @default(uuid()) @db.Uuid
+  profileId         String      @unique @map("profile_id") @db.Uuid
+  profile           UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  passwordHash      String      @map("password_hash")
+  algorithm         String      @default("bcryptjs")
+  parameters        Json
+  credentialVersion Int         @default(1) @map("credential_version")
+  status            String      @default("active")
+  passwordChangedAt DateTime    @default(now()) @map("password_changed_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("local_credentials")
+}
+
+model PasswordResetToken {
+  id                String      @id @default(uuid()) @db.Uuid
+  profileId         String      @map("profile_id") @db.Uuid
+  profile           UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tokenHash         String      @unique @map("token_hash")
+  expiresAt         DateTime    @map("expires_at")
+  usedAt            DateTime?   @map("used_at")
+  revokedAt         DateTime?   @map("revoked_at")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  requestedIpHash   String?     @map("requested_ip_hash")
+  credentialVersion Int         @map("credential_version")
+
+  @@index([profileId, expiresAt])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
 model UserSession {
-  id            String      @id @default(uuid()) @db.Uuid
-  profileId     String      @map("profile_id") @db.Uuid
-  profile       UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
-  tenantId      String?     @map("tenant_id") @db.Uuid
-  tenant        Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
-  tokenIdHash   String      @unique @map("token_id_hash")
-  jwtSubject    String?     @map("jwt_subject")
-  expiresAt     DateTime    @map("expires_at")
-  lastSeenAt    DateTime    @default(now()) @map("last_seen_at")
-  revokedAt     DateTime?   @map("revoked_at")
-  revokedReason String?     @map("revoked_reason")
-  ipHash        String?     @map("ip_hash")
-  userAgentHash String?     @map("user_agent_hash")
-  deviceLabel   String?     @map("device_label")
-  createdAt     DateTime    @default(now()) @map("created_at")
+  id                String      @id @default(uuid()) @db.Uuid
+  profileId         String      @map("profile_id") @db.Uuid
+  profile           UserProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  tenantId          String?     @map("tenant_id") @db.Uuid
+  tenant            Tenant?     @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  tokenIdHash       String      @unique @map("token_id_hash")
+  jwtSubject        String?     @map("jwt_subject")
+  credentialVersion Int?        @map("credential_version")
+  expiresAt         DateTime    @map("expires_at")
+  lastSeenAt        DateTime    @default(now()) @map("last_seen_at")
+  revokedAt         DateTime?   @map("revoked_at")
+  revokedReason     String?     @map("revoked_reason")
+  ipHash            String?     @map("ip_hash")
+  userAgentHash     String?     @map("user_agent_hash")
+  deviceLabel       String?     @map("device_label")
+  createdAt         DateTime    @default(now()) @map("created_at")
 
   @@index([profileId, createdAt])
   @@index([profileId, revokedAt])

@@ -116,7 +116,7 @@ async function bootstrap() {
   console.log(
     JSON.stringify({
       event: 'auth_rate_limit_configuration',
-      enabled: process.env.AUTH_RATE_LIMIT_ENABLED !== 'false',
+      enabled: process.env.AUTH_RATE_LIMIT_ENABLED === 'true',
       store: process.env.AUTH_RATE_LIMIT_STORE || 'postgres',
       trustedProxyHops: trustedProxyHops(),
       processRole: role,

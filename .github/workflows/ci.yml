@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - dev
+      - main
   push:
     branches:
       - dev
@@ -65,6 +66,7 @@ jobs:
           npm run build:scripts
           set +e
           report=$(AUTH_PROVIDER_MODE=coexistence \
+            AUTH_MIGRATION_ENABLED=true \
             SUPERTOKENS_APP_NAME=nextstock-ci \
             SUPERTOKENS_API_DOMAIN=http://127.0.0.1:3000 \
             SUPERTOKENS_WEBSITE_DOMAIN=http://127.0.0.1:3000 \
@@ -73,6 +75,7 @@ jobs:
             AUTH_CANARY_ENABLED=true AUTH_CANARY_KILL_SWITCH=false \
             AUTH_CANARY_ALLOWLIST=synthetic-profile AUTH_CANARY_PERCENTAGE=0 \
             AUTH_PREFLIGHT_RECOVERY_VALIDATED=true \
+            AUTH_PREFLIGHT_RECIPES_VALIDATED=true \
             AUTH_PREFLIGHT_OBSERVABILITY_READY=true \
             AUTH_PREFLIGHT_FALLBACK_CONFIGURED=true \
             AUTH_PREFLIGHT_ROLLBACK_READY=true \

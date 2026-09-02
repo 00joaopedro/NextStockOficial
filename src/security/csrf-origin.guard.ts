@@ -27,7 +27,8 @@ export class CsrfOriginGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method))
       return true;
-    if (!request.cookies?.jwt) return true;
+    if (!request.cookies?.jwt && !request.cookies?.nextstock_session)
+      return true;
 
     const origin =
       getRequestHeader(request, 'origin') || this.originFromReferer(request);

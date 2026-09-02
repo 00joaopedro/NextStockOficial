@@ -1,4 +1,5 @@
 const NEXTSTOCK_SESSION_KEYS = [
+  'nextstock.sidebar.snapshot',
   'nextstockPreviewMode',
   'nextstockIsPreview',
   'nextstockSelectedBranch',
@@ -72,6 +73,14 @@ function clearNextStockSessionState(): void {
   }
 
   clearNextStockOperationalCache();
+}
+
+function clearNextStockSidebarSnapshot(): void {
+  try {
+    sessionStorage.removeItem('nextstock.sidebar.snapshot');
+  } catch {
+    // Presentation cache is optional and must never block logout.
+  }
 }
 
 function isNextStockDemoMode(): boolean {
@@ -162,6 +171,7 @@ function showNextStockPreviewBlocked(message = PREVIEW_BLOCK_MESSAGE): void {
 Object.assign(window, {
   clearNextStockOperationalCache,
   clearNextStockSessionState,
+  clearNextStockSidebarSnapshot,
   isNextStockDemoMode,
   isNextStockProductionMode,
   getNextStockPublicPreviewContext,

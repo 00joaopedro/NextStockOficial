@@ -21,15 +21,26 @@ export class SessionsService {
     profileId: string;
     tenantId?: string | null;
     jwtSubject?: string | null;
+    credentialVersion?: number | null;
     expiresAt: Date;
     metadata?: SessionRequestMetadata;
   }) {
     const token = randomBytes(32).toString('base64url');
+    const credentialVersion =
+      input.credentialVersion ??
+      (
+        await this.prisma.localCredential.findUnique({
+          where: { profileId: input.profileId },
+          select: { credentialVersion: true },
+        })
+      )?.credentialVersion ??
+      null;
     const session = await this.prisma.userSession.create({
       data: {
         profileId: input.profileId,
         tenantId: input.tenantId || null,
         jwtSubject: input.jwtSubject || null,
+        credentialVersion,
         tokenIdHash: this.hash(token),
         expiresAt: input.expiresAt,
         ipHash: this.fingerprint(input.metadata?.ip),
@@ -54,8 +65,13 @@ export class SessionsService {
     return { token, ...session };
   }
 
-  async assertActive(token: string | undefined, profileId: string) {
-    if (process.env.SESSION_ENFORCEMENT_ENABLED !== 'true') return null;
+  async assertActive(
+    token: string | undefined,
+    profileId: string,
+    required = false,
+  ) {
+    if (!required && process.env.SESSION_ENFORCEMENT_ENABLED !== 'true')
+      return null;
     if (!token) {
       throw new UnauthorizedException(
         'SESSION_REQUIRED: Sessao revogavel ausente.',
@@ -70,6 +86,7 @@ export class SessionsService {
         expiresAt: true,
         revokedAt: true,
         lastSeenAt: true,
+        credentialVersion: true,
       },
     });
     if (
@@ -90,6 +107,19 @@ export class SessionsService {
       });
       throw new UnauthorizedException(
         'SESSION_REVOKED: Sessao expirada ou revogada.',
+      );
+    }
+    const credential = await this.prisma.localCredential.findUnique({
+      where: { profileId },
+      select: { credentialVersion: true, status: true },
+    });
+    if (
+      credential &&
+      (credential.status !== 'active' ||
+        session.credentialVersion !== credential.credentialVersion)
+    ) {
+      throw new UnauthorizedException(
+        'SESSION_REVOKED: Credencial alterada ou indisponivel.',
       );
     }
     if (now.getTime() - session.lastSeenAt.getTime() > 5 * 60_000) {

@@ -1,5 +1,6 @@
 "use strict";
 const NEXTSTOCK_SESSION_KEYS = [
+    'nextstock.sidebar.snapshot',
     'nextstockPreviewMode',
     'nextstockIsPreview',
     'nextstockSelectedBranch',
@@ -59,6 +60,13 @@ function clearNextStockSessionState() {
     }
     clearNextStockOperationalCache();
 }
+function clearNextStockSidebarSnapshot() {
+    try {
+        sessionStorage.removeItem('nextstock.sidebar.snapshot');
+    }
+    catch {
+    }
+}
 function isNextStockDemoMode() {
     const params = new URLSearchParams(window.location.search);
     const previewRequested = sessionStorage.getItem('nextstockIsPreview') === 'true' ||
@@ -116,6 +124,7 @@ function showNextStockPreviewBlocked(message = PREVIEW_BLOCK_MESSAGE) {
 Object.assign(window, {
     clearNextStockOperationalCache,
     clearNextStockSessionState,
+    clearNextStockSidebarSnapshot,
     isNextStockDemoMode,
     isNextStockProductionMode,
     getNextStockPublicPreviewContext,
