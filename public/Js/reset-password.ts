@@ -1,6 +1,7 @@
 const params = new URLSearchParams(window.location.search);
 const token = params.get('token') || '';
-if (token) window.history.replaceState({}, document.title, '/reset-password');
+if (token)
+  window.history.replaceState({}, document.title, window.location.pathname);
 
 const form = document.querySelector<HTMLFormElement>('#reset-form');
 const message = document.querySelector<HTMLElement>('#message');
@@ -19,8 +20,12 @@ form?.addEventListener('submit', async (event) => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ token, newPassword: password }),
   });
-  if (message) message.textContent = response.ok
-    ? 'Senha redefinida. Você será redirecionado ao login.'
-    : 'Não foi possível redefinir a senha.';
-  if (response.ok) window.setTimeout(() => { window.location.href = '/'; }, 1200);
+  if (message)
+    message.textContent = response.ok
+      ? 'Senha redefinida. Você será redirecionado ao login.'
+      : 'Não foi possível redefinir a senha.';
+  if (response.ok)
+    window.setTimeout(() => {
+      window.location.href = '/';
+    }, 1200);
 });

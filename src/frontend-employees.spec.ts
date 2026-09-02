@@ -33,3 +33,14 @@ describe('funcionario.html production frontend', () => {
     expect(script).not.toContain('senhaAcesso.value = employee');
   });
 });
+
+describe('reset password frontend', () => {
+  it('preserves the real page pathname while removing query and fragment', () => {
+    const script = readFileSync(
+      join(__dirname, '..', 'public', 'Js', 'reset-password.ts'),
+      'utf8',
+    );
+    expect(script).toContain('window.location.pathname');
+    expect(script).not.toContain("'/reset-password'");
+  });
+});

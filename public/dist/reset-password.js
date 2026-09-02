@@ -2,7 +2,7 @@
 const params = new URLSearchParams(window.location.search);
 const token = params.get('token') || '';
 if (token)
-    window.history.replaceState({}, document.title, '/reset-password');
+    window.history.replaceState({}, document.title, window.location.pathname);
 const form = document.querySelector('#reset-form');
 const message = document.querySelector('#message');
 form?.addEventListener('submit', async (event) => {
