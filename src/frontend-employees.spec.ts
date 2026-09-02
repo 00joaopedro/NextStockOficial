@@ -61,6 +61,7 @@ describe('reset password frontend', () => {
       'utf8',
     );
     expect(html).toContain('minlength="12"');
+    expect(html).toContain('pattern="[A-Za-z0-9]{12,}"');
     expect(html).toContain('m&iacute;nimo 12');
     expect(script).toContain('{12,}');
     expect(script).toContain('minimo 12');
