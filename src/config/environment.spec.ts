@@ -60,12 +60,8 @@ describe('environment isolation guardrails', () => {
     ).toThrow('AUTH_RATE_LIMIT_HMAC_SECRET');
   });
 
-  it('disables auth rate limiting by default and accepts a valid enabled secret', () => {
+  it('allows an explicit auth rate limit opt-out', () => {
     const { AUTH_RATE_LIMIT_HMAC_SECRET: _secret, ...withoutSecret } = base;
-    expect(
-      validateEnvironment({ ...withoutSecret, APP_ENV: 'production' })
-        .AUTH_RATE_LIMIT_ENABLED,
-    ).toBe('true');
     expect(
       validateEnvironment({
         ...withoutSecret,
@@ -73,12 +69,33 @@ describe('environment isolation guardrails', () => {
         AUTH_RATE_LIMIT_ENABLED: 'false',
       }).AUTH_RATE_LIMIT_ENABLED,
     ).toBe('false');
+  });
+
+  it('requires the HMAC secret when auth rate limiting defaults to enabled', () => {
+    const { AUTH_RATE_LIMIT_HMAC_SECRET: _secret, ...withoutRateLimitConfig } =
+      base;
+    expect(() =>
+      validateEnvironment({ ...withoutRateLimitConfig, APP_ENV: 'production' }),
+    ).toThrow('AUTH_RATE_LIMIT_HMAC_SECRET');
+  });
+
+  it('enables auth rate limiting by default with a valid secret', () => {
+    const withoutFlag = base;
     expect(
       validateEnvironment({
-        ...withoutSecret,
+        ...withoutFlag,
         APP_ENV: 'production',
+        AUTH_RATE_LIMIT_HMAC_SECRET: 'test-rate-limit-secret-32-characters',
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('true');
+  });
+
+  it('enables auth rate limiting with an explicit true flag and valid secret', () => {
+    expect(
+      validateEnvironment({
+        ...base,
         AUTH_RATE_LIMIT_ENABLED: 'true',
-        AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32),
+        AUTH_RATE_LIMIT_HMAC_SECRET: 'test-rate-limit-secret-32-characters',
       }).AUTH_RATE_LIMIT_ENABLED,
     ).toBe('true');
   });
