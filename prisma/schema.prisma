@@ -11,6 +11,7 @@ datasource db {
 enum AuthIdentityProvider {
   GOOGLE   @map("google")
   SUPABASE @map("supabase")
+  SUPERTOKENS @map("supertokens")
 }
 
 model UserProfile {
@@ -67,6 +68,7 @@ model UserProfile {
   updatedAt                DateTime                      @updatedAt @map("updated_at")
   provisioning             UserProvisioning?             @relation("ProvisionedProfile")
   authIdentities           AuthIdentity[]
+  migrationLedger          AuthMigrationLedger[]
   oauthIntents             OAuthIntent[]
   authEmailClaim           AuthEmailClaim?
   localCredential          LocalCredential?
@@ -103,12 +105,38 @@ model AuthIdentity {
   disabledAt             DateTime?            @map("disabled_at")
   createdAt              DateTime             @default(now()) @map("created_at")
   updatedAt              DateTime             @updatedAt @map("updated_at")
+  migrationLedger        AuthMigrationLedger[]
 
   @@unique([provider, providerSubject])
   @@unique([userProfileId, provider], map: "auth_identities_profile_id_provider_key")
   @@index([userProfileId])
   @@index([provider, canonicalEmail])
   @@map("auth_identities")
+}
+
+model AuthMigrationLedger {
+  id                String   @id @default(uuid()) @db.Uuid
+  sourceProvider    String   @map("source_provider")
+  sourceSubjectHash String   @map("source_subject_hash")
+  userProfileId     String?  @map("profile_id") @db.Uuid
+  authIdentityId    String?  @map("auth_identity_id") @db.Uuid
+  migrationKind     String   @map("migration_kind")
+  status            String   @default("pending")
+  attempt           Int      @default(0)
+  claimToken        String?  @map("claim_token")
+  sourceVersion     String?  @map("source_version")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  lastErrorCode     String?  @map("last_error_code")
+  version           Int      @default(0)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  userProfile       UserProfile? @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+  authIdentity      AuthIdentity? @relation(fields: [authIdentityId], references: [id], onDelete: SetNull)
+  @@unique([sourceProvider, sourceSubjectHash, migrationKind])
+  @@index([status, updatedAt])
+  @@index([userProfileId])
+  @@map("auth_migration_ledger")
 }
 
 model OAuthIntent {
