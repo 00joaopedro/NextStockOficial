@@ -52,6 +52,8 @@ export class GoogleOAuthService {
     const identity = await this.prisma.authIdentity.findUnique({ where: { provider_providerSubject: { provider: 'GOOGLE', providerSubject: claims.sub } }, select: { userProfileId: true } });
     if (intent.purpose === 'link') {
       if (!intent.userProfileId || (identity && identity.userProfileId !== intent.userProfileId)) throw new ConflictException('Google identity cannot be linked.');
+      const activeSession = intent.sessionId && await this.prisma.userSession.findFirst({ where: { id: intent.sessionId, profileId: intent.userProfileId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } });
+      if (!activeSession) throw new UnauthorizedException('Linking session expired.');
       if (!identity) await this.prisma.authIdentity.create({ data: { userProfileId: intent.userProfileId, provider: 'GOOGLE', providerSubject: claims.sub, canonicalEmail: claims.email.toLowerCase(), emailVerifiedAt: new Date() } });
       return { redirectTo: '/perfil.html', profileId: intent.userProfileId };
     }

@@ -9,6 +9,7 @@ import {
   UsePipes,
   ValidationPipe,
   Optional,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -63,7 +64,9 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 60_000 })
   async googleLinkStart(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
-    const url = await this.googleOAuth!.start('link', req.user!.id);
+    const sessionId = await this.sessions?.findActiveId(req.cookies?.[SESSION_COOKIE_NAME], req.user!.id);
+    if (!sessionId) throw new UnauthorizedException('Active session required.');
+    const url = await this.googleOAuth!.start('link', req.user!.id, sessionId);
     reply.redirect(url);
   }
 

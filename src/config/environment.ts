@@ -231,6 +231,20 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       `Invalid environment configuration: ${error.details.map((d) => d.path.join('.')).join(', ')}`,
     );
   }
+  if (value.GOOGLE_OAUTH_ENABLED === 'true') {
+    for (const name of ['GOOGLE_OAUTH_CLIENT_ID', 'GOOGLE_OAUTH_CLIENT_SECRET', 'GOOGLE_OAUTH_CALLBACK_URL']) {
+      if (!String(value[name] || '').trim()) throw new Error(`Missing required environment variable: ${name}`);
+    }
+    try {
+      const callback = new URL(String(value.GOOGLE_OAUTH_CALLBACK_URL));
+      if (['production', 'staging'].includes(String(value.APP_ENV || value.NODE_ENV)) && callback.protocol !== 'https:') {
+        throw new Error('GOOGLE_OAUTH_CALLBACK_URL must use HTTPS in deployed environments.');
+      }
+    } catch (cause) {
+      if (cause instanceof Error && cause.message.includes('HTTPS')) throw cause;
+      throw new Error('GOOGLE_OAUTH_CALLBACK_URL must be an absolute URL.');
+    }
+  }
   if (
     value.DASHBOARD_CACHE_TTL_MS > value.DASHBOARD_CACHE_INVALIDATION_SLA_MS
   ) {
