@@ -8,6 +8,11 @@ const GOOGLE_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
 const TTL = 5 * 60_000;
 
+type GoogleOAuthSessionUser = { id: string; tenantId?: string | null };
+export type GoogleOAuthCallbackResult =
+  | { kind: 'session'; redirectTo: string; accessToken: string; user: GoogleOAuthSessionUser }
+  | { kind: 'linked'; redirectTo: string; profileId: string };
+
 function hash(value: string) { return createHash('sha256').update(value).digest('hex'); }
 function challenge(value: string) { return createHash('sha256').update(value).digest('base64url'); }
 function config() {
@@ -34,7 +39,7 @@ export class GoogleOAuthService {
     return url.toString();
   }
 
-  async callback(code: string, state: string) {
+  async callback(code: string, state: string): Promise<GoogleOAuthCallbackResult> {
     const c = config();
     if (!code || !state) throw new UnauthorizedException('Invalid Google OAuth callback.');
     const intent = await this.prisma.oAuthIntent.findFirst({ where: { provider: 'google', stateHash: hash(state), consumedAt: null, expiresAt: { gt: new Date() } } });
@@ -55,9 +60,10 @@ export class GoogleOAuthService {
       const activeSession = intent.sessionId && await this.prisma.userSession.findFirst({ where: { id: intent.sessionId, profileId: intent.userProfileId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } });
       if (!activeSession) throw new UnauthorizedException('Linking session expired.');
       if (!identity) await this.prisma.authIdentity.create({ data: { userProfileId: intent.userProfileId, provider: 'GOOGLE', providerSubject: claims.sub, canonicalEmail: claims.email.toLowerCase(), emailVerifiedAt: new Date() } });
-      return { redirectTo: '/perfil.html', profileId: intent.userProfileId };
+      return { kind: 'linked', redirectTo: '/perfil.html', profileId: intent.userProfileId };
     }
     if (!identity) throw new ConflictException('Google account requires an invitation or explicit linking.');
-    return { ...(await this.auth.issueSessionForProfile(identity.userProfileId)), redirectTo: intent.redirectTo };
+    const session = await this.auth.issueSessionForProfile(identity.userProfileId);
+    return { kind: 'session', accessToken: session.accessToken, user: session.user, redirectTo: intent.redirectTo };
   }
 }

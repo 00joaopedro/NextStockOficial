@@ -75,7 +75,7 @@ export class AuthController {
   async googleCallback(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
     const query = req.query as { code?: string; state?: string };
     const result = await this.googleOAuth!.callback(query.code || '', query.state || '');
-    if (result.accessToken) {
+    if (result.kind === 'session') {
       await this.createSession(req, reply, result.accessToken, result.user);
       this.setJwtCookie(reply, result.accessToken);
     }
