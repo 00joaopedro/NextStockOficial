@@ -24,6 +24,10 @@ const schema = Joi.object({
     .valid('development', 'test', 'staging', 'production')
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
+  GOOGLE_OAUTH_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  GOOGLE_OAUTH_CLIENT_ID: Joi.string().allow('').optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: Joi.string().allow('').optional(),
+  GOOGLE_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   AUTH_PROVIDER_MODE: Joi.string()
     .valid(
       'supabase_only',

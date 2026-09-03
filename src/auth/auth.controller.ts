@@ -36,6 +36,7 @@ import type {
   AuthenticatedHttpRequest,
   CompatibleReply,
 } from '../common/http-types';
+import { GoogleOAuthService } from './google-oauth.service';
 
 @Controller('auth')
 @BillingExempt()
@@ -46,7 +47,37 @@ export class AuthController {
     @Optional() private readonly audit?: AuditService,
     @Optional() private readonly sessions?: SessionsService,
     @Optional() private readonly passwordLifecycle?: PasswordLifecycleService,
+    @Optional() private readonly googleOAuth?: GoogleOAuthService,
   ) {}
+
+  @Get('google/start')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 10, windowMs: 60_000 })
+  @CsrfExempt()
+  async googleStart(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
+    const url = await this.googleOAuth!.start('login');
+    reply.redirect(url);
+  }
+
+  @Get('google/link/start')
+  @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 60_000 })
+  async googleLinkStart(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
+    const url = await this.googleOAuth!.start('link', req.user!.id);
+    reply.redirect(url);
+  }
+
+  @Get('google/callback')
+  @CsrfExempt()
+  async googleCallback(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
+    const query = req.query as { code?: string; state?: string };
+    const result = await this.googleOAuth!.callback(query.code || '', query.state || '');
+    if (result.accessToken) {
+      await this.createSession(req, reply, result.accessToken, result.user);
+      this.setJwtCookie(reply, result.accessToken);
+    }
+    reply.redirect(result.redirectTo);
+  }
 
   @Post('register')
   @UseGuards(AuthRateLimitGuard)

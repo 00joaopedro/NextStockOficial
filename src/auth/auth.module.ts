@@ -34,6 +34,7 @@ import {
   PASSWORD_EMAIL_DELIVERY,
 } from './password-delivery';
 import { PasswordLifecycleService } from './password-lifecycle.service';
+import { GoogleOAuthService } from './google-oauth.service';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
     CoexistenceAuthProvider,
     PasswordResetTokenService,
     PasswordLifecycleService,
+    GoogleOAuthService,
     ConfiguredPasswordEmailDelivery,
     {
       provide: PASSWORD_EMAIL_DELIVERY,
