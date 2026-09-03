@@ -20,7 +20,12 @@ export class SessionsService {
   async findActiveId(token: string | undefined, profileId: string) {
     if (!token) return undefined;
     const session = await this.prisma.userSession.findFirst({
-      where: { tokenIdHash: this.hash(token), profileId, revokedAt: null, expiresAt: { gt: new Date() } },
+      where: {
+        tokenIdHash: this.hash(token),
+        profileId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
       select: { id: true },
     });
     return session?.id;
