@@ -557,6 +557,15 @@ export class AuthService {
     };
   }
 
+  async issueSessionForProfile(profileId: string) {
+    const profile = await this.findProfileRecord({ profileId });
+    this.assertEmployeeCanAuthenticate(profile);
+    const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    if (!this.localJwt) throw new ServiceUnavailableException('Local session provider is unavailable.');
+    const accessToken = await this.localJwt.sign({ sub: profile.id, jti: randomUUID(), credentialVersion: (await this.prisma.localCredential.findUnique({ where: { profileId }, select: { credentialVersion: true } }))?.credentialVersion ?? 1 });
+    return { accessToken, user, selectedBranch };
+  }
+
   private async withDevWorkspaceBranches(
     user: ReturnType<AuthService['formatAuthUser']>,
   ) {
