@@ -55,7 +55,10 @@ export class AuthController {
   @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 10, windowMs: 60_000 })
   @CsrfExempt()
-  async googleStart(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
+  async googleStart(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res() reply: CompatibleReply,
+  ) {
     const url = await this.googleOAuth!.start('login');
     reply.redirect(url);
   }
@@ -63,8 +66,14 @@ export class AuthController {
   @Get('google/link/start')
   @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 60_000 })
-  async googleLinkStart(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
-    const sessionId = await this.sessions?.findActiveId(req.cookies?.[SESSION_COOKIE_NAME], req.user!.id);
+  async googleLinkStart(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res() reply: CompatibleReply,
+  ) {
+    const sessionId = await this.sessions?.findActiveId(
+      req.cookies?.[SESSION_COOKIE_NAME],
+      req.user!.id,
+    );
     if (!sessionId) throw new UnauthorizedException('Active session required.');
     const url = await this.googleOAuth!.start('link', req.user!.id, sessionId);
     reply.redirect(url);
@@ -72,9 +81,15 @@ export class AuthController {
 
   @Get('google/callback')
   @CsrfExempt()
-  async googleCallback(@Req() req: AuthenticatedHttpRequest, @Res() reply: CompatibleReply) {
+  async googleCallback(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res() reply: CompatibleReply,
+  ) {
     const query = req.query as { code?: string; state?: string };
-    const result = await this.googleOAuth!.callback(query.code || '', query.state || '');
+    const result = await this.googleOAuth!.callback(
+      query.code || '',
+      query.state || '',
+    );
     if (result.kind === 'session') {
       await this.createSession(req, reply, result.accessToken, result.user);
       this.setJwtCookie(reply, result.accessToken);
