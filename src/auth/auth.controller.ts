@@ -127,7 +127,9 @@ export class AuthController {
     @Req() req: AuthenticatedHttpRequest,
   ) {
     const result =
-      authProviderMode() === 'coexistence' && this.passwordLifecycle
+      authProviderMode() === 'coexistence' &&
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true' &&
+      this.passwordLifecycle
         ? await this.passwordLifecycle.request(body.email.trim().toLowerCase())
         : await this.authService.forgotPassword(body);
     void this.audit?.record({
@@ -141,9 +143,12 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
   @CsrfExempt()
   async resetPassword(
     @Body() body: ResetPasswordDto,
+    @Req() req: AuthenticatedHttpRequest,
     @Res({ passthrough: true }) reply: CompatibleReply,
   ) {
     const result = await this.passwordLifecycle!.reset(
@@ -152,11 +157,18 @@ export class AuthController {
     );
     clearAuthCookies(reply);
     reply.header('Cache-Control', 'no-store');
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.password_reset_completed',
+      action: 'reset_password',
+      outcome: AuditOutcome.SUCCESS,
+      severity: AuditSeverity.HIGH,
+    });
     return result;
   }
 
   @Post('change-password')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
   async changePassword(
     @Body() body: ChangePasswordDto,

@@ -70,7 +70,14 @@ const publicPath = join(__dirname, '..', 'public');
             header(name: string, value: string): unknown;
           };
           if (/\.html$/i.test(filePath)) {
-            reply.header('Cache-Control', 'no-cache');
+            reply.header(
+              'Cache-Control',
+              /[/\\]reset-password\.html$/i.test(filePath)
+                ? 'no-store'
+                : 'no-cache',
+            );
+            if (/[/\\]reset-password\.html$/i.test(filePath))
+              reply.header('Referrer-Policy', 'no-referrer');
             return;
           }
           if (

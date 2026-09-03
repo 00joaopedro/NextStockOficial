@@ -522,6 +522,21 @@ describe('AuthService', () => {
     });
   });
 
+  it('encaminha senha legada com pontuacao sem aplicar politica nova', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    prisma.userProfile.findFirst.mockResolvedValue(profile);
+    const password = 'legacy!'.repeat(9) + '!';
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await service.login({ email: profile.email, password });
+
+    expect(supabase.anon.auth.signInWithPassword).toHaveBeenCalledWith({
+      email: profile.email,
+      password,
+    });
+  });
+
   it('profile retorna user e selectedBranch explicito', async () => {
     const prisma = createPrisma();
     const supabase = createSupabase();

@@ -4,6 +4,7 @@ describe('AuthController', () => {
   const authService = {
     login: jest.fn(),
     register: jest.fn(),
+    forgotPassword: jest.fn(),
   } as any;
   const response = () =>
     ({
@@ -144,5 +145,82 @@ describe('AuthController', () => {
       'nextstock_session',
       expect.objectContaining({ path: '/' }),
     );
+  });
+
+  it('coexistence desabilitado delega recovery ao fluxo legado', async () => {
+    const envKeys = [
+      'APP_ENV',
+      'AUTH_PROVIDER_MODE',
+      'LOCAL_PASSWORD_RECOVERY_ENABLED',
+      'SUPERTOKENS_CONNECTION_URI',
+      'SUPERTOKENS_APP_NAME',
+      'SUPERTOKENS_API_DOMAIN',
+      'SUPERTOKENS_WEBSITE_DOMAIN',
+    ] as const;
+    const previousEnv = Object.fromEntries(
+      envKeys.map((key) => [key, process.env[key]]),
+    );
+    Object.assign(process.env, {
+      APP_ENV: 'test',
+      AUTH_PROVIDER_MODE: 'coexistence',
+      LOCAL_PASSWORD_RECOVERY_ENABLED: 'false',
+      SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
+      SUPERTOKENS_APP_NAME: 'test',
+      SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
+      SUPERTOKENS_WEBSITE_DOMAIN: 'http://localhost:3000',
+    });
+    const lifecycle = { request: jest.fn() } as any;
+    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    authService.forgotPassword.mockResolvedValue({ ok: true });
+    try {
+      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
+        { email: 'USER@Test.com' } as any,
+        {} as any,
+      );
+      expect(authService.forgotPassword).toHaveBeenCalledTimes(1);
+      expect(lifecycle.request).not.toHaveBeenCalled();
+    } finally {
+      envKeys.forEach((key) => {
+        const value = previousEnv[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
+    }
+  });
+
+  it('coexistence habilitado usa somente o lifecycle local', async () => {
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    const previousLocal = process.env.LOCAL_PASSWORD_RECOVERY_ENABLED;
+    process.env.AUTH_PROVIDER_MODE = 'coexistence';
+    process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = 'true';
+    const supertokens = {
+      SUPERTOKENS_CONNECTION_URI: process.env.SUPERTOKENS_CONNECTION_URI,
+      SUPERTOKENS_APP_NAME: process.env.SUPERTOKENS_APP_NAME,
+      SUPERTOKENS_API_DOMAIN: process.env.SUPERTOKENS_API_DOMAIN,
+      SUPERTOKENS_WEBSITE_DOMAIN: process.env.SUPERTOKENS_WEBSITE_DOMAIN,
+    };
+    Object.assign(process.env, {
+      SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
+      SUPERTOKENS_APP_NAME: 'test',
+      SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
+      SUPERTOKENS_WEBSITE_DOMAIN: 'http://localhost:3000',
+    });
+    const lifecycle = { request: jest.fn().mockResolvedValue({ ok: true }) } as any;
+    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    try {
+      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
+        { email: 'USER@Test.com' } as any,
+        {} as any,
+      );
+      expect(lifecycle.request).toHaveBeenCalledTimes(1);
+      expect(authService.forgotPassword).not.toHaveBeenCalled();
+    } finally {
+      process.env.AUTH_PROVIDER_MODE = previousMode;
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED = previousLocal;
+      Object.entries(supertokens).forEach(([key, value]) => {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
+    }
   });
 });

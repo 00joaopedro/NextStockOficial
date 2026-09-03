@@ -217,9 +217,10 @@ describe('SEC-016 distributed authentication rate limiter', () => {
     await app.getHttpAdapter().getInstance().ready();
 
     try {
+      const passwordFixture = 'Password1234';
       const loginPayload = {
         email: 'HTTP@Example.Test',
-        password: 'Password1',
+        password: passwordFixture,
       };
       const performLogin = () =>
         app.inject({
@@ -258,7 +259,7 @@ describe('SEC-016 distributed authentication rate limiter', () => {
           email: 'register@example.test',
           name: 'Test User',
           companyName: 'Test Company',
-          password: 'Password1',
+          password: passwordFixture,
           systemType: 'padrao',
         },
       });

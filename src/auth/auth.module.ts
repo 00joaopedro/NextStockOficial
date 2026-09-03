@@ -82,7 +82,18 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
         supabase: SupabaseAuthProvider,
         local: LocalAuthProvider,
         coexistence: CoexistenceAuthProvider,
-      ) => (authProviderMode() === 'coexistence' ? coexistence : supabase),
+      ) => {
+        const mode = authProviderMode();
+        if (mode === 'coexistence') return coexistence;
+        if (mode === 'local_primary' || mode === 'local_only')
+          throw new Error(
+            'Local auth modes require a configured password recovery adapter.',
+          );
+        if (mode === 'supertokens_primary' || mode === 'supertokens_only')
+          throw new Error('SuperTokens runtime provider is not implemented.');
+        if (mode === 'supabase_only') return supabase;
+        throw new Error('Unsupported auth provider mode.');
+      },
     },
   ],
   controllers: [AuthController],

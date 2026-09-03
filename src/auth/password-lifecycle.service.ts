@@ -33,12 +33,16 @@ export class PasswordLifecycleService {
   ) {}
 
   private localEnabled() {
-    return authProviderMode() === 'coexistence';
+    return ['coexistence', 'local_primary', 'local_only'].includes(authProviderMode());
   }
 
   async request(email: string) {
     const generic = { ok: true, message: 'Password recovery email requested.' };
-    if (!this.localEnabled()) return generic;
+    if (
+      !this.localEnabled() ||
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED !== 'true'
+    )
+      return generic;
     const profile = await this.prisma.userProfile.findFirst({
       where: { email },
       select: {
@@ -64,7 +68,7 @@ export class PasswordLifecycleService {
     const { raw, hash } = this.tokens.generate();
     const base = process.env.PUBLIC_APP_URL?.trim();
     if (!base || !/^https?:\/\/[^\s]+$/i.test(base)) return generic;
-    const resetUrl = new URL('/reset-password', base);
+    const resetUrl = new URL('/reset-password.html', base);
     resetUrl.searchParams.set('token', raw);
     try {
       await this.delivery.send({
@@ -92,7 +96,10 @@ export class PasswordLifecycleService {
   }
 
   async reset(token: string, newPassword: string, requestToken?: string) {
-    if (!this.localEnabled())
+    if (
+      !this.localEnabled() ||
+      process.env.LOCAL_PASSWORD_RECOVERY_ENABLED !== 'true'
+    )
       throw new BadRequestException(GENERIC_RESET_ERROR);
     try {
       validateLocalPassword(newPassword);
@@ -110,6 +117,7 @@ export class PasswordLifecycleService {
           expiresAt: true,
           usedAt: true,
           revokedAt: true,
+          credentialVersion: true,
           profile: {
             select: {
               localCredential: true,
@@ -126,7 +134,9 @@ export class PasswordLifecycleService {
         !candidate.profile.localCredential ||
         candidate.profile.localCredential.status !== 'active' ||
         candidate.profile.employee?.deletedAt ||
-        candidate.profile.employee?.status !== 'active'
+        (candidate.profile.employee && candidate.profile.employee.status !== 'active') ||
+        candidate.credentialVersion !==
+          candidate.profile.localCredential?.credentialVersion
       )
         throw new BadRequestException(GENERIC_RESET_ERROR);
       if (
@@ -142,6 +152,7 @@ export class PasswordLifecycleService {
           usedAt: null,
           revokedAt: null,
           expiresAt: { gt: now },
+          credentialVersion: candidate.credentialVersion,
         },
         data: { usedAt: now },
       });
@@ -149,7 +160,11 @@ export class PasswordLifecycleService {
         throw new BadRequestException(GENERIC_RESET_ERROR);
       const hash = await this.passwords.hash(newPassword);
       const changed = await tx.localCredential.updateMany({
-        where: { profileId: candidate.profileId, status: 'active' },
+        where: {
+          profileId: candidate.profileId,
+          status: 'active',
+          credentialVersion: candidate.credentialVersion,
+        },
         data: {
           passwordHash: hash,
           parameters: { rounds: Number(process.env.LOCAL_BCRYPT_ROUNDS || 12) },

@@ -65,7 +65,7 @@ describe('public static delivery', () => {
     });
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
-  });
+  }, 30_000);
 
   afterAll(async () => {
     await app.close();

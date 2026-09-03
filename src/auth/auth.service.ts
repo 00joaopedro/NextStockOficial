@@ -404,7 +404,12 @@ export class AuthService {
 
   async login(input: LoginInput) {
     const email = this.normalizeEmail(input.email);
-    const password = this.normalizePassword(input.password);
+    // Existing credentials must be forwarded byte-for-byte. New-password
+    // composition rules belong to registration/change/reset boundaries.
+    if (typeof input.password !== 'string' || input.password.length > 512) {
+      throw new BadRequestException('password is required');
+    }
+    const password = input.password;
 
     const session = await withTimeout(
       this.authProvider.login({
