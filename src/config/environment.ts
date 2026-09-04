@@ -66,9 +66,7 @@ const schema = Joi.object({
   AUTH_LOCAL_PRIMARY_OBSERVED: Joi.string()
     .valid('true', 'false')
     .default('false'),
-  AUTH_LOCAL_ONLY_DRY_RUN: Joi.string()
-    .valid('true', 'false')
-    .default('true'),
+  AUTH_LOCAL_ONLY_DRY_RUN: Joi.string().valid('true', 'false').default('true'),
   AUTH_LOCAL_ONLY_EVIDENCE_SOURCE: Joi.string()
     .valid('synthetic', 'staging', 'production')
     .default('synthetic'),
