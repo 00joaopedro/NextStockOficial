@@ -39,12 +39,21 @@ const schema = Joi.object({
     )
     .default('supabase_only'),
   AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
-  AUTH_MIGRATION_JIT_ENABLED: Joi.string().valid('true', 'false').default('false'),
-  AUTH_MIGRATION_BATCH_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  AUTH_MIGRATION_JIT_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_MIGRATION_BATCH_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
   AUTH_MIGRATION_DRY_RUN: Joi.string().valid('true', 'false').default('true'),
-  AUTH_MIGRATION_SOURCE_PROVIDER: Joi.string().valid('supabase', 'supertokens').default('supabase'),
+  AUTH_MIGRATION_SOURCE_PROVIDER: Joi.string()
+    .valid('supabase', 'supertokens')
+    .default('supabase'),
   AUTH_MIGRATION_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20),
-  AUTH_MIGRATION_APPLY_CONFIRMATION: Joi.string().valid('true', 'false').default('false'),
+  AUTH_MIGRATION_APPLY_CONFIRMATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_MIGRATION_CURSOR_SECRET: Joi.string().allow('').optional(),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
     .valid('true', 'false')
     .default('true'),
@@ -301,14 +310,31 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     throw new Error('Auth migration requires AUTH_PROVIDER_MODE=coexistence.');
   }
   if ((jitEnabled || batchEnabled) && !migrationEnabled) {
-    throw new Error('Auth migration modes require AUTH_MIGRATION_ENABLED=true.');
+    throw new Error(
+      'Auth migration modes require AUTH_MIGRATION_ENABLED=true.',
+    );
   }
-  if (batchEnabled && value.AUTH_MIGRATION_DRY_RUN !== 'true' && value.AUTH_MIGRATION_APPLY_CONFIRMATION !== 'true') {
-    throw new Error('Applying auth migration batch requires explicit confirmation.');
+  if (
+    batchEnabled &&
+    value.AUTH_MIGRATION_DRY_RUN !== 'true' &&
+    value.AUTH_MIGRATION_APPLY_CONFIRMATION !== 'true'
+  ) {
+    throw new Error(
+      'Applying auth migration batch requires explicit confirmation.',
+    );
   }
-  if (value.AUTH_MIGRATION_SOURCE_PROVIDER === 'supertokens' && !value.AUTH_PROVIDER_MODE.includes('super')) {
-    throw new Error('SuperTokens migration source requires a SuperTokens auth mode.');
+  if (
+    value.AUTH_MIGRATION_SOURCE_PROVIDER === 'supertokens' &&
+    !['coexistence'].includes(value.AUTH_PROVIDER_MODE)
+  ) {
+    throw new Error(
+      'SuperTokens migration source requires AUTH_PROVIDER_MODE=coexistence.',
+    );
   }
+  if (batchEnabled && !String(value.AUTH_MIGRATION_CURSOR_SECRET || '').trim())
+    throw new Error(
+      'AUTH_MIGRATION_CURSOR_SECRET is required for batch migration.',
+    );
   const usesSuperTokens = [
     'coexistence',
     'supertokens_primary',

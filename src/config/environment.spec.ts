@@ -212,4 +212,41 @@ describe('environment isolation guardrails', () => {
       }),
     ).not.toThrow();
   });
+
+  it.each([
+    ['coexistence', false],
+    ['supabase_only', true],
+  ])(
+    'validates migration source against the exact provider mode (%s)',
+    (mode, rejects) => {
+      const input = {
+        ...base,
+        APP_ENV: 'production',
+        AUTH_MIGRATION_ENABLED: 'true',
+        AUTH_MIGRATION_SOURCE_PROVIDER: 'supertokens',
+        AUTH_PROVIDER_MODE: mode,
+        SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
+        SUPERTOKENS_APP_NAME: 'test',
+        SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
+        SUPERTOKENS_API_KEY: 'test-key',
+      };
+      if (rejects) expect(() => validateEnvironment(input)).toThrow();
+      else expect(() => validateEnvironment(input)).not.toThrow();
+    },
+  );
+
+  it('keeps migration disabled and dry-run by default', () => {
+    const value = validateEnvironment({ ...base, APP_ENV: 'production' });
+    expect(value.AUTH_MIGRATION_ENABLED).toBe('false');
+    expect(value.AUTH_MIGRATION_DRY_RUN).toBe('true');
+  });
+
+  it('rejects an unknown migration source provider', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        AUTH_MIGRATION_SOURCE_PROVIDER: 'unknown',
+      }),
+    ).toThrow('AUTH_MIGRATION_SOURCE_PROVIDER');
+  });
 });
