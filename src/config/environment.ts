@@ -57,6 +57,13 @@ const schema = Joi.object({
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
     .valid('true', 'false')
     .default('true'),
+  AUTH_LOCAL_PRIMARY_CONFIRMATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_PREFLIGHT_SOURCE_PROVIDER: Joi.string()
+    .valid('supabase', 'supertokens')
+    .default('supabase'),
+  AUTH_CANARY_BUCKET_SECRET: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_ACTIVE_KEY: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_PREVIOUS_KEY: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_KID: Joi.string().max(80).allow('').optional(),
