@@ -229,6 +229,9 @@ describe('environment isolation guardrails', () => {
         SUPERTOKENS_APP_NAME: 'test',
         SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
         SUPERTOKENS_API_KEY: 'test-key',
+        LOCAL_AUTH_JWT_ACTIVE_KEY:
+          'test-only-local-jwt-active-key-0123456789012345',
+        LOCAL_AUTH_JWT_KID: 'test-active-kid',
       };
       if (rejects) expect(() => validateEnvironment(input)).toThrow();
       else expect(() => validateEnvironment(input)).not.toThrow();
