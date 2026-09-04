@@ -44,6 +44,7 @@
     "auth:supertokens:canary-check": "node dist/scripts/auth/supertokens-canary-check.js --json",
     "auth:supertokens:cutover-check": "node dist/scripts/auth/supertokens-cutover-check.js --json",
     "auth:local-primary:readiness": "node dist/scripts/auth/local-primary-readiness.js",
+    "auth:local-only:readiness": "node dist/scripts/auth/local-only-readiness.js",
     "auth:migration:batch": "ts-node scripts/auth/auth-migration-batch.ts",
     "platform:postgresql:validate": "ts-node scripts/platform/validate-postgresql-portability.ts",
     "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
