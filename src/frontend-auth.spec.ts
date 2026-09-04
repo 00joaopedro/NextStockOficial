@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 function pageSource(root: string, file: string) {
@@ -121,18 +121,41 @@ describe('frontend auth pages', () => {
     );
   });
 
-  it('reset-password.html captura o token em memoria e limpa a query', () => {
+  it('reset-password.html referencia o bundle compilado de reset-password', () => {
     const html = publicFile('reset-password.html');
-    const script = readFileSync(
+    const match = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i);
+
+    expect(match).not.toBeNull();
+    const scriptPath = match?.[1];
+    expect(scriptPath).toBe('/dist/reset-password.js');
+
+    const bundlePath = join(__dirname, '..', 'public', scriptPath!.replace(/^\//, ''));
+    expect(existsSync(bundlePath)).toBe(true);
+  });
+
+  it('reset-password usa no bundle o comportamento de seguranca esperado', () => {
+    const html = publicFile('reset-password.html');
+    const scriptPath = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
+    expect(scriptPath).toBe('/dist/reset-password.js');
+    const bundle = readFileSync(
+      join(__dirname, '..', 'public', scriptPath!.replace(/^\//, '')),
+      'utf8',
+    );
+    const source = readFileSync(
       join(__dirname, '..', 'public', 'Js', 'reset-password.ts'),
       'utf8',
     );
 
-    expect(html).toContain('/dist/reset-password.js');
-    expect(script).toContain("params.get('token')");
-    expect(script).toContain('window.history.replaceState');
-    expect(script).toContain("'/api/auth/reset-password'");
-    expect(script).not.toMatch(/localStorage|sessionStorage/);
+    expect(source).toContain("params.get('token')");
+    expect(source).toContain('window.history.replaceState');
+    expect(source).toContain("'/api/auth/reset-password'");
+    expect(source).not.toMatch(/localStorage|sessionStorage/);
+    expect(bundle).toContain("params.get('token')");
+    expect(bundle).toContain('window.history.replaceState');
+    expect(bundle).toContain("'/api/auth/reset-password'");
+    expect(bundle).toContain('window.location.pathname');
+    expect(bundle).not.toContain("'/reset-password'");
+    expect(bundle).not.toMatch(/localStorage|sessionStorage/);
   });
 
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
