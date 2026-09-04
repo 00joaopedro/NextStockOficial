@@ -39,6 +39,7 @@ import {
   ValidReferral,
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
+import { AuthMigrationService } from './auth-migration.service';
 
 type RegisterInput = {
   email?: string;
@@ -127,6 +128,7 @@ export class AuthService {
     @Optional() private readonly subscriptions?: SubscriptionsService,
     @Optional() private readonly billingEntitlement?: BillingEntitlementService,
     @Optional() private readonly localJwt?: LocalJwtService,
+    @Optional() private readonly authMigration?: AuthMigrationService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -448,6 +450,21 @@ export class AuthService {
     const { user, selectedBranch } = await this.prepareLoginContext(
       profile,
     ).catch((error) => this.handleKnownPrismaAuthError(error, 'login.context'));
+    if (session.provider === 'supabase' && this.authMigration) {
+      try {
+        await this.authMigration.migrateAfterLegacyAuthentication({
+          sourceProvider: 'supabase',
+          sourceSubject: session.identity.id,
+          profileId: profile.id,
+          email,
+          password,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `AUTH_MIGRATION_JIT_FAILED code=${error instanceof ConflictException ? 'CONFLICT' : 'TRANSIENT_FAILURE'}`,
+        );
+      }
+    }
     const billingState = this.billingEntitlement
       ? await this.billingEntitlement.forUser(user)
       : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
