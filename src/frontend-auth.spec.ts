@@ -103,6 +103,38 @@ describe('frontend auth pages', () => {
     expect(html).not.toContain('PrismaClientKnownRequestError');
   });
 
+  it('index.html usa cookies HttpOnly e contratos reais para auth', () => {
+    const html = publicFile('index.html');
+
+    expect(html).toContain('href="/api/auth/google/start"');
+    expect(html).toContain('id="loginForm"');
+    expect(html).toContain('id="registerForm"');
+    expect(html).toContain('id="resetForm"');
+    expect(html).toContain("'/auth/login'");
+    expect(html).toContain("'/auth/register'");
+    expect(html).toContain("'/auth/forgot-password'");
+    expect(html).toContain("'/auth/logout'");
+    expect(html).toContain("credentials: 'include'");
+    expect(html).not.toMatch(/localStorage\.(getItem|setItem|removeItem)/);
+    expect(html).not.toMatch(
+      /sessionStorage\.setItem\([^)]*(jwt|token|accessToken)/i,
+    );
+  });
+
+  it('reset-password.html captura o token em memoria e limpa a query', () => {
+    const html = publicFile('reset-password.html');
+    const script = readFileSync(
+      join(__dirname, '..', 'public', 'Js', 'reset-password.ts'),
+      'utf8',
+    );
+
+    expect(html).toContain('/dist/reset-password.js');
+    expect(script).toContain("params.get('token')");
+    expect(script).toContain('window.history.replaceState');
+    expect(script).toContain("'/api/auth/reset-password'");
+    expect(script).not.toMatch(/localStorage|sessionStorage/);
+  });
+
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
     const pages = ['produtos.html', 'caixa.html', 'pedido.html'];
 
@@ -160,11 +192,13 @@ describe('frontend auth pages', () => {
     expect(source).toContain('JSON.parse(raw)');
     expect(source).toContain('clearSidebarSnapshot();');
 
-    expect(source).toContain('renderSidebar(container, snapshot.context, snapshot.menu);');
+    expect(source).toContain(
+      'renderSidebar(container, snapshot.context, snapshot.menu);',
+    );
     expect(source).toContain('const snapshot = readSidebarSnapshot();');
     expect(source).toContain('void fetchBilling(context).then');
     expect(source).toContain('writeSidebarSnapshot(resolved, menu);');
-    expect(source).toContain('data-sidebar-state\', \'revalidating\'');
+    expect(source).toContain("data-sidebar-state', 'revalidating'");
 
     expect(source).toContain('function fetchSystemContext');
     expect(source).toContain('function fetchBilling');
@@ -177,10 +211,14 @@ describe('frontend auth pages', () => {
     expect(source).toContain('nextstock-sidebar-first-menu');
     expect(source).toContain('nextstock-sidebar-ready');
 
-    expect(source).toContain("if (response.status === 401 || response.status === 403) clearSidebarSnapshot();");
-    expect(source).toContain("if (billingResponse.status === 401 || billingResponse.status === 403)");
-    expect(source).toContain("renderSidebar(container, context, provisional);");
-    expect(source).toContain("billingAllowed: false");
+    expect(source).toContain(
+      'if (response.status === 401 || response.status === 403) clearSidebarSnapshot();',
+    );
+    expect(source).toContain(
+      'if (billingResponse.status === 401 || billingResponse.status === 403)',
+    );
+    expect(source).toContain('renderSidebar(container, context, provisional);');
+    expect(source).toContain('billingAllowed: false');
     expect(source).not.toContain('function renderSidebarShell');
     expect(source).not.toContain('const contextResponsePromise = fetch');
     expect(source).not.toContain('const billingResponsePromise = fetch');
