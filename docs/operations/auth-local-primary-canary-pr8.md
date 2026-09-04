@@ -29,9 +29,15 @@ antes do rollout; não são inventados por este PR.
 ## Canário e rollback
 
 O bucket usa HMAC com secret de pelo menos 32 caracteres; não use e-mail ou IDs
-brutos em métricas. Denylist prevalece sobre allowlist. Secret ausente,
-percentual inválido e evidência insegura bloqueiam a decisão. Não há rollout
-automático.
+brutos em métricas. O secret é validado antes de qualquer seleção positiva.
+Denylist prevalece sobre allowlist, e uma allowlist sintética pode operar com
+percentual global 0%. Secret ausente, percentual inválido e evidência insegura
+bloqueiam a decisão. Não há rollout automático.
+
+Enquanto o provider de recovery não estiver registrado no `AuthModule` e a
+compatibilidade de migração não for aceita pelo startup, o readiness retorna
+`NOT_READY` com bloqueadores explícitos. Isso é intencional: `READY` nunca pode
+anunciar uma configuração que `validateEnvironment` rejeitaria.
 
 Para rollback: interrompa a progressão, retorne o percentual a 0, configure
 `AUTH_PROVIDER_MODE=coexistence`, reinicie o processo, execute smoke tests,

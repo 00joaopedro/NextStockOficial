@@ -29,8 +29,13 @@ export function evaluateLocalPrimaryReadiness(
     blockers.push('LOCAL_PRIMARY_NOT_SELECTED');
   if (env.AUTH_MIGRATION_ENABLED !== 'true')
     blockers.push('AUTH_MIGRATION_NOT_ENABLED');
+  if (env.AUTH_MIGRATION_ENABLED === 'true')
+    blockers.push('AUTH_MIGRATION_MODE_INCOMPATIBLE_WITH_STARTUP');
   if (env.AUTH_LOCAL_PRIMARY_CONFIRMATION !== 'true')
     blockers.push('EXPLICIT_CONFIRMATION_REQUIRED');
+  // The runtime still fails closed for local_primary until its recovery
+  // provider is implemented and registered in AuthModule.
+  blockers.push('LOCAL_AUTH_RUNTIME_PROVIDER_UNAVAILABLE');
   if (!env.LOCAL_AUTH_JWT_ACTIVE_KEY?.trim() || !env.LOCAL_AUTH_JWT_KID?.trim())
     blockers.push('LOCAL_JWT_NOT_CONFIGURED');
   if (env.AUTH_PREFLIGHT_CONFLICTS === undefined)
@@ -44,7 +49,7 @@ export function evaluateLocalPrimaryReadiness(
   if (env.AUTH_PREFLIGHT_SOURCE_PROVIDER !== 'supabase')
     blockers.push('AUTH_SOURCE_PROVIDER_INVALID');
   if (env.AUTH_LEGACY_FALLBACK_ENABLED !== 'true')
-    warnings.push('LEGACY_FALLBACK_DISABLED');
+    blockers.push('LEGACY_FALLBACK_REQUIRED_FOR_ROLLBACK');
   return {
     status: blockers.length ? (missing.length ? 'UNKNOWN' : 'NOT_READY') : 'READY',
     blockers: [...new Set(blockers)].sort(),
@@ -68,7 +73,9 @@ export function localPrimaryCanaryDecision(
 ) {
   if (!Number.isInteger(percentage) || percentage < 0 || percentage > 100)
     throw new Error('CANARY_PERCENTAGE_INVALID');
-  if (!subject || denylist.has(subject) || percentage === 0) return false;
+  if (!subject || denylist.has(subject)) return false;
+  if (secret.length < 32) throw new Error('CANARY_SECRET_REQUIRED');
   if (allowlist.has(subject)) return true;
+  if (percentage === 0) return false;
   return localPrimaryBucket(subject, secret) < percentage;
 }
