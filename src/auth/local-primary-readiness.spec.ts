@@ -18,14 +18,17 @@ describe('local primary readiness and canary', () => {
     expect(evaluateLocalPrimaryReadiness({}).status).toBe('UNKNOWN');
     expect(evaluateLocalPrimaryReadiness({}).blockers).toContain('REQUIRED_EVIDENCE_MISSING');
   });
-  it('requires explicit confirmation and is ready only with complete evidence', () => {
-    expect(evaluateLocalPrimaryReadiness(ready)).toMatchObject({ status: 'READY', pii: false });
+  it('does not approve a mode rejected by the runtime', () => {
+    expect(evaluateLocalPrimaryReadiness(ready)).toMatchObject({ status: 'NOT_READY', pii: false });
+    expect(evaluateLocalPrimaryReadiness(ready).blockers).toContain('LOCAL_AUTH_RUNTIME_PROVIDER_UNAVAILABLE');
     expect(evaluateLocalPrimaryReadiness({ ...ready, AUTH_LOCAL_PRIMARY_CONFIRMATION: 'false' }).status).toBe('NOT_READY');
   });
   it('is deterministic, denylist-first, and rejects invalid configuration', () => {
     const args = ['synthetic-profile', 50, 's'.repeat(32), new Set(['synthetic-profile']), new Set(['synthetic-profile'])] as const;
     expect(localPrimaryCanaryDecision(...args)).toBe(false);
     expect(localPrimaryCanaryDecision(...args)).toBe(false);
+    expect(localPrimaryCanaryDecision('synthetic-profile', 0, 's'.repeat(32), new Set(['synthetic-profile']))).toBe(true);
+    expect(() => localPrimaryCanaryDecision('synthetic-profile', 0, 'short', new Set(['synthetic-profile']))).toThrow('CANARY_SECRET_REQUIRED');
     expect(() => localPrimaryCanaryDecision('x', 101, 's'.repeat(32))).toThrow();
     expect(() => localPrimaryCanaryDecision('x', 1, 'short')).toThrow();
   });
