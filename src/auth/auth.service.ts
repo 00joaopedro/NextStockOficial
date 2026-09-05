@@ -39,6 +39,7 @@ import {
   ValidReferral,
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
+import { AuthMigrationService } from './auth-migration.service';
 
 type RegisterInput = {
   email?: string;
@@ -127,6 +128,7 @@ export class AuthService {
     @Optional() private readonly subscriptions?: SubscriptionsService,
     @Optional() private readonly billingEntitlement?: BillingEntitlementService,
     @Optional() private readonly localJwt?: LocalJwtService,
+    @Optional() private readonly authMigration?: AuthMigrationService,
   ) {}
 
   async register(input: RegisterInput) {
@@ -448,6 +450,21 @@ export class AuthService {
     const { user, selectedBranch } = await this.prepareLoginContext(
       profile,
     ).catch((error) => this.handleKnownPrismaAuthError(error, 'login.context'));
+    if (session.provider === 'supabase' && this.authMigration) {
+      try {
+        await this.authMigration.migrateAfterLegacyAuthentication({
+          sourceProvider: 'supabase',
+          sourceSubject: session.identity.id,
+          profileId: profile.id,
+          email,
+          password,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `AUTH_MIGRATION_JIT_FAILED code=${error instanceof ConflictException ? 'CONFLICT' : 'TRANSIENT_FAILURE'}`,
+        );
+      }
+    }
     const billingState = this.billingEntitlement
       ? await this.billingEntitlement.forUser(user)
       : { allowed: true, reason: 'BILLING_SERVICE_UNAVAILABLE' };
@@ -555,6 +572,15 @@ export class AuthService {
         enforcementEnabled: billingEnforced,
       },
     };
+  }
+
+  async issueSessionForProfile(profileId: string) {
+    const profile = await this.findProfileRecord({ profileId });
+    this.assertEmployeeCanAuthenticate(profile);
+    const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    if (!this.localJwt) throw new ServiceUnavailableException('Local session provider is unavailable.');
+    const accessToken = await this.localJwt.sign({ sub: profile.id, jti: randomUUID(), credentialVersion: (await this.prisma.localCredential.findUnique({ where: { profileId }, select: { credentialVersion: true } }))?.credentialVersion ?? 1 });
+    return { accessToken, user, selectedBranch };
   }
 
   private async withDevWorkspaceBranches(

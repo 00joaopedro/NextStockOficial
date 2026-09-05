@@ -26,5 +26,7 @@ form?.addEventListener('submit', async (event) => {
             ? 'Senha redefinida. Você será redirecionado ao login.'
             : 'Não foi possível redefinir a senha.';
     if (response.ok)
-        window.setTimeout(() => { window.location.href = '/'; }, 1200);
+        window.setTimeout(() => {
+            window.location.href = '/';
+        }, 1200);
 });
