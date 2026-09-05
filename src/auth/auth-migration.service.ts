@@ -84,7 +84,9 @@ export class AuthMigrationService {
     });
     if (claimed.count !== 1) return { status: 'already_processing' as const };
     try {
-      const passwordHash = await this.passwords.hash(input.password);
+      const passwordHash = await this.passwords.hashVerifiedLegacyPassword(
+        input.password,
+      );
       const result = await this.prisma.$transaction(async (tx) => {
         const profile = await tx.userProfile.findUnique({
           where: { id: input.profileId },

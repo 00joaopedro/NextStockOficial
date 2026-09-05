@@ -5,16 +5,43 @@ export const LOCAL_PASSWORD_MAX_LENGTH = 128;
 
 export function validateLocalPassword(password: string): void {
   if (typeof password !== 'string') throw new Error('PASSWORD_INVALID');
-  if (password.length < LOCAL_PASSWORD_MIN_LENGTH || password.length > LOCAL_PASSWORD_MAX_LENGTH) throw new Error('PASSWORD_INVALID');
-  if ([...password].some((char) => char === '\0' || /\p{Cc}/u.test(char))) throw new Error('PASSWORD_INVALID');
-  if (Buffer.byteLength(password, 'utf8') > 72) throw new Error('PASSWORD_TOO_LONG_FOR_BCRYPT');
+  if (
+    password.length < LOCAL_PASSWORD_MIN_LENGTH ||
+    password.length > LOCAL_PASSWORD_MAX_LENGTH
+  )
+    throw new Error('PASSWORD_INVALID');
+  if ([...password].some((char) => char === '\0' || /\p{Cc}/u.test(char)))
+    throw new Error('PASSWORD_INVALID');
+  if (Buffer.byteLength(password, 'utf8') > 72)
+    throw new Error('PASSWORD_TOO_LONG_FOR_BCRYPT');
 }
 
 export class PasswordHasher {
-  private readonly rounds = Math.min(14, Math.max(10, Number(process.env.LOCAL_BCRYPT_ROUNDS || 12)));
+  private readonly rounds = Math.min(
+    14,
+    Math.max(10, Number(process.env.LOCAL_BCRYPT_ROUNDS || 12)),
+  );
 
   async hash(password: string) {
     validateLocalPassword(password);
+    return bcrypt.hash(password, this.rounds);
+  }
+
+  /** Hashes a password only after a legacy provider has authenticated it. */
+  async hashVerifiedLegacyPassword(password: string) {
+    if (
+      typeof password !== 'string' ||
+      password.length < 8 ||
+      password.length > LOCAL_PASSWORD_MAX_LENGTH
+    ) {
+      throw new Error('PASSWORD_INVALID');
+    }
+    if ([...password].some((char) => char === '\0' || /\p{Cc}/u.test(char))) {
+      throw new Error('PASSWORD_INVALID');
+    }
+    if (Buffer.byteLength(password, 'utf8') > 72) {
+      throw new Error('PASSWORD_TOO_LONG_FOR_BCRYPT');
+    }
     return bcrypt.hash(password, this.rounds);
   }
 
@@ -28,6 +55,9 @@ export class PasswordHasher {
   }
 
   async dummyCompare(password: string) {
-    return bcrypt.compare(password, '$2b$12$C6UzMDM.H6dfI/f/IKcEe.V7rj2r2d8N7Wj4f8r2e6Y5vYVvQqQeK');
+    return bcrypt.compare(
+      password,
+      '$2b$12$C6UzMDM.H6dfI/f/IKcEe.V7rj2r2d8N7Wj4f8r2e6Y5vYVvQqQeK',
+    );
   }
 }
