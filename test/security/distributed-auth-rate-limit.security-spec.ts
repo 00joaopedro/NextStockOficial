@@ -4,6 +4,7 @@ import { AuthRateLimitStore } from '../../src/auth/auth-rate-limit.store';
 import {
   AuthRateLimitGuard,
   normalizeIp,
+  resolveAuthRateLimitAction,
 } from '../../src/auth/auth-rate-limit.guard';
 import { ObservabilityService } from '../../src/observability/observability.service';
 import { Test } from '@nestjs/testing';
@@ -139,6 +140,24 @@ describe('SEC-016 distributed authentication rate limiter', () => {
     );
     expect(normalizeIp('2001:db8::1')).not.toBe(normalizeIp('2001:db8::2'));
     expect(normalizeIp('malformed forwarded value')).toBe('unknown');
+  });
+
+  it('keeps real auth routes in distinct sanitized action buckets', () => {
+    const actions = [
+      resolveAuthRateLimitAction({ method: 'POST', path: '/auth/login' }),
+      resolveAuthRateLimitAction({ method: 'POST', path: '/auth/register' }),
+      resolveAuthRateLimitAction({
+        method: 'POST',
+        url: '/auth/forgot-password?email=synthetic',
+      }),
+    ];
+    expect(new Set(actions).size).toBe(3);
+    expect(actions).toEqual([
+      'POST:/auth/login',
+      'POST:/auth/register',
+      'POST:/auth/forgot-password',
+    ]);
+    expect(actions.some((action) => action.includes('undefined'))).toBe(false);
   });
 
   it('fails closed with sanitized 503 when PostgreSQL is unavailable', async () => {
