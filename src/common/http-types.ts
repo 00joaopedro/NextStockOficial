@@ -10,6 +10,7 @@ export type Request = {
   route?: { path?: string };
   socket?: { remoteAddress?: string };
   url?: string;
+  query?: Record<string, string | undefined>;
   user?: AuthenticatedUser;
 };
 
@@ -25,6 +26,7 @@ export type CookieOptions = {
 };
 
 export type CompatibleReply = {
+  redirect(url: string): unknown;
   setCookie(name: string, value: string, options?: CookieOptions): unknown;
   clearCookie(name: string, options?: CookieOptions): unknown;
   header(name: string, value: string): unknown;

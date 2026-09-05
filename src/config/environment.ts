@@ -24,6 +24,10 @@ const schema = Joi.object({
     .valid('development', 'test', 'staging', 'production')
     .optional(),
   AUTH_PROVIDER: Joi.string().valid('supabase').default('supabase'),
+  GOOGLE_OAUTH_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  GOOGLE_OAUTH_CLIENT_ID: Joi.string().allow('').optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: Joi.string().allow('').optional(),
+  GOOGLE_OAUTH_CALLBACK_URL: Joi.string().uri().allow('').optional(),
   AUTH_PROVIDER_MODE: Joi.string()
     .valid(
       'supabase_only',
@@ -35,9 +39,41 @@ const schema = Joi.object({
     )
     .default('supabase_only'),
   AUTH_MIGRATION_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  AUTH_MIGRATION_JIT_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_MIGRATION_BATCH_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_MIGRATION_DRY_RUN: Joi.string().valid('true', 'false').default('true'),
+  AUTH_MIGRATION_SOURCE_PROVIDER: Joi.string()
+    .valid('supabase', 'supertokens')
+    .default('supabase'),
+  AUTH_MIGRATION_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20),
+  AUTH_MIGRATION_APPLY_CONFIRMATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_MIGRATION_CURSOR_SECRET: Joi.string().allow('').optional(),
   AUTH_LEGACY_FALLBACK_ENABLED: Joi.string()
     .valid('true', 'false')
     .default('true'),
+  AUTH_LOCAL_PRIMARY_CONFIRMATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_LOCAL_ONLY_CONFIRMATION: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_LOCAL_PRIMARY_OBSERVED: Joi.string()
+    .valid('true', 'false')
+    .default('false'),
+  AUTH_LOCAL_ONLY_DRY_RUN: Joi.string().valid('true', 'false').default('true'),
+  AUTH_LOCAL_ONLY_EVIDENCE_SOURCE: Joi.string()
+    .valid('synthetic', 'staging', 'production')
+    .default('synthetic'),
+  AUTH_PREFLIGHT_SOURCE_PROVIDER: Joi.string()
+    .valid('supabase', 'supertokens')
+    .default('supabase'),
+  AUTH_CANARY_BUCKET_SECRET: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_ACTIVE_KEY: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_PREVIOUS_KEY: Joi.string().min(32).allow('').optional(),
   LOCAL_AUTH_JWT_KID: Joi.string().max(80).allow('').optional(),
@@ -187,7 +223,7 @@ const schema = Joi.object({
     .min(1)
     .max(10000)
     .default(500),
-  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('false'),
+  AUTH_RATE_LIMIT_ENABLED: Joi.string().valid('true', 'false').default('true'),
   AUTH_RATE_LIMIT_STORE: Joi.string().valid('postgres').default('postgres'),
   AUTH_RATE_LIMIT_HMAC_SECRET: Joi.string().min(32).allow('').optional(),
   TRUSTED_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(0),
@@ -227,6 +263,33 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       `Invalid environment configuration: ${error.details.map((d) => d.path.join('.')).join(', ')}`,
     );
   }
+  if (value.GOOGLE_OAUTH_ENABLED === 'true') {
+    for (const name of [
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'GOOGLE_OAUTH_CALLBACK_URL',
+    ]) {
+      if (!String(value[name] || '').trim())
+        throw new Error(`Missing required environment variable: ${name}`);
+    }
+    try {
+      const callback = new URL(String(value.GOOGLE_OAUTH_CALLBACK_URL));
+      if (
+        ['production', 'staging'].includes(
+          String(value.APP_ENV || value.NODE_ENV),
+        ) &&
+        callback.protocol !== 'https:'
+      ) {
+        throw new Error(
+          'GOOGLE_OAUTH_CALLBACK_URL must use HTTPS in deployed environments.',
+        );
+      }
+    } catch (cause) {
+      if (cause instanceof Error && cause.message.includes('HTTPS'))
+        throw cause;
+      throw new Error('GOOGLE_OAUTH_CALLBACK_URL must be an absolute URL.');
+    }
+  }
   if (
     value.DASHBOARD_CACHE_TTL_MS > value.DASHBOARD_CACHE_INVALIDATION_SLA_MS
   ) {
@@ -256,6 +319,39 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     );
   }
   const appEnv = String(value.APP_ENV || value.NODE_ENV);
+  const coexistence = value.AUTH_PROVIDER_MODE === 'coexistence';
+  const migrationEnabled = value.AUTH_MIGRATION_ENABLED === 'true';
+  const jitEnabled = value.AUTH_MIGRATION_JIT_ENABLED === 'true';
+  const batchEnabled = value.AUTH_MIGRATION_BATCH_ENABLED === 'true';
+  if ((migrationEnabled || jitEnabled || batchEnabled) && !coexistence) {
+    throw new Error('Auth migration requires AUTH_PROVIDER_MODE=coexistence.');
+  }
+  if ((jitEnabled || batchEnabled) && !migrationEnabled) {
+    throw new Error(
+      'Auth migration modes require AUTH_MIGRATION_ENABLED=true.',
+    );
+  }
+  if (
+    batchEnabled &&
+    value.AUTH_MIGRATION_DRY_RUN !== 'true' &&
+    value.AUTH_MIGRATION_APPLY_CONFIRMATION !== 'true'
+  ) {
+    throw new Error(
+      'Applying auth migration batch requires explicit confirmation.',
+    );
+  }
+  if (
+    value.AUTH_MIGRATION_SOURCE_PROVIDER === 'supertokens' &&
+    !['coexistence'].includes(value.AUTH_PROVIDER_MODE)
+  ) {
+    throw new Error(
+      'SuperTokens migration source requires AUTH_PROVIDER_MODE=coexistence.',
+    );
+  }
+  if (batchEnabled && !String(value.AUTH_MIGRATION_CURSOR_SECRET || '').trim())
+    throw new Error(
+      'AUTH_MIGRATION_CURSOR_SECRET is required for batch migration.',
+    );
   const usesSuperTokens = [
     'coexistence',
     'supertokens_primary',
@@ -292,6 +388,10 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     )
   )
     assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
+  if (['local_primary', 'local_only'].includes(value.AUTH_PROVIDER_MODE))
+    throw new Error(
+      'Local auth modes require a configured password recovery adapter.',
+    );
   if (value.LOCAL_PASSWORD_RECOVERY_ENABLED === 'true') {
     throw new Error(
       'LOCAL_PASSWORD_RECOVERY_ENABLED requires a configured password email adapter.',

@@ -177,8 +177,8 @@
       const password = document.getElementById('registerPassword').value;
       const systemType = referralSystemType || document.getElementById('registerSystemType').value;
 
-      if (!/^[A-Za-z0-9]{8,}$/.test(password)) {
-        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 8 digitos e nao pode conter simbolos.', true);
+      if (!/^[A-Za-z0-9]{12,}$/.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 12 digitos e nao pode conter simbolos.', true);
         return;
       }
 
