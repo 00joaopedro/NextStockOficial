@@ -3,6 +3,16 @@
     let referralReady = !referralCode;
     let referralSystemType = null;
 
+    const googleLoginLink = document.getElementById('googleLoginLink');
+    if (googleLoginLink) {
+      fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
+        .then((response) => response.ok ? response.json() : null)
+        .then((capabilities) => {
+          if (capabilities?.googleOAuthEnabled === true) googleLoginLink.hidden = false;
+        })
+        .catch(() => { googleLoginLink.hidden = true; });
+    }
+
     const previewBtn = document.getElementById('previewBtn');
     const previewOptions = document.getElementById('previewOptions');
     const standardPreviewBtn = document.getElementById('standardPreviewBtn');
