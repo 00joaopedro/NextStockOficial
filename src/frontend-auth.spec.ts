@@ -119,6 +119,10 @@ describe('frontend auth pages', () => {
     expect(html).not.toMatch(
       /sessionStorage\.setItem\([^)]*(jwt|token|accessToken)/i,
     );
+    expect(html).toContain('id="googleLoginLink"');
+    expect(html).toMatch(/id="googleLoginLink"[^>]+hidden/);
+    expect(html).toContain('/auth/capabilities');
+    expect(html).toContain('googleOAuthEnabled === true');
   });
 
   it('reset-password.html referencia o bundle compilado de reset-password', () => {
@@ -129,13 +133,20 @@ describe('frontend auth pages', () => {
     const scriptPath = match?.[1];
     expect(scriptPath).toBe('/dist/reset-password.js');
 
-    const bundlePath = join(__dirname, '..', 'public', scriptPath!.replace(/^\//, ''));
+    const bundlePath = join(
+      __dirname,
+      '..',
+      'public',
+      scriptPath!.replace(/^\//, ''),
+    );
     expect(existsSync(bundlePath)).toBe(true);
   });
 
   it('reset-password usa no bundle o comportamento de seguranca esperado', () => {
     const html = publicFile('reset-password.html');
-    const scriptPath = html.match(/<script[^>]+src="([^"]+)"[^>]*><\/script>/i)?.[1];
+    const scriptPath = html.match(
+      /<script[^>]+src="([^"]+)"[^>]*><\/script>/i,
+    )?.[1];
     expect(scriptPath).toBe('/dist/reset-password.js');
     const bundle = readFileSync(
       join(__dirname, '..', 'public', scriptPath!.replace(/^\//, '')),

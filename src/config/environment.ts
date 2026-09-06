@@ -273,6 +273,13 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
         throw new Error(`Missing required environment variable: ${name}`);
     }
     try {
+      assertLocalJwtConfigured(value as NodeJS.ProcessEnv);
+    } catch {
+      throw new Error(
+        'Google OAuth requires valid local JWT signing configuration.',
+      );
+    }
+    try {
       const callback = new URL(String(value.GOOGLE_OAUTH_CALLBACK_URL));
       if (
         ['production', 'staging'].includes(

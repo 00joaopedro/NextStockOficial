@@ -63,6 +63,12 @@ export class AuthController {
     reply.redirect(url);
   }
 
+  @Get('capabilities')
+  @CsrfExempt()
+  capabilities() {
+    return { googleOAuthEnabled: process.env.GOOGLE_OAUTH_ENABLED === 'true' };
+  }
+
   @Get('google/link/start')
   @UseGuards(JwtAuthGuard, AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 60_000 })
