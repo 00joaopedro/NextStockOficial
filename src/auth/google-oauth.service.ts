@@ -5,9 +5,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
-import { AuditOutcome, AuditSeverity } from '@prisma/client';
+import {
+  AuditContextKind,
+  AuditOutcome,
+  AuditSeverity,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { AuditService } from '../audit/audit.service';
+import { AuditOutboxService } from '../audit/audit-outbox.service';
 import { AuthService } from './auth.service';
 import { LocalJwtService } from './local-jwt.service';
 import { assertLocalJwtConfigured } from './local-jwt-config';
@@ -57,7 +62,7 @@ export class GoogleOAuthService {
     private readonly prisma: PrismaService,
     private readonly auth: AuthService,
     private readonly jwt: LocalJwtService,
-    private readonly audit: AuditService,
+    private readonly auditOutbox: AuditOutboxService,
   ) {}
 
   async start(
@@ -166,57 +171,102 @@ export class GoogleOAuthService {
       !claims.email
     )
       throw new UnauthorizedException('Google identity could not be verified.');
-    const identity = await this.prisma.authIdentity.findUnique({
-      where: {
-        provider_providerSubject: {
-          provider: 'GOOGLE',
-          providerSubject: claims.sub,
-        },
-      },
-      select: { id: true, userProfileId: true, status: true, disabledAt: true },
-    });
-    if (
-      identity &&
-      (identity.status !== 'active' || identity.disabledAt !== null)
-    )
-      throw new UnauthorizedException('Google identity is unavailable.');
     if (intent.purpose === 'link') {
-      if (
-        !intent.userProfileId ||
-        (identity && identity.userProfileId !== intent.userProfileId)
-      )
+      if (!intent.userProfileId)
         throw new ConflictException('Google identity cannot be linked.');
-      const activeSession =
-        intent.sessionId &&
-        (await this.prisma.userSession.findFirst({
-          where: {
-            id: intent.sessionId,
-            profileId: intent.userProfileId,
-            revokedAt: null,
-            expiresAt: { gt: new Date() },
-          },
-          select: { id: true },
-        }));
-      if (!activeSession)
-        throw new UnauthorizedException('Linking session expired.');
-      if (!identity) {
-        await this.prisma.authIdentity.create({
-          data: {
-            userProfileId: intent.userProfileId,
-            provider: 'GOOGLE',
-            providerSubject: claims.sub,
-            canonicalEmail: claims.email.toLowerCase(),
-            emailVerifiedAt: new Date(),
-          },
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const activeSession =
+            intent.sessionId &&
+            (await tx.userSession.findFirst({
+              where: {
+                id: intent.sessionId,
+                profileId: intent.userProfileId!,
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+              },
+              select: { id: true },
+            }));
+          if (!activeSession)
+            throw new UnauthorizedException('Linking session expired.');
+          const profile = await tx.userProfile.findUnique({
+            where: { id: intent.userProfileId! },
+            select: { tenantId: true },
+          });
+          if (!profile?.tenantId)
+            throw new ConflictException('Google identity cannot be linked.');
+          const identity = await tx.authIdentity.findUnique({
+            where: {
+              provider_providerSubject: {
+                provider: 'GOOGLE',
+                providerSubject: claims.sub!,
+              },
+            },
+            select: {
+              id: true,
+              userProfileId: true,
+              status: true,
+              disabledAt: true,
+            },
+          });
+          if (
+            identity &&
+            (identity.status !== 'active' || identity.disabledAt !== null)
+          )
+            throw new UnauthorizedException('Google identity is unavailable.');
+          if (identity) {
+            if (identity.userProfileId !== intent.userProfileId)
+              throw new ConflictException('Google identity cannot be linked.');
+            return;
+          }
+          const created = await tx.authIdentity.create({
+            data: {
+              userProfileId: intent.userProfileId!,
+              provider: 'GOOGLE',
+              providerSubject: claims.sub!,
+              canonicalEmail: claims.email!.toLowerCase(),
+              emailVerifiedAt: new Date(),
+            },
+            select: { id: true },
+          });
+          await this.auditOutbox.enqueue(tx, {
+            tenantId: profile.tenantId,
+            operationId: `google_identity_link:${created.id}`,
+            eventType: 'auth.google_identity.linked',
+            action: 'google_identity_link',
+            outcome: AuditOutcome.SUCCESS,
+            severity: AuditSeverity.MEDIUM,
+            contextKind: AuditContextKind.NORMAL,
+            actorProfileId: intent.userProfileId!,
+            metadata: { provider: 'google' },
+          });
         });
-        await this.audit.record({
-          eventType: 'auth.google_identity.linked',
-          action: 'google_identity_link',
-          outcome: AuditOutcome.SUCCESS,
-          severity: AuditSeverity.MEDIUM,
-          actorProfileId: intent.userProfileId,
-          metadata: { provider: 'google' },
-        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const concurrent = await this.prisma.authIdentity.findUnique({
+            where: {
+              provider_providerSubject: {
+                provider: 'GOOGLE',
+                providerSubject: claims.sub!,
+              },
+            },
+            select: { userProfileId: true, status: true, disabledAt: true },
+          });
+          if (
+            concurrent?.userProfileId === intent.userProfileId &&
+            concurrent.status === 'active' &&
+            !concurrent.disabledAt
+          )
+            return {
+              kind: 'linked',
+              redirectTo: '/perfil.html',
+              profileId: intent.userProfileId,
+            };
+        }
+        throw error;
       }
       return {
         kind: 'linked',
