@@ -20,6 +20,66 @@ const base = {
   AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32),
 };
 
+const googleEnabled = {
+  ...base,
+  APP_ENV: 'production',
+  GOOGLE_OAUTH_ENABLED: 'true',
+  GOOGLE_OAUTH_CLIENT_ID: 'google-client-id',
+  GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
+  GOOGLE_OAUTH_CALLBACK_URL:
+    'https://staging.example.test/api/auth/google/callback',
+};
+
+describe('Google OAuth local JWT signing contract', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it.each([
+    ['missing active key', { LOCAL_AUTH_JWT_KID: 'test-kid' }],
+    ['missing active KID', { LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32) }],
+    [
+      'short active key',
+      {
+        LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(31),
+        LOCAL_AUTH_JWT_KID: 'test-kid',
+      },
+    ],
+  ])(
+    'rejects Google OAuth without valid local signing configuration: %s',
+    (_caseName, jwt) => {
+      expect(() => validateEnvironment({ ...googleEnabled, ...jwt })).toThrow(
+        'Google OAuth requires valid local JWT signing configuration.',
+      );
+    },
+  );
+
+  it('accepts Google OAuth with complete local signing configuration in the default mode', () => {
+    expect(() =>
+      validateEnvironment({
+        ...googleEnabled,
+        LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32),
+        LOCAL_AUTH_JWT_KID: 'test-kid',
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not require local signing keys when Google OAuth is disabled in the default mode', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        GOOGLE_OAUTH_ENABLED: 'false',
+      }),
+    ).not.toThrow();
+  });
+});
+
 describe('environment isolation guardrails', () => {
   it('defaults auth provider to supabase', () => {
     const value = validateEnvironment({ ...base, APP_ENV: 'production' });
