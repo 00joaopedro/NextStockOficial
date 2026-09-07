@@ -188,16 +188,24 @@ export class GoogleOAuthService {
                 revokedAt: null,
                 expiresAt: { gt: new Date() },
               },
-              select: { id: true },
+              select: { id: true, tenantId: true },
             }));
           if (!activeSession)
             throw new UnauthorizedException('Linking session expired.');
-          const profile = await tx.userProfile.findUnique({
-            where: { id: intent.userProfileId! },
-            select: { tenantId: true },
-          });
-          if (!profile?.tenantId)
+          const membership = activeSession.tenantId
+            ? await tx.tenantMember.findFirst({
+                where: {
+                  userProfileId: intent.userProfileId!,
+                  tenantId: activeSession.tenantId,
+                  branch: { isActive: true },
+                },
+                select: { tenantId: true, branchId: true },
+              })
+            : null;
+          if (!membership)
             throw new ConflictException('Google identity cannot be linked.');
+          const authorizedTenantId = membership.tenantId;
+          const authorizedBranchId = membership.branchId;
           const identity = await tx.authIdentity.findUnique({
             where: {
               provider_providerSubject: {
@@ -233,7 +241,8 @@ export class GoogleOAuthService {
             select: { id: true, userProfileId: true },
           });
           await this.auditOutbox.enqueue(tx, {
-            tenantId: profile.tenantId,
+            tenantId: authorizedTenantId,
+            branchId: authorizedBranchId,
             operationId: `google_identity_link:${created.id}`,
             eventType: 'auth.google_identity.linked',
             action: 'google_identity_link',
