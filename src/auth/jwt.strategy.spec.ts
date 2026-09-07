@@ -91,6 +91,31 @@ describe('JwtStrategy', () => {
     });
   });
 
+  it('aceita JWT local pelo profile.id mesmo quando supabaseUserId difere', async () => {
+    const localProfile = {
+      ...profile,
+      supabaseUserId: 'different-supabase-id',
+      localCredential: { credentialVersion: 3, status: 'active' },
+    };
+    const prisma = {
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue(localProfile),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
+
+    await expect(
+      strategy.validate({
+        sub: profile.id,
+        iss: 'nextstock-local-auth',
+        credentialVersion: 3,
+      }),
+    ).resolves.toMatchObject({ id: profile.id });
+    expect(prisma.userProfile.findFirst).not.toHaveBeenCalled();
+  });
+
   it('consulta a sessao opaca antes de autorizar o JWT', async () => {
     const prisma = {
       userProfile: {

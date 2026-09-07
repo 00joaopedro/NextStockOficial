@@ -57,6 +57,10 @@ type JwtProfile = {
       isActive: boolean;
     } | null;
   }>;
+  localCredential?: {
+    credentialVersion: number;
+    status: string;
+  } | null;
 };
 
 function decodeBase64UrlJson<T>(value: string): T | null {
@@ -228,6 +232,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const request = maybePayload ? requestOrPayload : undefined;
     const payload = maybePayload ?? requestOrPayload;
     const userId = payload?.sub;
+    const isLocalToken =
+      payload?.iss ===
+        (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth') &&
+      Number.isInteger(payload?.credentialVersion);
     const email =
       typeof payload?.email === 'string'
         ? payload.email.trim().toLowerCase()
@@ -292,12 +300,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
           },
         },
       },
+      localCredential: {
+        select: { credentialVersion: true, status: true },
+      },
     });
 
-    let profile = await this.prisma.userProfile.findFirst({
-      where: { supabaseUserId: userId },
-      select: profileSelect,
-    });
+    let profile = isLocalToken
+      ? await this.prisma.userProfile.findUnique({
+          where: { id: userId },
+          select: profileSelect,
+        })
+      : await this.prisma.userProfile.findFirst({
+          where: { supabaseUserId: userId },
+          select: profileSelect,
+        });
 
     if (!profile) {
       profile = await this.prisma.userProfile.findFirst({
@@ -306,7 +322,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
     }
 
-    if (!profile && email) {
+    if (!profile && email && !isLocalToken) {
       profile = await this.prisma.userProfile.findFirst({
         where: { email },
         select: profileSelect,
@@ -322,7 +338,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
 
-    if (profile.supabaseUserId && profile.supabaseUserId !== userId) {
+    if (
+      isLocalToken &&
+      (!profile.localCredential ||
+        profile.localCredential.status !== 'active' ||
+        profile.localCredential.credentialVersion !== payload.credentialVersion)
+    ) {
+      throw new UnauthorizedException('LOCAL_CREDENTIAL_INVALID');
+    }
+
+    if (
+      !isLocalToken &&
+      profile.supabaseUserId &&
+      profile.supabaseUserId !== userId
+    ) {
       this.logger.error(
         `PROFILE_BINDING_MISMATCH: profile=${profile.id.slice(0, 8)} auth=${String(userId).slice(0, 8)} emailMatch=${Boolean(email && profile.email?.toLowerCase() === email)}`,
       );
@@ -332,6 +361,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (
+      !isLocalToken &&
       !profile.supabaseUserId &&
       email &&
       profile.email?.toLowerCase() === email
@@ -345,7 +375,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       this.logger.warn(
         'Profile linked to Supabase user id from safe unbound email match.',
       );
-    } else if (!profile.supabaseUserId && profile.id !== userId) {
+    } else if (
+      !isLocalToken &&
+      !profile.supabaseUserId &&
+      profile.id !== userId
+    ) {
       this.logger.error(
         `PROFILE_BINDING_MISMATCH: unbound profile=${profile.id.slice(0, 8)} has no verified email match`,
       );
