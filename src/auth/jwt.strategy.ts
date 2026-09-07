@@ -235,7 +235,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const isLocalToken =
       payload?.iss ===
         (process.env.LOCAL_AUTH_JWT_ISSUER || 'nextstock-local-auth') &&
-      Number.isInteger(payload?.credentialVersion);
+      ['password', 'google'].includes(payload?.authMethod);
+    const isPasswordToken = isLocalToken && payload.authMethod === 'password';
+    const isGoogleToken = isLocalToken && payload.authMethod === 'google';
     const email =
       typeof payload?.email === 'string'
         ? payload.email.trim().toLowerCase()
@@ -339,12 +341,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (
-      isLocalToken &&
+      isPasswordToken &&
       (!profile.localCredential ||
         profile.localCredential.status !== 'active' ||
+        !Number.isInteger(payload.credentialVersion) ||
         profile.localCredential.credentialVersion !== payload.credentialVersion)
     ) {
       throw new UnauthorizedException('LOCAL_CREDENTIAL_INVALID');
+    }
+
+    if (isGoogleToken) {
+      const identity = await this.prisma.authIdentity.findFirst({
+        where: { userProfileId: profile.id, provider: 'GOOGLE' },
+        select: { status: true, disabledAt: true },
+      });
+      if (
+        !identity ||
+        identity.status !== 'active' ||
+        identity.disabledAt !== null
+      ) {
+        throw new UnauthorizedException('GOOGLE_IDENTITY_INVALID');
+      }
     }
 
     if (

@@ -361,6 +361,7 @@ export class AuthService {
         ? await this.localJwt!.sign({
             sub: result.profile.id,
             jti: randomUUID(),
+            authMethod: 'password',
             credentialVersion: 1,
           })
         : await this.signInAfterRegister(email, password);
@@ -579,7 +580,11 @@ export class AuthService {
     this.assertEmployeeCanAuthenticate(profile);
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
     if (!this.localJwt) throw new ServiceUnavailableException('Local session provider is unavailable.');
-    const accessToken = await this.localJwt.sign({ sub: profile.id, jti: randomUUID(), credentialVersion: (await this.prisma.localCredential.findUnique({ where: { profileId }, select: { credentialVersion: true } }))?.credentialVersion ?? 1 });
+    const accessToken = await this.localJwt.sign({
+      sub: profile.id,
+      jti: randomUUID(),
+      authMethod: 'google',
+    });
     return { accessToken, user, selectedBranch };
   }
 

@@ -110,10 +110,64 @@ describe('JwtStrategy', () => {
       strategy.validate({
         sub: profile.id,
         iss: 'nextstock-local-auth',
+        authMethod: 'password',
         credentialVersion: 3,
       }),
     ).resolves.toMatchObject({ id: profile.id });
     expect(prisma.userProfile.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('aceita sessão Google sem LocalCredential quando a identidade está ativa', async () => {
+    const prisma = {
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...profile,
+          localCredential: null,
+        }),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      authIdentity: {
+        findFirst: jest.fn().mockResolvedValue({
+          status: 'active',
+          disabledAt: null,
+        }),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
+
+    await expect(
+      strategy.validate({
+        sub: profile.id,
+        iss: 'nextstock-local-auth',
+        authMethod: 'google',
+      }),
+    ).resolves.toMatchObject({ id: profile.id });
+  });
+
+  it('rejeita sessão Google sem identidade ativa', async () => {
+    const prisma = {
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          ...profile,
+          localCredential: null,
+        }),
+        findFirst: jest.fn(),
+        update: jest.fn(),
+      },
+      authIdentity: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const strategy = new JwtStrategy(prisma as any, createDevWorkspaces());
+
+    await expect(
+      strategy.validate({
+        sub: profile.id,
+        iss: 'nextstock-local-auth',
+        authMethod: 'google',
+      }),
+    ).rejects.toThrow('GOOGLE_IDENTITY_INVALID');
   });
 
   it('consulta a sessao opaca antes de autorizar o JWT', async () => {
