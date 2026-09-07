@@ -36,6 +36,7 @@ import {
 import { PasswordLifecycleService } from './password-lifecycle.service';
 import { GoogleOAuthService } from './google-oauth.service';
 import { AuthMigrationService } from './auth-migration.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AuthMigrationService } from './auth-migration.service';
     BillingCoreModule,
     SessionsModule,
     ObservabilityModule,
+    AuditModule,
   ],
   providers: [
     AuthService,
