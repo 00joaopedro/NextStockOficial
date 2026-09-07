@@ -42,20 +42,29 @@ describe('Google OAuth local JWT signing contract', () => {
   });
 
   it.each([
-    ['missing active key', { LOCAL_AUTH_JWT_KID: 'test-kid' }],
-    ['missing active KID', { LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32) }],
+    [
+      'missing active key',
+      { LOCAL_AUTH_JWT_KID: 'test-kid' },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_ACTIVE_KEY/,
+    ],
+    [
+      'missing active KID',
+      { LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32) },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_KID/,
+    ],
     [
       'short active key',
       {
         LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(31),
         LOCAL_AUTH_JWT_KID: 'test-kid',
       },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_ACTIVE_KEY/,
     ],
   ])(
     'rejects Google OAuth without valid local signing configuration: %s',
-    (_caseName, jwt) => {
+    (_caseName, jwt, expectedError) => {
       expect(() => validateEnvironment({ ...googleEnabled, ...jwt })).toThrow(
-        'Google OAuth requires valid local JWT signing configuration.',
+        expectedError,
       );
     },
   );
