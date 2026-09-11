@@ -1,5 +1,19 @@
 export const PASSWORD_RESET_ROUTE = '/reset-password.html';
 
+export function normalizeHostname(hostname: string) {
+  return hostname
+    .trim()
+    .toLowerCase()
+    .replace(/^\[(.*)\]$/, '$1')
+    .replace(/\.+$/, '');
+}
+
+export function isLoopbackHostname(hostname: string) {
+  return ['localhost', '127.0.0.1', '::1'].includes(
+    normalizeHostname(hostname),
+  );
+}
+
 export function getPasswordRecoveryRedirectUrl(
   env: NodeJS.ProcessEnv = process.env,
 ) {
@@ -20,7 +34,7 @@ export function getPasswordRecoveryRedirectUrl(
       throw new Error(
         'PUBLIC_APP_URL must use HTTPS in deployed environments.',
       );
-    if (['localhost', '127.0.0.1', '::1'].includes(url.hostname))
+    if (isLoopbackHostname(url.hostname))
       throw new Error(
         'PUBLIC_APP_URL cannot use localhost in deployed environments.',
       );
