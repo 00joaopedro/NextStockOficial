@@ -170,13 +170,18 @@ describe('AuthController', () => {
       SUPERTOKENS_WEBSITE_DOMAIN: 'http://localhost:3000',
     });
     const lifecycle = { request: jest.fn() } as any;
-    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    const audit = {
+      fromRequest: jest.fn().mockReturnValue({}),
+      record: jest.fn(),
+    } as any;
     authService.forgotPassword.mockResolvedValue({ ok: true });
     try {
-      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
-        { email: 'USER@Test.com' } as any,
-        {} as any,
-      );
+      await new AuthController(
+        authService,
+        audit,
+        undefined,
+        lifecycle,
+      ).forgotPassword({ email: 'USER@Test.com' } as any, {} as any);
       expect(authService.forgotPassword).toHaveBeenCalledTimes(1);
       expect(lifecycle.request).not.toHaveBeenCalled();
     } finally {
@@ -205,13 +210,20 @@ describe('AuthController', () => {
       SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
       SUPERTOKENS_WEBSITE_DOMAIN: 'http://localhost:3000',
     });
-    const lifecycle = { request: jest.fn().mockResolvedValue({ ok: true }) } as any;
-    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    const lifecycle = {
+      request: jest.fn().mockResolvedValue({ ok: true }),
+    } as any;
+    const audit = {
+      fromRequest: jest.fn().mockReturnValue({}),
+      record: jest.fn(),
+    } as any;
     try {
-      await new AuthController(authService, audit, undefined, lifecycle).forgotPassword(
-        { email: 'USER@Test.com' } as any,
-        {} as any,
-      );
+      await new AuthController(
+        authService,
+        audit,
+        undefined,
+        lifecycle,
+      ).forgotPassword({ email: 'USER@Test.com' } as any, {} as any);
       expect(lifecycle.request).toHaveBeenCalledTimes(1);
       expect(authService.forgotPassword).not.toHaveBeenCalled();
     } finally {
@@ -221,6 +233,65 @@ describe('AuthController', () => {
         if (value === undefined) delete process.env[key];
         else process.env[key] = value;
       });
+    }
+  });
+
+  it('encaminha recuperação Supabase para o provider em supabase_only', async () => {
+    const supabaseAuth = { resetPasswordFromRecovery: jest.fn() } as any;
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      supabaseAuth,
+    );
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    process.env.AUTH_PROVIDER_MODE = 'supabase_only';
+    try {
+      await controller.resetSupabasePassword({
+        accessToken: 'a'.repeat(20),
+        refreshToken: 'r'.repeat(20),
+        newPassword: 'New-password-123',
+      });
+      expect(supabaseAuth.resetPasswordFromRecovery).toHaveBeenCalledWith(
+        'a'.repeat(20),
+        'r'.repeat(20),
+        'New-password-123',
+      );
+    } finally {
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
+    }
+  });
+
+  it('mantém endpoint Supabase indisponível para modo local', async () => {
+    const supabaseAuth = { resetPasswordFromRecovery: jest.fn() } as any;
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      supabaseAuth,
+    );
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    const previousMigration = process.env.AUTH_MIGRATION_ENABLED;
+    Object.assign(process.env, {
+      AUTH_PROVIDER_MODE: 'local_only',
+      AUTH_MIGRATION_ENABLED: 'true',
+    });
+    try {
+      await expect(
+        controller.resetSupabasePassword({} as any),
+      ).rejects.toMatchObject({ status: 401 });
+      expect(supabaseAuth.resetPasswordFromRecovery).not.toHaveBeenCalled();
+    } finally {
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
+      if (previousMigration === undefined)
+        delete process.env.AUTH_MIGRATION_ENABLED;
+      else process.env.AUTH_MIGRATION_ENABLED = previousMigration;
     }
   });
 });

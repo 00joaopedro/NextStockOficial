@@ -158,10 +158,14 @@ describe('frontend auth pages', () => {
     );
 
     expect(source).toContain("params.get('token')");
+    expect(source).toContain("recoveryParams.get('access_token')");
+    expect(source).toContain("'/api/auth/reset-password/supabase'");
     expect(source).toContain('window.history.replaceState');
     expect(source).toContain("'/api/auth/reset-password'");
     expect(source).not.toMatch(/localStorage|sessionStorage/);
     expect(bundle).toContain("params.get('token')");
+    expect(bundle).toContain("recoveryParams.get('access_token')");
+    expect(bundle).toContain("'/api/auth/reset-password/supabase'");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
     expect(bundle).toContain('window.location.pathname');
