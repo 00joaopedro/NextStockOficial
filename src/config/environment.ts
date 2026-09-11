@@ -1,5 +1,6 @@
 import * as Joi from 'joi';
 import { assertLocalJwtConfigured } from '../auth/local-jwt-config';
+import { getPasswordRecoveryRedirectUrl } from '../auth/password-recovery-url';
 
 const schema = Joi.object({
   NEXTSTOCK_PROCESS_ROLE: Joi.string()
@@ -478,6 +479,8 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     }
     validateCertificateKey(String(value.CERT_ENCRYPTION_KEY || ''));
   }
+  if (deployedRuntime)
+    getPasswordRecoveryRedirectUrl(value as NodeJS.ProcessEnv);
   validateEnvironmentIsolation(value, appEnv);
   Object.assign(process.env, value);
   return value;
