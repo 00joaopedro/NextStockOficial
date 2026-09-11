@@ -5,7 +5,8 @@ import { localJwtConfig, localJwtKeyForKid } from './local-jwt-config';
 export type LocalJwtPayload = {
   sub: string;
   jti: string;
-  credentialVersion: number;
+  authMethod: 'password' | 'google';
+  credentialVersion?: number;
 };
 
 @Injectable()

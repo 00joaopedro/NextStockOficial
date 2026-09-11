@@ -34,6 +34,9 @@ import {
   PASSWORD_EMAIL_DELIVERY,
 } from './password-delivery';
 import { PasswordLifecycleService } from './password-lifecycle.service';
+import { GoogleOAuthService } from './google-oauth.service';
+import { AuthMigrationService } from './auth-migration.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -47,6 +50,7 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
     BillingCoreModule,
     SessionsModule,
     ObservabilityModule,
+    AuditModule,
   ],
   providers: [
     AuthService,
@@ -64,6 +68,8 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
     CoexistenceAuthProvider,
     PasswordResetTokenService,
     PasswordLifecycleService,
+    GoogleOAuthService,
+    AuthMigrationService,
     ConfiguredPasswordEmailDelivery,
     {
       provide: PASSWORD_EMAIL_DELIVERY,
@@ -85,8 +91,13 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
       ) => {
         const mode = authProviderMode();
         if (mode === 'coexistence') return coexistence;
-        if (mode === 'local_primary' || mode === 'local_only') return local;
-        if (mode === 'supabase_only' || mode === 'supertokens_primary') return supabase;
+        if (mode === 'local_primary' || mode === 'local_only')
+          throw new Error(
+            'Local auth modes require a configured password recovery adapter.',
+          );
+        if (mode === 'supertokens_primary' || mode === 'supertokens_only')
+          throw new Error('SuperTokens runtime provider is not implemented.');
+        if (mode === 'supabase_only') return supabase;
         throw new Error('Unsupported auth provider mode.');
       },
     },

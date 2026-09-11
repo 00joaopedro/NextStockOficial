@@ -20,6 +20,75 @@ const base = {
   AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32),
 };
 
+const googleEnabled = {
+  ...base,
+  APP_ENV: 'production',
+  GOOGLE_OAUTH_ENABLED: 'true',
+  GOOGLE_OAUTH_CLIENT_ID: 'google-client-id',
+  GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
+  GOOGLE_OAUTH_CALLBACK_URL:
+    'https://staging.example.test/api/auth/google/callback',
+};
+
+describe('Google OAuth local JWT signing contract', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it.each([
+    [
+      'missing active key',
+      { LOCAL_AUTH_JWT_KID: 'test-kid' },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_ACTIVE_KEY/,
+    ],
+    [
+      'missing active KID',
+      { LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32) },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_KID/,
+    ],
+    [
+      'short active key',
+      {
+        LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(31),
+        LOCAL_AUTH_JWT_KID: 'test-kid',
+      },
+      /Google OAuth requires valid local JWT signing configuration\.|LOCAL_AUTH_JWT_ACTIVE_KEY/,
+    ],
+  ])(
+    'rejects Google OAuth without valid local signing configuration: %s',
+    (_caseName, jwt, expectedError) => {
+      expect(() => validateEnvironment({ ...googleEnabled, ...jwt })).toThrow(
+        expectedError,
+      );
+    },
+  );
+
+  it('accepts Google OAuth with complete local signing configuration in the default mode', () => {
+    expect(() =>
+      validateEnvironment({
+        ...googleEnabled,
+        LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32),
+        LOCAL_AUTH_JWT_KID: 'test-kid',
+      }),
+    ).not.toThrow();
+  });
+
+  it('does not require local signing keys when Google OAuth is disabled in the default mode', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        GOOGLE_OAUTH_ENABLED: 'false',
+      }),
+    ).not.toThrow();
+  });
+});
+
 describe('environment isolation guardrails', () => {
   it('defaults auth provider to supabase', () => {
     const value = validateEnvironment({ ...base, APP_ENV: 'production' });
@@ -60,11 +129,44 @@ describe('environment isolation guardrails', () => {
     ).toThrow('AUTH_RATE_LIMIT_HMAC_SECRET');
   });
 
-  it('disables auth rate limiting by default and accepts a valid enabled secret', () => {
+  it('allows an explicit auth rate limit opt-out', () => {
     const { AUTH_RATE_LIMIT_HMAC_SECRET: _secret, ...withoutSecret } = base;
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production' }).AUTH_RATE_LIMIT_ENABLED).toBe('false');
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production', AUTH_RATE_LIMIT_ENABLED: 'false' }).AUTH_RATE_LIMIT_ENABLED).toBe('false');
-    expect(validateEnvironment({ ...withoutSecret, APP_ENV: 'production', AUTH_RATE_LIMIT_ENABLED: 'true', AUTH_RATE_LIMIT_HMAC_SECRET: 'r'.repeat(32) }).AUTH_RATE_LIMIT_ENABLED).toBe('true');
+    expect(
+      validateEnvironment({
+        ...withoutSecret,
+        APP_ENV: 'production',
+        AUTH_RATE_LIMIT_ENABLED: 'false',
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('false');
+  });
+
+  it('requires the HMAC secret when auth rate limiting defaults to enabled', () => {
+    const { AUTH_RATE_LIMIT_HMAC_SECRET: _secret, ...withoutRateLimitConfig } =
+      base;
+    expect(() =>
+      validateEnvironment({ ...withoutRateLimitConfig, APP_ENV: 'production' }),
+    ).toThrow('AUTH_RATE_LIMIT_HMAC_SECRET');
+  });
+
+  it('enables auth rate limiting by default with a valid secret', () => {
+    const withoutFlag = base;
+    expect(
+      validateEnvironment({
+        ...withoutFlag,
+        APP_ENV: 'production',
+        AUTH_RATE_LIMIT_HMAC_SECRET: 'test-rate-limit-secret-32-characters',
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('true');
+  });
+
+  it('enables auth rate limiting with an explicit true flag and valid secret', () => {
+    expect(
+      validateEnvironment({
+        ...base,
+        AUTH_RATE_LIMIT_ENABLED: 'true',
+        AUTH_RATE_LIMIT_HMAC_SECRET: 'test-rate-limit-secret-32-characters',
+      }).AUTH_RATE_LIMIT_ENABLED,
+    ).toBe('true');
   });
 
   it('rejects invalid trusted proxy topology early', () => {
@@ -178,5 +280,45 @@ describe('environment isolation guardrails', () => {
           'postgresql://postgres.prodref:secret@aws-1-sa-east-1.pooler.supabase.com:5432/postgres',
       }),
     ).not.toThrow();
+  });
+
+  it.each([
+    ['coexistence', false],
+    ['supabase_only', true],
+  ])(
+    'validates migration source against the exact provider mode (%s)',
+    (mode, rejects) => {
+      const input = {
+        ...base,
+        APP_ENV: 'production',
+        AUTH_MIGRATION_ENABLED: 'true',
+        AUTH_MIGRATION_SOURCE_PROVIDER: 'supertokens',
+        AUTH_PROVIDER_MODE: mode,
+        SUPERTOKENS_CONNECTION_URI: 'http://127.0.0.1:3567',
+        SUPERTOKENS_APP_NAME: 'test',
+        SUPERTOKENS_API_DOMAIN: 'http://localhost:3000',
+        SUPERTOKENS_API_KEY: 'test-key',
+        LOCAL_AUTH_JWT_ACTIVE_KEY:
+          'test-only-local-jwt-active-key-0123456789012345',
+        LOCAL_AUTH_JWT_KID: 'test-active-kid',
+      };
+      if (rejects) expect(() => validateEnvironment(input)).toThrow();
+      else expect(() => validateEnvironment(input)).not.toThrow();
+    },
+  );
+
+  it('keeps migration disabled and dry-run by default', () => {
+    const value = validateEnvironment({ ...base, APP_ENV: 'production' });
+    expect(value.AUTH_MIGRATION_ENABLED).toBe('false');
+    expect(value.AUTH_MIGRATION_DRY_RUN).toBe('true');
+  });
+
+  it('rejects an unknown migration source provider', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        AUTH_MIGRATION_SOURCE_PROVIDER: 'unknown',
+      }),
+    ).toThrow('AUTH_MIGRATION_SOURCE_PROVIDER');
   });
 });

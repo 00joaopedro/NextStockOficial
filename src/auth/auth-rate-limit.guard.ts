@@ -35,7 +35,7 @@ export class AuthRateLimitGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     if (!options) return true;
-    const action = `${request.method}:${request.route?.path ?? request.path}`;
+    const action = resolveAuthRateLimitAction(request);
     const account =
       options.includeEmail && typeof request.body?.email === 'string'
         ? request.body.email.trim().toLowerCase()
@@ -100,6 +100,27 @@ export function normalizeIp(input: string): string {
   return expandIpv6(value)
     .map((part) => part.toString(16))
     .join(':');
+}
+
+export function resolveAuthRateLimitAction(request: {
+  method?: string;
+  route?: { path?: string };
+  path?: string;
+  originalUrl?: string;
+  url?: string;
+}): string {
+  const route = [
+    request.route?.path,
+    request.path,
+    request.originalUrl,
+    request.url,
+  ].find((value) => typeof value === 'string' && value.startsWith('/'));
+  const path = route?.split(/[?#]/, 1)[0] || 'unknown-auth-route';
+  const method =
+    typeof request.method === 'string'
+      ? request.method.toUpperCase()
+      : 'UNKNOWN';
+  return `${method}:${path}`;
 }
 
 function expandIpv6(value: string): number[] {

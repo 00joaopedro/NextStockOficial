@@ -17,6 +17,20 @@ export class SessionsService {
     @Optional() private readonly audit?: AuditService,
   ) {}
 
+  async findActiveId(token: string | undefined, profileId: string) {
+    if (!token) return undefined;
+    const session = await this.prisma.userSession.findFirst({
+      where: {
+        tokenIdHash: this.hash(token),
+        profileId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      select: { id: true },
+    });
+    return session?.id;
+  }
+
   async create(input: {
     profileId: string;
     tenantId?: string | null;

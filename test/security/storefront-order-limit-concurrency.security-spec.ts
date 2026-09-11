@@ -284,34 +284,36 @@ describe('RC-015 through the real StorefrontService', () => {
   });
 
   it('uses an inclusive deterministic cutoff and excludes one millisecond before it', async () => {
-    const fixture = await createFixture(20);
     const operationTime = new Date('2026-08-03T12:00:00.000Z');
     const cutoff = new Date(operationTime.getTime() - 30 * 86400000);
-    await seedOrders(fixture, 2, { createdAt: cutoff });
-    await seedOrders(fixture, 20, {
+    const inclusiveFixture = await createFixture(20);
+    await seedOrders(inclusiveFixture, 3, { createdAt: cutoff });
+    const beforeFixture = await createFixture(20);
+    await seedOrders(beforeFixture, 3, {
       createdAt: new Date(cutoff.getTime() - 1),
     });
-    const services = createServices();
-    for (const service of [services.serviceA, services.serviceB])
+    const inclusiveService = createService(prismaA);
+    const beforeService = createService(prismaB);
+    for (const service of [inclusiveService, beforeService])
       (
         service as unknown as { guestOrderOperationTime: () => Promise<Date> }
       ).guestOrderOperationTime = () => Promise.resolve(operationTime);
     await expect(
-      services.serviceA.createGuestOrder(
-        fixture.storefront.publicSlug,
+      inclusiveService.createGuestOrder(
+        inclusiveFixture.storefront.publicSlug,
         idempotencyKey(),
-        buildDto(fixture),
-        {},
-      ),
-    ).resolves.toBeDefined();
-    await expect(
-      services.serviceB.createGuestOrder(
-        fixture.storefront.publicSlug,
-        idempotencyKey(),
-        buildDto(fixture),
+        buildDto(inclusiveFixture),
         {},
       ),
     ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      beforeService.createGuestOrder(
+        beforeFixture.storefront.publicSlug,
+        idempotencyKey(),
+        buildDto(beforeFixture),
+        {},
+      ),
+    ).resolves.toBeDefined();
   });
 
   it('keeps tenant/storefront/branch scopes independent for the same phone', async () => {

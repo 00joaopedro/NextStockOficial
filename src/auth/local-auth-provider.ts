@@ -79,6 +79,7 @@ export class LocalAuthProvider implements AuthIdentityProvider {
     const accessToken = await this.jwt.sign({
       sub: credential.profileId,
       jti: randomUUID(),
+      authMethod: 'password',
       credentialVersion: credential.credentialVersion,
     });
     return {

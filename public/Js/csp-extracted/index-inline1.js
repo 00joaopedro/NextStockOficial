@@ -3,6 +3,16 @@
     let referralReady = !referralCode;
     let referralSystemType = null;
 
+    const googleLoginLink = document.getElementById('googleLoginLink');
+    if (googleLoginLink) {
+      fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
+        .then((response) => response.ok ? response.json() : null)
+        .then((capabilities) => {
+          if (capabilities?.googleOAuthEnabled === true) googleLoginLink.hidden = false;
+        })
+        .catch(() => { googleLoginLink.hidden = true; });
+    }
+
     const previewBtn = document.getElementById('previewBtn');
     const previewOptions = document.getElementById('previewOptions');
     const standardPreviewBtn = document.getElementById('standardPreviewBtn');
@@ -177,8 +187,8 @@
       const password = document.getElementById('registerPassword').value;
       const systemType = referralSystemType || document.getElementById('registerSystemType').value;
 
-      if (!/^[A-Za-z0-9]{8,}$/.test(password)) {
-        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 8 digitos e nao pode conter simbolos.', true);
+      if (!/^[A-Za-z0-9]{12,}$/.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 12 digitos e nao pode conter simbolos.', true);
         return;
       }
 
