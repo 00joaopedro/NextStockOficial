@@ -13,7 +13,10 @@ import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
 import { ProductionExceptionFilter } from './security/production-exception.filter';
-import { trustedProxyHops } from './config/trusted-proxy';
+import {
+  trustedProxyForFastify,
+  trustedProxyHops,
+} from './config/trusted-proxy';
 import { processRole } from './config/process-role';
 
 async function bootstrap() {
@@ -24,7 +27,7 @@ async function bootstrap() {
   }
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ trustProxy: trustedProxyHops() }),
+    new FastifyAdapter({ trustProxy: trustedProxyForFastify() }),
   );
 
   app.useGlobalPipes(

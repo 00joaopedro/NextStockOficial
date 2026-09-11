@@ -1,5 +1,5 @@
 import Fastify from 'fastify';
-import { trustedProxyHops } from './trusted-proxy';
+import { trustedProxyForFastify, trustedProxyHops } from './trusted-proxy';
 
 describe('trusted proxy policy', () => {
   afterEach(() => delete process.env.TRUSTED_PROXY_HOPS);
@@ -41,5 +41,32 @@ describe('trusted proxy policy', () => {
     expect(trustedProxyHops).toThrow('Invalid TRUSTED_PROXY_HOPS');
     process.env.TRUSTED_PROXY_HOPS = '11';
     expect(trustedProxyHops).toThrow('Invalid TRUSTED_PROXY_HOPS');
+  });
+
+  it.each([
+    ['0', false],
+    ['1', true],
+    ['2', true],
+  ])('converts %s hops to a closed Fastify trust policy', (configured, expected) => {
+    process.env.TRUSTED_PROXY_HOPS = configured;
+    const trustProxy = trustedProxyForFastify();
+    if (trustProxy === false) {
+      expect(expected).toBe(false);
+      return;
+    }
+    expect(trustProxy('127.0.0.1', 0)).toBe(expected);
+    expect(trustProxy('10.0.0.2', Number(configured))).toBe(false);
+  });
+
+  it('trusts exactly the configured hop boundary and never globally', () => {
+    process.env.TRUSTED_PROXY_HOPS = '2';
+    const trustProxy = trustedProxyForFastify();
+    expect(trustProxy).not.toBe(false);
+    if (trustProxy !== false) {
+      expect(trustProxy('127.0.0.1', 0)).toBe(true);
+      expect(trustProxy('10.0.0.2', 1)).toBe(true);
+      expect(trustProxy('198.51.100.7', 2)).toBe(false);
+      expect(trustProxy('198.51.100.7', 99)).toBe(false);
+    }
   });
 });
