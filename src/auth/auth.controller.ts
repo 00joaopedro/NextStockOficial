@@ -12,7 +12,8 @@ import {
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
-  TooManyRequestsException,
+  HttpException,
+  HttpStatus,
   Logger,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
@@ -276,10 +277,13 @@ export class AuthController {
           message: 'Serviço temporariamente indisponível.',
         });
       if (code === 'rate_limited')
-        throw new TooManyRequestsException({
-          code,
-          message: 'Muitas tentativas. Aguarde e tente novamente.',
-        });
+        throw new HttpException(
+          {
+            code,
+            message: 'Muitas tentativas. Aguarde e tente novamente.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       if (code === 'invalid_credentials')
         throw new UnauthorizedException({
           code,
@@ -319,7 +323,8 @@ export class AuthController {
           : /unavailable/i.test(error.message)
             ? 'identity_disabled'
             : 'provider_rejected'
-        : error instanceof ConflictException
+        : error instanceof HttpException &&
+            error.getStatus() === HttpStatus.CONFLICT
           ? 'link_conflict'
           : 'auth_failed';
   }
