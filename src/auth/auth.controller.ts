@@ -10,6 +10,11 @@ import {
   ValidationPipe,
   Optional,
   UnauthorizedException,
+  BadRequestException,
+  ServiceUnavailableException,
+  HttpException,
+  HttpStatus,
+  Logger,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -41,10 +46,20 @@ import type {
 import { GoogleOAuthService } from './google-oauth.service';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
 
+class GoogleCallbackFailure extends Error {
+  constructor(readonly code: 'oauth_state_invalid' | 'oauth_code_missing') {
+    super('Google callback validation failed.');
+    this.name = 'GoogleCallbackFailure';
+  }
+}
+
+const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly authService: AuthService,
     @Optional() private readonly audit?: AuditService,
@@ -95,15 +110,40 @@ export class AuthController {
     @Res() reply: CompatibleReply,
   ) {
     const query = req.query as { code?: string; state?: string };
-    const result = await this.googleOAuth!.callback(
-      query.code || '',
-      query.state || '',
-    );
-    if (result.kind === 'session') {
-      await this.createSession(req, reply, result.accessToken, result.user);
-      this.setJwtCookie(reply, result.accessToken);
+    try {
+      this.logger.log(
+        `auth.google.callback_received request=${req.requestId ?? 'unknown'}`,
+      );
+      if (!query.state) throw new GoogleCallbackFailure('oauth_state_invalid');
+      if (!query.code) throw new GoogleCallbackFailure('oauth_code_missing');
+      const result = await this.googleOAuth!.callback(
+        query.code || '',
+        query.state || '',
+      );
+      this.logger.log(
+        `auth.google.identity_verified request=${req.requestId ?? 'unknown'} kind=${result.kind}`,
+      );
+      if (result.kind === 'session') {
+        await this.createSession(req, reply, result.accessToken, result.user);
+        this.setJwtCookie(reply, result.accessToken);
+        this.logger.log(
+          `auth.google.cookie_emitted request=${req.requestId ?? 'unknown'}`,
+        );
+      }
+      const destination = this.safeInternalRedirect(result.redirectTo);
+      this.logger.log(
+        `auth.google.redirect_sent request=${req.requestId ?? 'unknown'} destination=${destination}`,
+      );
+      reply.redirect(destination);
+    } catch (error) {
+      const diagnosticCode = this.publicAuthCode(error);
+      const publicCode = this.publicGoogleAuthCode(diagnosticCode);
+      await this.recordGoogleCallbackFailure(req, diagnosticCode);
+      this.logger.warn(
+        `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${diagnosticCode}`,
+      );
+      reply.redirect(`/?auth_error=${publicCode}`);
     }
-    reply.redirect(result.redirectTo);
   }
 
   @Post('register')
@@ -233,12 +273,97 @@ export class AuthController {
     const mode = authProviderMode();
     if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
       throw new UnauthorizedException('Supabase recovery is unavailable.');
-    await this.supabaseAuth.resetPasswordFromRecovery(
-      body.accessToken,
-      body.refreshToken,
-      body.newPassword,
-    );
+    try {
+      await this.supabaseAuth.resetPasswordFromRecovery(
+        body.accessToken,
+        body.refreshToken,
+        body.newPassword,
+      );
+    } catch (error) {
+      const code = this.publicAuthCode(error);
+      if (code === 'provider_unavailable')
+        throw new ServiceUnavailableException({
+          code,
+          message: 'Serviço temporariamente indisponível.',
+        });
+      if (code === 'rate_limited')
+        throw new HttpException(
+          {
+            code,
+            message: 'Muitas tentativas. Aguarde e tente novamente.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      if (code === 'invalid_credentials')
+        throw new UnauthorizedException({
+          code,
+          message: 'Link de recuperação inválido ou expirado.',
+        });
+      throw new BadRequestException({
+        code,
+        message:
+          code === 'password_policy'
+            ? 'A senha não atende à política exigida.'
+            : 'Não foi possível redefinir a senha.',
+      });
+    }
     return { ok: true };
+  }
+
+  private publicAuthCode(error: unknown) {
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : '';
+    return [
+      'invalid_credentials',
+      'password_policy',
+      'provider_unavailable',
+      'rate_limited',
+      'oauth_state_invalid',
+      'oauth_code_missing',
+      'provider_rejected',
+      'identity_disabled',
+      'link_conflict',
+    ].includes(code)
+      ? code
+      : error instanceof UnauthorizedException
+        ? /invalid|expired|already used/i.test(error.message)
+          ? 'oauth_state_invalid'
+          : /unavailable/i.test(error.message)
+            ? 'identity_disabled'
+            : 'provider_rejected'
+        : error instanceof HttpException && error.getStatus() === 409
+          ? 'link_conflict'
+          : 'auth_failed';
+  }
+
+  private async recordGoogleCallbackFailure(
+    req: AuthenticatedHttpRequest,
+    reasonCode: string,
+  ) {
+    if (!this.audit) return;
+    await this.audit.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.google.callback.failed',
+      action: 'google_callback',
+      outcome: AuditOutcome.DENIED,
+      severity: AuditSeverity.HIGH,
+      reasonCode,
+      metadata: { stage: 'callback', publicCode: reasonCode },
+    });
+  }
+
+  private publicGoogleAuthCode(diagnosticCode: string) {
+    return PUBLIC_GOOGLE_AUTH_ERRORS.has(diagnosticCode)
+      ? diagnosticCode
+      : 'auth_failed';
+  }
+
+  private safeInternalRedirect(destination: string) {
+    return /^\/(?!\/)[A-Za-z0-9._/?=&%-]*$/.test(destination)
+      ? destination
+      : '/produtos.html';
   }
 
   @Post('change-password')

@@ -4,6 +4,7 @@ export const AUTH_IDENTITY_PROVIDER = Symbol('AUTH_IDENTITY_PROVIDER');
 
 export type AuthProviderErrorCode =
   | 'invalid_credentials'
+  | 'password_policy'
   | 'email_already_exists'
   | 'identity_not_found'
   | 'email_not_verified'

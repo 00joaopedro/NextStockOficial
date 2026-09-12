@@ -294,4 +294,54 @@ describe('AuthController', () => {
       else process.env.AUTH_MIGRATION_ENABLED = previousMigration;
     }
   });
+
+  it('Google callback emite cookie e redireciona para destino interno', async () => {
+    const google = {
+      callback: jest
+        .fn()
+        .mockResolvedValue({
+          kind: 'session',
+          accessToken: 'a.b.c',
+          user: { id: 'profile-1' },
+          redirectTo: '/produtos.html',
+        }),
+    };
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      google as any,
+    );
+    const res = { ...response(), redirect: jest.fn() } as any;
+    await controller.googleCallback(
+      { query: { code: 'code', state: 'state' } } as any,
+      res,
+    );
+    expect(res.redirect).toHaveBeenCalledWith('/produtos.html');
+    expect(res.setCookie).toHaveBeenCalledWith(
+      'jwt',
+      'a.b.c',
+      expect.objectContaining({ httpOnly: true }),
+    );
+  });
+
+  it('Google callback com falha nunca responde vazio', async () => {
+    const google = {
+      callback: jest.fn().mockRejectedValue(new Error('provider failure')),
+    };
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      google as any,
+    );
+    const res = { ...response(), redirect: jest.fn() } as any;
+    await controller.googleCallback(
+      { query: { code: '', state: 'state' }, requestId: 'request-1' } as any,
+      res,
+    );
+    expect(res.redirect).toHaveBeenCalledWith('/?auth_error=auth_failed');
+  });
 });

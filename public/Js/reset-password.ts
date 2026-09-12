@@ -6,7 +6,7 @@ const refreshToken = recoveryParams.get('refresh_token') || '';
 const isSupabaseRecovery = recoveryParams.get('type') === 'recovery';
 const hasSupabaseRecovery =
   isSupabaseRecovery && Boolean(accessToken && refreshToken);
-if (token || hasSupabaseRecovery)
+if (token || recoveryParams.toString())
   window.history.replaceState({}, document.title, window.location.pathname);
 
 const form = document.querySelector<HTMLFormElement>('#reset-form');
