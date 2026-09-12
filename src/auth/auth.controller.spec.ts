@@ -344,7 +344,6 @@ describe('AuthController', () => {
     );
     expect(res.redirect).toHaveBeenCalledWith('/?auth_error=auth_failed');
   });
-
   it('Google start aguarda e redireciona exatamente uma vez para o Google', async () => {
     const google = {
       start: jest
