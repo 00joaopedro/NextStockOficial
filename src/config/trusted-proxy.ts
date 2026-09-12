@@ -1,4 +1,9 @@
-import type { TrustProxyFunction } from 'fastify';
+import type { FastifyServerOptions } from 'fastify';
+
+type FastifyTrustProxyFunction = Extract<
+  NonNullable<FastifyServerOptions['trustProxy']>,
+  (address: string, hop: number) => boolean
+>;
 
 export function trustedProxyHops() {
   const value = process.env.TRUSTED_PROXY_HOPS ?? '0';
@@ -8,7 +13,7 @@ export function trustedProxyHops() {
   return Number(value);
 }
 
-export function trustedProxyForFastify(): false | TrustProxyFunction {
+export function trustedProxyForFastify(): false | FastifyTrustProxyFunction {
   const hops = trustedProxyHops();
   if (hops === 0) return false;
   return (_address, hop) => hop < hops;
