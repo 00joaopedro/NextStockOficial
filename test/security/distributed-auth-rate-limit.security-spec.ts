@@ -17,6 +17,7 @@ import { AuthController } from '../../src/auth/auth.controller';
 import { AuthService } from '../../src/auth/auth.service';
 import { PrismaService } from '../../src/prisma/prisma.service';
 import fastifyCookie from '@fastify/cookie';
+import { trustedProxyForFastify } from '../../src/config/trusted-proxy';
 
 const databaseUrl = process.env.SECURITY_TEST_DATABASE_URL;
 
@@ -42,6 +43,7 @@ describe('SEC-016 distributed authentication rate limiter', () => {
   });
 
   afterAll(async () => {
+    delete process.env.TRUSTED_PROXY_HOPS;
     await firstClient.authRateLimitBucket.deleteMany();
     await Promise.all([firstClient.$disconnect(), secondClient.$disconnect()]);
   });
@@ -225,8 +227,9 @@ describe('SEC-016 distributed authentication rate limiter', () => {
         { provide: PrismaService, useValue: firstClient },
       ],
     }).compile();
+    process.env.TRUSTED_PROXY_HOPS = '0';
     const app = module.createNestApplication<NestFastifyApplication>(
-      new FastifyAdapter({ trustProxy: 0 }),
+      new FastifyAdapter({ trustProxy: trustedProxyForFastify() }),
     );
     app.useGlobalPipes(
       new ValidationPipe({ whitelist: true, transform: true }),

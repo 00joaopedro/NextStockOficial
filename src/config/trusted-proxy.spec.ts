@@ -1,11 +1,16 @@
 import Fastify from 'fastify';
+import type { FastifyServerOptions } from 'fastify';
 import { trustedProxyForFastify, trustedProxyHops } from './trusted-proxy';
 
 describe('trusted proxy policy', () => {
   afterEach(() => delete process.env.TRUSTED_PROXY_HOPS);
 
-  async function resolvedIp(trustProxy: number, forwarded: string) {
-    const app = Fastify({ trustProxy });
+  async function resolvedIp(hops: number, forwarded: string) {
+    process.env.TRUSTED_PROXY_HOPS = String(hops);
+    const options: FastifyServerOptions = {
+      trustProxy: trustedProxyForFastify(),
+    };
+    const app = Fastify(options);
     app.get('/', (request) => ({ ip: request.ip, ips: request.ips }));
     const response = await app.inject({
       method: 'GET',
