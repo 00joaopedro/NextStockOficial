@@ -101,6 +101,15 @@ describe('frontend auth pages', () => {
     expect(html).toContain('Erro interno. Tente novamente em instantes.');
     expect(html).not.toContain('profiles.allowed_system_types');
     expect(html).not.toContain('PrismaClientKnownRequestError');
+    expect(html).toContain('authErrorMessages');
+    expect(html).toContain('authErrorParams.delete');
+    expect(html).toContain('showAuthError');
+    expect(html).toContain(
+      'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
+    );
+    expect(html).toContain(
+      'Muitas tentativas. Aguarde um momento e tente novamente.',
+    );
   });
 
   it('index.html usa cookies HttpOnly e contratos reais para auth', () => {

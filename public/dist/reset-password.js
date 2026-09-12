@@ -10,6 +10,16 @@ if (token || recoveryParams.toString())
     window.history.replaceState({}, document.title, window.location.pathname);
 const form = document.querySelector('#reset-form');
 const message = document.querySelector('#message');
+const hasRecoveryProof = Boolean(token || hasSupabaseRecovery);
+if (!hasRecoveryProof) {
+    form?.querySelectorAll('input, button').forEach((field) => {
+        if (field instanceof HTMLInputElement || field instanceof HTMLButtonElement)
+            field.disabled = true;
+    });
+    if (message)
+        message.textContent =
+            'Link de recuperação inválido ou expirado. Solicite um novo e-mail.';
+}
 form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const data = new FormData(form);

@@ -77,8 +77,18 @@ export class AuthController {
     @Req() req: AuthenticatedHttpRequest,
     @Res() reply: CompatibleReply,
   ) {
-    const url = await this.googleOAuth!.start('login');
-    reply.redirect(url);
+    try {
+      const url = await this.googleOAuth!.start('login');
+      const destination = new URL(url);
+      if (
+        destination.protocol !== 'https:' ||
+        destination.hostname !== 'accounts.google.com'
+      )
+        throw new Error('Invalid Google authorization destination.');
+      return reply.redirect(destination.toString());
+    } catch {
+      return reply.redirect('/?auth_error=auth_failed');
+    }
   }
 
   @Get('capabilities')
