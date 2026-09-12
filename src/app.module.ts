@@ -80,6 +80,11 @@ const publicPath = join(__dirname, '..', 'public');
               reply.header('Referrer-Policy', 'no-referrer');
             return;
           }
+          if (/[/\\]dist[/\\]reset-password\.js$/i.test(filePath)) {
+            reply.header('Cache-Control', 'no-store');
+            reply.header('Referrer-Policy', 'no-referrer');
+            return;
+          }
           if (
             /\.[a-f0-9]{8,}\.(?:js|css|webp|png|jpg|jpeg|svg|woff2?)$/i.test(
               filePath,
