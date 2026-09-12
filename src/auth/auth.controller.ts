@@ -16,6 +16,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SupabaseResetPasswordDto } from './dto/supabase-reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { PasswordLifecycleService } from './password-lifecycle.service';
 import { authProviderMode } from './auth-provider-mode';
@@ -38,6 +39,7 @@ import type {
   CompatibleReply,
 } from '../common/http-types';
 import { GoogleOAuthService } from './google-oauth.service';
+import { SupabaseAuthProvider } from './supabase-auth-provider';
 
 @Controller('auth')
 @BillingExempt()
@@ -49,6 +51,7 @@ export class AuthController {
     @Optional() private readonly sessions?: SessionsService,
     @Optional() private readonly passwordLifecycle?: PasswordLifecycleService,
     @Optional() private readonly googleOAuth?: GoogleOAuthService,
+    @Optional() private readonly supabaseAuth?: SupabaseAuthProvider,
   ) {}
 
   @Get('google/start')
@@ -220,6 +223,22 @@ export class AuthController {
       severity: AuditSeverity.HIGH,
     });
     return result;
+  }
+
+  @Post('reset-password/supabase')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
+  @CsrfExempt()
+  async resetSupabasePassword(@Body() body: SupabaseResetPasswordDto) {
+    const mode = authProviderMode();
+    if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
+      throw new UnauthorizedException('Supabase recovery is unavailable.');
+    await this.supabaseAuth.resetPasswordFromRecovery(
+      body.accessToken,
+      body.refreshToken,
+      body.newPassword,
+    );
+    return { ok: true };
   }
 
   @Post('change-password')

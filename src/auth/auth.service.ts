@@ -40,6 +40,7 @@ import {
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
 import { AuthMigrationService } from './auth-migration.service';
+import { getPasswordRecoveryRedirectUrl } from './password-recovery-url';
 
 type RegisterInput = {
   email?: string;
@@ -136,7 +137,10 @@ export class AuthService {
     const name = this.normalizeName(input.name);
     const companyName = this.normalizeCompanyName(input.companyName);
     const password = this.normalizePassword(input.password);
-    if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
+    if (
+      this.authProvider.name === 'local' ||
+      this.authProvider.name === 'coexistence'
+    ) {
       this.localJwt?.assertSigningConfigured();
     }
     let referral: ValidReferral | null = null;
@@ -296,7 +300,10 @@ export class AuthService {
           },
         });
 
-        if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
+        if (
+          this.authProvider.name === 'local' ||
+          this.authProvider.name === 'coexistence'
+        ) {
           const passwordHash = authUser.metadata?.passwordHash;
           if (typeof passwordHash !== 'string') {
             throw new Error('LOCAL_CREDENTIAL_HASH_MISSING');
@@ -357,7 +364,8 @@ export class AuthService {
     }
 
     const accessToken =
-      this.authProvider.name === 'local' || this.authProvider.name === 'coexistence'
+      this.authProvider.name === 'local' ||
+      this.authProvider.name === 'coexistence'
         ? await this.localJwt!.sign({
             sub: result.profile.id,
             jti: randomUUID(),
@@ -579,7 +587,10 @@ export class AuthService {
     const profile = await this.findProfileRecord({ profileId });
     this.assertEmployeeCanAuthenticate(profile);
     const { user, selectedBranch } = await this.prepareLoginContext(profile);
-    if (!this.localJwt) throw new ServiceUnavailableException('Local session provider is unavailable.');
+    if (!this.localJwt)
+      throw new ServiceUnavailableException(
+        'Local session provider is unavailable.',
+      );
     const accessToken = await this.localJwt.sign({
       sub: profile.id,
       jti: randomUUID(),
@@ -625,7 +636,7 @@ export class AuthService {
 
   async forgotPassword(input: ForgotPasswordInput) {
     const email = this.normalizeEmail(input.email);
-    const redirectTo = process.env.SUPABASE_PASSWORD_REDIRECT_URL;
+    const redirectTo = getPasswordRecoveryRedirectUrl();
 
     await this.authProvider
       .requestPasswordRecovery(email, redirectTo)
@@ -652,10 +663,10 @@ export class AuthService {
   }
 
   private async findOrCreateProfileForLogin(input: {
-  supabaseUserId: string;
-  email: string;
-  metadata?: Record<string, any> | null;
-  provider?: 'supabase' | 'local';
+    supabaseUserId: string;
+    email: string;
+    metadata?: Record<string, any> | null;
+    provider?: 'supabase' | 'local';
   }) {
     if (this.authProvider.name === 'local' || input.provider === 'local') {
       const localProfile = await this.findProfileRecordOrNull({

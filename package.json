@@ -83,7 +83,7 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.0",
-    "joi": "^18.2.3",
+    "joi": "^18.2.9",
     "jwks-rsa": "^4.0.1",
     "node-forge": "^1.4.0",
     "passport": "^0.7.0",
@@ -91,7 +91,7 @@
     "prisma": "^6.19.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "sharp": "^0.35.2"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -119,6 +119,7 @@
     "typescript-eslint": "^8.20.0"
   },
   "overrides": {
+    "fastify": "5.12.4",
     "deepmerge-ts": "^8.0.1",
     "find-my-way": "9.7.0",
     "minimatch@10.2.5": {

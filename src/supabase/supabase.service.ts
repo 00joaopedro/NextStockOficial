@@ -5,10 +5,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export class SupabaseService {
   public readonly anon: SupabaseClient;
   public readonly admin: SupabaseClient;
+  private readonly url: string;
+  private readonly anonKey: string;
 
   constructor() {
     const url = process.env.SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    const anonKey =
+      process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!url || !anonKey || !serviceKey) {
@@ -17,11 +20,20 @@ export class SupabaseService {
       );
     }
 
+    this.url = url;
+    this.anonKey = anonKey;
+
     this.anon = createClient(url, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
     this.admin = createClient(url, serviceKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+  }
+
+  createRecoveryClient() {
+    return createClient(this.url, this.anonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
