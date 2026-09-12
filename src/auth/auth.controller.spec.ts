@@ -344,4 +344,25 @@ describe('AuthController', () => {
     );
     expect(res.redirect).toHaveBeenCalledWith('/?auth_error=auth_failed');
   });
+
+  it('Google start aguarda e redireciona exatamente uma vez para o Google', async () => {
+    const google = {
+      start: jest
+        .fn()
+        .mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth'),
+    };
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      google as any,
+    );
+    const res = { redirect: jest.fn() } as any;
+    await controller.googleStart({} as any, res);
+    expect(res.redirect).toHaveBeenCalledTimes(1);
+    expect(res.redirect).toHaveBeenCalledWith(
+      'https://accounts.google.com/o/oauth2/v2/auth',
+    );
+  });
 });

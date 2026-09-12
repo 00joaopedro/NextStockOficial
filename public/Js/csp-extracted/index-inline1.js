@@ -1,4 +1,17 @@
     const API = '/api';
+    const authErrorMessages = {
+      auth_failed: 'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
+      oauth_rate_limited: 'Muitas tentativas. Aguarde um momento e tente novamente.'
+    };
+    const authErrorParams = new URLSearchParams(window.location.search);
+    const authError = authErrorMessages[authErrorParams.get('auth_error') || '']
+      ? authErrorParams.get('auth_error')
+      : null;
+    if (authErrorParams.has('auth_error')) {
+      authErrorParams.delete('auth_error');
+      const cleanQuery = authErrorParams.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
+    }
     const referralCode = new URLSearchParams(window.location.search).get('ref');
     let referralReady = !referralCode;
     let referralSystemType = null;
@@ -51,6 +64,10 @@
       box.style.background = isError
         ? 'rgba(180, 30, 30, 0.35)'
         : 'rgba(255,255,255,0.18)';
+    }
+
+    function showAuthError() {
+      if (authError) setStatus(authErrorMessages[authError], true);
     }
 
     async function safeJson(res) {
@@ -212,6 +229,7 @@
       } catch (error) {
         setStatus('Erro no cadastro:\n\n' + error.message, true);
       }
+      showAuthError();
     });
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {
