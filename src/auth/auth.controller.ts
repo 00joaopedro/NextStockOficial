@@ -53,6 +53,8 @@ class GoogleCallbackFailure extends Error {
   }
 }
 
+const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -134,12 +136,13 @@ export class AuthController {
       );
       reply.redirect(destination);
     } catch (error) {
-      const code = this.publicAuthCode(error);
-      await this.recordGoogleCallbackFailure(req, code);
+      const diagnosticCode = this.publicAuthCode(error);
+      const publicCode = this.publicGoogleAuthCode(diagnosticCode);
+      await this.recordGoogleCallbackFailure(req, diagnosticCode);
       this.logger.warn(
-        `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${code}`,
+        `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${diagnosticCode}`,
       );
-      reply.redirect(`/?auth_error=${encodeURIComponent(code)}`);
+      reply.redirect(`/?auth_error=${publicCode}`);
     }
   }
 
@@ -349,6 +352,12 @@ export class AuthController {
       reasonCode,
       metadata: { stage: 'callback', publicCode: reasonCode },
     });
+  }
+
+  private publicGoogleAuthCode(diagnosticCode: string) {
+    return PUBLIC_GOOGLE_AUTH_ERRORS.has(diagnosticCode)
+      ? diagnosticCode
+      : 'auth_failed';
   }
 
   private safeInternalRedirect(destination: string) {
