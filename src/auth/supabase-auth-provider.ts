@@ -160,6 +160,14 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
       return new AuthProviderError('email_already_exists');
     if (text.includes('not found'))
       return new AuthProviderError('identity_not_found');
+    if (
+      text.includes('password') &&
+      (text.includes('weak') ||
+        text.includes('least') ||
+        text.includes('length') ||
+        text.includes('policy'))
+    )
+      return new AuthProviderError('password_policy');
     if (text.includes('email not confirmed'))
       return new AuthProviderError('email_not_verified');
     if ((error?.status ?? 0) >= 500)

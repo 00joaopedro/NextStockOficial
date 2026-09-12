@@ -10,6 +10,9 @@ import {
   ValidationPipe,
   Optional,
   UnauthorizedException,
+  BadRequestException,
+  ServiceUnavailableException,
+  Logger,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -45,6 +48,7 @@ import { SupabaseAuthProvider } from './supabase-auth-provider';
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly authService: AuthService,
     @Optional() private readonly audit?: AuditService,
@@ -95,15 +99,36 @@ export class AuthController {
     @Res() reply: CompatibleReply,
   ) {
     const query = req.query as { code?: string; state?: string };
-    const result = await this.googleOAuth!.callback(
-      query.code || '',
-      query.state || '',
-    );
-    if (result.kind === 'session') {
-      await this.createSession(req, reply, result.accessToken, result.user);
-      this.setJwtCookie(reply, result.accessToken);
+    try {
+      this.logger.log(
+        `auth.google.callback_received request=${req.requestId ?? 'unknown'}`,
+      );
+      const result = await this.googleOAuth!.callback(
+        query.code || '',
+        query.state || '',
+      );
+      this.logger.log(
+        `auth.google.identity_verified request=${req.requestId ?? 'unknown'} kind=${result.kind}`,
+      );
+      if (result.kind === 'session') {
+        await this.createSession(req, reply, result.accessToken, result.user);
+        this.setJwtCookie(reply, result.accessToken);
+        this.logger.log(
+          `auth.google.cookie_emitted request=${req.requestId ?? 'unknown'}`,
+        );
+      }
+      const destination = this.safeInternalRedirect(result.redirectTo);
+      this.logger.log(
+        `auth.google.redirect_sent request=${req.requestId ?? 'unknown'} destination=${destination}`,
+      );
+      reply.redirect(destination);
+    } catch (error) {
+      const code = this.publicAuthCode(error);
+      this.logger.warn(
+        `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${code}`,
+      );
+      reply.redirect(`/?auth_error=${encodeURIComponent(code)}`);
     }
-    reply.redirect(result.redirectTo);
   }
 
   @Post('register')
@@ -233,12 +258,54 @@ export class AuthController {
     const mode = authProviderMode();
     if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
       throw new UnauthorizedException('Supabase recovery is unavailable.');
-    await this.supabaseAuth.resetPasswordFromRecovery(
-      body.accessToken,
-      body.refreshToken,
-      body.newPassword,
-    );
+    try {
+      await this.supabaseAuth.resetPasswordFromRecovery(
+        body.accessToken,
+        body.refreshToken,
+        body.newPassword,
+      );
+    } catch (error) {
+      const code = this.publicAuthCode(error);
+      if (code === 'provider_unavailable')
+        throw new ServiceUnavailableException({
+          code,
+          message: 'Serviço temporariamente indisponível.',
+        });
+      if (code === 'invalid_credentials')
+        throw new UnauthorizedException({
+          code,
+          message: 'Link de recuperação inválido ou expirado.',
+        });
+      throw new BadRequestException({
+        code,
+        message:
+          code === 'password_policy'
+            ? 'A senha não atende à política exigida.'
+            : 'Não foi possível redefinir a senha.',
+      });
+    }
     return { ok: true };
+  }
+
+  private publicAuthCode(error: unknown) {
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : '';
+    return [
+      'invalid_credentials',
+      'password_policy',
+      'provider_unavailable',
+      'rate_limited',
+    ].includes(code)
+      ? code
+      : 'auth_failed';
+  }
+
+  private safeInternalRedirect(destination: string) {
+    return /^\/(?!\/)[A-Za-z0-9._/?=&%-]*$/.test(destination)
+      ? destination
+      : '/produtos.html';
   }
 
   @Post('change-password')
