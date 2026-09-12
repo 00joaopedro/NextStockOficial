@@ -46,6 +46,13 @@ import type {
 import { GoogleOAuthService } from './google-oauth.service';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
 
+class GoogleCallbackFailure extends Error {
+  constructor(readonly code: 'oauth_state_invalid' | 'oauth_code_missing') {
+    super('Google callback validation failed.');
+    this.name = 'GoogleCallbackFailure';
+  }
+}
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -105,8 +112,8 @@ export class AuthController {
       this.logger.log(
         `auth.google.callback_received request=${req.requestId ?? 'unknown'}`,
       );
-      if (!query.state) throw { code: 'oauth_state_invalid' };
-      if (!query.code) throw { code: 'oauth_code_missing' };
+      if (!query.state) throw new GoogleCallbackFailure('oauth_state_invalid');
+      if (!query.code) throw new GoogleCallbackFailure('oauth_code_missing');
       const result = await this.googleOAuth!.callback(
         query.code || '',
         query.state || '',
@@ -323,8 +330,7 @@ export class AuthController {
           : /unavailable/i.test(error.message)
             ? 'identity_disabled'
             : 'provider_rejected'
-        : error instanceof HttpException &&
-            error.getStatus() === HttpStatus.CONFLICT
+        : error instanceof HttpException && error.getStatus() === 409
           ? 'link_conflict'
           : 'auth_failed';
   }
