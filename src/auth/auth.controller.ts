@@ -12,6 +12,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   ServiceUnavailableException,
+  TooManyRequestsException,
   Logger,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
@@ -103,6 +104,8 @@ export class AuthController {
       this.logger.log(
         `auth.google.callback_received request=${req.requestId ?? 'unknown'}`,
       );
+      if (!query.state) throw { code: 'oauth_state_invalid' };
+      if (!query.code) throw { code: 'oauth_code_missing' };
       const result = await this.googleOAuth!.callback(
         query.code || '',
         query.state || '',
@@ -124,6 +127,7 @@ export class AuthController {
       reply.redirect(destination);
     } catch (error) {
       const code = this.publicAuthCode(error);
+      await this.recordGoogleCallbackFailure(req, code);
       this.logger.warn(
         `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${code}`,
       );
@@ -271,6 +275,11 @@ export class AuthController {
           code,
           message: 'Serviço temporariamente indisponível.',
         });
+      if (code === 'rate_limited')
+        throw new TooManyRequestsException({
+          code,
+          message: 'Muitas tentativas. Aguarde e tente novamente.',
+        });
       if (code === 'invalid_credentials')
         throw new UnauthorizedException({
           code,
@@ -297,9 +306,38 @@ export class AuthController {
       'password_policy',
       'provider_unavailable',
       'rate_limited',
+      'oauth_state_invalid',
+      'oauth_code_missing',
+      'provider_rejected',
+      'identity_disabled',
+      'link_conflict',
     ].includes(code)
       ? code
-      : 'auth_failed';
+      : error instanceof UnauthorizedException
+        ? /invalid|expired|already used/i.test(error.message)
+          ? 'oauth_state_invalid'
+          : /unavailable/i.test(error.message)
+            ? 'identity_disabled'
+            : 'provider_rejected'
+        : error instanceof ConflictException
+          ? 'link_conflict'
+          : 'auth_failed';
+  }
+
+  private async recordGoogleCallbackFailure(
+    req: AuthenticatedHttpRequest,
+    reasonCode: string,
+  ) {
+    if (!this.audit) return;
+    await this.audit.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.google.callback.failed',
+      action: 'google_callback',
+      outcome: AuditOutcome.DENIED,
+      severity: AuditSeverity.HIGH,
+      reasonCode,
+      metadata: { stage: 'callback', publicCode: reasonCode },
+    });
   }
 
   private safeInternalRedirect(destination: string) {
