@@ -7,14 +7,21 @@ describe('AuthController', () => {
     register: jest.fn(),
     forgotPassword: jest.fn(),
   } as any;
-  const response = () =>
-    ({
+  const response = () => {
+    const reply = {
       setCookie: jest.fn(),
       clearCookie: jest.fn(),
       header: jest.fn(),
-      code: jest.fn().mockReturnThis(),
-      send: jest.fn().mockReturnThis(),
-    }) as any;
+      code: jest.fn(),
+      send: jest.fn(),
+    };
+    reply.code.mockReturnValue(reply);
+    reply.header.mockReturnValue(reply);
+    reply.send.mockReturnValue(reply);
+    reply.setCookie.mockReturnValue(reply);
+    reply.clearCookie.mockReturnValue(reply);
+    return reply as any;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -356,7 +363,9 @@ describe('AuthController', () => {
     const google = {
       start: jest
         .fn()
-        .mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth'),
+        .mockResolvedValue(
+          'https://accounts.google.com/o/oauth2/v2/auth?prompt=select_account',
+        ),
     };
     const controller = new AuthController(
       authService,
@@ -370,8 +379,11 @@ describe('AuthController', () => {
     expect(res.code).toHaveBeenCalledWith(302);
     expect(res.header).toHaveBeenCalledWith(
       'Location',
-      'https://accounts.google.com/o/oauth2/v2/auth',
+      'https://accounts.google.com/o/oauth2/v2/auth?prompt=select_account',
     );
+    const location = res.header.mock.calls[0][1];
+    expect(new URL(location).hostname).toBe('accounts.google.com');
+    expect(new URL(location).searchParams.get('prompt')).toBe('select_account');
     expect(res.send).toHaveBeenCalledTimes(1);
   });
 

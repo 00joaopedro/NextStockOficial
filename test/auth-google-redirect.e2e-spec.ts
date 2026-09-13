@@ -47,9 +47,9 @@ describe('Google OAuth HTTP redirects (Fastify)', () => {
     });
     expect(response.statusCode).toBe(302);
     expect(response.statusCode).not.toBe(200);
-    expect(new URL(response.headers.location as string).hostname).toBe(
-      'accounts.google.com',
-    );
+    const location = new URL(response.headers.location as string);
+    expect(location.hostname).toBe('accounts.google.com');
+    expect(location.searchParams.get('prompt')).toBe('select_account');
     expect(response.body).not.toMatch(
       /code|state|nonce|challenge|secret|token/i,
     );
