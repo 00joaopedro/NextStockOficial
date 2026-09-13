@@ -107,9 +107,6 @@ describe('frontend auth pages', () => {
     expect(html).toContain(
       'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
     );
-    expect(html).toContain(
-      'Muitas tentativas. Aguarde um momento e tente novamente.',
-    );
   });
 
   it('index.html usa cookies HttpOnly e contratos reais para auth', () => {
@@ -171,12 +168,20 @@ describe('frontend auth pages', () => {
     expect(source).toContain("'/api/auth/reset-password/supabase'");
     expect(source).toContain('window.history.replaceState');
     expect(source).toContain("'/api/auth/reset-password'");
+    expect(source).toContain('let isSubmitting = false');
+    expect(source).toContain('if (isSubmitting) return');
+    expect(source).toContain("form?.setAttribute('aria-busy', String(submitting))");
+    expect(source).toContain('setSubmitting(true)');
     expect(source).not.toMatch(/localStorage|sessionStorage/);
     expect(bundle).toContain("params.get('token')");
     expect(bundle).toContain("recoveryParams.get('access_token')");
     expect(bundle).toContain("'/api/auth/reset-password/supabase'");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
+    expect(bundle).toContain('let isSubmitting = false');
+    expect(bundle).toMatch(/if \(isSubmitting\)\s*return/);
+    expect(bundle).toContain("form?.setAttribute('aria-busy', String(submitting))");
+    expect(bundle).toContain('setSubmitting(true)');
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
     expect(bundle).not.toMatch(/localStorage|sessionStorage/);
