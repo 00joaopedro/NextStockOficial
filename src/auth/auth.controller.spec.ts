@@ -12,6 +12,8 @@ describe('AuthController', () => {
       setCookie: jest.fn(),
       clearCookie: jest.fn(),
       header: jest.fn(),
+      code: jest.fn().mockReturnThis(),
+      send: jest.fn().mockReturnThis(),
     }) as any;
 
   beforeEach(() => {
@@ -298,14 +300,12 @@ describe('AuthController', () => {
 
   it('Google callback emite cookie e redireciona para destino interno', async () => {
     const google = {
-      callback: jest
-        .fn()
-        .mockResolvedValue({
-          kind: 'session',
-          accessToken: 'a.b.c',
-          user: { id: 'profile-1' },
-          redirectTo: '/produtos.html',
-        }),
+      callback: jest.fn().mockResolvedValue({
+        kind: 'session',
+        accessToken: 'a.b.c',
+        user: { id: 'profile-1' },
+        redirectTo: '/produtos.html',
+      }),
     };
     const controller = new AuthController(
       authService,
@@ -314,12 +314,14 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { ...response(), redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleCallback(
       { query: { code: 'code', state: 'state' } } as any,
       res,
     );
-    expect(res.redirect).toHaveBeenCalledWith('/produtos.html');
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith('Location', '/produtos.html');
+    expect(res.send).toHaveBeenCalledTimes(1);
     expect(res.setCookie).toHaveBeenCalledWith(
       'jwt',
       'a.b.c',
@@ -338,12 +340,17 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { ...response(), redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleCallback(
       { query: { code: '', state: 'state' }, requestId: 'request-1' } as any,
       res,
     );
-    expect(res.redirect).toHaveBeenCalledWith('/?auth_error=auth_failed');
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith(
+      'Location',
+      '/?auth_error=auth_failed',
+    );
+    expect(res.send).toHaveBeenCalledTimes(1);
   });
   it('Google start aguarda e redireciona exatamente uma vez para o Google', async () => {
     const google = {
@@ -358,17 +365,22 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleStart({} as any, res);
-    expect(res.redirect).toHaveBeenCalledTimes(1);
-    expect(res.redirect).toHaveBeenCalledWith(
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith(
+      'Location',
       'https://accounts.google.com/o/oauth2/v2/auth',
     );
+    expect(res.send).toHaveBeenCalledTimes(1);
   });
 
   it('Google callback possui rate limit separado do controller', () => {
     expect(
-      Reflect.getMetadata(RATE_LIMIT_KEY, AuthController.prototype.googleCallback),
+      Reflect.getMetadata(
+        RATE_LIMIT_KEY,
+        AuthController.prototype.googleCallback,
+      ),
     ).toEqual({ max: 10, windowMs: 60_000 });
   });
 });
