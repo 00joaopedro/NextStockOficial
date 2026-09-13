@@ -10,7 +10,7 @@ import { AuthRateLimitGuard } from '../src/auth/auth-rate-limit.guard';
 import { GoogleOAuthService } from '../src/auth/google-oauth.service';
 
 describe('Google OAuth HTTP redirects (Fastify)', () => {
-  let app: NestFastifyApplication;
+  let app: NestFastifyApplication | undefined;
   const google = {
     start: jest.fn(),
     callback: jest.fn(),
@@ -22,18 +22,28 @@ describe('Google OAuth HTTP redirects (Fastify)', () => {
       providers: [
         { provide: AuthService, useValue: {} },
         { provide: GoogleOAuthService, useValue: google },
-        { provide: AuthRateLimitGuard, useValue: { canActivate: () => true } },
       ],
-    }).compile();
+    })
+      .overrideGuard(AuthRateLimitGuard)
+      .useValue({ canActivate: jest.fn().mockReturnValue(true) })
+      .compile();
     app = moduleRef.createNestApplication<NestFastifyApplication>(
       new FastifyAdapter(),
     );
     await app.register(fastifyCookie);
     app.setGlobalPrefix('api');
     await app.init();
+    await app.getHttpAdapter().getInstance().ready();
   });
 
-  afterAll(async () => app.close());
+  afterAll(async () => {
+    if (app) await app.close();
+  });
+
+  const httpApp = () => {
+    if (!app) throw new Error('Fastify test application was not initialized.');
+    return app;
+  };
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -41,7 +51,7 @@ describe('Google OAuth HTTP redirects (Fastify)', () => {
     google.start.mockResolvedValue(
       'https://accounts.google.com/o/oauth2/v2/auth?client_id=test&prompt=select_account',
     );
-    const response = await app.inject({
+    const response = await httpApp().inject({
       method: 'GET',
       url: '/api/auth/google/start',
     });
@@ -62,7 +72,7 @@ describe('Google OAuth HTTP redirects (Fastify)', () => {
       user: { id: 'profile-1' },
       redirectTo: '/produtos.html',
     });
-    const response = await app.inject({
+    const response = await httpApp().inject({
       method: 'GET',
       url: '/api/auth/google/callback?code=fixture-code&state=fixture-state',
     });
@@ -72,7 +82,7 @@ describe('Google OAuth HTTP redirects (Fastify)', () => {
   });
 
   it('emits a sanitized 302 on an invalid callback', async () => {
-    const response = await app.inject({
+    const response = await httpApp().inject({
       method: 'GET',
       url: '/api/auth/google/callback?code=&state=fixture-state',
     });
