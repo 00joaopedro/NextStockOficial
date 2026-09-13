@@ -1,4 +1,5 @@
 import { AuthController } from './auth.controller';
+import { RATE_LIMIT_KEY } from '../security/public-rate-limit.guard';
 
 describe('AuthController', () => {
   const authService = {
@@ -363,5 +364,11 @@ describe('AuthController', () => {
     expect(res.redirect).toHaveBeenCalledWith(
       'https://accounts.google.com/o/oauth2/v2/auth',
     );
+  });
+
+  it('Google callback possui rate limit separado do controller', () => {
+    expect(
+      Reflect.getMetadata(RATE_LIMIT_KEY, AuthController.prototype.googleCallback),
+    ).toEqual({ max: 10, windowMs: 60_000 });
   });
 });

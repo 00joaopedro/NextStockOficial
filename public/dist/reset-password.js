@@ -11,6 +11,15 @@ if (token || recoveryParams.toString())
 const form = document.querySelector('#reset-form');
 const message = document.querySelector('#message');
 const hasRecoveryProof = Boolean(token || hasSupabaseRecovery);
+let isSubmitting = false;
+const setSubmitting = (submitting) => {
+    isSubmitting = submitting;
+    form?.setAttribute('aria-busy', String(submitting));
+    form?.querySelectorAll('input, button').forEach((field) => {
+        if (field instanceof HTMLInputElement || field instanceof HTMLButtonElement)
+            field.disabled = submitting || !hasRecoveryProof;
+    });
+};
 if (!hasRecoveryProof) {
     form?.querySelectorAll('input, button').forEach((field) => {
         if (field instanceof HTMLInputElement || field instanceof HTMLButtonElement)
@@ -22,6 +31,8 @@ if (!hasRecoveryProof) {
 }
 form?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (isSubmitting)
+        return;
     const data = new FormData(form);
     const password = String(data.get('password') || '');
     const confirmation = String(data.get('confirmation') || '');
@@ -30,6 +41,7 @@ form?.addEventListener('submit', async (event) => {
             message.textContent = 'Não foi possível redefinir a senha.';
         return;
     }
+    setSubmitting(true);
     const response = await fetch(hasSupabaseRecovery
         ? '/api/auth/reset-password/supabase'
         : '/api/auth/reset-password', {
@@ -39,7 +51,13 @@ form?.addEventListener('submit', async (event) => {
         body: JSON.stringify(hasSupabaseRecovery
             ? { accessToken, refreshToken, newPassword: password }
             : { token, newPassword: password }),
-    });
+    }).catch(() => null);
+    if (!response) {
+        if (message)
+            message.textContent = 'Serviço temporariamente indisponível. Tente novamente.';
+        setSubmitting(false);
+        return;
+    }
     if (message)
         message.textContent = response.ok
             ? 'Senha redefinida. Você será redirecionado ao login.'
@@ -48,4 +66,6 @@ form?.addEventListener('submit', async (event) => {
         window.setTimeout(() => {
             window.location.href = '/';
         }, 1200);
+    else
+        setSubmitting(false);
 });

@@ -114,6 +114,8 @@ export class AuthController {
   }
 
   @Get('google/callback')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 10, windowMs: 60_000 })
   @CsrfExempt()
   async googleCallback(
     @Req() req: AuthenticatedHttpRequest,

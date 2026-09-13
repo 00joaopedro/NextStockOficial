@@ -1,7 +1,6 @@
     const API = '/api';
     const authErrorMessages = {
       auth_failed: 'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
-      oauth_rate_limited: 'Muitas tentativas. Aguarde um momento e tente novamente.'
     };
     const authErrorParams = new URLSearchParams(window.location.search);
     const authError = authErrorMessages[authErrorParams.get('auth_error') || '']
