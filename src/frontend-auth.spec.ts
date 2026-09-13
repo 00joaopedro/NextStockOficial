@@ -132,6 +132,12 @@ describe('frontend auth pages', () => {
     expect(html).toContain("googleLoginLink.addEventListener('click'");
     expect(html).toContain("event.preventDefault();");
     expect(html).toContain("window.location.assign('/api/auth/google/start');");
+    expect(html).toContain('event.defaultPrevented');
+    expect(html).toContain('event.button !== 0');
+    expect(html).toContain('event.metaKey');
+    expect(html).toContain('event.ctrlKey');
+    expect(html).toContain('event.shiftKey');
+    expect(html).toContain('event.altKey');
     expect(html).not.toContain("fetch('/api/auth/google/start'");
   });
 

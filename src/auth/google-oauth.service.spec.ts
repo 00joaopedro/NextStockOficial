@@ -8,7 +8,17 @@ describe('GoogleOAuthService', () => {
       {} as any,
       {} as any,
     );
-    const previous = { ...process.env };
+    const envKeys = [
+      'GOOGLE_OAUTH_ENABLED',
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'GOOGLE_OAUTH_CALLBACK_URL',
+      'LOCAL_AUTH_JWT_ACTIVE_KEY',
+      'LOCAL_AUTH_JWT_KID',
+    ] as const;
+    const previous = Object.fromEntries(
+      envKeys.map((key) => [key, process.env[key]]),
+    );
     Object.assign(process.env, {
       GOOGLE_OAUTH_ENABLED: 'true',
       GOOGLE_OAUTH_CLIENT_ID: 'staging-client',
@@ -16,6 +26,7 @@ describe('GoogleOAuthService', () => {
       GOOGLE_OAUTH_CALLBACK_URL:
         'https://nextstockoficial-dominio-teste.up.railway.app/api/auth/google/callback',
       LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32),
+      LOCAL_AUTH_JWT_KID: 'test-key-1',
     });
 
     try {
@@ -31,7 +42,11 @@ describe('GoogleOAuthService', () => {
         'https://nextstockoficial-dominio-teste.up.railway.app/api/auth/google/callback',
       );
     } finally {
-      process.env = previous;
+      envKeys.forEach((key) => {
+        const value = previous[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
     }
   });
 });
