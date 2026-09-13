@@ -49,6 +49,61 @@ payload ou hash. Buckets expirados têm índice e uma exclusão oportunista rara
 (1/1024), não bloqueante, limitada a 500 linhas com `SKIP LOCKED`; a correção não
 depende da limpeza.
 
+## OAuth Google: callback
+
+`GET /api/auth/google/callback` usa `@UseGuards(AuthRateLimitGuard)` e
+`@RateLimit({ max: 10, windowMs: 60_000 })`. O início (`GET /api/auth/google/start`)
+usa o mesmo limite em bucket separado: a ação é derivada de método e rota
+(`GET:/api/auth/google/start` ou `GET:/api/auth/google/callback`). A chave de
+identidade é HMAC-SHA-256 do IP normalizado; code, state, tokens e IP bruto não
+entram em logs.
+
+O guard é executado antes do controller e, portanto, antes do processamento do
+callback, da troca do OAuth code, da criação/vinculação de identidade, da emissão
+de cookie e da auditoria de falha feita pelo controller. Assim, abuso bloqueado
+não gera uma gravação de auditoria por requisição.
+
+Callback legítimo segue o redirect normal. Falha OAuth abaixo do limite produz
+auditoria sanitizada e redirect público seguro. Excesso retorna HTTP 429 com
+`Retry-After` calculado até o fim da janela. Falha do store PostgreSQL retorna
+HTTP 503 em fail-closed. 429 e 503 não devem ser classificados como página branca
+ou falha genérica do provedor; parâmetros sensíveis não aparecem em logs,
+métricas ou auditoria.
+
+## Capacidade, rollout e diagnóstico
+
+Considerar tráfego legítimo de callbacks, picos após campanhas ou deploys e as
+operações adicionais no PostgreSQL. O limite comprovado é `10/min` por bucket;
+não há números adicionais de capacidade definidos pelo código. Medir por
+rota/operação a contagem de 429, a contagem de 503 do store, a latência do
+guard/store, falhas de callback abaixo do limite e auditorias sanitizadas. Usar
+request ID sanitizado e distinguir falha do provedor de falha da infraestrutura;
+se uma métrica específica não existir, isto é orientação operacional.
+
+Smoke test seguro: validar callback legítimo, callback com parâmetros ausentes
+abaixo do limite, aplicação do limite antes da auditoria, ausência de auditoria
+por chamada bloqueada, 429 distinguível e `Retry-After`. Em ambiente descartável,
+confirmar que a indisponibilidade controlada do store produz 503 e que sua
+recuperação restaura o login. Não executar carga agressiva nem usar OAuth code ou
+state reais em logs ou exemplos.
+
+Rollback: reverter o deploy completo para um SHA conhecido ou restaurar a
+conectividade do store, conferir as variáveis e monitorar 429/503. Não remover o
+guard em produção; eventual desativação exige proteção equivalente no edge e o
+processo operacional aprovado.
+
+## Configuração operacional
+
+- `AUTH_RATE_LIMIT_ENABLED`: ativação; não é segredo.
+- `AUTH_RATE_LIMIT_STORE`: seleção do store; espera-se PostgreSQL.
+- `AUTH_RATE_LIMIT_HMAC_SECRET`: obrigatória quando ativo; segredo estável para
+  as chaves HMAC.
+- `TRUSTED_PROXY_HOPS`: configuração validada de proxy/capacidade, entre `0` e
+  `10`; não é segredo.
+
+Não existe variável específica para o callback: o limite `10/60s` está fixado no
+decorator da rota.
+
 Rollout: aplicar a migration em job controlado, validar `prisma migrate status`,
 configurar secret/hops, implantar o código e observar 429/503/latência. Rollback:
 reverter apenas o código (a tabela é expand-only e compatível), mantendo a migration;
