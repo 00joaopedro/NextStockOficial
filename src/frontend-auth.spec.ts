@@ -129,6 +129,10 @@ describe('frontend auth pages', () => {
     expect(html).toMatch(/id="googleLoginLink"[^>]+hidden/);
     expect(html).toContain('/auth/capabilities');
     expect(html).toContain('googleOAuthEnabled === true');
+    expect(html).toContain("googleLoginLink.addEventListener('click'");
+    expect(html).toContain("event.preventDefault();");
+    expect(html).toContain("window.location.assign('/api/auth/google/start');");
+    expect(html).not.toContain("fetch('/api/auth/google/start'");
   });
 
   it('reset-password.html referencia o bundle compilado de reset-password', () => {

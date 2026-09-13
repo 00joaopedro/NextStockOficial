@@ -17,6 +17,10 @@
 
     const googleLoginLink = document.getElementById('googleLoginLink');
     if (googleLoginLink) {
+      googleLoginLink.addEventListener('click', (event) => {
+        event.preventDefault();
+        window.location.assign('/api/auth/google/start');
+      });
       fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
         .then((response) => response.ok ? response.json() : null)
         .then((capabilities) => {
