@@ -174,6 +174,9 @@ export class GoogleOAuthService {
       !claims.email
     )
       throw new UnauthorizedException('Google identity could not be verified.');
+    const providerSubject = claims.sub;
+    if (!providerSubject)
+      throw new UnauthorizedException('Google identity could not be verified.');
     if (intent.purpose === 'link') {
       if (!intent.userProfileId)
         throw new ConflictException('Google identity cannot be linked.');
@@ -211,7 +214,7 @@ export class GoogleOAuthService {
             where: {
               provider_providerSubject: {
                 provider: 'GOOGLE',
-                providerSubject: claims.sub!,
+                providerSubject,
               },
             },
             select: {
@@ -235,7 +238,7 @@ export class GoogleOAuthService {
             data: {
               userProfileId: intent.userProfileId!,
               provider: 'GOOGLE',
-              providerSubject: claims.sub!,
+              providerSubject,
               canonicalEmail: claims.email!.toLowerCase(),
               emailVerifiedAt: new Date(),
             },
@@ -264,7 +267,7 @@ export class GoogleOAuthService {
             where: {
               provider_providerSubject: {
                 provider: 'GOOGLE',
-                providerSubject: claims.sub!,
+                providerSubject,
               },
             },
             select: { userProfileId: true, status: true, disabledAt: true },
@@ -293,7 +296,7 @@ export class GoogleOAuthService {
       where: {
         provider_providerSubject: {
           provider: 'GOOGLE',
-          providerSubject: claims.sub!,
+          providerSubject,
         },
       },
       select: { userProfileId: true, status: true, disabledAt: true },
@@ -362,23 +365,28 @@ export class GoogleOAuthService {
             (item) =>
               item.tenant.id === eligible.tenantId &&
               item.branch?.id === eligible.branchId &&
-              item.branch.isActive,
+              item.branch?.isActive === true,
           );
           if (!membership)
             throw new ConflictException('Google profile is not eligible.');
+          const branch = membership.branch;
+          if (!branch || !branch.isActive)
+            throw new ConflictException('Google profile is not eligible.');
+          const tenantId = membership.tenant.id;
+          const branchId = branch.id;
           const created = await tx.authIdentity.create({
             data: {
               userProfileId: eligible.profileId,
               provider: 'GOOGLE',
-              providerSubject: claims.sub,
+              providerSubject,
               canonicalEmail,
               emailVerifiedAt: new Date(),
             },
             select: { id: true },
           });
           await this.auditOutbox.enqueue(tx, {
-            tenantId: membership.tenant.id,
-            branchId: membership.branch.id,
+            tenantId,
+            branchId,
             actorProfileId: eligible.profileId,
             operationId: `google_identity_link:${created.id}`,
             eventType: 'auth.google_identity.linked',
@@ -398,7 +406,7 @@ export class GoogleOAuthService {
             where: {
               provider_providerSubject: {
                 provider: 'GOOGLE',
-                providerSubject: claims.sub,
+                providerSubject,
               },
             },
             select: { userProfileId: true, status: true, disabledAt: true },
@@ -428,7 +436,7 @@ export class GoogleOAuthService {
       where: {
         provider_providerSubject: {
           provider: 'GOOGLE',
-          providerSubject: claims.sub,
+          providerSubject,
         },
       },
       data: { lastUsedAt: new Date() },
