@@ -7,12 +7,21 @@ describe('AuthController', () => {
     register: jest.fn(),
     forgotPassword: jest.fn(),
   } as any;
-  const response = () =>
-    ({
+  const response = () => {
+    const reply = {
       setCookie: jest.fn(),
       clearCookie: jest.fn(),
       header: jest.fn(),
-    }) as any;
+      code: jest.fn(),
+      send: jest.fn(),
+    };
+    reply.code.mockReturnValue(reply);
+    reply.header.mockReturnValue(reply);
+    reply.send.mockReturnValue(reply);
+    reply.setCookie.mockReturnValue(reply);
+    reply.clearCookie.mockReturnValue(reply);
+    return reply as any;
+  };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -298,14 +307,12 @@ describe('AuthController', () => {
 
   it('Google callback emite cookie e redireciona para destino interno', async () => {
     const google = {
-      callback: jest
-        .fn()
-        .mockResolvedValue({
-          kind: 'session',
-          accessToken: 'a.b.c',
-          user: { id: 'profile-1' },
-          redirectTo: '/produtos.html',
-        }),
+      callback: jest.fn().mockResolvedValue({
+        kind: 'session',
+        accessToken: 'a.b.c',
+        user: { id: 'profile-1' },
+        redirectTo: '/produtos.html',
+      }),
     };
     const controller = new AuthController(
       authService,
@@ -314,12 +321,14 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { ...response(), redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleCallback(
       { query: { code: 'code', state: 'state' } } as any,
       res,
     );
-    expect(res.redirect).toHaveBeenCalledWith('/produtos.html');
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith('Location', '/produtos.html');
+    expect(res.send).toHaveBeenCalledTimes(1);
     expect(res.setCookie).toHaveBeenCalledWith(
       'jwt',
       'a.b.c',
@@ -338,18 +347,25 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { ...response(), redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleCallback(
       { query: { code: '', state: 'state' }, requestId: 'request-1' } as any,
       res,
     );
-    expect(res.redirect).toHaveBeenCalledWith('/?auth_error=auth_failed');
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith(
+      'Location',
+      '/?auth_error=auth_failed',
+    );
+    expect(res.send).toHaveBeenCalledTimes(1);
   });
   it('Google start aguarda e redireciona exatamente uma vez para o Google', async () => {
     const google = {
       start: jest
         .fn()
-        .mockResolvedValue('https://accounts.google.com/o/oauth2/v2/auth'),
+        .mockResolvedValue(
+          'https://accounts.google.com/o/oauth2/v2/auth?prompt=select_account',
+        ),
     };
     const controller = new AuthController(
       authService,
@@ -358,17 +374,25 @@ describe('AuthController', () => {
       undefined,
       google as any,
     );
-    const res = { redirect: jest.fn() } as any;
+    const res = response();
     await controller.googleStart({} as any, res);
-    expect(res.redirect).toHaveBeenCalledTimes(1);
-    expect(res.redirect).toHaveBeenCalledWith(
-      'https://accounts.google.com/o/oauth2/v2/auth',
+    expect(res.code).toHaveBeenCalledWith(302);
+    expect(res.header).toHaveBeenCalledWith(
+      'Location',
+      'https://accounts.google.com/o/oauth2/v2/auth?prompt=select_account',
     );
+    const location = res.header.mock.calls[0][1];
+    expect(new URL(location).hostname).toBe('accounts.google.com');
+    expect(new URL(location).searchParams.get('prompt')).toBe('select_account');
+    expect(res.send).toHaveBeenCalledTimes(1);
   });
 
   it('Google callback possui rate limit separado do controller', () => {
     expect(
-      Reflect.getMetadata(RATE_LIMIT_KEY, AuthController.prototype.googleCallback),
+      Reflect.getMetadata(
+        RATE_LIMIT_KEY,
+        AuthController.prototype.googleCallback,
+      ),
     ).toEqual({ max: 10, windowMs: 60_000 });
   });
 });

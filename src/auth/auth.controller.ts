@@ -85,9 +85,9 @@ export class AuthController {
         destination.hostname !== 'accounts.google.com'
       )
         throw new Error('Invalid Google authorization destination.');
-      return reply.redirect(destination.toString());
+      return this.sendRedirect(reply, destination.toString());
     } catch {
-      return reply.redirect('/?auth_error=auth_failed');
+      return this.sendRedirect(reply, '/?auth_error=auth_failed');
     }
   }
 
@@ -110,7 +110,7 @@ export class AuthController {
     );
     if (!sessionId) throw new UnauthorizedException('Active session required.');
     const url = await this.googleOAuth!.start('link', req.user!.id, sessionId);
-    reply.redirect(url);
+    return this.sendRedirect(reply, url);
   }
 
   @Get('google/callback')
@@ -146,7 +146,7 @@ export class AuthController {
       this.logger.log(
         `auth.google.redirect_sent request=${req.requestId ?? 'unknown'} destination=${destination}`,
       );
-      reply.redirect(destination);
+      return this.sendRedirect(reply, destination);
     } catch (error) {
       const diagnosticCode = this.publicAuthCode(error);
       const publicCode = this.publicGoogleAuthCode(diagnosticCode);
@@ -154,7 +154,7 @@ export class AuthController {
       this.logger.warn(
         `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${diagnosticCode}`,
       );
-      reply.redirect(`/?auth_error=${publicCode}`);
+      return this.sendRedirect(reply, `/?auth_error=${publicCode}`);
     }
   }
 
@@ -376,6 +376,14 @@ export class AuthController {
     return /^\/(?!\/)[A-Za-z0-9._/?=&%-]*$/.test(destination)
       ? destination
       : '/produtos.html';
+  }
+
+  private sendRedirect(
+    reply: CompatibleReply,
+    destination: string,
+    statusCode: 302 | 303 = 302,
+  ) {
+    return reply.code(statusCode).header('Location', destination).send();
   }
 
   @Post('change-password')
