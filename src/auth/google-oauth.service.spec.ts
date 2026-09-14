@@ -70,24 +70,58 @@ describe('GoogleOAuthService', () => {
       },
       authIdentity: {
         findUnique: jest.fn().mockResolvedValueOnce(null),
-        create: jest.fn().mockResolvedValue(identity),
         update: jest.fn().mockResolvedValue({ id: 'identity-1' }),
       },
-      userProfile: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'profile-1' }),
+      authEmailClaim: {
+        findUnique: jest.fn().mockResolvedValue({
+          profileId: 'profile-1',
+          profile: { id: 'profile-1', email: 'User@Example.Test' },
+        }),
       },
+      userProfile: {
+        findUnique: jest.fn(),
+      },
+      $transaction: jest.fn(),
     } as any;
+    const tx = {
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'profile-1',
+          employee: null,
+          memberships: [
+            {
+              tenantId: 'tenant-1',
+              branchId: 'branch-1',
+              tenant: { id: 'tenant-1' },
+              branch: { id: 'branch-1', isActive: true },
+            },
+          ],
+        }),
+      },
+      authIdentity: { create: jest.fn().mockResolvedValue({ id: 'identity-1' }) },
+    } as any;
+    prisma.$transaction.mockImplementation((callback: (tx: any) => unknown) =>
+      callback(tx),
+    );
     const auth = {
+      assertGoogleLoginEligibility: jest.fn().mockResolvedValue({
+        profileId: 'profile-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+      }),
       issueSessionForProfile: jest.fn().mockResolvedValue({
         accessToken: 'fixture-access-token',
         user: { id: 'profile-1', tenantId: 'tenant-1' },
       }),
     } as any;
+    const auditOutbox = {
+      enqueue: jest.fn().mockResolvedValue({ id: 'outbox-1' }),
+    } as any;
     const service = new GoogleOAuthService(
       prisma,
       auth,
       {} as any,
-      {} as any,
+      auditOutbox,
     );
     const envKeys = [
       'GOOGLE_OAUTH_ENABLED',
@@ -135,13 +169,23 @@ describe('GoogleOAuthService', () => {
         kind: 'session',
         redirectTo: '/produtos.html',
       });
-      expect(prisma.authIdentity.create).toHaveBeenCalledWith(
+      expect(tx.authIdentity.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             provider: 'GOOGLE',
             providerSubject: 'google-subject-fixture',
             canonicalEmail: 'user@example.test',
           }),
+        }),
+      );
+      expect(auditOutbox.enqueue).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          eventType: 'auth.google_identity.linked',
+          metadata: {
+            provider: 'google',
+            source: 'automatic_google_login',
+          },
         }),
       );
       expect(auth.issueSessionForProfile).toHaveBeenCalledWith('profile-1');
