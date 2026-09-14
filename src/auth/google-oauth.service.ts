@@ -304,24 +304,90 @@ export class GoogleOAuthService {
     )
       throw new UnauthorizedException('Google identity is unavailable.');
     if (!identity) {
-      const profile = await this.prisma.userProfile.findUnique({
-        where: { email: canonicalEmail },
-        select: { id: true },
+      const claim = await this.prisma.authEmailClaim.findUnique({
+        where: { canonicalEmail },
+        select: { profileId: true, profile: { select: { id: true, email: true } } },
       });
-      if (!profile)
+      let profileId = claim?.profileId;
+      if (claim && (!claim.profile || canonicalizeEmail(claim.profile.email) !== canonicalEmail))
+        throw new ConflictException('Google email claim is stale or conflicting.');
+      if (!profileId) {
+        const candidates = await this.prisma.userProfile.findMany({
+          where: { email: { equals: canonicalEmail, mode: 'insensitive' } },
+          select: { id: true, email: true },
+        });
+        const matches = candidates.filter(
+          (candidate) => canonicalizeEmail(candidate.email) === canonicalEmail,
+        );
+        if (matches.length > 1)
+          throw new ConflictException('Google email claim is ambiguous.');
+        profileId = matches[0]?.id;
+      }
+      if (!profileId)
         throw new ConflictException(
           'Google account requires an invitation or explicit linking.',
         );
+      const eligible = await this.auth.assertGoogleLoginEligibility(profileId);
       try {
-        identity = await this.prisma.authIdentity.create({
-          data: {
-            userProfileId: profile.id,
-            provider: 'GOOGLE',
-            providerSubject: claims.sub,
-            canonicalEmail,
-            emailVerifiedAt: new Date(),
-          },
-          select: { userProfileId: true, status: true, disabledAt: true },
+        await this.prisma.$transaction(async (tx) => {
+          const current = await tx.userProfile.findUnique({
+            where: { id: eligible.profileId },
+            select: {
+              id: true,
+              employee: {
+                select: {
+                  status: true,
+                  dismissalDate: true,
+                  deletedAt: true,
+                },
+              },
+              memberships: {
+                where: { branch: { isActive: true } },
+                select: {
+                  tenantId: true,
+                  branchId: true,
+                  tenant: { select: { id: true } },
+                  branch: { select: { id: true, isActive: true } },
+                },
+              },
+            },
+          });
+          if (
+            !current ||
+            current.employee?.deletedAt ||
+            current.employee?.status !== 'active' && current.employee
+          )
+            throw new ConflictException('Google profile is not eligible.');
+          const membership = current.memberships.find(
+            (item) =>
+              item.tenant.id === eligible.tenantId &&
+              item.branch?.id === eligible.branchId &&
+              item.branch.isActive,
+          );
+          if (!membership)
+            throw new ConflictException('Google profile is not eligible.');
+          const created = await tx.authIdentity.create({
+            data: {
+              userProfileId: eligible.profileId,
+              provider: 'GOOGLE',
+              providerSubject: claims.sub,
+              canonicalEmail,
+              emailVerifiedAt: new Date(),
+            },
+            select: { id: true },
+          });
+          await this.auditOutbox.enqueue(tx, {
+            tenantId: membership.tenant.id,
+            branchId: membership.branch.id,
+            actorProfileId: eligible.profileId,
+            operationId: `google_identity_link:${created.id}`,
+            eventType: 'auth.google_identity.linked',
+            action: 'google_identity_link',
+            outcome: AuditOutcome.SUCCESS,
+            severity: AuditSeverity.MEDIUM,
+            contextKind: AuditContextKind.NORMAL,
+            metadata: { provider: 'google', source: 'automatic_google_login' },
+          });
         });
       } catch (error) {
         if (
@@ -337,8 +403,19 @@ export class GoogleOAuthService {
             },
             select: { userProfileId: true, status: true, disabledAt: true },
           });
+          if (identity?.userProfileId !== eligible.profileId)
+            throw new ConflictException('Google identity is already linked.');
         }
         if (!identity) throw error;
+        if (identity.userProfileId !== eligible.profileId)
+          throw new ConflictException('Google identity is already linked.');
+      }
+      if (!identity) {
+        identity = {
+          userProfileId: eligible.profileId,
+          status: 'active',
+          disabledAt: null,
+        };
       }
     }
     if (!identity) throw new ConflictException('Google identity unavailable.');

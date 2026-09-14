@@ -584,19 +584,64 @@ export class AuthService {
   }
 
   async issueSessionForProfile(profileId: string) {
-    const profile = await this.findProfileRecord({ profileId });
-    this.assertEmployeeCanAuthenticate(profile);
-    const { user, selectedBranch } = await this.prepareLoginContext(profile);
+    const eligible = await this.assertGoogleLoginEligibility(profileId);
     if (!this.localJwt)
       throw new ServiceUnavailableException(
         'Local session provider is unavailable.',
       );
     const accessToken = await this.localJwt.sign({
-      sub: profile.id,
+      sub: eligible.profileId,
       jti: randomUUID(),
       authMethod: 'google',
     });
-    return { accessToken, user, selectedBranch };
+    return {
+      accessToken,
+      user: eligible.user,
+      selectedBranch: eligible.selectedBranch,
+    };
+  }
+
+  async assertGoogleLoginEligibility(profileId: string) {
+    const profile = await this.findProfileRecord({ profileId });
+    this.assertEmployeeCanAuthenticate(profile);
+    if (!this.localJwt) {
+      throw new ServiceUnavailableException(
+        'Local session provider is unavailable.',
+      );
+    }
+    this.localJwt.assertSigningConfigured();
+    if (canAccessDev(profile)) {
+      return {
+        profileId: profile.id,
+        user: this.formatProfileWithMembership(profile),
+        selectedBranch: null,
+        tenantId: profile.primaryTenantId ?? profile.tenantId,
+        branchId: null,
+      };
+    }
+    const membership = this.chooseMembership(profile);
+    if (!membership) {
+      throw new ConflictException('Usuario sem empresa/filial vinculada.');
+    }
+    if (!membership.branchId || !membership.branch?.isActive) {
+      throw new ConflictException(
+        'Usuario sem filial ativa vinculada. Solicite acesso ao administrador.',
+      );
+    }
+    return {
+      profileId: profile.id,
+      user: this.formatProfileWithMembership(
+        profile,
+        membership.branch.slug,
+      ),
+      selectedBranch: this.formatSelectedBranch(
+        membership.branch,
+        membership.tenant.id,
+        membership.tenant.systemType,
+      ),
+      tenantId: membership.tenant.id,
+      branchId: membership.branch.id,
+    };
   }
 
   private async withDevWorkspaceBranches(
