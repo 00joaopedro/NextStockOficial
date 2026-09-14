@@ -16,6 +16,7 @@ import { AuditOutboxService } from '../audit/audit-outbox.service';
 import { AuthService } from './auth.service';
 import { LocalJwtService } from './local-jwt.service';
 import { assertLocalJwtConfigured } from './local-jwt-config';
+import { canonicalizeEmail } from '../common/canonical-email';
 
 const GOOGLE_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
@@ -153,7 +154,7 @@ export class GoogleOAuthService {
     const claims = (await infoResponse.json()) as {
       sub?: string;
       email?: string;
-      email_verified?: string;
+      email_verified?: string | boolean;
       aud?: string;
       iss?: string;
       nonce?: string;
@@ -168,7 +169,7 @@ export class GoogleOAuthService {
         Buffer.from(hash(claims.nonce)),
         Buffer.from(intent.nonceHash),
       ) ||
-      claims.email_verified !== 'true' ||
+      !['true', true].includes(claims.email_verified ?? false) ||
       !claims.sub ||
       !claims.email
     )
@@ -287,7 +288,8 @@ export class GoogleOAuthService {
         profileId: linkResult.userProfileId,
       };
     }
-    const identity = await this.prisma.authIdentity.findUnique({
+    const canonicalEmail = canonicalizeEmail(claims.email);
+    let identity = await this.prisma.authIdentity.findUnique({
       where: {
         provider_providerSubject: {
           provider: 'GOOGLE',
@@ -301,10 +303,60 @@ export class GoogleOAuthService {
       (identity.status !== 'active' || identity.disabledAt !== null)
     )
       throw new UnauthorizedException('Google identity is unavailable.');
-    if (!identity)
-      throw new ConflictException(
-        'Google account requires an invitation or explicit linking.',
-      );
+    if (!identity) {
+      const profile = await this.prisma.userProfile.findUnique({
+        where: { email: canonicalEmail },
+        select: { id: true },
+      });
+      if (!profile)
+        throw new ConflictException(
+          'Google account requires an invitation or explicit linking.',
+        );
+      try {
+        identity = await this.prisma.authIdentity.create({
+          data: {
+            userProfileId: profile.id,
+            provider: 'GOOGLE',
+            providerSubject: claims.sub,
+            canonicalEmail,
+            emailVerifiedAt: new Date(),
+          },
+          select: { userProfileId: true, status: true, disabledAt: true },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          identity = await this.prisma.authIdentity.findUnique({
+            where: {
+              provider_providerSubject: {
+                provider: 'GOOGLE',
+                providerSubject: claims.sub,
+              },
+            },
+            select: { userProfileId: true, status: true, disabledAt: true },
+          });
+        }
+        if (!identity) throw error;
+      }
+    }
+    if (!identity) throw new ConflictException('Google identity unavailable.');
+    if (
+      identity.status !== 'active' ||
+      identity.disabledAt !== null
+    )
+      throw new UnauthorizedException('Google identity is unavailable.');
+    await this.prisma.authIdentity.update({
+      where: {
+        provider_providerSubject: {
+          provider: 'GOOGLE',
+          providerSubject: claims.sub,
+        },
+      },
+      data: { lastUsedAt: new Date() },
+      select: { id: true },
+    });
     const session = await this.auth.issueSessionForProfile(
       identity.userProfileId,
     );
