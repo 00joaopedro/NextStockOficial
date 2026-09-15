@@ -75,7 +75,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-fastify": "^11.0.1",
+    "@nestjs/platform-fastify": "11.2.5",
     "@nestjs/serve-static": "^5.0.4",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.19.2",
@@ -83,7 +83,7 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.0",
-    "joi": "^18.2.3",
+    "joi": "18.2.5",
     "jwks-rsa": "^4.0.1",
     "node-forge": "^1.4.0",
     "passport": "^0.7.0",
@@ -91,7 +91,7 @@
     "prisma": "^6.19.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "sharp": "^0.35.2"
+    "sharp": "0.35.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
