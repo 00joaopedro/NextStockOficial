@@ -157,16 +157,22 @@ describe('frontend auth pages', () => {
       'utf8',
     );
 
-    expect(source).toContain("params.get('token')");
+    expect(source).toContain("hash.get('access_token')");
+    expect(source).toContain("hash.get('refresh_token')");
+    expect(source).toContain("recoveryType === 'recovery'");
+    expect(source).toContain('recoveryType, newPassword: password');
     expect(source).toContain('window.history.replaceState');
+    expect(source).toContain("'/api/auth/supabase-password-recovery'");
     expect(source).toContain("'/api/auth/reset-password'");
     expect(source).not.toMatch(/localStorage|sessionStorage/);
-    expect(bundle).toContain("params.get('token')");
+    expect(bundle).toContain("hash.get('access_token')");
+    expect(bundle).toContain("hash.get('refresh_token')");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
     expect(bundle).not.toMatch(/localStorage|sessionStorage/);
+    expect(bundle).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ACCESS_TOKEN/);
   });
 
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {

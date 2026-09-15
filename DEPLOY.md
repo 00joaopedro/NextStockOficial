@@ -122,6 +122,16 @@ bootstrap; isso não seleciona nem desabilita Supabase Storage. Consulte
 `docs/operations/platform-auth-migration-phase-1.md` antes de aplicar a migration
 de identidades.
 
+## Recuperação de senha Supabase
+
+Em `AUTH_PROVIDER_MODE=supabase_only`, configure `SUPABASE_PASSWORD_REDIRECT_URL` para a página pública de recuperação, por exemplo:
+
+`SUPABASE_PASSWORD_REDIRECT_URL=https://<dominio>/reset-password.html`
+
+Essa mesma URL precisa estar permitida no Supabase Dashboard em **Authentication > URL Configuration > Redirect URLs**. O fluxo usa o fragmento de recovery do Supabase somente em memória no navegador; a página o remove imediatamente da barra de endereço e envia os dados exclusivamente por POST same-origin. O backend usa apenas a chave anon/publishable para validar a sessão temporária, atualiza a senha no Supabase Auth, encerra a sessão de recovery e revoga as sessões internas. A chave `SUPABASE_SERVICE_ROLE_KEY` nunca é enviada ao navegador.
+
+O endpoint local `POST /api/auth/reset-password` continua reservado para tokens locais e não aceita o protocolo Supabase.
+
 ## SuperTokens (ativação futura controlada)
 
 `AUTH_PROVIDER_MODE=supabase_only` é o padrão. Os modos `coexistence`,

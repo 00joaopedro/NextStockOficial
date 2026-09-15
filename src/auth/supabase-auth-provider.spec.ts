@@ -45,4 +45,64 @@ describe('SupabaseAuthProvider', () => {
       identity: { id: 'u', email: 'a@example.com', metadata: {} },
     });
   });
+
+  it('updates the password only after establishing the supplied recovery session', async () => {
+    const setSession = jest.fn().mockResolvedValue({
+      data: {
+        user: { id: 'u', email: 'a@example.com', user_metadata: {} },
+        session: { access_token: 'access', refresh_token: 'refresh' },
+      },
+      error: null,
+    });
+    const updateUser = jest.fn().mockResolvedValue({
+      data: { user: { id: 'u', email: 'a@example.com', user_metadata: {} } },
+      error: null,
+    });
+    const signOut = jest.fn().mockResolvedValue({ error: null });
+    const provider = new SupabaseAuthProvider({
+      anon: { auth: { setSession, updateUser, signOut } },
+    } as any);
+
+    await expect(
+      provider.completePasswordRecovery({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        newPassword: 'new-password',
+      }),
+    ).resolves.toEqual({
+      id: 'u',
+      email: 'a@example.com',
+      metadata: {},
+    });
+    expect(setSession).toHaveBeenCalledWith({
+      access_token: 'access',
+      refresh_token: 'refresh',
+    });
+    expect(updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
+  });
+
+  it('does not update a password when the recovery session is invalid', async () => {
+    const updateUser = jest.fn();
+    const provider = new SupabaseAuthProvider({
+      anon: {
+        auth: {
+          setSession: jest.fn().mockResolvedValue({
+            data: { user: null, session: null },
+            error: { message: 'invalid or expired token' },
+          }),
+          updateUser,
+        },
+      },
+    } as any);
+
+    await expect(
+      provider.completePasswordRecovery({
+        accessToken: 'expired',
+        refreshToken: 'expired',
+        newPassword: 'new-password',
+      }),
+    ).rejects.toEqual(new AuthProviderError('invalid_credentials'));
+    expect(updateUser).not.toHaveBeenCalled();
+  });
 });
