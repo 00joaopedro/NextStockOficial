@@ -257,7 +257,7 @@ export class AuthController {
         ...audit.fromRequest(req),
         eventType: 'auth.password_recovery.completed',
         action: 'supabase_password_recovery',
-        outcome: AuditOutcome.FAILURE,
+        outcome: AuditOutcome.FAILED,
         severity: AuditSeverity.HIGH,
         actorProfileId: profileId ?? null,
         reasonCode: 'recovery_completion_failed',
