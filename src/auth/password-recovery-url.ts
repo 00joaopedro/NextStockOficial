@@ -17,14 +17,14 @@ export function isLoopbackHostname(hostname: string) {
 export function getPasswordRecoveryRedirectUrl(
   env: NodeJS.ProcessEnv = process.env,
 ) {
-  const raw = env.PUBLIC_APP_URL?.trim();
+  const raw = (env.SUPABASE_PASSWORD_REDIRECT_URL || env.PUBLIC_APP_URL)?.trim();
   if (!raw)
-    throw new Error('PUBLIC_APP_URL is required for password recovery.');
+    throw new Error('SUPABASE_PASSWORD_REDIRECT_URL or PUBLIC_APP_URL is required for password recovery.');
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new Error('PUBLIC_APP_URL must be an absolute URL.');
+    throw new Error('Password recovery redirect must be an absolute URL.');
   }
   const appEnv = env.APP_ENV || env.NODE_ENV || 'development';
   const deployed =
@@ -39,5 +39,9 @@ export function getPasswordRecoveryRedirectUrl(
         'PUBLIC_APP_URL cannot use localhost in deployed environments.',
       );
   }
-  return new URL(PASSWORD_RESET_ROUTE, url).toString();
+  if (url.username || url.password || url.hash)
+    throw new Error('Password recovery redirect must not contain credentials or a fragment.');
+  if (url.pathname !== PASSWORD_RESET_ROUTE)
+    throw new Error('Password recovery redirect must use the reset-password route.');
+  return url.toString();
 }

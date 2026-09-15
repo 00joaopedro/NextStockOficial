@@ -697,6 +697,11 @@ export class AuthService {
     };
   }
 
+  async resolveInternalProfileId(supabaseUserId: string) {
+    const profile = await this.findProfileRecord({ supabaseUserId });
+    return profile.id;
+  }
+
   private async findProfileOrThrow(profileId: string, branchSlug?: string) {
     const profile = await this.findProfileRecord({
       supabaseUserId: profileId,
