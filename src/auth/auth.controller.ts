@@ -241,28 +241,30 @@ export class AuthController {
         this.sessions.metadataFromRequest(req),
       );
       const audit = this.audit;
-      if (audit) await audit.record({
-        ...audit.fromRequest(req),
-        eventType: 'auth.password_recovery.completed',
-        action: 'supabase_password_recovery',
-        outcome: AuditOutcome.SUCCESS,
-        severity: AuditSeverity.HIGH,
-        actorProfileId: profileId,
-        metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
-      });
+      if (audit)
+        await audit.record({
+          ...audit.fromRequest(req),
+          eventType: 'auth.password_recovery.completed',
+          action: 'supabase_password_recovery',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.HIGH,
+          actorProfileId: profileId,
+          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+        });
       return { ok: true };
     } catch (error) {
       const audit = this.audit;
-      if (audit) await audit.record({
-        ...audit.fromRequest(req),
-        eventType: 'auth.password_recovery.completed',
-        action: 'supabase_password_recovery',
-        outcome: AuditOutcome.FAILED,
-        severity: AuditSeverity.HIGH,
-        actorProfileId: profileId ?? null,
-        reasonCode: 'recovery_completion_failed',
-        metadata: { provider: 'supabase' },
-      });
+      if (audit)
+        await audit.record({
+          ...audit.fromRequest(req),
+          eventType: 'auth.password_recovery.completed',
+          action: 'supabase_password_recovery',
+          outcome: AuditOutcome.FAILED,
+          severity: AuditSeverity.HIGH,
+          actorProfileId: profileId ?? null,
+          reasonCode: 'recovery_completion_failed',
+          metadata: { provider: 'supabase' },
+        });
       throw error;
     }
   }
