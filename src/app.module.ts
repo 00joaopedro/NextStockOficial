@@ -1,9 +1,4 @@
 import { Module } from '@nestjs/common';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import type { ServeStaticModuleOptions } from '@nestjs/serve-static';
-import type { FastifyStaticOptions } from '@fastify/static';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { ConfigModule } from '@nestjs/config';
 
 import { AppController } from './app.controller';
@@ -49,94 +44,46 @@ import { PreviewMutationInterceptor } from './system/interceptors/preview-mutati
 import { StorefrontModule } from './storefront/storefront.module';
 import { processRole, startsApi } from './config/process-role';
 
-const publicPath = join(__dirname, '..', 'public');
-
 @Module({
-  imports: startsApi(processRole()) ? [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      validate: validateEnvironment,
-    }),
-    ServeStaticModule.forRoot({
-      rootPath: existsSync(publicPath)
-        ? publicPath
-        : join(__dirname, '..', '..', 'public'),
-      exclude: ['/api', '/api/*path', '/dev.html', '/parceiros.html'],
-      serveStaticOptions: {
-        etag: true,
-        globIgnore: ['dev.html', 'parceiros.html'],
-        setHeaders(res, filePath) {
-          const reply = res as unknown as {
-            header?: (name: string, value: string) => unknown;
-            setHeader?: (name: string, value: string) => unknown;
-          };
-          const setHeader = (name: string, value: string) => {
-            if (reply.header) reply.header(name, value);
-            else reply.setHeader?.(name, value);
-          };
-          if (/\.html$/i.test(filePath)) {
-            setHeader(
-              'Cache-Control',
-              /[/\\]reset-password\.html$/i.test(filePath)
-                ? 'no-store'
-                : 'no-cache',
-            );
-            if (/[/\\]reset-password\.html$/i.test(filePath))
-              setHeader('Referrer-Policy', 'no-referrer');
-            return;
-          }
-          if (
-            /\.[a-f0-9]{8,}\.(?:js|css|webp|png|jpg|jpeg|svg|woff2?)$/i.test(
-              filePath,
-            )
-          ) {
-            setHeader(
-              'Cache-Control',
-              'public, max-age=31536000, immutable',
-            );
-            return;
-          }
-          if (/[/\\]sidebar\.js$/i.test(filePath)) {
-            setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-            return;
-          }
-          setHeader('Cache-Control', 'public, max-age=3600');
-        },
-      } as NonNullable<ServeStaticModuleOptions['serveStaticOptions']> &
-        Pick<FastifyStaticOptions, 'globIgnore'>,
-    }),
-    PerformanceModule,
-    AuditModule,
-    SessionsModule,
-    ObservabilityModule,
-    PrivacyModule,
-    PrismaModule,
-    TenancyModule,
-    SupabaseModule,
-    AuthModule,
-    UsersModule,
-    TenantsModule,
-    SystemModule,
-    AgendaPetModule,
-    ProfileModule,
-    PaymentMachinesModule,
-    PaymentsModule,
-    ProductsModule,
-    StorageModule,
-    PetClientsModule,
-    PetsModule,
-    DevModule,
-    SalesModule,
-    FiscalModule,
-    OrdersModule,
-    EmployeesModule,
-    SuppliersModule,
-    ExpensesModule,
-    DashboardModule,
-    PartnersModule,
-    BillingModule,
-    StorefrontModule,
-  ] : [],
+  imports: startsApi(processRole())
+    ? [
+        ConfigModule.forRoot({
+          isGlobal: true,
+          validate: validateEnvironment,
+        }),
+        PerformanceModule,
+        AuditModule,
+        SessionsModule,
+        ObservabilityModule,
+        PrivacyModule,
+        PrismaModule,
+        TenancyModule,
+        SupabaseModule,
+        AuthModule,
+        UsersModule,
+        TenantsModule,
+        SystemModule,
+        AgendaPetModule,
+        ProfileModule,
+        PaymentMachinesModule,
+        PaymentsModule,
+        ProductsModule,
+        StorageModule,
+        PetClientsModule,
+        PetsModule,
+        DevModule,
+        SalesModule,
+        FiscalModule,
+        OrdersModule,
+        EmployeesModule,
+        SuppliersModule,
+        ExpensesModule,
+        DashboardModule,
+        PartnersModule,
+        BillingModule,
+        StorefrontModule,
+      ]
+    : [],
   controllers: [AppController],
   providers: [
     AppService,
