@@ -231,23 +231,40 @@ export class AuthController {
     @Body() body: SupabasePasswordRecoveryDto,
     @Req() req: AuthenticatedHttpRequest,
   ) {
-    const { profileId } =
-      await this.authService.completeSupabasePasswordRecovery(body);
-    const revoked = await this.sessions?.revokeAllForProfile(
-      profileId,
-      'password_recovery',
-      this.sessions.metadataFromRequest(req),
-    );
-    void this.audit?.record({
-      ...this.audit.fromRequest(req),
-      eventType: 'auth.password_recovery.completed',
-      action: 'supabase_password_recovery',
-      outcome: AuditOutcome.SUCCESS,
-      severity: AuditSeverity.HIGH,
-      actorProfileId: profileId,
-      metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
-    });
-    return { ok: true };
+    let profileId: string | undefined;
+    try {
+      ({ profileId } =
+        await this.authService.completeSupabasePasswordRecovery(body));
+      const revoked = await this.sessions?.revokeAllForProfile(
+        profileId,
+        'password_recovery',
+        this.sessions.metadataFromRequest(req),
+      );
+      const audit = this.audit;
+      if (audit) await audit.record({
+        ...audit.fromRequest(req),
+        eventType: 'auth.password_recovery.completed',
+        action: 'supabase_password_recovery',
+        outcome: AuditOutcome.SUCCESS,
+        severity: AuditSeverity.HIGH,
+        actorProfileId: profileId,
+        metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+      });
+      return { ok: true };
+    } catch (error) {
+      const audit = this.audit;
+      if (audit) await audit.record({
+        ...audit.fromRequest(req),
+        eventType: 'auth.password_recovery.completed',
+        action: 'supabase_password_recovery',
+        outcome: AuditOutcome.FAILURE,
+        severity: AuditSeverity.HIGH,
+        actorProfileId: profileId ?? null,
+        reasonCode: 'recovery_completion_failed',
+        metadata: { provider: 'supabase' },
+      });
+      throw error;
+    }
   }
 
   @Post('change-password')

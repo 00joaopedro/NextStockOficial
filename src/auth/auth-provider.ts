@@ -12,6 +12,7 @@ export type AuthProviderErrorCode =
   | 'provider_timeout'
   | 'conflict'
   | 'compensation_required'
+  | 'recovery_finalization_failed'
   | 'unknown_provider_error';
 
 export class AuthProviderError extends Error {

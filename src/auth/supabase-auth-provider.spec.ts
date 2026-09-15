@@ -60,6 +60,9 @@ describe('SupabaseAuthProvider', () => {
     });
     const signOut = jest.fn().mockResolvedValue({ error: null });
     const provider = new SupabaseAuthProvider({
+      createRequestAnonClient: () => ({
+        auth: { setSession, updateUser, signOut },
+      }),
       anon: { auth: { setSession, updateUser, signOut } },
     } as any);
 
@@ -85,6 +88,15 @@ describe('SupabaseAuthProvider', () => {
   it('does not update a password when the recovery session is invalid', async () => {
     const updateUser = jest.fn();
     const provider = new SupabaseAuthProvider({
+      createRequestAnonClient: () => ({
+        auth: {
+          setSession: jest.fn().mockResolvedValue({
+            data: { user: null, session: null },
+            error: { message: 'invalid or expired token' },
+          }),
+          updateUser,
+        },
+      }),
       anon: {
         auth: {
           setSession: jest.fn().mockResolvedValue({
@@ -104,5 +116,68 @@ describe('SupabaseAuthProvider', () => {
       }),
     ).rejects.toEqual(new AuthProviderError('invalid_credentials'));
     expect(updateUser).not.toHaveBeenCalled();
+  });
+
+  it('does not report success when global sign-out fails', async () => {
+    const updateUser = jest.fn().mockResolvedValue({
+      data: { user: { id: 'u', email: 'a@example.com', user_metadata: {} } },
+      error: null,
+    });
+    const provider = new SupabaseAuthProvider({
+      createRequestAnonClient: () => ({
+        auth: {
+          setSession: jest.fn().mockResolvedValue({
+            data: {
+              user: { id: 'u', email: 'a@example.com', user_metadata: {} },
+              session: {},
+            },
+            error: null,
+          }),
+          updateUser,
+          signOut: jest.fn().mockResolvedValue({ error: { message: 'secret' } }),
+        },
+      }),
+    } as any);
+
+    await expect(
+      provider.completePasswordRecovery({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+        newPassword: 'new-password',
+      }),
+    ).rejects.toEqual(new AuthProviderError('recovery_finalization_failed'));
+  });
+
+  it('isolates concurrent recovery sessions by request client', async () => {
+    const clients = [
+      { id: 'a', email: 'a@example.com' },
+      { id: 'b', email: 'b@example.com' },
+    ];
+    const used: string[] = [];
+    const provider = new SupabaseAuthProvider({
+      createRequestAnonClient: jest.fn(() => {
+        const user = clients[used.length];
+        used.push(user.id);
+        return {
+          auth: {
+            setSession: jest.fn().mockResolvedValue({
+              data: { user, session: {} },
+              error: null,
+            }),
+            updateUser: jest.fn().mockImplementation(({ password }) =>
+              Promise.resolve({ data: { user: { ...user, password } }, error: null }),
+            ),
+            signOut: jest.fn().mockResolvedValue({ error: null }),
+          },
+        };
+      }),
+    } as any);
+
+    const [first, second] = await Promise.all([
+      provider.completePasswordRecovery({ accessToken: 'access-a', refreshToken: 'refresh-a', newPassword: 'password-a' }),
+      provider.completePasswordRecovery({ accessToken: 'access-b', refreshToken: 'refresh-b', newPassword: 'password-b' }),
+    ]);
+    expect([first.id, second.id]).toEqual(['a', 'b']);
+    expect(used).toEqual(['a', 'b']);
   });
 });
