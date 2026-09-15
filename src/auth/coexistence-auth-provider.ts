@@ -28,6 +28,7 @@ export class CoexistenceAuthProvider implements AuthIdentityProvider {
   createUser(input: Parameters<AuthIdentityProvider['createUser']>[0]) { return this.local.createUser(input); }
   refresh(token: string) { return this.supabase.refresh(token); }
   requestPasswordRecovery(email: string, redirectTo?: string) { return this.supabase.requestPasswordRecovery(email, redirectTo); }
+  completePasswordRecovery(input: Parameters<AuthIdentityProvider['completePasswordRecovery']>[0]) { return this.supabase.completePasswordRecovery(input); }
   verifyEmail(token: string) { return this.supabase.verifyEmail(token); }
   findById(id: string) { return this.supabase.findById(id); }
   findByEmail(email: string) { return this.supabase.findByEmail(email); }

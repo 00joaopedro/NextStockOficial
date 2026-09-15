@@ -37,4 +37,8 @@ export class SupabaseService {
       auth: { persistSession: false, autoRefreshToken: false },
     });
   }
+
+  createRequestAnonClient() {
+    return this.createRecoveryClient();
+  }
 }

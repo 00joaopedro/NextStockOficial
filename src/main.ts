@@ -18,6 +18,7 @@ import {
   trustedProxyHops,
 } from './config/trusted-proxy';
 import { processRole } from './config/process-role';
+import { registerPublicStatic } from './static/public-static';
 
 async function bootstrap() {
   const role = processRole();
@@ -29,6 +30,7 @@ async function bootstrap() {
     AppModule,
     new FastifyAdapter({ trustProxy: trustedProxyForFastify() }),
   );
+  await registerPublicStatic(app.getHttpAdapter().getInstance());
 
   app.useGlobalPipes(
     new ValidationPipe({

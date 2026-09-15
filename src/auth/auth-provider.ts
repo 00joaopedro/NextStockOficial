@@ -13,6 +13,7 @@ export type AuthProviderErrorCode =
   | 'provider_timeout'
   | 'conflict'
   | 'compensation_required'
+  | 'recovery_finalization_failed'
   | 'unknown_provider_error';
 
 export class AuthProviderError extends Error {
@@ -50,6 +51,7 @@ export interface AuthIdentityProvider {
   login(input: { email: string; password: string }): Promise<AuthSessionResult>;
   refresh(refreshToken: string): Promise<AuthSessionResult>;
   requestPasswordRecovery(email: string, redirectTo?: string): Promise<void>;
+  completePasswordRecovery(input: { accessToken: string; refreshToken: string; newPassword: string }): Promise<AuthIdentity>;
   verifyEmail(token: string): Promise<AuthIdentity>;
   findById(id: string): Promise<AuthIdentity | null>;
   findByEmail(canonicalEmail: string): Promise<AuthIdentity | null>;
