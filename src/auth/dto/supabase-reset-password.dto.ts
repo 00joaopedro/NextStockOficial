@@ -1,6 +1,9 @@
-import { IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsString, Length, Matches } from 'class-validator';
 
 export class SupabaseResetPasswordDto {
+  @IsIn(['recovery'])
+  recoveryType!: 'recovery';
+
   @IsString()
   @Length(20, 4096)
   accessToken!: string;
