@@ -1,5 +1,5 @@
 import fastifyStatic, { type FastifyStaticOptions } from '@fastify/static';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
@@ -20,12 +20,11 @@ export async function registerPublicStatic(app: FastifyInstance) {
       );
     },
     globIgnore: ['dev.html', 'parceiros.html'],
-    setHeaders(res, filePath) {
-      const reply = res as unknown as {
-        setHeader(name: string, value: string): void;
-      };
-      const setHeader = (name: string, value: string) =>
-        reply.setHeader(name, value);
+    setHeaders(reply: FastifyReply, filePath) {
+      const setHeader = (
+        name: Parameters<FastifyReply['header']>[0],
+        value: string,
+      ) => reply.header(name, value);
       if (/\.html$/i.test(filePath)) {
         setHeader(
           'Cache-Control',
