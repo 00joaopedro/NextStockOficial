@@ -97,6 +97,9 @@ export class LocalAuthProvider implements AuthIdentityProvider {
   requestPasswordRecovery(): Promise<void> {
     return Promise.reject(this.unsupported());
   }
+  completePasswordRecovery(): Promise<AuthIdentity> {
+    return Promise.reject(this.unsupported());
+  }
   verifyEmail(): Promise<AuthIdentity> {
     return Promise.reject(this.unsupported());
   }

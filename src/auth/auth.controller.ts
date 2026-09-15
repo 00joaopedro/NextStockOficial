@@ -17,6 +17,7 @@ import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { SupabasePasswordRecoveryDto } from './dto/supabase-password-recovery.dto';
 import { PasswordLifecycleService } from './password-lifecycle.service';
 import { authProviderMode } from './auth-provider-mode';
 import { LoginDto } from './dto/login.dto';
@@ -220,6 +221,52 @@ export class AuthController {
       severity: AuditSeverity.HIGH,
     });
     return result;
+  }
+
+  @Post('supabase-password-recovery')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
+  @CsrfExempt()
+  async supabasePasswordRecovery(
+    @Body() body: SupabasePasswordRecoveryDto,
+    @Req() req: AuthenticatedHttpRequest,
+  ) {
+    let profileId: string | undefined;
+    try {
+      ({ profileId } =
+        await this.authService.completeSupabasePasswordRecovery(body));
+      const revoked = await this.sessions?.revokeAllForProfile(
+        profileId,
+        'password_recovery',
+        this.sessions.metadataFromRequest(req),
+      );
+      const audit = this.audit;
+      if (audit)
+        await audit.record({
+          ...audit.fromRequest(req),
+          eventType: 'auth.password_recovery.completed',
+          action: 'supabase_password_recovery',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.HIGH,
+          actorProfileId: profileId,
+          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+        });
+      return { ok: true };
+    } catch (error) {
+      const audit = this.audit;
+      if (audit)
+        await audit.record({
+          ...audit.fromRequest(req),
+          eventType: 'auth.password_recovery.completed',
+          action: 'supabase_password_recovery',
+          outcome: AuditOutcome.FAILED,
+          severity: AuditSeverity.HIGH,
+          actorProfileId: profileId ?? null,
+          reasonCode: 'recovery_completion_failed',
+          metadata: { provider: 'supabase' },
+        });
+      throw error;
+    }
   }
 
   @Post('change-password')

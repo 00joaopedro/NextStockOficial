@@ -40,6 +40,7 @@ import {
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
 import { AuthMigrationService } from './auth-migration.service';
+import { authProviderMode } from './auth-provider-mode';
 
 type RegisterInput = {
   email?: string;
@@ -625,7 +626,8 @@ export class AuthService {
 
   async forgotPassword(input: ForgotPasswordInput) {
     const email = this.normalizeEmail(input.email);
-    const redirectTo = process.env.SUPABASE_PASSWORD_REDIRECT_URL;
+    const redirectTo = process.env.SUPABASE_PASSWORD_REDIRECT_URL ||
+      new URL('/reset-password.html', process.env.PUBLIC_APP_URL || 'http://localhost:3000').toString();
 
     await this.authProvider
       .requestPasswordRecovery(email, redirectTo)
@@ -639,6 +641,23 @@ export class AuthService {
       ok: true,
       message: 'Password recovery email requested.',
     };
+  }
+
+  async completeSupabasePasswordRecovery(input: {
+    accessToken: string;
+    refreshToken: string;
+    newPassword: string;
+    recoveryType: 'recovery';
+  }) {
+    if (authProviderMode() !== 'supabase_only')
+      throw new BadRequestException('Password recovery is unavailable.');
+    const identity = await this.authProvider.completePasswordRecovery(input);
+    const profile = await this.prisma.userProfile.findFirst({
+      where: { OR: [{ id: identity.id }, { supabaseUserId: identity.id }] },
+      select: { id: true },
+    });
+    if (!profile) throw new BadRequestException('Password recovery is unavailable.');
+    return { identity, profileId: profile.id };
   }
 
   private async findProfileOrThrow(profileId: string, branchSlug?: string) {
