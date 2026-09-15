@@ -1,13 +1,15 @@
 import fastifyStatic, { type FastifyStaticOptions } from '@fastify/static';
 import type { FastifyInstance, FastifyReply } from 'fastify';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { existsSync, statSync } from 'fs';
+import { resolve } from 'path';
 
-const publicPath = join(__dirname, '..', '..', 'public');
+const publicPath = resolve(process.cwd(), 'public');
 
 export async function registerPublicStatic(app: FastifyInstance) {
+  if (!existsSync(publicPath) || !statSync(publicPath).isDirectory())
+    throw new Error('Public asset directory is unavailable.');
   await app.register(fastifyStatic, {
-    root: existsSync(publicPath) ? publicPath : join(__dirname, '..', 'public'),
+    root: publicPath,
     etag: true,
     index: ['index.html'],
     wildcard: true,
