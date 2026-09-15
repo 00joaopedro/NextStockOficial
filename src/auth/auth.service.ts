@@ -40,6 +40,7 @@ import {
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
 import { AuthMigrationService } from './auth-migration.service';
+import { authProviderMode } from './auth-provider-mode';
 
 type RegisterInput = {
   email?: string;
