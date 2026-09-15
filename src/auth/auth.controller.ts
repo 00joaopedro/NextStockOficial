@@ -231,7 +231,8 @@ export class AuthController {
     @Body() body: SupabasePasswordRecoveryDto,
     @Req() req: AuthenticatedHttpRequest,
   ) {
-    const { identity, profileId } = await this.authService.completeSupabasePasswordRecovery(body);
+    const { profileId } =
+      await this.authService.completeSupabasePasswordRecovery(body);
     const revoked = await this.sessions?.revokeAllForProfile(
       profileId,
       'password_recovery',
