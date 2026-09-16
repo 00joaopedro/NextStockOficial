@@ -10,12 +10,12 @@ import {
   ValidationPipe,
   Optional,
   UnauthorizedException,
-  BadRequestException,
   ServiceUnavailableException,
   HttpException,
   HttpStatus,
   Logger,
   UnprocessableEntityException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -46,6 +46,7 @@ import type {
 } from '../common/http-types';
 import { GoogleOAuthService } from './google-oauth.service';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
+import { PasswordRecoveryError } from './auth-provider';
 
 class GoogleCallbackFailure extends Error {
   constructor(readonly code: 'oauth_state_invalid' | 'oauth_code_missing') {
@@ -303,6 +304,8 @@ export class AuthController {
         'password_recovery',
         this.sessions.metadataFromRequest(req),
       );
+      const recoverySessionRevoked = identity.recoverySessionRevoked !== false;
+      if (!recoverySessionRevoked) this.logPartialRecovery(req, identity);
       if (this.audit)
         await this.audit.record({
           ...this.audit.fromRequest(req),
@@ -311,39 +314,72 @@ export class AuthController {
           outcome: AuditOutcome.SUCCESS,
           severity: AuditSeverity.HIGH,
           actorProfileId: profileId,
-          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+          metadata: {
+            revokedCount: revoked ?? 0,
+            provider: 'supabase',
+            supabaseRecoverySessionRevoked: recoverySessionRevoked,
+            recoveryDiagnosticCode: identity.recoveryDiagnosticCode,
+          },
         });
+      return recoverySessionRevoked
+        ? { ok: true }
+        : {
+            ok: true,
+            code: 'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+          };
     } catch (error) {
+      this.logRecoveryFailure(req, error);
       const code = this.publicAuthCode(error);
       if (code === 'provider_unavailable')
         throw new ServiceUnavailableException({
-          code,
+          code: 'RECOVERY_PROVIDER_UNAVAILABLE',
           message: 'Serviço temporariamente indisponível.',
         });
       if (code === 'rate_limited')
         throw new HttpException(
           {
-            code,
+            code: 'RECOVERY_RATE_LIMITED',
             message: 'Muitas tentativas. Aguarde e tente novamente.',
           },
           HttpStatus.TOO_MANY_REQUESTS,
         );
       if (code === 'invalid_credentials')
         throw new UnauthorizedException({
-          code,
+          code: 'RECOVERY_LINK_INVALID',
           message: 'Link de recuperação inválido ou expirado.',
         });
       if (code === 'password_policy')
         throw new UnprocessableEntityException({
-          code,
+          code: 'PASSWORD_POLICY_REJECTED',
           message: 'A senha não atende à política exigida.',
         });
-      throw new BadRequestException({
-        code,
+      throw new InternalServerErrorException({
+        code: 'RECOVERY_FAILED',
         message: 'Não foi possível redefinir a senha.',
       });
     }
-    return { ok: true };
+  }
+
+  private logPartialRecovery(
+    req: AuthenticatedHttpRequest,
+    result: {
+      recoveryDiagnosticCode?: string;
+      recoveryProviderStatus?: number;
+      recoveryProviderCode?: string;
+    },
+  ) {
+    this.logger.warn(
+      `auth.recovery.failed request=${req.requestId ?? 'unknown'} code=${result.recoveryDiagnosticCode ?? 'RECOVERY_GLOBAL_SIGNOUT_FAILED'} status=${result.recoveryProviderStatus ?? 'none'} providerCode=${result.recoveryProviderCode ?? 'none'}`,
+    );
+  }
+
+  private logRecoveryFailure(req: AuthenticatedHttpRequest, error: unknown) {
+    if (!(error instanceof PasswordRecoveryError)) return;
+    const status = error.providerStatus ?? 'none';
+    const providerCode = error.providerCode ?? 'none';
+    this.logger.warn(
+      `auth.recovery.failed request=${req.requestId ?? 'unknown'} code=${error.diagnosticCode} status=${status} providerCode=${providerCode}`,
+    );
   }
 
   private publicAuthCode(error: unknown) {

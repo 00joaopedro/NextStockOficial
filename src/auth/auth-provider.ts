@@ -23,11 +23,38 @@ export class AuthProviderError extends Error {
   }
 }
 
+export type RecoveryDiagnosticCode =
+  | 'RECOVERY_SET_SESSION_FAILED'
+  | 'RECOVERY_SESSION_MISSING'
+  | 'RECOVERY_USER_MISSING'
+  | 'RECOVERY_UPDATE_USER_FAILED'
+  | 'RECOVERY_PASSWORD_POLICY_REJECTED'
+  | 'RECOVERY_GLOBAL_SIGNOUT_FAILED';
+
+/** Carries only pre-sanitized provider metadata; never the provider message. */
+export class PasswordRecoveryError extends AuthProviderError {
+  constructor(
+    code: AuthProviderErrorCode,
+    public readonly diagnosticCode: RecoveryDiagnosticCode,
+    public readonly providerStatus?: number,
+    public readonly providerCode?: string,
+  ) {
+    super(code);
+    this.name = 'PasswordRecoveryError';
+  }
+}
+
 export interface AuthIdentity {
   id: string;
   email?: string;
   metadata?: Record<string, unknown> | null;
 }
+export type PasswordRecoveryResult = AuthIdentity & {
+  recoverySessionRevoked: boolean;
+  recoveryDiagnosticCode?: 'RECOVERY_GLOBAL_SIGNOUT_FAILED';
+  recoveryProviderStatus?: number;
+  recoveryProviderCode?: string;
+};
 export interface AuthSessionResult {
   accessToken: string;
   refreshToken?: string;
@@ -51,7 +78,7 @@ export interface AuthIdentityProvider {
   login(input: { email: string; password: string }): Promise<AuthSessionResult>;
   refresh(refreshToken: string): Promise<AuthSessionResult>;
   requestPasswordRecovery(email: string, redirectTo?: string): Promise<void>;
-  completePasswordRecovery(input: { accessToken: string; refreshToken: string; newPassword: string }): Promise<AuthIdentity>;
+  completePasswordRecovery(input: { accessToken: string; refreshToken: string; newPassword: string }): Promise<PasswordRecoveryResult>;
   verifyEmail(token: string): Promise<AuthIdentity>;
   findById(id: string): Promise<AuthIdentity | null>;
   findByEmail(canonicalEmail: string): Promise<AuthIdentity | null>;
