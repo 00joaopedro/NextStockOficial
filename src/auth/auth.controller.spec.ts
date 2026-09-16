@@ -1,7 +1,15 @@
 import { AuthController } from './auth.controller';
 import { RATE_LIMIT_KEY } from '../security/public-rate-limit.guard';
+import type { AuthenticatedHttpRequest } from '../common/http-types';
 
 describe('AuthController', () => {
+  const request = (): AuthenticatedHttpRequest => ({
+    method: 'POST',
+    headers: {},
+    requestId: 'test-recovery-request',
+    ip: '127.0.0.1',
+    user: { id: 'profile-1' } as any,
+  });
   const authService = {
     login: jest.fn(),
     register: jest.fn(),
@@ -247,7 +255,15 @@ describe('AuthController', () => {
   });
 
   it('encaminha recuperação Supabase para o provider em supabase_only', async () => {
-    const supabaseAuth = { resetPasswordFromRecovery: jest.fn() } as any;
+    const supabaseAuth = {
+      completePasswordRecovery: jest
+        .fn()
+        .mockResolvedValue({ id: 'supabase-1' }),
+      resetPasswordFromRecovery: jest.fn(),
+    } as any;
+    authService.resolveInternalProfileId = jest
+      .fn()
+      .mockResolvedValue('profile-1');
     const controller = new AuthController(
       authService,
       undefined,
@@ -259,16 +275,20 @@ describe('AuthController', () => {
     const previousMode = process.env.AUTH_PROVIDER_MODE;
     process.env.AUTH_PROVIDER_MODE = 'supabase_only';
     try {
-      await controller.resetSupabasePassword({
+      await controller.resetSupabasePassword(
+        {
+          accessToken: 'a'.repeat(20),
+          refreshToken: 'r'.repeat(20),
+          newPassword: 'New-password-123',
+        },
+        request(),
+      );
+      expect(supabaseAuth.completePasswordRecovery).toHaveBeenCalledWith({
         accessToken: 'a'.repeat(20),
         refreshToken: 'r'.repeat(20),
         newPassword: 'New-password-123',
       });
-      expect(supabaseAuth.resetPasswordFromRecovery).toHaveBeenCalledWith(
-        'a'.repeat(20),
-        'r'.repeat(20),
-        'New-password-123',
-      );
+      expect(supabaseAuth.resetPasswordFromRecovery).not.toHaveBeenCalled();
     } finally {
       if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
       else process.env.AUTH_PROVIDER_MODE = previousMode;
@@ -293,7 +313,7 @@ describe('AuthController', () => {
     });
     try {
       await expect(
-        controller.resetSupabasePassword({} as any),
+        controller.resetSupabasePassword({} as any, request()),
       ).rejects.toMatchObject({ status: 401 });
       expect(supabaseAuth.resetPasswordFromRecovery).not.toHaveBeenCalled();
     } finally {

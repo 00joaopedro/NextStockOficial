@@ -2,18 +2,24 @@ import { getPasswordRecoveryRedirectUrl } from './password-recovery-url';
 
 describe('password recovery redirect URL', () => {
   it('prefers the explicit Supabase redirect URL', () => {
-    expect(getPasswordRecoveryRedirectUrl({
-      APP_ENV: 'production',
-      PUBLIC_APP_URL: 'https://wrong.example.com',
-      SUPABASE_PASSWORD_REDIRECT_URL: 'https://app.example.com/reset-password.html',
-    })).toBe('https://app.example.com/reset-password.html');
+    expect(
+      getPasswordRecoveryRedirectUrl({
+        APP_ENV: 'production',
+        PUBLIC_APP_URL: 'https://wrong.example.com',
+        SUPABASE_PASSWORD_REDIRECT_URL:
+          'https://app.example.com/reset-password.html',
+      }),
+    ).toBe('https://app.example.com/reset-password.html');
   });
 
   it('rejects an explicit redirect with a fragment or wrong path', () => {
-    expect(() => getPasswordRecoveryRedirectUrl({
-      APP_ENV: 'production',
-      SUPABASE_PASSWORD_REDIRECT_URL: 'https://app.example.com/login.html#token',
-    })).toThrow();
+    expect(() =>
+      getPasswordRecoveryRedirectUrl({
+        APP_ENV: 'production',
+        SUPABASE_PASSWORD_REDIRECT_URL:
+          'https://app.example.com/login.html#token',
+      }),
+    ).toThrow();
   });
   it('uses the public staging URL and the real reset route', () => {
     expect(

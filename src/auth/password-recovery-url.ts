@@ -17,6 +17,7 @@ export function isLoopbackHostname(hostname: string) {
 export function getPasswordRecoveryRedirectUrl(
   env: NodeJS.ProcessEnv = process.env,
 ) {
+  const explicit = Boolean(env.SUPABASE_PASSWORD_REDIRECT_URL?.trim());
   const raw = (
     env.SUPABASE_PASSWORD_REDIRECT_URL || env.PUBLIC_APP_URL
   )?.trim();
@@ -47,9 +48,11 @@ export function getPasswordRecoveryRedirectUrl(
     throw new Error(
       'Password recovery redirect must not contain credentials or a fragment.',
     );
-  if (url.pathname !== PASSWORD_RESET_ROUTE)
+  if (explicit && url.pathname !== PASSWORD_RESET_ROUTE)
     throw new Error(
       'Password recovery redirect must use the reset-password route.',
     );
-  return url.toString();
+  return explicit
+    ? url.toString()
+    : new URL(PASSWORD_RESET_ROUTE, url).toString();
 }
