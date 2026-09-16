@@ -2,6 +2,7 @@ import { AuthController } from './auth.controller';
 import { AuthProviderError } from './auth-provider';
 import { RATE_LIMIT_KEY } from '../security/public-rate-limit.guard';
 import type { AuthenticatedHttpRequest } from '../common/http-types';
+import type { SupabaseResetPasswordDto } from './dto/supabase-reset-password.dto';
 
 describe('AuthController', () => {
   const request = (): AuthenticatedHttpRequest => ({
@@ -371,7 +372,12 @@ describe('AuthController', () => {
     const controller = new AuthController(authService, undefined, undefined, undefined, undefined, supabaseAuth);
     const previousMode = process.env.AUTH_PROVIDER_MODE;
     process.env.AUTH_PROVIDER_MODE = 'supabase_only';
-    const body = { recoveryType: 'recovery', accessToken: 'a'.repeat(20), refreshToken: 'r'.repeat(20), newPassword: 'New-password-123' };
+    const body: SupabaseResetPasswordDto = {
+      recoveryType: 'recovery',
+      accessToken: 'a'.repeat(20),
+      refreshToken: 'r'.repeat(20),
+      newPassword: 'New-password-123',
+    };
     try {
       await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({ status: 401 });
       await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({
