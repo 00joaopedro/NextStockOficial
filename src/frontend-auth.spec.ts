@@ -181,6 +181,12 @@ describe('frontend auth pages', () => {
     expect(source).toContain('window.history.replaceState');
     expect(source).toContain("'/api/auth/reset-password'");
     expect(source).toContain('const callbackValid');
+    expect(source).toContain('response.status === 400');
+    expect(source).toContain('response.status === 401');
+    expect(source).toContain('response.status === 503');
+    expect(source).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
+    expect(html).toContain('minlength="12" maxlength="128"');
+    expect(html).toContain('password-policy');
     expect(source).toContain('let isSubmitting = false');
     expect(source).toContain('if (isSubmitting || !callbackValid) return');
     expect(source).toContain("form?.addEventListener('submit'");
@@ -197,6 +203,10 @@ describe('frontend auth pages', () => {
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
     expect(bundle).toContain('const callbackValid');
+    expect(bundle).toContain('response.status === 400');
+    expect(bundle).toContain('response.status === 401');
+    expect(bundle).toContain('response.status === 503');
+    expect(bundle).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
     expect(bundle).toContain('let isSubmitting = false');
     expect(bundle).toMatch(/if \(isSubmitting \|\| !callbackValid\)/);
     expect(bundle).toContain("form?.addEventListener('submit'");

@@ -117,7 +117,7 @@ describe('SupabaseAuthProvider', () => {
       }),
     ).rejects.toMatchObject({
       code: 'invalid_credentials',
-      diagnosticCode: 'RECOVERY_SET_SESSION_FAILED',
+      diagnosticCode: 'RECOVERY_SET_SESSION_INVALID',
     });
     expect(updateUser).not.toHaveBeenCalled();
   });

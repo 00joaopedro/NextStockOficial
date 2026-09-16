@@ -24,6 +24,7 @@ export class AuthProviderError extends Error {
 }
 
 export type RecoveryDiagnosticCode =
+  | 'RECOVERY_SET_SESSION_INVALID'
   | 'RECOVERY_SET_SESSION_FAILED'
   | 'RECOVERY_SESSION_MISSING'
   | 'RECOVERY_USER_MISSING'

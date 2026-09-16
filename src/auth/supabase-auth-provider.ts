@@ -182,7 +182,11 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
               : 'unknown_provider_error';
     return new PasswordRecoveryError(
       code,
-      code === 'password_policy' ? 'RECOVERY_PASSWORD_POLICY_REJECTED' : stage,
+      code === 'password_policy'
+        ? 'RECOVERY_PASSWORD_POLICY_REJECTED'
+        : code === 'invalid_credentials' && stage === 'RECOVERY_SET_SESSION_FAILED'
+          ? 'RECOVERY_SET_SESSION_INVALID'
+          : stage,
       provider.status,
       provider.code,
     );

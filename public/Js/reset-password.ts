@@ -36,6 +36,11 @@ const start = () => {
     const data = new FormData(form);
     const password = String(data.get('password') || '');
     const confirmation = String(data.get('confirmation') || '');
+    if (password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+      diagnostic('RECOVERY_PASSWORD_POLICY_INVALID', true);
+      if (message) message.textContent = 'A senha deve ter entre 12 e 128 caracteres e não conter caracteres de controle.';
+      return;
+    }
     if (password !== confirmation) {
       diagnostic('RECOVERY_PASSWORD_MISMATCH', true);
       if (message) message.textContent = 'As senhas não coincidem.';
@@ -53,6 +58,9 @@ const start = () => {
       });
       if (!response.ok) {
         diagnostic('RECOVERY_REQUEST_REJECTED', true);
+        if (message && response.status === 400) message.textContent = 'Os dados do link de recuperação são inválidos.';
+        if (message && response.status === 401) message.textContent = 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
+        if (message && response.status === 503) message.textContent = 'Serviço temporariamente indisponível. Tente novamente.';
         if (message) message.textContent = response.status === 422 ? 'A senha não atende às regras exigidas.' : 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.';
         isSubmitting = false; if (button) button.disabled = false; return;
       }
