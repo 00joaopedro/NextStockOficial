@@ -173,28 +173,49 @@ describe('frontend auth pages', () => {
       'utf8',
     );
 
-    expect(source).toContain("params.get('token')");
-    expect(source).toContain("recoveryParams.get('access_token')");
+    expect(source).toContain("query.get('token')");
+    expect(source).toContain("fragment.get('access_token')");
+    expect(source).toContain("fragment.get('refresh_token')");
+    expect(source).toContain("fragment.get('type')");
     expect(source).toContain("'/api/auth/reset-password/supabase'");
     expect(source).toContain('window.history.replaceState');
     expect(source).toContain("'/api/auth/reset-password'");
+    expect(source).toContain('const callbackValid');
     expect(source).toContain('let isSubmitting = false');
-    expect(source).toContain('if (isSubmitting) return');
-    expect(source).toContain("form?.setAttribute('aria-busy', String(submitting))");
-    expect(source).toContain('setSubmitting(true)');
+    expect(source).toContain('if (isSubmitting || !callbackValid) return');
+    expect(source).toContain("form?.addEventListener('submit'");
+    expect(source).toContain("recoveryType: 'recovery'");
+    expect(source).toContain("response.status === 422");
+    expect(source).toContain('A senha não atende às regras exigidas.');
+    expect(source).toContain('Solicite um novo link e tente novamente.');
     expect(source).not.toMatch(/localStorage|sessionStorage/);
-    expect(bundle).toContain("params.get('token')");
-    expect(bundle).toContain("recoveryParams.get('access_token')");
+    expect(bundle).toContain("query.get('token')");
+    expect(bundle).toContain("fragment.get('access_token')");
+    expect(bundle).toContain("fragment.get('refresh_token')");
+    expect(bundle).toContain("fragment.get('type')");
     expect(bundle).toContain("'/api/auth/reset-password/supabase'");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
+    expect(bundle).toContain('const callbackValid');
     expect(bundle).toContain('let isSubmitting = false');
-    expect(bundle).toMatch(/if \(isSubmitting\)\s*return/);
-    expect(bundle).toContain("form?.setAttribute('aria-busy', String(submitting))");
-    expect(bundle).toContain('setSubmitting(true)');
+    expect(bundle).toMatch(/if \(isSubmitting \|\| !callbackValid\)/);
+    expect(bundle).toContain("form?.addEventListener('submit'");
+    expect(bundle).toContain("recoveryType: 'recovery'");
+    expect(bundle).toContain("response.status === 422");
+    expect(bundle).toContain('A senha não atende às regras exigidas.');
+    expect(bundle).toContain('Solicite um novo link e tente novamente.');
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
     expect(bundle).not.toMatch(/localStorage|sessionStorage/);
+    for (const code of [
+      'RECOVERY_PAGE_READY', 'RECOVERY_CALLBACK_VALID', 'RECOVERY_CALLBACK_MISSING',
+      'RECOVERY_TYPE_INVALID', 'RECOVERY_FORM_SUBMIT', 'RECOVERY_PASSWORD_MISMATCH',
+      'RECOVERY_REQUEST_STARTED', 'RECOVERY_REQUEST_REJECTED', 'RECOVERY_REQUEST_SUCCEEDED',
+      'RECOVERY_NETWORK_FAILED',
+    ]) {
+      expect(source).toContain(code);
+      expect(bundle).toContain(code);
+    }
   });
 
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
