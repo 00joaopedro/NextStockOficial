@@ -174,7 +174,7 @@ describe('frontend auth pages', () => {
     );
 
     expect(source).toContain("params.get('token')");
-    expect(source).toContain("recoveryParams.get('access_token')");
+    expect(source).toContain("fragment.get('access_token')");
     expect(source).toContain("'/api/auth/reset-password/supabase'");
     expect(source).toContain('window.history.replaceState');
     expect(source).toContain("'/api/auth/reset-password'");
@@ -184,7 +184,7 @@ describe('frontend auth pages', () => {
     expect(source).toContain('setSubmitting(true)');
     expect(source).not.toMatch(/localStorage|sessionStorage/);
     expect(bundle).toContain("params.get('token')");
-    expect(bundle).toContain("recoveryParams.get('access_token')");
+    expect(bundle).toContain("fragment.get('access_token')");
     expect(bundle).toContain("'/api/auth/reset-password/supabase'");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
@@ -195,6 +195,15 @@ describe('frontend auth pages', () => {
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
     expect(bundle).not.toMatch(/localStorage|sessionStorage/);
+    for (const code of [
+      'RECOVERY_PAGE_READY', 'RECOVERY_CALLBACK_VALID', 'RECOVERY_CALLBACK_MISSING',
+      'RECOVERY_TYPE_INVALID', 'RECOVERY_FORM_SUBMIT', 'RECOVERY_PASSWORD_MISMATCH',
+      'RECOVERY_REQUEST_STARTED', 'RECOVERY_REQUEST_REJECTED', 'RECOVERY_REQUEST_SUCCEEDED',
+      'RECOVERY_NETWORK_FAILED',
+    ]) {
+      expect(source).toContain(code);
+      expect(bundle).toContain(code);
+    }
   });
 
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
