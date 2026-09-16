@@ -9,7 +9,8 @@ export class SupabaseResetPasswordDto {
   accessToken!: string;
 
   @IsString()
-  @Length(20, 4096)
+  @IsNotEmpty()
+  @MaxLength(4096)
   refreshToken!: string;
 
   @IsString()

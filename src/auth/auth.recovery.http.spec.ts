@@ -74,6 +74,49 @@ describe('Supabase recovery HTTP validation contract', () => {
     });
   });
 
+  it('aceita refresh tokens opacos nao vazios abaixo do antigo minimo de 20', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    for (const size of [1, 5, 19, 20, 128]) {
+      await request(app.getHttpServer()).post('/auth/reset-password/supabase')
+        .send({ ...validBody(), refreshToken: 'r'.repeat(size) }).expect(201);
+    }
+    expect(completePasswordRecovery).toHaveBeenCalledTimes(5);
+    expect(warn.mock.calls.flat().join(' ')).not.toContain('RECOVERY_DTO_INVALID');
+    warn.mockRestore();
+  });
+
+  it('mantem refresh obrigatorio, nao vazio e limitado ao maximo defensivo', async () => {
+    const missing = validBody();
+    delete (missing as Partial<typeof missing>).refreshToken;
+    for (const body of [
+      { ...validBody(), refreshToken: '' },
+      missing,
+      { ...validBody(), refreshToken: 'r'.repeat(4097) },
+    ]) {
+      await request(app.getHttpServer()).post('/auth/reset-password/supabase')
+        .send(body).expect(400);
+    }
+    expect(completePasswordRecovery).not.toHaveBeenCalled();
+  });
+
+  it('mantem access obrigatorio e recoveryType estrito', async () => {
+    const missingAccess = validBody();
+    delete (missingAccess as Partial<typeof missingAccess>).accessToken;
+    await request(app.getHttpServer()).post('/auth/reset-password/supabase')
+      .send(missingAccess).expect(400);
+    await request(app.getHttpServer()).post('/auth/reset-password/supabase')
+      .send({ ...validBody(), recoveryType: 'reset' }).expect(400);
+    expect(completePasswordRecovery).not.toHaveBeenCalled();
+  });
+
+  it('aceita corpo sintetico proximo ao tamanho observado em producao', async () => {
+    const body = { ...validBody(), accessToken: 'a'.repeat(1800), refreshToken: 'r'.repeat(1200) };
+    expect(Buffer.byteLength(JSON.stringify(body), 'utf8')).toBeGreaterThan(3000);
+    await request(app.getHttpServer()).post('/auth/reset-password/supabase')
+      .send(body).expect(201);
+    expect(completePasswordRecovery).toHaveBeenCalledTimes(1);
+  });
+
   it('campo ausente e campo extra são rejeitados pelo contrato global', async () => {
     const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
     const missing = validBody();
