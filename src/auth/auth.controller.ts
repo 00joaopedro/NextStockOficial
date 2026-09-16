@@ -281,16 +281,37 @@ export class AuthController {
   @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
   @CsrfExempt()
-  async resetSupabasePassword(@Body() body: SupabaseResetPasswordDto) {
+  async resetSupabasePassword(
+    @Body() body: SupabaseResetPasswordDto,
+    @Req() req: AuthenticatedHttpRequest,
+  ) {
     const mode = authProviderMode();
     if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
       throw new UnauthorizedException('Supabase recovery is unavailable.');
     try {
-      await this.supabaseAuth.resetPasswordFromRecovery(
-        body.accessToken,
-        body.refreshToken,
-        body.newPassword,
+      const identity = await this.supabaseAuth.completePasswordRecovery({
+        accessToken: body.accessToken,
+        refreshToken: body.refreshToken,
+        newPassword: body.newPassword,
+      });
+      const profileId = await this.authService.resolveInternalProfileId(
+        identity.id,
       );
+      const revoked = await this.sessions?.revokeAllForProfile(
+        profileId,
+        'password_recovery',
+        this.sessions.metadataFromRequest(req),
+      );
+      if (this.audit)
+        await this.audit.record({
+          ...this.audit.fromRequest(req),
+          eventType: 'auth.password_recovery.completed',
+          action: 'supabase_password_recovery',
+          outcome: AuditOutcome.SUCCESS,
+          severity: AuditSeverity.HIGH,
+          actorProfileId: profileId,
+          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+        });
     } catch (error) {
       const code = this.publicAuthCode(error);
       if (code === 'provider_unavailable')

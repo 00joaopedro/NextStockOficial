@@ -80,6 +80,23 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
     const { error } = await client.auth.updateUser({ password: newPassword });
     if (error) throw this.error(error, 'invalid_credentials');
   }
+  async completePasswordRecovery(input: {
+    accessToken: string;
+    refreshToken: string;
+    newPassword: string;
+  }) {
+    const client = this.supabase.createRequestAnonClient();
+    const { error: sessionError } = await client.auth.setSession({
+      access_token: input.accessToken,
+      refresh_token: input.refreshToken,
+    });
+    if (sessionError) throw this.error(sessionError, 'invalid_credentials');
+    const { data, error } = await client.auth.updateUser({ password: input.newPassword });
+    if (error || !data.user) throw this.error(error, 'invalid_credentials');
+    const { error: signOutError } = await client.auth.signOut({ scope: 'global' });
+    if (signOutError) throw new AuthProviderError('recovery_finalization_failed');
+    return { id: data.user.id, email: data.user.email, metadata: data.user.user_metadata };
+  }
   async verifyEmail(token: string) {
     const { data, error } = await this.supabase.anon.auth.verifyOtp({
       token_hash: token,

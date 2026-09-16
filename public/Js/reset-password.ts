@@ -51,7 +51,7 @@ form?.addEventListener('submit', async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(
         hasSupabaseRecovery
-          ? { accessToken, refreshToken, newPassword: password }
+          ? { accessToken, refreshToken, recoveryType: 'recovery', newPassword: password }
           : { token, newPassword: password },
       ),
     },

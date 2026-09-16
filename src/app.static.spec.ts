@@ -5,6 +5,7 @@ import {
 import { RequestMethod } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { PrismaService } from './prisma/prisma.service';
+import { registerPublicStatic } from './static/public-static';
 
 jest.mock('jwks-rsa', () => ({
   passportJwtSecret: jest.fn(
@@ -14,9 +15,7 @@ jest.mock('jwks-rsa', () => ({
         _rawToken: string,
         done: (error: Error | null, secret?: string | Buffer) => void,
       ) => {
-        done(
-          new Error('JWKS is not available in the static delivery test.'),
-        );
+        done(new Error('JWKS is not available in the static delivery test.'));
       },
   ),
 }));
@@ -55,6 +54,7 @@ describe('public static delivery', () => {
       new FastifyAdapter(),
       { logger: false },
     );
+    await registerPublicStatic(app.getHttpAdapter().getInstance());
     // Keep public static delivery and the API prefix aligned with src/main.ts.
     app.setGlobalPrefix('api', {
       exclude: [
@@ -134,4 +134,15 @@ describe('public static delivery', () => {
     expect(traversal.statusCode).not.toBe(200);
     expect(traversal.body).not.toContain('"dependencies"');
   });
+
+  it.each(['/../package.json', '/%2e%2e/package.json', '/..%2fpackage.json'])(
+    'does not serve non-canonical traversal path %s',
+    async (url) => {
+      const response = await app.inject({ method: 'GET', url });
+
+      expect(response.statusCode).not.toBe(200);
+      expect(response.statusCode).not.toBe(500);
+      expect(response.body).not.toContain('"dependencies"');
+    },
+  );
 });
