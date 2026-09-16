@@ -110,7 +110,7 @@ describe('Supabase recovery HTTP validation contract', () => {
   });
 
   it('aceita corpo sintetico proximo ao tamanho observado em producao', async () => {
-    const body = { ...validBody(), accessToken: 'a'.repeat(1800), refreshToken: 'r'.repeat(1100) };
+    const body = { ...validBody(), accessToken: 'a'.repeat(1800), refreshToken: 'r'.repeat(1200) };
     expect(Buffer.byteLength(JSON.stringify(body), 'utf8')).toBeGreaterThan(3000);
     await request(app.getHttpServer()).post('/auth/reset-password/supabase')
       .send(body).expect(201);
