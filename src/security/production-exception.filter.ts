@@ -85,7 +85,10 @@ const RECOVERY_FIELDS = [
   'newPassword',
 ] as const;
 
-function recoveryValidationDiagnostic(request: Request & { body?: unknown }) {
+function recoveryValidationDiagnostic(
+  request: Request & { body?: unknown },
+  error: unknown,
+) {
   const body = request.body;
   const bodyRecord =
     body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
@@ -100,6 +103,22 @@ function recoveryValidationDiagnostic(request: Request & { body?: unknown }) {
     const fields = [...new Set([...missing, ...knownInvalid])].join(',');
     return `code=RECOVERY_BODY_FIELD_MISSING fields=${fields || 'unknown'}`;
   }
+
+  const response = error instanceof HttpException ? error.getResponse() : null;
+  const messages =
+    response && typeof response === 'object' && 'message' in response
+      ? (response as { message?: unknown }).message
+      : response;
+  const messageText = Array.isArray(messages)
+    ? messages.filter((value): value is string => typeof value === 'string')
+    : typeof messages === 'string'
+      ? [messages]
+      : [];
+  const invalidFields = RECOVERY_FIELDS.filter((field) =>
+    messageText.some((message) => message.includes(field)),
+  );
+  if (invalidFields.length)
+    return `code=RECOVERY_DTO_INVALID fields=${invalidFields.join(',')}`;
 
   const keys = Object.keys(bodyRecord);
   const hasExtra = keys.some(
@@ -139,7 +158,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
       /\/auth\/reset-password\/supabase$/.test(requestPath(request))
     ) {
       this.logger.warn(
-        `auth.recovery.failed request=${request.requestId ?? 'unknown'} ${recoveryValidationDiagnostic(request)} status=400`,
+        `auth.recovery.failed request=${request.requestId ?? 'unknown'} ${recoveryValidationDiagnostic(request, error)} status=400`,
       );
     }
 
