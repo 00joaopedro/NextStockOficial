@@ -8,6 +8,7 @@ import {
   AuthIdentityProvider,
   AuthProviderError,
   AuthSessionResult,
+  PasswordRecoveryResult,
 } from './auth-provider';
 import { PasswordHasher } from './local-password';
 
@@ -97,7 +98,7 @@ export class LocalAuthProvider implements AuthIdentityProvider {
   requestPasswordRecovery(): Promise<void> {
     return Promise.reject(this.unsupported());
   }
-  completePasswordRecovery(): Promise<AuthIdentity> {
+  completePasswordRecovery(): Promise<PasswordRecoveryResult> {
     return Promise.reject(this.unsupported());
   }
   verifyEmail(): Promise<AuthIdentity> {

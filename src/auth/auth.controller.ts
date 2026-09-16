@@ -304,6 +304,8 @@ export class AuthController {
         'password_recovery',
         this.sessions.metadataFromRequest(req),
       );
+      const recoverySessionRevoked = identity.recoverySessionRevoked !== false;
+      if (!recoverySessionRevoked) this.logPartialRecovery(req, identity);
       if (this.audit)
         await this.audit.record({
           ...this.audit.fromRequest(req),
@@ -312,8 +314,19 @@ export class AuthController {
           outcome: AuditOutcome.SUCCESS,
           severity: AuditSeverity.HIGH,
           actorProfileId: profileId,
-          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+          metadata: {
+            revokedCount: revoked ?? 0,
+            provider: 'supabase',
+            supabaseRecoverySessionRevoked: recoverySessionRevoked,
+            recoveryDiagnosticCode: identity.recoveryDiagnosticCode,
+          },
         });
+      return recoverySessionRevoked
+        ? { ok: true }
+        : {
+            ok: true,
+            code: 'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+          };
     } catch (error) {
       this.logRecoveryFailure(req, error);
       const code = this.publicAuthCode(error);
@@ -345,7 +358,19 @@ export class AuthController {
         message: 'Não foi possível redefinir a senha.',
       });
     }
-    return { ok: true };
+  }
+
+  private logPartialRecovery(
+    req: AuthenticatedHttpRequest,
+    result: {
+      recoveryDiagnosticCode?: string;
+      recoveryProviderStatus?: number;
+      recoveryProviderCode?: string;
+    },
+  ) {
+    this.logger.warn(
+      `auth.recovery.failed request=${req.requestId ?? 'unknown'} code=${result.recoveryDiagnosticCode ?? 'RECOVERY_GLOBAL_SIGNOUT_FAILED'} status=${result.recoveryProviderStatus ?? 'none'} providerCode=${result.recoveryProviderCode ?? 'none'}`,
+    );
   }
 
   private logRecoveryFailure(req: AuthenticatedHttpRequest, error: unknown) {

@@ -3,6 +3,7 @@ import { SupabaseService } from '../supabase/supabase.service';
 import {
   AuthIdentityProvider,
   AuthProviderError,
+  PasswordRecoveryResult,
   PasswordRecoveryError,
   RecoveryDiagnosticCode,
 } from './auth-provider';
@@ -89,7 +90,7 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
     accessToken: string;
     refreshToken: string;
     newPassword: string;
-  }) {
+  }): Promise<PasswordRecoveryResult> {
     const client = this.supabase.createRequestAnonClient();
     let sessionResult: Awaited<ReturnType<typeof client.auth.setSession>>;
     try {
@@ -134,10 +135,33 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
         'unknown_provider_error',
         'RECOVERY_UPDATE_USER_FAILED',
       );
-    return {
+    const identity = {
       id: updateResult.data.user.id,
       email: updateResult.data.user.email,
       metadata: updateResult.data.user.user_metadata,
+    };
+    let signOutResult: Awaited<ReturnType<typeof client.auth.signOut>>;
+    try {
+      signOutResult = await client.auth.signOut({ scope: 'global' });
+    } catch (error) {
+      return this.partialRecoveryResult(identity, error);
+    }
+    if (signOutResult.error)
+      return this.partialRecoveryResult(identity, signOutResult.error);
+    return { ...identity, recoverySessionRevoked: true };
+  }
+
+  private partialRecoveryResult(
+    identity: { id: string; email?: string; metadata?: Record<string, unknown> | null },
+    error: unknown,
+  ): PasswordRecoveryResult {
+    const provider = this.recoveryProviderMetadata(error);
+    return {
+      ...identity,
+      recoverySessionRevoked: false,
+      recoveryDiagnosticCode: 'RECOVERY_GLOBAL_SIGNOUT_FAILED',
+      recoveryProviderStatus: provider.status,
+      recoveryProviderCode: provider.code,
     };
   }
 
@@ -145,7 +169,9 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
     const provider = this.recoveryProviderMetadata(error);
     const text = this.providerErrorText(error);
     const code =
-      provider.status === 429
+      this.isTransientProviderFailure(error, provider)
+        ? 'provider_unavailable'
+        : provider.status === 429
         ? 'rate_limited'
         : provider.status !== undefined && provider.status >= 500
           ? 'provider_unavailable'
@@ -174,11 +200,34 @@ export class SupabaseAuthProvider implements AuthIdentityProvider {
     const rawCode = typeof value.code === 'string' ? value.code : '';
     return {
       status:
-        Number.isInteger(status) && status >= 400 && status <= 599
+        Number.isInteger(status) && status >= 0 && status <= 599
           ? status
           : undefined,
       code: /^[a-z0-9_]{1,64}$/i.test(rawCode) ? rawCode : undefined,
     };
+  }
+
+  private isTransientProviderFailure(
+    error: unknown,
+    provider: { status?: number; code?: string },
+  ) {
+    const name = error instanceof Error ? error.name : '';
+    const causeCode =
+      error && typeof error === 'object' &&
+      (error as { cause?: unknown }).cause &&
+      typeof (error as { cause: { code?: unknown } }).cause.code === 'string'
+        ? (error as { cause: { code: string } }).cause.code
+        : '';
+    return (
+      provider.status === 0 ||
+      name === 'AuthRetryableFetchError' ||
+      ['auth_retryable_fetch_error', 'fetch_error', 'network_error'].includes(
+        provider.code?.toLowerCase() ?? '',
+      ) ||
+      ['ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT'].includes(
+        causeCode.toUpperCase(),
+      )
+    );
   }
 
   private providerErrorText(error: unknown) {

@@ -58,11 +58,12 @@ describe('SupabaseAuthProvider', () => {
       data: { user: { id: 'u', email: 'a@example.com', user_metadata: {} } },
       error: null,
     });
+    const signOut = jest.fn().mockResolvedValue({ error: null });
     const provider = new SupabaseAuthProvider({
       createRequestAnonClient: () => ({
-        auth: { setSession, updateUser },
+        auth: { setSession, updateUser, signOut },
       }),
-      anon: { auth: { setSession, updateUser } },
+      anon: { auth: { setSession, updateUser, signOut } },
     } as any);
 
     await expect(
@@ -75,12 +76,14 @@ describe('SupabaseAuthProvider', () => {
       id: 'u',
       email: 'a@example.com',
       metadata: {},
+      recoverySessionRevoked: true,
     });
     expect(setSession).toHaveBeenCalledWith({
       access_token: 'access',
       refresh_token: 'refresh',
     });
     expect(updateUser).toHaveBeenCalledWith({ password: 'new-password' });
+    expect(signOut).toHaveBeenCalledWith({ scope: 'global' });
   });
 
   it('does not update a password when the recovery session is invalid', async () => {

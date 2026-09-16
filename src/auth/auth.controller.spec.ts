@@ -428,8 +428,8 @@ describe('AuthController', () => {
           new PasswordRecoveryError(
             'provider_unavailable',
             'RECOVERY_UPDATE_USER_FAILED',
-            503,
-            'over_request_rate_limit',
+            0,
+            'fetch_error',
           ),
         ),
     } as any;
@@ -467,6 +467,51 @@ describe('AuthController', () => {
       expect(output).not.toContain(body.accessToken);
       expect(output).not.toContain(body.refreshToken);
       expect(output).not.toContain(body.newPassword);
+    } finally {
+      warn.mockRestore();
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
+    }
+  });
+
+  it('reports a completed password reset when Supabase sign-out is pending and still revokes internal sessions', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const sessions = {
+      revokeAllForProfile: jest.fn().mockResolvedValue(3),
+      metadataFromRequest: jest.fn().mockReturnValue({ requestId: 'test-recovery-request' }),
+    };
+    const audit = { fromRequest: jest.fn().mockReturnValue({}), record: jest.fn() } as any;
+    const supabaseAuth = {
+      completePasswordRecovery: jest.fn().mockResolvedValue({
+        id: 'supabase-1',
+        recoverySessionRevoked: false,
+        recoveryDiagnosticCode: 'RECOVERY_GLOBAL_SIGNOUT_FAILED',
+        recoveryProviderStatus: 503,
+        recoveryProviderCode: 'network_error',
+      }),
+    } as any;
+    authService.resolveInternalProfileId = jest.fn().mockResolvedValue('profile-1');
+    const controller = new AuthController(authService, audit, sessions as any, undefined, undefined, supabaseAuth);
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    process.env.AUTH_PROVIDER_MODE = 'supabase_only';
+    try {
+      await expect(controller.resetSupabasePassword({
+        recoveryType: 'recovery', accessToken: 'access-secret-token', refreshToken: 'refresh-secret-token', newPassword: 'password-secret',
+      }, request())).resolves.toEqual({
+        ok: true,
+        code: 'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+      });
+      expect(sessions.revokeAllForProfile).toHaveBeenCalledWith(
+        'profile-1', 'password_recovery', { requestId: 'test-recovery-request' },
+      );
+      expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({
+        metadata: expect.objectContaining({ supabaseRecoverySessionRevoked: false, recoveryDiagnosticCode: 'RECOVERY_GLOBAL_SIGNOUT_FAILED' }),
+      }));
+      const output = warn.mock.calls.flat().join(' ');
+      expect(output).toContain('RECOVERY_GLOBAL_SIGNOUT_FAILED');
+      expect(output).not.toContain('access-secret-token');
+      expect(output).not.toContain('refresh-secret-token');
+      expect(output).not.toContain('password-secret');
     } finally {
       warn.mockRestore();
       if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
