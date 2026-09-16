@@ -23,6 +23,26 @@ export class AuthProviderError extends Error {
   }
 }
 
+export type RecoveryDiagnosticCode =
+  | 'RECOVERY_SET_SESSION_FAILED'
+  | 'RECOVERY_SESSION_MISSING'
+  | 'RECOVERY_USER_MISSING'
+  | 'RECOVERY_UPDATE_USER_FAILED'
+  | 'RECOVERY_PASSWORD_POLICY_REJECTED';
+
+/** Carries only pre-sanitized provider metadata; never the provider message. */
+export class PasswordRecoveryError extends AuthProviderError {
+  constructor(
+    code: AuthProviderErrorCode,
+    public readonly diagnosticCode: RecoveryDiagnosticCode,
+    public readonly providerStatus?: number,
+    public readonly providerCode?: string,
+  ) {
+    super(code);
+    this.name = 'PasswordRecoveryError';
+  }
+}
+
 export interface AuthIdentity {
   id: string;
   email?: string;

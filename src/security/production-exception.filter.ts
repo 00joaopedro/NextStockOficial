@@ -102,6 +102,15 @@ export class ProductionExceptionFilter implements ExceptionFilter {
       response.header('Retry-After', String(retryAfter));
     }
 
+    if (
+      status === HttpStatus.BAD_REQUEST &&
+      /\/auth\/reset-password\/supabase$/.test(requestPath(request))
+    ) {
+      this.logger.warn(
+        `auth.recovery.failed request=${request.requestId ?? 'unknown'} code=RECOVERY_REQUEST_INVALID status=400`,
+      );
+    }
+
     if (status >= 500) {
       const name = error instanceof Error ? error.name : 'UnknownError';
       const prismaError = findPrismaKnownError(error);

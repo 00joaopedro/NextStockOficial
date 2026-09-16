@@ -1,5 +1,6 @@
 import { AuthController } from './auth.controller';
-import { AuthProviderError } from './auth-provider';
+import { AuthProviderError, PasswordRecoveryError } from './auth-provider';
+import { Logger } from '@nestjs/common';
 import { RATE_LIMIT_KEY } from '../security/public-rate-limit.guard';
 import type { AuthenticatedHttpRequest } from '../common/http-types';
 import type { SupabaseResetPasswordDto } from './dto/supabase-reset-password.dto';
@@ -348,13 +349,19 @@ describe('AuthController', () => {
       await expect(
         controller.resetSupabasePassword(
           {
-            recoveryType: 'recovery', accessToken: 'a'.repeat(20),
-            refreshToken: 'r'.repeat(20), newPassword: 'New-password-123',
-          }, request(),
+            recoveryType: 'recovery',
+            accessToken: 'a'.repeat(20),
+            refreshToken: 'r'.repeat(20),
+            newPassword: 'New-password-123',
+          },
+          request(),
         ),
       ).rejects.toMatchObject({
         status: 422,
-        response: { code: 'password_policy', message: 'A senha não atende à política exigida.' },
+        response: {
+          code: 'PASSWORD_POLICY_REJECTED',
+          message: 'A senha não atende à política exigida.',
+        },
       });
     } finally {
       if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
@@ -369,7 +376,14 @@ describe('AuthController', () => {
         .mockRejectedValueOnce(new AuthProviderError('invalid_credentials'))
         .mockRejectedValueOnce(new Error('provider secret detail')),
     } as any;
-    const controller = new AuthController(authService, undefined, undefined, undefined, undefined, supabaseAuth);
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      supabaseAuth,
+    );
     const previousMode = process.env.AUTH_PROVIDER_MODE;
     process.env.AUTH_PROVIDER_MODE = 'supabase_only';
     const body: SupabaseResetPasswordDto = {
@@ -379,12 +393,82 @@ describe('AuthController', () => {
       newPassword: 'New-password-123',
     };
     try {
-      await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({ status: 401 });
-      await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({
-        status: 400,
-        response: { code: 'auth_failed', message: 'Não foi possível redefinir a senha.' },
+      await expect(
+        controller.resetSupabasePassword(body, request()),
+      ).rejects.toMatchObject({ status: 401 });
+      await expect(
+        controller.resetSupabasePassword(body, request()),
+      ).rejects.toMatchObject({
+        status: 500,
+        response: {
+          code: 'RECOVERY_FAILED',
+          message: 'Não foi possível redefinir a senha.',
+        },
       });
     } finally {
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
+    }
+  });
+
+  it('maps recovery diagnostics to public status codes without logging credentials', async () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+    const supabaseAuth = {
+      completePasswordRecovery: jest
+        .fn()
+        .mockRejectedValueOnce(
+          new PasswordRecoveryError(
+            'invalid_credentials',
+            'RECOVERY_SET_SESSION_FAILED',
+            401,
+            'bad_jwt',
+          ),
+        )
+        .mockRejectedValueOnce(
+          new PasswordRecoveryError(
+            'provider_unavailable',
+            'RECOVERY_UPDATE_USER_FAILED',
+            503,
+            'over_request_rate_limit',
+          ),
+        ),
+    } as any;
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      supabaseAuth,
+    );
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    process.env.AUTH_PROVIDER_MODE = 'supabase_only';
+    const body: SupabaseResetPasswordDto = {
+      recoveryType: 'recovery',
+      accessToken: 'access-secret-token',
+      refreshToken: 'refresh-secret-token',
+      newPassword: 'password-secret',
+    };
+    try {
+      await expect(
+        controller.resetSupabasePassword(body, request()),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'RECOVERY_LINK_INVALID' },
+      });
+      await expect(
+        controller.resetSupabasePassword(body, request()),
+      ).rejects.toMatchObject({
+        status: 503,
+        response: { code: 'RECOVERY_PROVIDER_UNAVAILABLE' },
+      });
+      const output = warn.mock.calls.flat().join(' ');
+      expect(output).toContain('RECOVERY_SET_SESSION_FAILED');
+      expect(output).not.toContain(body.accessToken);
+      expect(output).not.toContain(body.refreshToken);
+      expect(output).not.toContain(body.newPassword);
+    } finally {
+      warn.mockRestore();
       if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
       else process.env.AUTH_PROVIDER_MODE = previousMode;
     }
