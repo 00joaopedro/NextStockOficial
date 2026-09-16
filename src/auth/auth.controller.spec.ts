@@ -1,4 +1,5 @@
 import { AuthController } from './auth.controller';
+import { AuthProviderError } from './auth-provider';
 import { RATE_LIMIT_KEY } from '../security/public-rate-limit.guard';
 import type { AuthenticatedHttpRequest } from '../common/http-types';
 
@@ -323,6 +324,63 @@ describe('AuthController', () => {
       if (previousMigration === undefined)
         delete process.env.AUTH_MIGRATION_ENABLED;
       else process.env.AUTH_MIGRATION_ENABLED = previousMigration;
+    }
+  });
+
+  it('mapeia somente password_policy para 422 sem expor erro do provider', async () => {
+    const supabaseAuth = {
+      completePasswordRecovery: jest
+        .fn()
+        .mockRejectedValue(new AuthProviderError('password_policy')),
+    } as any;
+    const controller = new AuthController(
+      authService,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      supabaseAuth,
+    );
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    process.env.AUTH_PROVIDER_MODE = 'supabase_only';
+    try {
+      await expect(
+        controller.resetSupabasePassword(
+          {
+            recoveryType: 'recovery', accessToken: 'a'.repeat(20),
+            refreshToken: 'r'.repeat(20), newPassword: 'New-password-123',
+          }, request(),
+        ),
+      ).rejects.toMatchObject({
+        status: 422,
+        response: { code: 'password_policy', message: 'A senha não atende à política exigida.' },
+      });
+    } finally {
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
+    }
+  });
+
+  it('mantém credenciais inválidas fora de 422 e sanitiza erro desconhecido', async () => {
+    const supabaseAuth = {
+      completePasswordRecovery: jest
+        .fn()
+        .mockRejectedValueOnce(new AuthProviderError('invalid_credentials'))
+        .mockRejectedValueOnce(new Error('provider secret detail')),
+    } as any;
+    const controller = new AuthController(authService, undefined, undefined, undefined, undefined, supabaseAuth);
+    const previousMode = process.env.AUTH_PROVIDER_MODE;
+    process.env.AUTH_PROVIDER_MODE = 'supabase_only';
+    const body = { recoveryType: 'recovery', accessToken: 'a'.repeat(20), refreshToken: 'r'.repeat(20), newPassword: 'New-password-123' };
+    try {
+      await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({ status: 401 });
+      await expect(controller.resetSupabasePassword(body, request())).rejects.toMatchObject({
+        status: 400,
+        response: { code: 'auth_failed', message: 'Não foi possível redefinir a senha.' },
+      });
+    } finally {
+      if (previousMode === undefined) delete process.env.AUTH_PROVIDER_MODE;
+      else process.env.AUTH_PROVIDER_MODE = previousMode;
     }
   });
 

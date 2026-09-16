@@ -15,6 +15,7 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -332,12 +333,14 @@ export class AuthController {
           code,
           message: 'Link de recuperação inválido ou expirado.',
         });
+      if (code === 'password_policy')
+        throw new UnprocessableEntityException({
+          code,
+          message: 'A senha não atende à política exigida.',
+        });
       throw new BadRequestException({
         code,
-        message:
-          code === 'password_policy'
-            ? 'A senha não atende à política exigida.'
-            : 'Não foi possível redefinir a senha.',
+        message: 'Não foi possível redefinir a senha.',
       });
     }
     return { ok: true };
