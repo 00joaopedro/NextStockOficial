@@ -2,6 +2,21 @@ type Credentials = { token: string; accessToken: string; refreshToken: string; i
 
 const diagnostic = (code: string, error = false) => (error ? console.error : console.info)(code);
 
+export const recoveryErrorMessage = (status: number, publicCode?: unknown) => {
+  const code = typeof publicCode === 'string' ? publicCode : '';
+  if (code === 'RECOVERY_REQUEST_INVALID') return 'A solicitação é inválida. Verifique os dados e tente novamente.';
+  if (code === 'RECOVERY_LINK_INVALID') return 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
+  if (code === 'PASSWORD_POLICY_REJECTED') return 'A senha não atende às regras exigidas.';
+  if (code === 'RECOVERY_PROVIDER_UNAVAILABLE') return 'Serviço temporariamente indisponível. Tente novamente.';
+  switch (status) {
+    case 400: return 'A solicitação é inválida. Verifique os dados e tente novamente.';
+    case 401: return 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
+    case 422: return 'A senha não atende às regras exigidas.';
+    case 503: return 'Serviço temporariamente indisponível. Tente novamente.';
+    default: return 'Não foi possível redefinir a senha. Tente novamente.';
+  }
+};
+
 const start = () => {
   const query = new URLSearchParams(window.location.search);
   const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -58,10 +73,12 @@ const start = () => {
       });
       if (!response.ok) {
         diagnostic('RECOVERY_REQUEST_REJECTED', true);
-        if (message && response.status === 400) message.textContent = 'Os dados do link de recuperação são inválidos.';
-        if (message && response.status === 401) message.textContent = 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
-        if (message && response.status === 503) message.textContent = 'Serviço temporariamente indisponível. Tente novamente.';
-        if (message) message.textContent = response.status === 422 ? 'A senha não atende às regras exigidas.' : 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.';
+        let publicCode: unknown;
+        try {
+          const body = await response.clone().json() as { code?: unknown };
+          publicCode = body?.code;
+        } catch { /* respostas sem JSON permanecem sanitizadas pelo status */ }
+        if (message) message.textContent = recoveryErrorMessage(response.status, publicCode);
         isSubmitting = false; if (button) button.disabled = false; return;
       }
       diagnostic('RECOVERY_REQUEST_SUCCEEDED');
