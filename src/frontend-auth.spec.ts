@@ -191,7 +191,7 @@ describe('frontend auth pages', () => {
     expect(source).toContain('if (isSubmitting || !callbackValid) return');
     expect(source).toContain("form?.addEventListener('submit'");
     expect(source).toContain("recoveryType: 'recovery'");
-    expect(source).toContain("response.status === 422");
+    expect(source).toContain('case 422:');
     expect(source).toContain('A senha não atende às regras exigidas.');
     expect(source).toContain('RECOVERY_REQUEST_INVALID');
     expect(source).toContain('RECOVERY_LINK_INVALID');
@@ -217,7 +217,7 @@ describe('frontend auth pages', () => {
     expect(bundle).toMatch(/if \(isSubmitting \|\| !callbackValid\)/);
     expect(bundle).toContain("form?.addEventListener('submit'");
     expect(bundle).toContain("recoveryType: 'recovery'");
-    expect(bundle).toContain("response.status === 422");
+    expect(bundle).toContain('case 422:');
     expect(bundle).toContain('A senha não atende às regras exigidas.');
     expect(bundle).toContain('RECOVERY_REQUEST_INVALID');
     expect(bundle).toContain('RECOVERY_LINK_INVALID');
