@@ -78,6 +78,36 @@ function requestPath(request: Request): string {
     : 'unknown';
 }
 
+const RECOVERY_FIELDS = [
+  'recoveryType',
+  'accessToken',
+  'refreshToken',
+  'newPassword',
+] as const;
+
+function recoveryValidationDiagnostic(request: Request & { body?: unknown }) {
+  const body = request.body;
+  const bodyRecord =
+    body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+  const missing = RECOVERY_FIELDS.filter(
+    (field) => !Object.prototype.hasOwnProperty.call(bodyRecord, field),
+  );
+  const knownInvalid = RECOVERY_FIELDS.filter((field) => {
+    const value = bodyRecord[field];
+    return value === undefined || value === null || value === '';
+  });
+  if (missing.length || knownInvalid.length) {
+    const fields = [...new Set([...missing, ...knownInvalid])].join(',');
+    return `code=RECOVERY_BODY_FIELD_MISSING fields=${fields || 'unknown'}`;
+  }
+
+  const keys = Object.keys(bodyRecord);
+  const hasExtra = keys.some(
+    (key) => !(RECOVERY_FIELDS as readonly string[]).includes(key),
+  );
+  return `code=RECOVERY_DTO_INVALID fields=${hasExtra ? 'extra' : 'unknown'}`;
+}
+
 @Catch()
 export class ProductionExceptionFilter implements ExceptionFilter {
   private readonly logger = new Logger(ProductionExceptionFilter.name);
@@ -85,7 +115,9 @@ export class ProductionExceptionFilter implements ExceptionFilter {
   catch(error: unknown, host: ArgumentsHost) {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
-    const request = context.getRequest<Request & { requestId?: string }>();
+    const request = context.getRequest<
+      Request & { requestId?: string; body?: unknown }
+    >();
     const status =
       error instanceof HttpException
         ? error.getStatus()
@@ -107,7 +139,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
       /\/auth\/reset-password\/supabase$/.test(requestPath(request))
     ) {
       this.logger.warn(
-        `auth.recovery.failed request=${request.requestId ?? 'unknown'} code=RECOVERY_REQUEST_INVALID status=400`,
+        `auth.recovery.failed request=${request.requestId ?? 'unknown'} ${recoveryValidationDiagnostic(request)} status=400`,
       );
     }
 

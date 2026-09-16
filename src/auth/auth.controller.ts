@@ -290,6 +290,18 @@ export class AuthController {
     const mode = authProviderMode();
     if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
       throw new UnauthorizedException('Supabase recovery is unavailable.');
+    if (
+      body.newPassword.length < 12 ||
+      [...body.newPassword].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 31 || code === 127;
+      })
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_POLICY_REJECTED',
+        message: 'A senha não atende à política exigida.',
+      });
+    }
     try {
       const identity = await this.supabaseAuth.completePasswordRecovery({
         accessToken: body.accessToken,

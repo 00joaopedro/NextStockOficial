@@ -419,7 +419,7 @@ describe('AuthController', () => {
         .mockRejectedValueOnce(
           new PasswordRecoveryError(
             'invalid_credentials',
-            'RECOVERY_SET_SESSION_FAILED',
+            'RECOVERY_SET_SESSION_INVALID',
             401,
             'bad_jwt',
           ),
@@ -463,7 +463,7 @@ describe('AuthController', () => {
         response: { code: 'RECOVERY_PROVIDER_UNAVAILABLE' },
       });
       const output = warn.mock.calls.flat().join(' ');
-      expect(output).toContain('RECOVERY_SET_SESSION_FAILED');
+      expect(output).toContain('RECOVERY_SET_SESSION_INVALID');
       expect(output).not.toContain(body.accessToken);
       expect(output).not.toContain(body.refreshToken);
       expect(output).not.toContain(body.newPassword);

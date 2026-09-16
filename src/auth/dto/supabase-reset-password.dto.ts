@@ -1,4 +1,4 @@
-import { IsIn, IsString, Length, Matches } from 'class-validator';
+import { IsIn, IsNotEmpty, IsString, Length, MaxLength, Matches } from 'class-validator';
 
 export class SupabaseResetPasswordDto {
   @IsIn(['recovery'])
@@ -13,7 +13,8 @@ export class SupabaseResetPasswordDto {
   refreshToken!: string;
 
   @IsString()
-  @Length(12, 128)
+  @IsNotEmpty()
+  @MaxLength(128)
   @Matches(/^[^\u0000-\u001F\u007F]+$/)
   newPassword!: string;
 }

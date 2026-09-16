@@ -1,5 +1,23 @@
 "use strict";
 const diagnostic = (code, error = false) => (error ? console.error : console.info)(code);
+const recoveryErrorMessage = (status, publicCode) => {
+    const code = typeof publicCode === 'string' ? publicCode : '';
+    if (code === 'RECOVERY_REQUEST_INVALID')
+        return 'A solicitação é inválida. Verifique os dados e tente novamente.';
+    if (code === 'RECOVERY_LINK_INVALID')
+        return 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
+    if (code === 'PASSWORD_POLICY_REJECTED')
+        return 'A senha não atende às regras exigidas.';
+    if (code === 'RECOVERY_PROVIDER_UNAVAILABLE')
+        return 'Serviço temporariamente indisponível. Tente novamente.';
+    switch (status) {
+        case 400: return 'A solicitação é inválida. Verifique os dados e tente novamente.';
+        case 401: return 'Este link de recuperação é inválido ou expirou. Solicite um novo e-mail.';
+        case 422: return 'A senha não atende às regras exigidas.';
+        case 503: return 'Serviço temporariamente indisponível. Tente novamente.';
+        default: return 'Não foi possível redefinir a senha. Tente novamente.';
+    }
+};
 const start = () => {
     const query = new URLSearchParams(window.location.search);
     const fragment = new URLSearchParams(window.location.hash.slice(1));
@@ -38,6 +56,12 @@ const start = () => {
         const data = new FormData(form);
         const password = String(data.get('password') || '');
         const confirmation = String(data.get('confirmation') || '');
+        if (password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+            diagnostic('RECOVERY_PASSWORD_POLICY_INVALID', true);
+            if (message)
+                message.textContent = 'A senha deve ter entre 12 e 128 caracteres e não conter caracteres de controle.';
+            return;
+        }
         if (password !== confirmation) {
             diagnostic('RECOVERY_PASSWORD_MISMATCH', true);
             if (message)
@@ -57,8 +81,14 @@ const start = () => {
             });
             if (!response.ok) {
                 diagnostic('RECOVERY_REQUEST_REJECTED', true);
+                let publicCode;
+                try {
+                    const body = await response.clone().json();
+                    publicCode = body?.code;
+                }
+                catch { /* respostas sem JSON permanecem sanitizadas pelo status */ }
                 if (message)
-                    message.textContent = response.status === 422 ? 'A senha não atende às regras exigidas.' : 'Não foi possível redefinir a senha. Solicite um novo link e tente novamente.';
+                    message.textContent = recoveryErrorMessage(response.status, publicCode);
                 isSubmitting = false;
                 if (button)
                     button.disabled = false;
