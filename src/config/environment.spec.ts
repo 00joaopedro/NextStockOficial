@@ -1,4 +1,5 @@
 import { validateEnvironment } from './environment';
+import { PASSWORD_RESET_ROUTE } from '../auth/password-recovery-url';
 
 const base = {
   NODE_ENV: 'production',
@@ -14,6 +15,7 @@ const base = {
   CERT_ENCRYPTION_KEY_VERSION: 'v1',
   CORS_ALLOWED_ORIGINS: 'https://staging.example.test',
   PUBLIC_APP_URL: 'https://staging.example.test',
+  SUPABASE_PASSWORD_REDIRECT_URL: `https://recovery.example.test${PASSWORD_RESET_ROUTE}`,
   SUPABASE_URL: 'https://prodref.supabase.co',
   SUPABASE_PROJECT_REF: 'prodref',
   PRODUCTION_SUPABASE_PROJECT_REF: 'prodref',
