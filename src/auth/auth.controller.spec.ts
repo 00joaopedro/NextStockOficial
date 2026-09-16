@@ -277,6 +277,7 @@ describe('AuthController', () => {
     try {
       await controller.resetSupabasePassword(
         {
+          recoveryType: 'recovery',
           accessToken: 'a'.repeat(20),
           refreshToken: 'r'.repeat(20),
           newPassword: 'New-password-123',
