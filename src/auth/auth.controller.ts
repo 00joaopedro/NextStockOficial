@@ -300,7 +300,8 @@ export class AuthController {
     ) {
       throw new UnprocessableEntityException({
         code: 'PASSWORD_POLICY_REJECTED',
-        message: 'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.',
+        message:
+          'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.',
       });
     }
     try {
