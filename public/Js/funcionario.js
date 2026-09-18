@@ -226,8 +226,8 @@
       throw new Error("Preencha nome, e-mail, senha, cargo de acesso e cargo.");
     }
 
-    if (payload.password.length < 8) {
-      throw new Error("A senha deve ter pelo menos 8 caracteres.");
+    if (payload.password.length < 6 || payload.password.length > 128 || /[\u0000-\u001F\u007F]/.test(payload.password)) {
+      throw new Error("A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.");
     }
   }
 
@@ -313,8 +313,8 @@
 
     const password = passwordInput.value;
 
-    if (!password || password.length < 8) {
-      setMessage("Digite uma nova senha com pelo menos 8 caracteres.", "error");
+    if (!password || password.length < 6 || password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+      setMessage("Digite uma senha entre 6 e 128 caracteres sem caracteres de controle.", "error");
       return;
     }
 

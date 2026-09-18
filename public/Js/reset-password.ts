@@ -51,9 +51,9 @@ const start = () => {
     const data = new FormData(form);
     const password = String(data.get('password') || '');
     const confirmation = String(data.get('confirmation') || '');
-    if (password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+    if (password.length < 6 || password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
       diagnostic('RECOVERY_PASSWORD_POLICY_INVALID', true);
-      if (message) message.textContent = 'A senha deve ter entre 12 e 128 caracteres e não conter caracteres de controle.';
+      if (message) message.textContent = 'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.';
       return;
     }
     if (password !== confirmation) {

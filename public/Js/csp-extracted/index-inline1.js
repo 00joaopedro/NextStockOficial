@@ -215,8 +215,8 @@
       const password = document.getElementById('registerPassword').value;
       const systemType = referralSystemType || document.getElementById('registerSystemType').value;
 
-      if (!/^[A-Za-z0-9]{12,}$/.test(password)) {
-        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 12 digitos e nao pode conter simbolos.', true);
+      if (!/^[A-Za-z0-9]{6,128}$/.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter entre 6 e 128 caracteres e aceitar apenas letras e numeros.', true);
         return;
       }
 

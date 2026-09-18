@@ -6,11 +6,15 @@ const dto = (password: string) => Object.assign(new RegisterDto(), {
 });
 
 describe('RegisterDto password boundary', () => {
-  it('rejects 11 characters', async () => {
-    expect((await validate(dto('A'.repeat(11)))).some((e) => e.property === 'password')).toBe(true);
+  it('rejects five characters', async () => {
+    expect((await validate(dto('A'.repeat(5)))).some((e) => e.property === 'password')).toBe(true);
   });
 
-  it('accepts 12 alphanumeric characters', async () => {
-    expect((await validate(dto('A'.repeat(12)))).some((e) => e.property === 'password')).toBe(false);
+  it.each([6, 7, 12, 128])('accepts %s alphanumeric characters', async (length) => {
+    expect((await validate(dto('A'.repeat(length)))).some((e) => e.property === 'password')).toBe(false);
+  });
+
+  it('rejects 129 characters', async () => {
+    expect((await validate(dto('A'.repeat(129)))).some((e) => e.property === 'password')).toBe(true);
   });
 });

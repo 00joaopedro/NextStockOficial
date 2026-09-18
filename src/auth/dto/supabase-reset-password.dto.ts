@@ -1,4 +1,5 @@
 import { IsIn, IsNotEmpty, IsString, Length, MaxLength, Matches } from 'class-validator';
+import { LOCAL_PASSWORD_MAX_LENGTH, PASSWORD_POLICY_MESSAGE } from '../local-password';
 
 export class SupabaseResetPasswordDto {
   @IsIn(['recovery'])
@@ -15,7 +16,7 @@ export class SupabaseResetPasswordDto {
 
   @IsString()
   @IsNotEmpty()
-  @MaxLength(128)
-  @Matches(/^[^\u0000-\u001F\u007F]+$/)
+  @MaxLength(LOCAL_PASSWORD_MAX_LENGTH)
+  @Matches(/^[^\u0000-\u001F\u007F]+$/, { message: PASSWORD_POLICY_MESSAGE })
   newPassword!: string;
 }

@@ -185,7 +185,7 @@ describe('frontend auth pages', () => {
     expect(source).toContain('case 401:');
     expect(source).toContain('case 503:');
     expect(source).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
-    expect(html).toContain('minlength="12" maxlength="128"');
+    expect(html).toContain('minlength="6" maxlength="128"');
     expect(html).toContain('password-policy');
     expect(source).toContain('let isSubmitting = false');
     expect(source).toContain('if (isSubmitting || !callbackValid) return');
@@ -213,6 +213,9 @@ describe('frontend auth pages', () => {
     expect(bundle).toContain('case 401:');
     expect(bundle).toContain('case 503:');
     expect(bundle).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
+    expect(bundle).toContain('password.length < 6');
+    expect(bundle).toContain('A senha deve ter entre 6 e 128 caracteres');
+    expect(bundle).not.toContain('A senha deve ter entre 12 e 128 caracteres');
     expect(bundle).toContain('let isSubmitting = false');
     expect(bundle).toMatch(/if \(isSubmitting \|\| !callbackValid\)/);
     expect(bundle).toContain("form?.addEventListener('submit'");

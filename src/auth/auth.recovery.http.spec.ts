@@ -146,6 +146,18 @@ describe('Supabase recovery HTTP validation contract', () => {
   });
 
   it.each([
+    ['123456', 201],
+    ['1'.repeat(128), 201],
+    ['1'.repeat(129), 400],
+  ] as const)('aplica as fronteiras de senha Supabase (%s)', async (newPassword, status) => {
+    await request(app.getHttpServer())
+      .post('/auth/reset-password/supabase')
+      .send({ ...validBody(), newPassword })
+      .expect(status);
+    if (status === 201) expect(completePasswordRecovery).toHaveBeenCalled();
+  });
+
+  it.each([
     ['invalid_credentials', 401, 'RECOVERY_LINK_INVALID'],
     ['password_policy', 422, 'PASSWORD_POLICY_REJECTED'],
     ['provider_unavailable', 503, 'RECOVERY_PROVIDER_UNAVAILABLE'],
