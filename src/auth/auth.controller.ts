@@ -28,6 +28,7 @@ import { PasswordLifecycleService } from './password-lifecycle.service';
 import { authProviderMode } from './auth-provider-mode';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { LOCAL_PASSWORD_MIN_LENGTH } from './local-password';
 import { RateLimit } from '../security/public-rate-limit.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { CsrfExempt } from '../security/csrf-origin.guard';
@@ -291,7 +292,7 @@ export class AuthController {
     if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
       throw new UnauthorizedException('Supabase recovery is unavailable.');
     if (
-      body.newPassword.length < 12 ||
+      body.newPassword.length < LOCAL_PASSWORD_MIN_LENGTH ||
       [...body.newPassword].some((character) => {
         const code = character.charCodeAt(0);
         return code <= 31 || code === 127;
@@ -299,7 +300,7 @@ export class AuthController {
     ) {
       throw new UnprocessableEntityException({
         code: 'PASSWORD_POLICY_REJECTED',
-        message: 'A senha não atende à política exigida.',
+        message: 'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.',
       });
     }
     try {

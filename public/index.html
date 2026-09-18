@@ -319,15 +319,15 @@
             id="registerPassword"
             type="password"
             placeholder="Criar senha"
-            minlength="12"
-            pattern="[A-Za-z0-9]{12,}"
+            minlength="6"
+            pattern="[A-Za-z0-9]{6,128}"
             required
           />
           <button class="password-toggle" type="button" data-password-target="registerPassword" aria-pressed="false">Mostrar</button>
         </div>
 
         <p class="small-info">
-          A senha deve ter no m&iacute;nimo 12 d&iacute;gitos e aceitar apenas letras e n&uacute;meros.
+          A senha deve ter entre 6 e 128 caracteres e aceitar apenas letras e n&uacute;meros.
         </p>
 
         <select id="registerSystemType" required>

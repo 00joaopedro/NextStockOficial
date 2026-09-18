@@ -7,14 +7,18 @@ describe('local password policy', () => {
     ).not.toThrow();
   });
 
-  it('rejects short, control-character and bcrypt-overlong passwords', () => {
+  it('enforces the six-to-128 character policy and rejects controls', () => {
     expect(() => validateLocalPassword('short')).toThrow('PASSWORD_INVALID');
+    expect(() => validateLocalPassword('12345')).toThrow('PASSWORD_INVALID');
+    expect(() => validateLocalPassword('123456')).not.toThrow();
+    expect(() => validateLocalPassword('1234567')).not.toThrow();
+    expect(() => validateLocalPassword('1'.repeat(12))).not.toThrow();
+    expect(() => validateLocalPassword('1'.repeat(128))).not.toThrow();
+    expect(() => validateLocalPassword('1'.repeat(129))).toThrow('PASSWORD_INVALID');
     expect(() =>
       validateLocalPassword(`senha segura ${String.fromCharCode(0)}`),
     ).toThrow('PASSWORD_INVALID');
-    expect(() => validateLocalPassword('a'.repeat(73))).toThrow(
-      'PASSWORD_TOO_LONG_FOR_BCRYPT',
-    );
+    expect(() => validateLocalPassword('a'.repeat(73))).not.toThrow();
   });
 
   it('hashes and compares without exposing the password', async () => {
