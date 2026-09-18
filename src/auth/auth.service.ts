@@ -39,6 +39,7 @@ import {
   ValidReferral,
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
+import { LOCAL_PASSWORD_MAX_LENGTH, LOCAL_PASSWORD_MIN_LENGTH } from './local-password';
 import { AuthMigrationService } from './auth-migration.service';
 import { getPasswordRecoveryRedirectUrl } from './password-recovery-url';
 
@@ -1435,8 +1436,11 @@ export class AuthService {
       throw new BadRequestException('password is required');
     }
 
-    if (password.length < 8) {
-      throw new BadRequestException('password must be at least 8 characters');
+    if (
+      password.length < LOCAL_PASSWORD_MIN_LENGTH ||
+      password.length > LOCAL_PASSWORD_MAX_LENGTH
+    ) {
+      throw new BadRequestException('password must be between 6 and 128 characters');
     }
 
     if (!/^[A-Za-z0-9]+$/.test(password)) {

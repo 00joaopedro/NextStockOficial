@@ -1,6 +1,5 @@
-"use strict";
 const diagnostic = (code, error = false) => (error ? console.error : console.info)(code);
-const recoveryErrorMessage = (status, publicCode) => {
+export const recoveryErrorMessage = (status, publicCode) => {
     const code = typeof publicCode === 'string' ? publicCode : '';
     if (code === 'RECOVERY_REQUEST_INVALID')
         return 'A solicitação é inválida. Verifique os dados e tente novamente.';
@@ -32,7 +31,8 @@ const start = () => {
     const form = document.querySelector('#reset-form');
     const message = document.querySelector('#message');
     const button = form?.querySelector('button[type="submit"]');
-    const callbackValid = Boolean(credentials.token || (credentials.isSupabase && credentials.accessToken && credentials.refreshToken));
+    const callbackValid = Boolean(credentials.token ||
+        (credentials.isSupabase && credentials.accessToken && credentials.refreshToken));
     let isSubmitting = false;
     diagnostic('RECOVERY_PAGE_READY');
     if (!callbackValid) {
@@ -56,10 +56,10 @@ const start = () => {
         const data = new FormData(form);
         const password = String(data.get('password') || '');
         const confirmation = String(data.get('confirmation') || '');
-        if (password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
+        if (password.length < 6 || password.length > 128 || /[\u0000-\u001F\u007F]/.test(password)) {
             diagnostic('RECOVERY_PASSWORD_POLICY_INVALID', true);
             if (message)
-                message.textContent = 'A senha deve ter entre 12 e 128 caracteres e não conter caracteres de controle.';
+                message.textContent = 'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.';
             return;
         }
         if (password !== confirmation) {
@@ -86,7 +86,7 @@ const start = () => {
                     const body = await response.clone().json();
                     publicCode = body?.code;
                 }
-                catch { /* respostas sem JSON permanecem sanitizadas pelo status */ }
+                catch { }
                 if (message)
                     message.textContent = recoveryErrorMessage(response.status, publicCode);
                 isSubmitting = false;
