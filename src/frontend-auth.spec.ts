@@ -261,6 +261,14 @@ describe('frontend auth pages', () => {
     const source = readFileSync(join(__dirname, '..', 'public', 'Js', 'reset-password.ts'), 'utf8');
     const bundle = readFileSync(join(__dirname, '..', 'public', 'dist', 'reset-password.js'), 'utf8');
 
+    expect((html.match(/<meta name="viewport"/g) || []).length).toBe(1);
+    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
+    expect(html).not.toContain('maximum-scale=1');
+    expect(html).not.toContain('user-scalable=no');
+    expect(html).not.toContain('#22c55e');
+    expect(html).toContain('background: linear-gradient(145deg, #166534 0%, #15803d 100%)');
+    expect(html).toContain('color: #fff; line-height: 1.5');
+    expect(html).toContain('#message { min-height: 48px; margin: 4px 0 0; color: #fff;');
     expect((html.match(/data-password-toggle/g) || []).length).toBe(2);
     expect(html).toContain('type="button" data-password-toggle aria-controls="password"');
     expect(html).toContain('type="button" data-password-toggle aria-controls="confirmation"');
