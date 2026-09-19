@@ -256,6 +256,38 @@ describe('frontend auth pages', () => {
     expect(publicFile('dist/dashboard.js')).toContain('x-nextstock-branch-id');
   });
 
+  it('oferece controles independentes para mostrar cada senha', () => {
+    const html = publicFile('reset-password.html');
+    const source = readFileSync(join(__dirname, '..', 'public', 'Js', 'reset-password.ts'), 'utf8');
+    const bundle = readFileSync(join(__dirname, '..', 'public', 'dist', 'reset-password.js'), 'utf8');
+
+    expect((html.match(/<meta name="viewport"/g) || []).length).toBe(1);
+    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
+    expect(html).not.toContain('maximum-scale=1');
+    expect(html).not.toContain('user-scalable=no');
+    expect(html).not.toContain('#22c55e');
+    expect(html).toContain('background: linear-gradient(145deg, #166534 0%, #15803d 100%)');
+    expect(html).toContain('color: #fff; line-height: 1.5');
+    expect(html).toContain('#message { min-height: 48px; margin: 4px 0 0; color: #fff;');
+    expect((html.match(/data-password-toggle/g) || []).length).toBe(2);
+    expect(html).toContain('type="button" data-password-toggle aria-controls="password"');
+    expect(html).toContain('type="button" data-password-toggle aria-controls="confirmation"');
+    expect(html).toContain('class="submit-button" type="submit"');
+    for (const code of [
+      'setupPasswordToggle',
+      "input.type = input.type === 'password' ? 'text' : 'password'",
+      "toggle.textContent = visible ? 'Esconder' : 'Mostrar'",
+      "toggle.setAttribute('aria-pressed', String(visible))",
+      'input.focus()',
+      'input.setSelectionRange',
+    ]) {
+      expect(source).toContain(code);
+      expect(bundle).toContain(code);
+    }
+    expect(source).not.toContain('innerHTML');
+    expect(bundle).not.toContain('innerHTML');
+  });
+
   it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {
     const source = publicFile('Js/sidebar.ts');
     const dist = publicFile('dist/sidebar.js');

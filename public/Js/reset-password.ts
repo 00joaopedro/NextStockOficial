@@ -2,6 +2,30 @@ type Credentials = { token: string; accessToken: string; refreshToken: string; i
 
 const diagnostic = (code: string, error = false) => (error ? console.error : console.info)(code);
 
+const setupPasswordToggle = (input: HTMLInputElement, toggle: HTMLButtonElement, fieldName: string) => {
+  if (toggle.dataset.toggleInitialized === 'true') return;
+  toggle.dataset.toggleInitialized = 'true';
+
+  const updateToggle = () => {
+    const visible = input.type === 'text';
+    toggle.textContent = visible ? 'Esconder' : 'Mostrar';
+    toggle.setAttribute('aria-pressed', String(visible));
+    toggle.setAttribute('aria-label', `${visible ? 'Esconder' : 'Mostrar'} ${fieldName}`);
+  };
+
+  toggle.addEventListener('click', () => {
+    const selectionStart = input.selectionStart;
+    const selectionEnd = input.selectionEnd;
+    input.type = input.type === 'password' ? 'text' : 'password';
+    updateToggle();
+    input.focus();
+    if (selectionStart !== null && selectionEnd !== null)
+      input.setSelectionRange(selectionStart, selectionEnd);
+  });
+
+  updateToggle();
+};
+
 export const recoveryErrorMessage = (status: number, publicCode?: unknown) => {
   const code = typeof publicCode === 'string' ? publicCode : '';
   if (code === 'RECOVERY_REQUEST_INVALID') return 'A solicitação é inválida. Verifique os dados e tente novamente.';
@@ -32,6 +56,12 @@ const start = () => {
   const form = document.querySelector<HTMLFormElement>('#reset-form');
   const message = document.querySelector<HTMLElement>('#message');
   const button = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
+  document.querySelectorAll<HTMLButtonElement>('[data-password-toggle]').forEach((toggle) => {
+    const inputId = toggle.getAttribute('aria-controls');
+    const input = inputId ? document.getElementById(inputId) : null;
+    if (input instanceof HTMLInputElement)
+      setupPasswordToggle(input, toggle, inputId === 'password' ? 'nova senha' : 'confirmação da senha');
+  });
   const callbackValid = Boolean(credentials.token ||
     (credentials.isSupabase && credentials.accessToken && credentials.refreshToken));
   let isSubmitting = false;

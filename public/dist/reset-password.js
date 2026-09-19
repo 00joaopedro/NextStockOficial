@@ -1,4 +1,25 @@
 const diagnostic = (code, error = false) => (error ? console.error : console.info)(code);
+const setupPasswordToggle = (input, toggle, fieldName) => {
+    if (toggle.dataset.toggleInitialized === 'true')
+        return;
+    toggle.dataset.toggleInitialized = 'true';
+    const updateToggle = () => {
+        const visible = input.type === 'text';
+        toggle.textContent = visible ? 'Esconder' : 'Mostrar';
+        toggle.setAttribute('aria-pressed', String(visible));
+        toggle.setAttribute('aria-label', `${visible ? 'Esconder' : 'Mostrar'} ${fieldName}`);
+    };
+    toggle.addEventListener('click', () => {
+        const selectionStart = input.selectionStart;
+        const selectionEnd = input.selectionEnd;
+        input.type = input.type === 'password' ? 'text' : 'password';
+        updateToggle();
+        input.focus();
+        if (selectionStart !== null && selectionEnd !== null)
+            input.setSelectionRange(selectionStart, selectionEnd);
+    });
+    updateToggle();
+};
 export const recoveryErrorMessage = (status, publicCode) => {
     const code = typeof publicCode === 'string' ? publicCode : '';
     if (code === 'RECOVERY_REQUEST_INVALID')
@@ -31,6 +52,12 @@ const start = () => {
     const form = document.querySelector('#reset-form');
     const message = document.querySelector('#message');
     const button = form?.querySelector('button[type="submit"]');
+    document.querySelectorAll('[data-password-toggle]').forEach((toggle) => {
+        const inputId = toggle.getAttribute('aria-controls');
+        const input = inputId ? document.getElementById(inputId) : null;
+        if (input instanceof HTMLInputElement)
+            setupPasswordToggle(input, toggle, inputId === 'password' ? 'nova senha' : 'confirmação da senha');
+    });
     const callbackValid = Boolean(credentials.token ||
         (credentials.isSupabase && credentials.accessToken && credentials.refreshToken));
     let isSubmitting = false;
