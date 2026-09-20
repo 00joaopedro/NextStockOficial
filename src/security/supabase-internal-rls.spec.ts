@@ -51,9 +51,18 @@ describe('Supabase internal table RLS migration contract', () => {
 
   it('uses only the established service_role policy and never forces RLS', () => {
     expect(migration).toContain('FOR ALL TO service_role USING (true) WITH CHECK (true)');
-    expect(migration).not.toMatch(/FORCE\s+ROW\s+LEVEL\s+SECURITY/i);
+    expect(hasForceRlsCommand(migration)).toBe(false);
     expect(migration).not.toMatch(/TO\s+(anon|authenticated)\b/i);
     expect(migration).not.toMatch(/CREATE\s+POLICY[^;]*TO\s+PUBLIC\b/is);
+  });
+
+  it('ignores FORCE RLS wording in comments and detects executable FORCE RLS', () => {
+    const commentOnly = '-- No FORCE ROW LEVEL SECURITY is used.';
+    const executableForce = 'ALTER TABLE public.example FORCE ROW LEVEL SECURITY;';
+
+    expect(stripSqlComments(commentOnly)).toBe(' ');
+    expect(hasForceRlsCommand(commentOnly)).toBe(false);
+    expect(hasForceRlsCommand(executableForce)).toBe(true);
   });
 
   it('documents rollback and read-only staging checks without application data access', () => {
@@ -77,3 +86,14 @@ describe('Supabase internal table RLS migration contract', () => {
     }
   });
 });
+
+function stripSqlComments(sql: string): string {
+  return sql.replace(/--.*$/gm, ' ').replace(/\/\*[\s\S]*?\*\//g, ' ');
+}
+
+function hasForceRlsCommand(sql: string): boolean {
+  const executableSql = stripSqlComments(sql);
+  return /\bALTER\s+TABLE\b[^;]*?\bFORCE\s+ROW\s+LEVEL\s+SECURITY\b(?=\s*;)/i.test(
+    executableSql,
+  );
+}
