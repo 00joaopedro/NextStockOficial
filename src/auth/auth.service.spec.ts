@@ -555,9 +555,19 @@ describe('AuthService', () => {
       data: { supabaseUserId: subject },
       select: { id: true },
     });
-    expect(JSON.stringify(prisma.userProfile.findFirst.mock.calls)).not.toContain(
-      'email',
+    const whereClauses = prisma.userProfile.findFirst.mock.calls.map(
+      ([args]) => args.where,
     );
+    expect(whereClauses).toHaveLength(2);
+    expect(whereClauses[0]).toEqual({
+      OR: [{ supabaseUserId: subject }],
+    });
+    expect(whereClauses[1]).toEqual({
+      OR: [{ id: subject }],
+    });
+    for (const where of whereClauses) {
+      expect(JSON.stringify(where)).not.toContain('"email"');
+    }
   });
 
   it('rejects missing, malformed, or ambiguous recovery identities', async () => {
