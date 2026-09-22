@@ -93,6 +93,9 @@ type AuthProfileRecord = NonNullable<
 
 type AuthMembershipRecord = AuthProfileRecord['memberships'][number];
 
+const SUPABASE_SUBJECT_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -699,7 +702,38 @@ export class AuthService {
   }
 
   async resolveInternalProfileId(supabaseUserId: string) {
-    const profile = await this.findProfileRecord({ supabaseUserId });
+    if (!SUPABASE_SUBJECT_PATTERN.test(supabaseUserId)) {
+      throw new UnauthorizedException('User profile not found.');
+    }
+
+    const [bySupabaseId, byProfileId] = await Promise.all([
+      this.findProfileRecordOrNull({ supabaseUserId }),
+      this.findProfileRecordOrNull({ profileId: supabaseUserId }),
+    ]);
+
+    if (bySupabaseId && byProfileId && bySupabaseId.id !== byProfileId.id) {
+      this.logger.error('SECURITY_PROFILE_BINDING_AMBIGUOUS');
+      throw new UnauthorizedException(
+        'Perfil nao corresponde ao usuario autenticado.',
+      );
+    }
+
+    const profile = bySupabaseId ?? byProfileId;
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found.');
+    }
+
+    if (profile.supabaseUserId && profile.supabaseUserId !== supabaseUserId) {
+      this.logger.error('SECURITY_PROFILE_BINDING_MISMATCH');
+      throw new UnauthorizedException(
+        'Perfil nao corresponde ao usuario autenticado.',
+      );
+    }
+
+    if (!profile.supabaseUserId) {
+      await this.linkProfileToSupabaseUser(profile.id, supabaseUserId);
+    }
+
     return profile.id;
   }
 

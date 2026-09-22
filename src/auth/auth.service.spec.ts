@@ -72,6 +72,7 @@ describe('AuthService', () => {
       userProfile: {
         findFirst: jest.fn(),
         create: jest.fn().mockResolvedValue({ id: profile.id }),
+        update: jest.fn().mockResolvedValue(profile),
       },
       tenant: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -520,6 +521,70 @@ describe('AuthService', () => {
         systemType: SystemType.padrao,
       },
     });
+  });
+
+  it('resolve recovery profile by canonical Supabase subject first', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const subject = '11111111-1111-4111-8111-111111111111';
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce({ ...profile, id: 'profile-modern', supabaseUserId: subject })
+      .mockResolvedValueOnce(null);
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(service.resolveInternalProfileId(subject)).resolves.toBe(
+      'profile-modern',
+    );
+    expect(prisma.userProfile.update).not.toHaveBeenCalled();
+  });
+
+  it('repairs a legacy recovery profile found by its profile ID', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const subject = '22222222-2222-4222-8222-222222222222';
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...profile, id: subject, supabaseUserId: null });
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(service.resolveInternalProfileId(subject)).resolves.toBe(
+      subject,
+    );
+    expect(prisma.userProfile.update).toHaveBeenCalledWith({
+      where: { id: subject },
+      data: { supabaseUserId: subject },
+      select: { id: true },
+    });
+    expect(JSON.stringify(prisma.userProfile.findFirst.mock.calls)).not.toContain(
+      'email',
+    );
+  });
+
+  it('rejects missing, malformed, or ambiguous recovery identities', async () => {
+    const prisma = createPrisma();
+    const supabase = createSupabase();
+    const service = new AuthService(supabase, prisma, createDevWorkspaces());
+
+    await expect(service.resolveInternalProfileId('not-a-subject')).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(prisma.userProfile.findFirst).not.toHaveBeenCalled();
+
+    const subject = '33333333-3333-4333-8333-333333333333';
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    await expect(service.resolveInternalProfileId(subject)).rejects.toMatchObject({
+      status: 401,
+    });
+
+    prisma.userProfile.findFirst
+      .mockResolvedValueOnce({ ...profile, id: 'canonical-profile', supabaseUserId: subject })
+      .mockResolvedValueOnce({ ...profile, id: subject, supabaseUserId: null });
+    await expect(service.resolveInternalProfileId(subject)).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(prisma.userProfile.update).not.toHaveBeenCalled();
   });
 
   it('encaminha senha legada com pontuacao sem aplicar politica nova', async () => {

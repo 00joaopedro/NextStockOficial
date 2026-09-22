@@ -80,6 +80,7 @@
     function showAuthError() {
       if (authError) setStatus(authErrorMessages[authError], true);
     }
+    showAuthError();
 
     async function safeJson(res) {
       const text = await res.text();
@@ -240,7 +241,6 @@
       } catch (error) {
         setStatus('Erro no cadastro:\n\n' + error.message, true);
       }
-      showAuthError();
     });
 
     document.getElementById('loginForm').addEventListener('submit', async (e) => {

@@ -121,6 +121,33 @@ const start = () => {
                     button.disabled = false;
                 return;
             }
+            let responseBody = null;
+            try {
+                const parsed = await response.clone().json();
+                if (parsed && typeof parsed === 'object')
+                    responseBody = parsed;
+            }
+            catch {
+                responseBody = null;
+            }
+            if (responseBody?.code === 'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING') {
+                diagnostic('RECOVERY_SESSION_REVOCATION_PENDING', true);
+                if (message)
+                    message.textContent = 'Senha atualizada, mas o encerramento das sessões ainda está pendente. Tente novamente mais tarde.';
+                isSubmitting = true;
+                if (button)
+                    button.disabled = true;
+                return;
+            }
+            if (responseBody?.ok !== true) {
+                diagnostic('RECOVERY_RESPONSE_INVALID', true);
+                if (message)
+                    message.textContent = 'Não foi possível confirmar a redefinição. Tente novamente.';
+                isSubmitting = false;
+                if (button)
+                    button.disabled = false;
+                return;
+            }
             diagnostic('RECOVERY_REQUEST_SUCCEEDED');
             if (message)
                 message.textContent = 'Senha redefinida. Você será redirecionado ao login.';

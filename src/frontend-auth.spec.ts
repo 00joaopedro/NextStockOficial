@@ -104,6 +104,10 @@ describe('frontend auth pages', () => {
     expect(html).toContain('authErrorMessages');
     expect(html).toContain('authErrorParams.delete');
     expect(html).toContain('showAuthError');
+    expect((html.match(/showAuthError\(\);/g) || [])).toHaveLength(1);
+    expect(html.indexOf('function showAuthError')).toBeLessThan(
+      html.indexOf('showAuthError();'),
+    );
     expect(html).toContain(
       'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
     );
@@ -199,6 +203,12 @@ describe('frontend auth pages', () => {
     expect(source).toContain('RECOVERY_PROVIDER_UNAVAILABLE');
     expect(source).toContain('recoveryErrorMessage(response.status, publicCode)');
     expect(source).toContain('response.clone().json()');
+    expect(source).toContain(
+      'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+    );
+    expect(source).toContain('RECOVERY_SESSION_REVOCATION_PENDING');
+    expect(source).toContain('RECOVERY_RESPONSE_INVALID');
+    expect(source).toContain('Senha atualizada, mas o encerramento das sessões ainda está pendente.');
     expect(source).not.toMatch(/response\.status === 422 \?/);
     expect(source).not.toMatch(/localStorage|sessionStorage/);
     expect(bundle).toContain("query.get('token')");
@@ -228,6 +238,11 @@ describe('frontend auth pages', () => {
     expect(bundle).toContain('RECOVERY_PROVIDER_UNAVAILABLE');
     expect(bundle).toContain('recoveryErrorMessage(response.status, publicCode)');
     expect(bundle).toContain('response.clone().json()');
+    expect(bundle).toContain(
+      'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+    );
+    expect(bundle).toContain('RECOVERY_SESSION_REVOCATION_PENDING');
+    expect(bundle).toContain('RECOVERY_RESPONSE_INVALID');
     expect(bundle).not.toMatch(/response\.status === 422 \?/);
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
