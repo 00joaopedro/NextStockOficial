@@ -39,8 +39,9 @@ import {
   ValidReferral,
 } from '../partners/referral-registration.service';
 import { LocalJwtService } from './local-jwt.service';
+import { LOCAL_PASSWORD_MAX_LENGTH, LOCAL_PASSWORD_MIN_LENGTH } from './local-password';
 import { AuthMigrationService } from './auth-migration.service';
-import { authProviderMode } from './auth-provider-mode';
+import { getPasswordRecoveryRedirectUrl } from './password-recovery-url';
 
 type RegisterInput = {
   email?: string;
@@ -92,6 +93,9 @@ type AuthProfileRecord = NonNullable<
 
 type AuthMembershipRecord = AuthProfileRecord['memberships'][number];
 
+const SUPABASE_SUBJECT_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
@@ -137,7 +141,10 @@ export class AuthService {
     const name = this.normalizeName(input.name);
     const companyName = this.normalizeCompanyName(input.companyName);
     const password = this.normalizePassword(input.password);
-    if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
+    if (
+      this.authProvider.name === 'local' ||
+      this.authProvider.name === 'coexistence'
+    ) {
       this.localJwt?.assertSigningConfigured();
     }
     let referral: ValidReferral | null = null;
@@ -297,7 +304,10 @@ export class AuthService {
           },
         });
 
-        if (this.authProvider.name === 'local' || this.authProvider.name === 'coexistence') {
+        if (
+          this.authProvider.name === 'local' ||
+          this.authProvider.name === 'coexistence'
+        ) {
           const passwordHash = authUser.metadata?.passwordHash;
           if (typeof passwordHash !== 'string') {
             throw new Error('LOCAL_CREDENTIAL_HASH_MISSING');
@@ -358,7 +368,8 @@ export class AuthService {
     }
 
     const accessToken =
-      this.authProvider.name === 'local' || this.authProvider.name === 'coexistence'
+      this.authProvider.name === 'local' ||
+      this.authProvider.name === 'coexistence'
         ? await this.localJwt!.sign({
             sub: result.profile.id,
             jti: randomUUID(),
@@ -577,16 +588,64 @@ export class AuthService {
   }
 
   async issueSessionForProfile(profileId: string) {
-    const profile = await this.findProfileRecord({ profileId });
-    this.assertEmployeeCanAuthenticate(profile);
-    const { user, selectedBranch } = await this.prepareLoginContext(profile);
-    if (!this.localJwt) throw new ServiceUnavailableException('Local session provider is unavailable.');
+    const eligible = await this.assertGoogleLoginEligibility(profileId);
+    if (!this.localJwt)
+      throw new ServiceUnavailableException(
+        'Local session provider is unavailable.',
+      );
     const accessToken = await this.localJwt.sign({
-      sub: profile.id,
+      sub: eligible.profileId,
       jti: randomUUID(),
       authMethod: 'google',
     });
-    return { accessToken, user, selectedBranch };
+    return {
+      accessToken,
+      user: eligible.user,
+      selectedBranch: eligible.selectedBranch,
+    };
+  }
+
+  async assertGoogleLoginEligibility(profileId: string) {
+    const profile = await this.findProfileRecord({ profileId });
+    this.assertEmployeeCanAuthenticate(profile);
+    if (!this.localJwt) {
+      throw new ServiceUnavailableException(
+        'Local session provider is unavailable.',
+      );
+    }
+    this.localJwt.assertSigningConfigured();
+    if (canAccessDev(profile)) {
+      return {
+        profileId: profile.id,
+        user: this.formatProfileWithMembership(profile),
+        selectedBranch: null,
+        tenantId: profile.primaryTenantId ?? profile.tenantId,
+        branchId: null,
+      };
+    }
+    const membership = this.chooseMembership(profile);
+    if (!membership) {
+      throw new ConflictException('Usuario sem empresa/filial vinculada.');
+    }
+    if (!membership.branchId || !membership.branch?.isActive) {
+      throw new ConflictException(
+        'Usuario sem filial ativa vinculada. Solicite acesso ao administrador.',
+      );
+    }
+    return {
+      profileId: profile.id,
+      user: this.formatProfileWithMembership(
+        profile,
+        membership.branch.slug,
+      ),
+      selectedBranch: this.formatSelectedBranch(
+        membership.branch,
+        membership.tenant.id,
+        membership.tenant.systemType,
+      ),
+      tenantId: membership.tenant.id,
+      branchId: membership.branch.id,
+    };
   }
 
   private async withDevWorkspaceBranches(
@@ -626,8 +685,7 @@ export class AuthService {
 
   async forgotPassword(input: ForgotPasswordInput) {
     const email = this.normalizeEmail(input.email);
-    const redirectTo = process.env.SUPABASE_PASSWORD_REDIRECT_URL ||
-      new URL('/reset-password.html', process.env.PUBLIC_APP_URL || 'http://localhost:3000').toString();
+    const redirectTo = getPasswordRecoveryRedirectUrl();
 
     await this.authProvider
       .requestPasswordRecovery(email, redirectTo)
@@ -643,21 +701,40 @@ export class AuthService {
     };
   }
 
-  async completeSupabasePasswordRecovery(input: {
-    accessToken: string;
-    refreshToken: string;
-    newPassword: string;
-    recoveryType: 'recovery';
-  }) {
-    if (authProviderMode() !== 'supabase_only')
-      throw new BadRequestException('Password recovery is unavailable.');
-    const identity = await this.authProvider.completePasswordRecovery(input);
-    const profile = await this.prisma.userProfile.findFirst({
-      where: { OR: [{ id: identity.id }, { supabaseUserId: identity.id }] },
-      select: { id: true },
-    });
-    if (!profile) throw new BadRequestException('Password recovery is unavailable.');
-    return { identity, profileId: profile.id };
+  async resolveInternalProfileId(supabaseUserId: string) {
+    if (!SUPABASE_SUBJECT_PATTERN.test(supabaseUserId)) {
+      throw new UnauthorizedException('User profile not found.');
+    }
+
+    const [bySupabaseId, byProfileId] = await Promise.all([
+      this.findProfileRecordOrNull({ supabaseUserId }),
+      this.findProfileRecordOrNull({ profileId: supabaseUserId }),
+    ]);
+
+    if (bySupabaseId && byProfileId && bySupabaseId.id !== byProfileId.id) {
+      this.logger.error('SECURITY_PROFILE_BINDING_AMBIGUOUS');
+      throw new UnauthorizedException(
+        'Perfil nao corresponde ao usuario autenticado.',
+      );
+    }
+
+    const profile = bySupabaseId ?? byProfileId;
+    if (!profile) {
+      throw new UnauthorizedException('User profile not found.');
+    }
+
+    if (profile.supabaseUserId && profile.supabaseUserId !== supabaseUserId) {
+      this.logger.error('SECURITY_PROFILE_BINDING_MISMATCH');
+      throw new UnauthorizedException(
+        'Perfil nao corresponde ao usuario autenticado.',
+      );
+    }
+
+    if (!profile.supabaseUserId) {
+      await this.linkProfileToSupabaseUser(profile.id, supabaseUserId);
+    }
+
+    return profile.id;
   }
 
   private async findProfileOrThrow(profileId: string, branchSlug?: string) {
@@ -671,10 +748,10 @@ export class AuthService {
   }
 
   private async findOrCreateProfileForLogin(input: {
-  supabaseUserId: string;
-  email: string;
-  metadata?: Record<string, any> | null;
-  provider?: 'supabase' | 'local';
+    supabaseUserId: string;
+    email: string;
+    metadata?: Record<string, any> | null;
+    provider?: 'supabase' | 'local';
   }) {
     if (this.authProvider.name === 'local' || input.provider === 'local') {
       const localProfile = await this.findProfileRecordOrNull({
@@ -1393,8 +1470,11 @@ export class AuthService {
       throw new BadRequestException('password is required');
     }
 
-    if (password.length < 8) {
-      throw new BadRequestException('password must be at least 8 characters');
+    if (
+      password.length < LOCAL_PASSWORD_MIN_LENGTH ||
+      password.length > LOCAL_PASSWORD_MAX_LENGTH
+    ) {
+      throw new BadRequestException('password must be between 6 and 128 characters');
     }
 
     if (!/^[A-Za-z0-9]+$/.test(password)) {

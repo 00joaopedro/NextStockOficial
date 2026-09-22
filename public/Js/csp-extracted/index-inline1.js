@@ -1,10 +1,34 @@
     const API = '/api';
+    const authErrorMessages = {
+      auth_failed: 'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
+    };
+    const authErrorParams = new URLSearchParams(window.location.search);
+    const authError = authErrorMessages[authErrorParams.get('auth_error') || '']
+      ? authErrorParams.get('auth_error')
+      : null;
+    if (authErrorParams.has('auth_error')) {
+      authErrorParams.delete('auth_error');
+      const cleanQuery = authErrorParams.toString();
+      window.history.replaceState({}, document.title, window.location.pathname + (cleanQuery ? `?${cleanQuery}` : '') + window.location.hash);
+    }
     const referralCode = new URLSearchParams(window.location.search).get('ref');
     let referralReady = !referralCode;
     let referralSystemType = null;
 
     const googleLoginLink = document.getElementById('googleLoginLink');
     if (googleLoginLink) {
+      googleLoginLink.addEventListener('click', (event) => {
+        if (
+          event.defaultPrevented ||
+          event.button !== 0 ||
+          event.metaKey ||
+          event.ctrlKey ||
+          event.shiftKey ||
+          event.altKey
+        ) return;
+        event.preventDefault();
+        window.location.assign('/api/auth/google/start');
+      });
       fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
         .then((response) => response.ok ? response.json() : null)
         .then((capabilities) => {
@@ -52,6 +76,11 @@
         ? 'rgba(180, 30, 30, 0.35)'
         : 'rgba(255,255,255,0.18)';
     }
+
+    function showAuthError() {
+      if (authError) setStatus(authErrorMessages[authError], true);
+    }
+    showAuthError();
 
     async function safeJson(res) {
       const text = await res.text();
@@ -187,8 +216,8 @@
       const password = document.getElementById('registerPassword').value;
       const systemType = referralSystemType || document.getElementById('registerSystemType').value;
 
-      if (!/^[A-Za-z0-9]{12,}$/.test(password)) {
-        setStatus('Erro no cadastro:\n\nA senha deve ter no minimo 12 digitos e nao pode conter simbolos.', true);
+      if (!/^[A-Za-z0-9]{6,128}$/.test(password)) {
+        setStatus('Erro no cadastro:\n\nA senha deve ter entre 6 e 128 caracteres e aceitar apenas letras e numeros.', true);
         return;
       }
 

@@ -17,6 +17,7 @@ import { ResetEmployeePasswordDto } from './dto/reset-employee-password.dto';
 import { UpdateEmployeeDto } from './dto/update-employee.dto';
 import { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
 import { SessionsService } from '../sessions/sessions.service';
+import { LOCAL_PASSWORD_MAX_LENGTH, LOCAL_PASSWORD_MIN_LENGTH } from '../auth/local-password';
 
 const EMPLOYEE_ROLE_TO_RBAC: Record<EmployeeRole, Role> = {
   [EmployeeRole.admin]: Role.Admin,
@@ -591,8 +592,14 @@ export class EmployeesService {
     if (!password) {
       throw new BadRequestException('password is required');
     }
-    if (password.length < 8) {
-      throw new BadRequestException('password must be at least 8 characters');
+    if (
+      password.length < LOCAL_PASSWORD_MIN_LENGTH ||
+      password.length > LOCAL_PASSWORD_MAX_LENGTH ||
+      /[\u0000-\u001F\u007F]/.test(password)
+    ) {
+      throw new BadRequestException(
+        'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.',
+      );
     }
     return password;
   }

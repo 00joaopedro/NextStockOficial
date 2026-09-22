@@ -17,6 +17,7 @@ import {
 } from './password-reset-token.service';
 import { PasswordEmailDelivery } from './password-delivery';
 import { PASSWORD_EMAIL_DELIVERY } from './password-delivery';
+import { getPasswordRecoveryRedirectUrl } from './password-recovery-url';
 
 const GENERIC_RESET_ERROR = 'Token de recuperacao invalido ou expirado.';
 
@@ -33,7 +34,9 @@ export class PasswordLifecycleService {
   ) {}
 
   private localEnabled() {
-    return ['coexistence', 'local_primary', 'local_only'].includes(authProviderMode());
+    return ['coexistence', 'local_primary', 'local_only'].includes(
+      authProviderMode(),
+    );
   }
 
   async request(email: string) {
@@ -61,7 +64,7 @@ export class PasswordLifecycleService {
       if (!profile?.localCredential)
         await this.legacyProvider.requestPasswordRecovery(
           email,
-          process.env.SUPABASE_PASSWORD_REDIRECT_URL,
+          getPasswordRecoveryRedirectUrl(),
         );
       return generic;
     }
@@ -134,7 +137,8 @@ export class PasswordLifecycleService {
         !candidate.profile.localCredential ||
         candidate.profile.localCredential.status !== 'active' ||
         candidate.profile.employee?.deletedAt ||
-        (candidate.profile.employee && candidate.profile.employee.status !== 'active') ||
+        (candidate.profile.employee &&
+          candidate.profile.employee.status !== 'active') ||
         candidate.credentialVersion !==
           candidate.profile.localCredential?.credentialVersion
       )

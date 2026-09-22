@@ -16,6 +16,7 @@ import { AuditOutboxService } from '../audit/audit-outbox.service';
 import { AuthService } from './auth.service';
 import { LocalJwtService } from './local-jwt.service';
 import { assertLocalJwtConfigured } from './local-jwt-config';
+import { canonicalizeEmail } from '../common/canonical-email';
 
 const GOOGLE_AUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
@@ -153,7 +154,7 @@ export class GoogleOAuthService {
     const claims = (await infoResponse.json()) as {
       sub?: string;
       email?: string;
-      email_verified?: string;
+      email_verified?: string | boolean;
       aud?: string;
       iss?: string;
       nonce?: string;
@@ -168,10 +169,13 @@ export class GoogleOAuthService {
         Buffer.from(hash(claims.nonce)),
         Buffer.from(intent.nonceHash),
       ) ||
-      claims.email_verified !== 'true' ||
+      !['true', true].includes(claims.email_verified ?? false) ||
       !claims.sub ||
       !claims.email
     )
+      throw new UnauthorizedException('Google identity could not be verified.');
+    const providerSubject = claims.sub;
+    if (!providerSubject)
       throw new UnauthorizedException('Google identity could not be verified.');
     if (intent.purpose === 'link') {
       if (!intent.userProfileId)
@@ -210,7 +214,7 @@ export class GoogleOAuthService {
             where: {
               provider_providerSubject: {
                 provider: 'GOOGLE',
-                providerSubject: claims.sub!,
+                providerSubject,
               },
             },
             select: {
@@ -234,7 +238,7 @@ export class GoogleOAuthService {
             data: {
               userProfileId: intent.userProfileId!,
               provider: 'GOOGLE',
-              providerSubject: claims.sub!,
+              providerSubject,
               canonicalEmail: claims.email!.toLowerCase(),
               emailVerifiedAt: new Date(),
             },
@@ -263,7 +267,7 @@ export class GoogleOAuthService {
             where: {
               provider_providerSubject: {
                 provider: 'GOOGLE',
-                providerSubject: claims.sub!,
+                providerSubject,
               },
             },
             select: { userProfileId: true, status: true, disabledAt: true },
@@ -287,11 +291,12 @@ export class GoogleOAuthService {
         profileId: linkResult.userProfileId,
       };
     }
-    const identity = await this.prisma.authIdentity.findUnique({
+    const canonicalEmail = canonicalizeEmail(claims.email);
+    let identity = await this.prisma.authIdentity.findUnique({
       where: {
         provider_providerSubject: {
           provider: 'GOOGLE',
-          providerSubject: claims.sub!,
+          providerSubject,
         },
       },
       select: { userProfileId: true, status: true, disabledAt: true },
@@ -301,10 +306,142 @@ export class GoogleOAuthService {
       (identity.status !== 'active' || identity.disabledAt !== null)
     )
       throw new UnauthorizedException('Google identity is unavailable.');
-    if (!identity)
-      throw new ConflictException(
-        'Google account requires an invitation or explicit linking.',
-      );
+    if (!identity) {
+      const claim = await this.prisma.authEmailClaim.findUnique({
+        where: { canonicalEmail },
+        select: { profileId: true, profile: { select: { id: true, email: true } } },
+      });
+      let profileId = claim?.profileId;
+      if (claim && (!claim.profile || canonicalizeEmail(claim.profile.email) !== canonicalEmail))
+        throw new ConflictException('Google email claim is stale or conflicting.');
+      if (!profileId) {
+        const candidates = await this.prisma.userProfile.findMany({
+          where: { email: { equals: canonicalEmail, mode: 'insensitive' } },
+          select: { id: true, email: true },
+        });
+        const matches = candidates.filter(
+          (candidate) => canonicalizeEmail(candidate.email) === canonicalEmail,
+        );
+        if (matches.length > 1)
+          throw new ConflictException('Google email claim is ambiguous.');
+        profileId = matches[0]?.id;
+      }
+      if (!profileId)
+        throw new ConflictException(
+          'Google account requires an invitation or explicit linking.',
+        );
+      const eligible = await this.auth.assertGoogleLoginEligibility(profileId);
+      try {
+        await this.prisma.$transaction(async (tx) => {
+          const current = await tx.userProfile.findUnique({
+            where: { id: eligible.profileId },
+            select: {
+              id: true,
+              employee: {
+                select: {
+                  status: true,
+                  dismissalDate: true,
+                  deletedAt: true,
+                },
+              },
+              memberships: {
+                where: { branch: { isActive: true } },
+                select: {
+                  tenantId: true,
+                  branchId: true,
+                  tenant: { select: { id: true } },
+                  branch: { select: { id: true, isActive: true } },
+                },
+              },
+            },
+          });
+          if (
+            !current ||
+            current.employee?.deletedAt ||
+            current.employee?.status !== 'active' && current.employee
+          )
+            throw new ConflictException('Google profile is not eligible.');
+          const membership = current.memberships.find(
+            (item) =>
+              item.tenant.id === eligible.tenantId &&
+              item.branch?.id === eligible.branchId &&
+              item.branch?.isActive === true,
+          );
+          if (!membership)
+            throw new ConflictException('Google profile is not eligible.');
+          const branch = membership.branch;
+          if (!branch || !branch.isActive)
+            throw new ConflictException('Google profile is not eligible.');
+          const tenantId = membership.tenant.id;
+          const branchId = branch.id;
+          const created = await tx.authIdentity.create({
+            data: {
+              userProfileId: eligible.profileId,
+              provider: 'GOOGLE',
+              providerSubject,
+              canonicalEmail,
+              emailVerifiedAt: new Date(),
+            },
+            select: { id: true },
+          });
+          await this.auditOutbox.enqueue(tx, {
+            tenantId,
+            branchId,
+            actorProfileId: eligible.profileId,
+            operationId: `google_identity_link:${created.id}`,
+            eventType: 'auth.google_identity.linked',
+            action: 'google_identity_link',
+            outcome: AuditOutcome.SUCCESS,
+            severity: AuditSeverity.MEDIUM,
+            contextKind: AuditContextKind.NORMAL,
+            metadata: { provider: 'google', source: 'automatic_google_login' },
+          });
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          identity = await this.prisma.authIdentity.findUnique({
+            where: {
+              provider_providerSubject: {
+                provider: 'GOOGLE',
+                providerSubject,
+              },
+            },
+            select: { userProfileId: true, status: true, disabledAt: true },
+          });
+          if (identity?.userProfileId !== eligible.profileId)
+            throw new ConflictException('Google identity is already linked.');
+        }
+        if (!identity) throw error;
+        if (identity.userProfileId !== eligible.profileId)
+          throw new ConflictException('Google identity is already linked.');
+      }
+      if (!identity) {
+        identity = {
+          userProfileId: eligible.profileId,
+          status: 'active',
+          disabledAt: null,
+        };
+      }
+    }
+    if (!identity) throw new ConflictException('Google identity unavailable.');
+    if (
+      identity.status !== 'active' ||
+      identity.disabledAt !== null
+    )
+      throw new UnauthorizedException('Google identity is unavailable.');
+    await this.prisma.authIdentity.update({
+      where: {
+        provider_providerSubject: {
+          provider: 'GOOGLE',
+          providerSubject,
+        },
+      },
+      data: { lastUsedAt: new Date() },
+      select: { id: true },
+    });
     const session = await this.auth.issueSessionForProfile(
       identity.userProfileId,
     );

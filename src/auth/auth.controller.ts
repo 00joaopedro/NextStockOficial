@@ -10,18 +10,25 @@ import {
   ValidationPipe,
   Optional,
   UnauthorizedException,
+  ServiceUnavailableException,
+  HttpException,
+  HttpStatus,
+  Logger,
+  UnprocessableEntityException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SupabaseResetPasswordDto } from './dto/supabase-reset-password.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { SupabasePasswordRecoveryDto } from './dto/supabase-password-recovery.dto';
 import { PasswordLifecycleService } from './password-lifecycle.service';
 import { authProviderMode } from './auth-provider-mode';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { LOCAL_PASSWORD_MIN_LENGTH } from './local-password';
 import { RateLimit } from '../security/public-rate-limit.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { CsrfExempt } from '../security/csrf-origin.guard';
@@ -39,17 +46,30 @@ import type {
   CompatibleReply,
 } from '../common/http-types';
 import { GoogleOAuthService } from './google-oauth.service';
+import { SupabaseAuthProvider } from './supabase-auth-provider';
+import { PasswordRecoveryError } from './auth-provider';
+
+class GoogleCallbackFailure extends Error {
+  constructor(readonly code: 'oauth_state_invalid' | 'oauth_code_missing') {
+    super('Google callback validation failed.');
+    this.name = 'GoogleCallbackFailure';
+  }
+}
+
+const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
 
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
   constructor(
     private readonly authService: AuthService,
     @Optional() private readonly audit?: AuditService,
     @Optional() private readonly sessions?: SessionsService,
     @Optional() private readonly passwordLifecycle?: PasswordLifecycleService,
     @Optional() private readonly googleOAuth?: GoogleOAuthService,
+    @Optional() private readonly supabaseAuth?: SupabaseAuthProvider,
   ) {}
 
   @Get('google/start')
@@ -60,8 +80,18 @@ export class AuthController {
     @Req() req: AuthenticatedHttpRequest,
     @Res() reply: CompatibleReply,
   ) {
-    const url = await this.googleOAuth!.start('login');
-    reply.redirect(url);
+    try {
+      const url = await this.googleOAuth!.start('login');
+      const destination = new URL(url);
+      if (
+        destination.protocol !== 'https:' ||
+        destination.hostname !== 'accounts.google.com'
+      )
+        throw new Error('Invalid Google authorization destination.');
+      return this.sendRedirect(reply, destination.toString());
+    } catch {
+      return this.sendRedirect(reply, '/?auth_error=auth_failed');
+    }
   }
 
   @Get('capabilities')
@@ -83,25 +113,52 @@ export class AuthController {
     );
     if (!sessionId) throw new UnauthorizedException('Active session required.');
     const url = await this.googleOAuth!.start('link', req.user!.id, sessionId);
-    reply.redirect(url);
+    return this.sendRedirect(reply, url);
   }
 
   @Get('google/callback')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 10, windowMs: 60_000 })
   @CsrfExempt()
   async googleCallback(
     @Req() req: AuthenticatedHttpRequest,
     @Res() reply: CompatibleReply,
   ) {
     const query = req.query as { code?: string; state?: string };
-    const result = await this.googleOAuth!.callback(
-      query.code || '',
-      query.state || '',
-    );
-    if (result.kind === 'session') {
-      await this.createSession(req, reply, result.accessToken, result.user);
-      this.setJwtCookie(reply, result.accessToken);
+    try {
+      this.logger.log(
+        `auth.google.callback_received request=${req.requestId ?? 'unknown'}`,
+      );
+      if (!query.state) throw new GoogleCallbackFailure('oauth_state_invalid');
+      if (!query.code) throw new GoogleCallbackFailure('oauth_code_missing');
+      const result = await this.googleOAuth!.callback(
+        query.code || '',
+        query.state || '',
+      );
+      this.logger.log(
+        `auth.google.identity_verified request=${req.requestId ?? 'unknown'} kind=${result.kind}`,
+      );
+      if (result.kind === 'session') {
+        await this.createSession(req, reply, result.accessToken, result.user);
+        this.setJwtCookie(reply, result.accessToken);
+        this.logger.log(
+          `auth.google.cookie_emitted request=${req.requestId ?? 'unknown'}`,
+        );
+      }
+      const destination = this.safeInternalRedirect(result.redirectTo);
+      this.logger.log(
+        `auth.google.redirect_sent request=${req.requestId ?? 'unknown'} destination=${destination}`,
+      );
+      return this.sendRedirect(reply, destination);
+    } catch (error) {
+      const diagnosticCode = this.publicAuthCode(error);
+      const publicCode = this.publicGoogleAuthCode(diagnosticCode);
+      await this.recordGoogleCallbackFailure(req, diagnosticCode);
+      this.logger.warn(
+        `auth.google.callback_failed request=${req.requestId ?? 'unknown'} code=${diagnosticCode}`,
+      );
+      return this.sendRedirect(reply, `/?auth_error=${publicCode}`);
     }
-    reply.redirect(result.redirectTo);
   }
 
   @Post('register')
@@ -223,50 +280,184 @@ export class AuthController {
     return result;
   }
 
-  @Post('supabase-password-recovery')
+  @Post('reset-password/supabase')
   @UseGuards(AuthRateLimitGuard)
   @RateLimit({ max: 5, windowMs: 3_600_000, includeEmail: false })
   @CsrfExempt()
-  async supabasePasswordRecovery(
-    @Body() body: SupabasePasswordRecoveryDto,
+  async resetSupabasePassword(
+    @Body() body: SupabaseResetPasswordDto,
     @Req() req: AuthenticatedHttpRequest,
   ) {
-    let profileId: string | undefined;
+    const mode = authProviderMode();
+    if (!['supabase_only', 'coexistence'].includes(mode) || !this.supabaseAuth)
+      throw new UnauthorizedException('Supabase recovery is unavailable.');
+    if (
+      body.newPassword.length < LOCAL_PASSWORD_MIN_LENGTH ||
+      [...body.newPassword].some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 31 || code === 127;
+      })
+    ) {
+      throw new UnprocessableEntityException({
+        code: 'PASSWORD_POLICY_REJECTED',
+        message:
+          'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.',
+      });
+    }
     try {
-      ({ profileId } =
-        await this.authService.completeSupabasePasswordRecovery(body));
+      const identity = await this.supabaseAuth.completePasswordRecovery({
+        accessToken: body.accessToken,
+        refreshToken: body.refreshToken,
+        newPassword: body.newPassword,
+      });
+      const profileId = await this.authService.resolveInternalProfileId(
+        identity.id,
+      );
       const revoked = await this.sessions?.revokeAllForProfile(
         profileId,
         'password_recovery',
         this.sessions.metadataFromRequest(req),
       );
-      const audit = this.audit;
-      if (audit)
-        await audit.record({
-          ...audit.fromRequest(req),
+      const recoverySessionRevoked = identity.recoverySessionRevoked !== false;
+      if (!recoverySessionRevoked) this.logPartialRecovery(req, identity);
+      if (this.audit)
+        await this.audit.record({
+          ...this.audit.fromRequest(req),
           eventType: 'auth.password_recovery.completed',
           action: 'supabase_password_recovery',
           outcome: AuditOutcome.SUCCESS,
           severity: AuditSeverity.HIGH,
           actorProfileId: profileId,
-          metadata: { revokedCount: revoked ?? 0, provider: 'supabase' },
+          metadata: {
+            revokedCount: revoked ?? 0,
+            provider: 'supabase',
+            supabaseRecoverySessionRevoked: recoverySessionRevoked,
+            recoveryDiagnosticCode: identity.recoveryDiagnosticCode,
+          },
         });
-      return { ok: true };
+      return recoverySessionRevoked
+        ? { ok: true }
+        : {
+            ok: true,
+            code: 'RECOVERY_PASSWORD_UPDATED_SESSION_REVOCATION_PENDING',
+          };
     } catch (error) {
-      const audit = this.audit;
-      if (audit)
-        await audit.record({
-          ...audit.fromRequest(req),
-          eventType: 'auth.password_recovery.completed',
-          action: 'supabase_password_recovery',
-          outcome: AuditOutcome.FAILED,
-          severity: AuditSeverity.HIGH,
-          actorProfileId: profileId ?? null,
-          reasonCode: 'recovery_completion_failed',
-          metadata: { provider: 'supabase' },
+      this.logRecoveryFailure(req, error);
+      const code = this.publicAuthCode(error);
+      if (code === 'provider_unavailable')
+        throw new ServiceUnavailableException({
+          code: 'RECOVERY_PROVIDER_UNAVAILABLE',
+          message: 'Serviço temporariamente indisponível.',
         });
-      throw error;
+      if (code === 'rate_limited')
+        throw new HttpException(
+          {
+            code: 'RECOVERY_RATE_LIMITED',
+            message: 'Muitas tentativas. Aguarde e tente novamente.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      if (code === 'invalid_credentials')
+        throw new UnauthorizedException({
+          code: 'RECOVERY_LINK_INVALID',
+          message: 'Link de recuperação inválido ou expirado.',
+        });
+      if (code === 'password_policy')
+        throw new UnprocessableEntityException({
+          code: 'PASSWORD_POLICY_REJECTED',
+          message: 'A senha não atende à política exigida.',
+        });
+      throw new InternalServerErrorException({
+        code: 'RECOVERY_FAILED',
+        message: 'Não foi possível redefinir a senha.',
+      });
     }
+  }
+
+  private logPartialRecovery(
+    req: AuthenticatedHttpRequest,
+    result: {
+      recoveryDiagnosticCode?: string;
+      recoveryProviderStatus?: number;
+      recoveryProviderCode?: string;
+    },
+  ) {
+    this.logger.warn(
+      `auth.recovery.failed request=${req.requestId ?? 'unknown'} code=${result.recoveryDiagnosticCode ?? 'RECOVERY_GLOBAL_SIGNOUT_FAILED'} status=${result.recoveryProviderStatus ?? 'none'} providerCode=${result.recoveryProviderCode ?? 'none'}`,
+    );
+  }
+
+  private logRecoveryFailure(req: AuthenticatedHttpRequest, error: unknown) {
+    if (!(error instanceof PasswordRecoveryError)) return;
+    const status = error.providerStatus ?? 'none';
+    const providerCode = error.providerCode ?? 'none';
+    this.logger.warn(
+      `auth.recovery.failed request=${req.requestId ?? 'unknown'} code=${error.diagnosticCode} status=${status} providerCode=${providerCode}`,
+    );
+  }
+
+  private publicAuthCode(error: unknown) {
+    const code =
+      error && typeof error === 'object' && 'code' in error
+        ? String((error as { code?: unknown }).code)
+        : '';
+    return [
+      'invalid_credentials',
+      'password_policy',
+      'provider_unavailable',
+      'rate_limited',
+      'oauth_state_invalid',
+      'oauth_code_missing',
+      'provider_rejected',
+      'identity_disabled',
+      'link_conflict',
+    ].includes(code)
+      ? code
+      : error instanceof UnauthorizedException
+        ? /invalid|expired|already used/i.test(error.message)
+          ? 'oauth_state_invalid'
+          : /unavailable/i.test(error.message)
+            ? 'identity_disabled'
+            : 'provider_rejected'
+        : error instanceof HttpException && error.getStatus() === 409
+          ? 'link_conflict'
+          : 'auth_failed';
+  }
+
+  private async recordGoogleCallbackFailure(
+    req: AuthenticatedHttpRequest,
+    reasonCode: string,
+  ) {
+    if (!this.audit) return;
+    await this.audit.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.google.callback.failed',
+      action: 'google_callback',
+      outcome: AuditOutcome.DENIED,
+      severity: AuditSeverity.HIGH,
+      reasonCode,
+      metadata: { stage: 'callback', publicCode: reasonCode },
+    });
+  }
+
+  private publicGoogleAuthCode(diagnosticCode: string) {
+    return PUBLIC_GOOGLE_AUTH_ERRORS.has(diagnosticCode)
+      ? diagnosticCode
+      : 'auth_failed';
+  }
+
+  private safeInternalRedirect(destination: string) {
+    return /^\/(?!\/)[A-Za-z0-9._/?=&%-]*$/.test(destination)
+      ? destination
+      : '/produtos.html';
+  }
+
+  private sendRedirect(
+    reply: CompatibleReply,
+    destination: string,
+    statusCode: 302 | 303 = 302,
+  ) {
+    return reply.code(statusCode).header('Location', destination).send();
   }
 
   @Post('change-password')

@@ -9,6 +9,7 @@ import {
   MinLength,
 } from 'class-validator';
 import { EmployeeRole } from '@prisma/client';
+import { LOCAL_PASSWORD_MAX_LENGTH, LOCAL_PASSWORD_MIN_LENGTH } from '../../auth/local-password';
 
 export class CreateEmployeeDto {
   @IsString()
@@ -20,8 +21,8 @@ export class CreateEmployeeDto {
   email!: string;
 
   @IsString()
-  @MinLength(8)
-  @MaxLength(128)
+  @MinLength(LOCAL_PASSWORD_MIN_LENGTH)
+  @MaxLength(LOCAL_PASSWORD_MAX_LENGTH)
   password!: string;
 
   @IsEnum(EmployeeRole)

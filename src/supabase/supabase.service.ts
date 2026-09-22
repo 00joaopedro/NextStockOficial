@@ -5,10 +5,13 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 export class SupabaseService {
   public readonly anon: SupabaseClient;
   public readonly admin: SupabaseClient;
+  private readonly url: string;
+  private readonly anonKey: string;
 
   constructor() {
     const url = process.env.SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+    const anonKey =
+      process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     if (!url || !anonKey || !serviceKey) {
@@ -16,6 +19,9 @@ export class SupabaseService {
         'Missing Supabase env vars (SUPABASE_URL / SUPABASE_ANON_KEY or SUPABASE_PUBLISHABLE_KEY / SUPABASE_SERVICE_ROLE_KEY).',
       );
     }
+
+    this.url = url;
+    this.anonKey = anonKey;
 
     this.anon = createClient(url, anonKey, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -26,17 +32,13 @@ export class SupabaseService {
     });
   }
 
-  createRequestAnonClient() {
-    const url = process.env.SUPABASE_URL;
-    const anonKey =
-      process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-    if (!url || !anonKey) throw new Error('Missing Supabase public configuration.');
-    return createClient(url, anonKey, {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
+  createRecoveryClient() {
+    return createClient(this.url, this.anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
     });
+  }
+
+  createRequestAnonClient() {
+    return this.createRecoveryClient();
   }
 }
