@@ -32,6 +32,53 @@ describe('funcionario.html production frontend', () => {
     expect(script).toContain('/reset-password');
     expect(script).not.toContain('senhaAcesso.value = employee');
   });
+
+  it('alinha criação e reset de funcionário à política de 6 a 128 caracteres', () => {
+    const html = readFileSync(join(root, 'public', 'funcionario.html'), 'utf8');
+    const script = readFileSync(join(root, 'public', 'Js', 'funcionario.js'), 'utf8');
+
+    expect(html).toContain('minlength="6" maxlength="128"');
+    expect(html).toContain('Senha entre 6 e 128 caracteres');
+    expect(script).toContain('payload.password.length < 6');
+    expect(script).toContain('password.length < 6');
+    expect(script).toContain('entre 6 e 128 caracteres');
+    expect(script).not.toMatch(/password\.length\s*<\s*8/);
+    expect(script).not.toContain('pelo menos 8');
+  });
+});
+
+describe('reset password frontend', () => {
+  it('preserves the real page pathname while removing query and fragment', () => {
+    const script = readFileSync(
+      join(__dirname, '..', 'public', 'Js', 'reset-password.ts'),
+      'utf8',
+    );
+    expect(script).toContain('window.location.pathname');
+    expect(script).not.toContain("'/reset-password'");
+  });
+
+  it('announces the six character registration minimum', () => {
+    const html = readFileSync(
+      join(__dirname, '..', 'public', 'index.html'),
+      'utf8',
+    );
+    const script = readFileSync(
+      join(
+        __dirname,
+        '..',
+        'public',
+        'Js',
+        'csp-extracted',
+        'index-inline1.js',
+      ),
+      'utf8',
+    );
+    expect(html).toContain('minlength="6"');
+    expect(html).toContain('pattern="[A-Za-z0-9]{6,128}"');
+    expect(html).toContain('entre 6 e 128');
+    expect(script).toContain('{6,128}');
+    expect(script).toContain('entre 6 e 128');
+  });
 });
 
 describe('reset password frontend', () => {

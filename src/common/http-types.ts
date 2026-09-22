@@ -26,10 +26,11 @@ export type CookieOptions = {
 };
 
 export type CompatibleReply = {
-  redirect(url: string): unknown;
+  code(statusCode: 302 | 303): CompatibleReply;
+  send(payload?: unknown): unknown;
   setCookie(name: string, value: string, options?: CookieOptions): unknown;
   clearCookie(name: string, options?: CookieOptions): unknown;
-  header(name: string, value: string): unknown;
+  header(name: string, value: string): CompatibleReply;
 };
 
 export type Response = {

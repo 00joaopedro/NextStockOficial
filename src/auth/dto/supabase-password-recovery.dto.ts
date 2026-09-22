@@ -1,4 +1,5 @@
 import { IsIn, IsString, Length, Matches } from 'class-validator';
+import { LOCAL_PASSWORD_MAX_LENGTH, LOCAL_PASSWORD_MIN_LENGTH, PASSWORD_POLICY_MESSAGE } from '../local-password';
 
 export class SupabasePasswordRecoveryDto {
   @IsString()
@@ -12,7 +13,7 @@ export class SupabasePasswordRecoveryDto {
   @Length(20, 4096)
   refreshToken!: string;
   @IsString()
-  @Length(12, 128)
-  @Matches(/^[^\u0000-\u001F\u007F]+$/)
+  @Length(LOCAL_PASSWORD_MIN_LENGTH, LOCAL_PASSWORD_MAX_LENGTH, { message: PASSWORD_POLICY_MESSAGE })
+  @Matches(/^[^\u0000-\u001F\u007F]+$/, { message: PASSWORD_POLICY_MESSAGE })
   newPassword!: string;
 }

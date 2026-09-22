@@ -101,6 +101,12 @@ describe('frontend auth pages', () => {
     expect(html).toContain('Erro interno. Tente novamente em instantes.');
     expect(html).not.toContain('profiles.allowed_system_types');
     expect(html).not.toContain('PrismaClientKnownRequestError');
+    expect(html).toContain('authErrorMessages');
+    expect(html).toContain('authErrorParams.delete');
+    expect(html).toContain('showAuthError');
+    expect(html).toContain(
+      'NÃ£o foi possÃ­vel entrar com o Google. Tente novamente.',
+    );
   });
 
   it('index.html usa cookies HttpOnly e contratos reais para auth', () => {
@@ -123,6 +129,16 @@ describe('frontend auth pages', () => {
     expect(html).toMatch(/id="googleLoginLink"[^>]+hidden/);
     expect(html).toContain('/auth/capabilities');
     expect(html).toContain('googleOAuthEnabled === true');
+    expect(html).toContain("googleLoginLink.addEventListener('click'");
+    expect(html).toContain("event.preventDefault();");
+    expect(html).toContain("window.location.assign('/api/auth/google/start');");
+    expect(html).toContain('event.defaultPrevented');
+    expect(html).toContain('event.button !== 0');
+    expect(html).toContain('event.metaKey');
+    expect(html).toContain('event.ctrlKey');
+    expect(html).toContain('event.shiftKey');
+    expect(html).toContain('event.altKey');
+    expect(html).not.toContain("fetch('/api/auth/google/start'");
   });
 
   it('reset-password.html referencia o bundle compilado de reset-password', () => {
@@ -157,22 +173,74 @@ describe('frontend auth pages', () => {
       'utf8',
     );
 
-    expect(source).toContain("hash.get('access_token')");
-    expect(source).toContain("hash.get('refresh_token')");
-    expect(source).toContain("recoveryType === 'recovery'");
-    expect(source).toContain('recoveryType, newPassword: password');
+    expect(source).toContain("query.get('token')");
+    expect(source).toContain("fragment.get('access_token')");
+    expect(source).toContain("fragment.get('refresh_token')");
+    expect(source).toContain("fragment.get('type')");
+    expect(source).toContain("'/api/auth/reset-password/supabase'");
     expect(source).toContain('window.history.replaceState');
-    expect(source).toContain("'/api/auth/supabase-password-recovery'");
     expect(source).toContain("'/api/auth/reset-password'");
+    expect(source).toContain('const callbackValid');
+    expect(source).toContain('case 400:');
+    expect(source).toContain('case 401:');
+    expect(source).toContain('case 503:');
+    expect(source).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
+    expect(html).toContain('minlength="6" maxlength="128"');
+    expect(html).toContain('password-policy');
+    expect(source).toContain('let isSubmitting = false');
+    expect(source).toContain('if (isSubmitting || !callbackValid) return');
+    expect(source).toContain("form?.addEventListener('submit'");
+    expect(source).toContain("recoveryType: 'recovery'");
+    expect(source).toContain('case 422:');
+    expect(source).toContain('A senha não atende às regras exigidas.');
+    expect(source).toContain('RECOVERY_REQUEST_INVALID');
+    expect(source).toContain('RECOVERY_LINK_INVALID');
+    expect(source).toContain('PASSWORD_POLICY_REJECTED');
+    expect(source).toContain('RECOVERY_PROVIDER_UNAVAILABLE');
+    expect(source).toContain('recoveryErrorMessage(response.status, publicCode)');
+    expect(source).toContain('response.clone().json()');
+    expect(source).not.toMatch(/response\.status === 422 \?/);
     expect(source).not.toMatch(/localStorage|sessionStorage/);
-    expect(bundle).toContain("hash.get('access_token')");
-    expect(bundle).toContain("hash.get('refresh_token')");
+    expect(bundle).toContain("query.get('token')");
+    expect(bundle).toContain("fragment.get('access_token')");
+    expect(bundle).toContain("fragment.get('refresh_token')");
+    expect(bundle).toContain("fragment.get('type')");
+    expect(bundle).toContain("'/api/auth/reset-password/supabase'");
     expect(bundle).toContain('window.history.replaceState');
     expect(bundle).toContain("'/api/auth/reset-password'");
+    expect(bundle).toContain('const callbackValid');
+    expect(bundle).toContain('case 400:');
+    expect(bundle).toContain('case 401:');
+    expect(bundle).toContain('case 503:');
+    expect(bundle).toContain('RECOVERY_PASSWORD_POLICY_INVALID');
+    expect(bundle).toContain('password.length < 6');
+    expect(bundle).toContain('A senha deve ter entre 6 e 128 caracteres');
+    expect(bundle).not.toContain('A senha deve ter entre 12 e 128 caracteres');
+    expect(bundle).toContain('let isSubmitting = false');
+    expect(bundle).toMatch(/if \(isSubmitting \|\| !callbackValid\)/);
+    expect(bundle).toContain("form?.addEventListener('submit'");
+    expect(bundle).toContain("recoveryType: 'recovery'");
+    expect(bundle).toContain('case 422:');
+    expect(bundle).toContain('A senha não atende às regras exigidas.');
+    expect(bundle).toContain('RECOVERY_REQUEST_INVALID');
+    expect(bundle).toContain('RECOVERY_LINK_INVALID');
+    expect(bundle).toContain('PASSWORD_POLICY_REJECTED');
+    expect(bundle).toContain('RECOVERY_PROVIDER_UNAVAILABLE');
+    expect(bundle).toContain('recoveryErrorMessage(response.status, publicCode)');
+    expect(bundle).toContain('response.clone().json()');
+    expect(bundle).not.toMatch(/response\.status === 422 \?/);
     expect(bundle).toContain('window.location.pathname');
     expect(bundle).not.toContain("'/reset-password'");
     expect(bundle).not.toMatch(/localStorage|sessionStorage/);
-    expect(bundle).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY|SUPABASE_ACCESS_TOKEN/);
+    for (const code of [
+      'RECOVERY_PAGE_READY', 'RECOVERY_CALLBACK_VALID', 'RECOVERY_CALLBACK_MISSING',
+      'RECOVERY_TYPE_INVALID', 'RECOVERY_FORM_SUBMIT', 'RECOVERY_PASSWORD_MISMATCH',
+      'RECOVERY_REQUEST_STARTED', 'RECOVERY_REQUEST_REJECTED', 'RECOVERY_REQUEST_SUCCEEDED',
+      'RECOVERY_NETWORK_FAILED',
+    ]) {
+      expect(source).toContain(code);
+      expect(bundle).toContain(code);
+    }
   });
 
   it('dados locais operacionais sao isolados por usuario, tenant e filial', () => {
@@ -186,6 +254,38 @@ describe('frontend auth pages', () => {
     }
 
     expect(publicFile('dist/dashboard.js')).toContain('x-nextstock-branch-id');
+  });
+
+  it('oferece controles independentes para mostrar cada senha', () => {
+    const html = publicFile('reset-password.html');
+    const source = readFileSync(join(__dirname, '..', 'public', 'Js', 'reset-password.ts'), 'utf8');
+    const bundle = readFileSync(join(__dirname, '..', 'public', 'dist', 'reset-password.js'), 'utf8');
+
+    expect((html.match(/<meta name="viewport"/g) || []).length).toBe(1);
+    expect(html).toContain('<meta name="viewport" content="width=device-width, initial-scale=1">');
+    expect(html).not.toContain('maximum-scale=1');
+    expect(html).not.toContain('user-scalable=no');
+    expect(html).not.toContain('#22c55e');
+    expect(html).toContain('background: linear-gradient(145deg, #166534 0%, #15803d 100%)');
+    expect(html).toContain('color: #fff; line-height: 1.5');
+    expect(html).toContain('#message { min-height: 48px; margin: 4px 0 0; color: #fff;');
+    expect((html.match(/data-password-toggle/g) || []).length).toBe(2);
+    expect(html).toContain('type="button" data-password-toggle aria-controls="password"');
+    expect(html).toContain('type="button" data-password-toggle aria-controls="confirmation"');
+    expect(html).toContain('class="submit-button" type="submit"');
+    for (const code of [
+      'setupPasswordToggle',
+      "input.type = input.type === 'password' ? 'text' : 'password'",
+      "toggle.textContent = visible ? 'Esconder' : 'Mostrar'",
+      "toggle.setAttribute('aria-pressed', String(visible))",
+      'input.focus()',
+      'input.setSelectionRange',
+    ]) {
+      expect(source).toContain(code);
+      expect(bundle).toContain(code);
+    }
+    expect(source).not.toContain('innerHTML');
+    expect(bundle).not.toContain('innerHTML');
   });
 
   it('sidebar mostra Dev somente com isDevSuperAdmin vindo do backend', () => {

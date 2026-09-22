@@ -1,7 +1,10 @@
 import * as bcrypt from 'bcryptjs';
+import { createHash } from 'crypto';
 
-export const LOCAL_PASSWORD_MIN_LENGTH = 12;
+export const LOCAL_PASSWORD_MIN_LENGTH = 6;
 export const LOCAL_PASSWORD_MAX_LENGTH = 128;
+export const PASSWORD_POLICY_MESSAGE =
+  'A senha deve ter entre 6 e 128 caracteres e não conter caracteres de controle.';
 
 export function validateLocalPassword(password: string): void {
   if (typeof password !== 'string') throw new Error('PASSWORD_INVALID');
@@ -12,8 +15,12 @@ export function validateLocalPassword(password: string): void {
     throw new Error('PASSWORD_INVALID');
   if ([...password].some((char) => char === '\0' || /\p{Cc}/u.test(char)))
     throw new Error('PASSWORD_INVALID');
-  if (Buffer.byteLength(password, 'utf8') > 72)
-    throw new Error('PASSWORD_TOO_LONG_FOR_BCRYPT');
+}
+
+function bcryptInput(password: string) {
+  return Buffer.byteLength(password, 'utf8') > 72
+    ? createHash('sha256').update(password, 'utf8').digest('hex')
+    : password;
 }
 
 export class PasswordHasher {
@@ -24,7 +31,7 @@ export class PasswordHasher {
 
   async hash(password: string) {
     validateLocalPassword(password);
-    return bcrypt.hash(password, this.rounds);
+    return bcrypt.hash(bcryptInput(password), this.rounds);
   }
 
   /** Hashes a password only after a legacy provider has authenticated it. */
@@ -46,7 +53,10 @@ export class PasswordHasher {
   }
 
   async compare(password: string, hash: string) {
-    return bcrypt.compare(password, hash);
+    if (await bcrypt.compare(password, hash)) return true;
+    return Buffer.byteLength(password, 'utf8') > 72
+      ? bcrypt.compare(bcryptInput(password), hash)
+      : false;
   }
 
   needsRehash(hash: string) {
