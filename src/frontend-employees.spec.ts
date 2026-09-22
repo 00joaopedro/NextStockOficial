@@ -91,7 +91,7 @@ describe('reset password frontend', () => {
     expect(script).not.toContain("'/reset-password'");
   });
 
-  it('announces the 12 character registration minimum', () => {
+  it('employee password frontend matches the configured password policy', () => {
     const html = readFileSync(
       join(__dirname, '..', 'public', 'index.html'),
       'utf8',
@@ -107,10 +107,10 @@ describe('reset password frontend', () => {
       ),
       'utf8',
     );
-    expect(html).toContain('minlength="12"');
-    expect(html).toContain('pattern="[A-Za-z0-9]{12,}"');
-    expect(html).toContain('m&iacute;nimo 12');
-    expect(script).toContain('{12,}');
-    expect(script).toContain('minimo 12');
+    expect(html).toContain('minlength="6"');
+    expect(html).toContain('pattern="[A-Za-z0-9]{6,128}"');
+    expect(html).toContain('entre 6 e 128');
+    expect(script).toContain('{6,128}');
+    expect(script).toContain('entre 6 e 128');
   });
 });
