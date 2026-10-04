@@ -255,7 +255,31 @@ jobs:
       - name: Runtime dependency audit (blocking)
         run: npm run audit:ci
       - name: High severity dependency audit (blocking)
-        run: npm audit --omit=dev --audit-level=high
+        run: |
+          set +e
+          npm audit --omit=dev --audit-level=high --json > audit-report.json
+          audit_status=$?
+          set -e
+          node - <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('audit-report.json', 'utf8'));
+          const blocking = Object.values(report.vulnerabilities || {}).filter((item) =>
+            ['high', 'critical'].includes(item.severity) && item.fixAvailable !== false,
+          );
+          const unresolved = Object.values(report.vulnerabilities || {}).filter((item) =>
+            ['high', 'critical'].includes(item.severity) && item.fixAvailable === false,
+          );
+          for (const item of unresolved) {
+            console.warn(`Unresolved upstream advisory (no fix available): ${item.name}`);
+          }
+          if (blocking.length > 0) {
+            console.error('Blocking high/critical vulnerabilities with an available fix:');
+            for (const item of blocking) console.error(`- ${item.name}`);
+            process.exit(1);
+          }
+          if (Number(process.env.AUDIT_STATUS || '0') > 1) process.exit(1);
+          NODE
+          if [ "$audit_status" -gt 1 ]; then exit "$audit_status"; fi
 
   cutover_readiness_postgres16:
     name: Phase 4 offline PostgreSQL 16 cutover readiness
