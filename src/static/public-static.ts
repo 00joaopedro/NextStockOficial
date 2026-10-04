@@ -3,11 +3,18 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-const publicPath = join(__dirname, '..', '..', 'public');
+const publicPathCandidates = [
+  join(__dirname, '..', '..', 'public'),
+  join(__dirname, '..', '..', '..', 'public'),
+  join(process.cwd(), 'public'),
+];
+const publicPath =
+  publicPathCandidates.find((candidate) => existsSync(candidate)) ??
+  publicPathCandidates[0];
 
 export async function registerPublicStatic(app: FastifyInstance) {
   await app.register(fastifyStatic, {
-    root: existsSync(publicPath) ? publicPath : join(__dirname, '..', 'public'),
+    root: publicPath,
     etag: true,
     index: ['index.html'],
     wildcard: true,
