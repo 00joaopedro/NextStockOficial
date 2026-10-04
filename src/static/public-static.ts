@@ -51,4 +51,8 @@ export async function registerPublicStatic(app: FastifyInstance) {
       setHeader('Cache-Control', 'public, max-age=3600');
     },
   } satisfies FastifyStaticOptions);
+
+  // Keep the production entrypoint deterministic: the root URL must serve
+  // the login page even when the static plugin wildcard is not selected.
+  app.get('/', (_request, reply) => reply.sendFile('index.html'));
 }
