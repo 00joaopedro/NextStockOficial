@@ -124,7 +124,8 @@ function getNextStockPublicPreviewContext(): {
 
 const PREVIEW_BLOCK_CODE = 'PREVIEW_MODE_MUTATION_BLOCKED';
 const PREVIEW_BLOCK_MESSAGE = 'Modo visualização: ação bloqueada.';
-\nconst AUTHENTICATION_MUTATION_PATHS = new Set([
+
+const AUTHENTICATION_MUTATION_PATHS = new Set([
   '/api/auth/login',
   '/api/auth/register',
   '/api/auth/logout',
@@ -136,7 +137,6 @@ const PREVIEW_BLOCK_MESSAGE = 'Modo visualização: ação bloqueada.';
 function isNextStockAuthenticationMutation(pathname: string): boolean {
   return AUTHENTICATION_MUTATION_PATHS.has(pathname);
 }
-
 
 function setNextStockBackendContext(context: {
   systemMode?: string;
