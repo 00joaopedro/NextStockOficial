@@ -125,6 +125,19 @@ function getNextStockPublicPreviewContext(): {
 const PREVIEW_BLOCK_CODE = 'PREVIEW_MODE_MUTATION_BLOCKED';
 const PREVIEW_BLOCK_MESSAGE = 'Modo visualização: ação bloqueada.';
 
+const AUTHENTICATION_MUTATION_PATHS = new Set([
+  '/api/auth/login',
+  '/api/auth/register',
+  '/api/auth/logout',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/reset-password/supabase',
+]);
+
+function isNextStockAuthenticationMutation(pathname: string): boolean {
+  return AUTHENTICATION_MUTATION_PATHS.has(pathname);
+}
+
 function setNextStockBackendContext(context: {
   systemMode?: string;
   systemType?: string;
@@ -191,10 +204,13 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
         : request.url;
   const method = String(init?.method || (request instanceof Request ? request.method : 'GET')).toUpperCase();
 
+  const pathname = new URL(url, window.location.origin).pathname;
+
   if (
     isNextStockDemoMode() &&
-    new URL(url, window.location.origin).pathname.startsWith('/api/') &&
-    !['GET', 'HEAD', 'OPTIONS'].includes(method)
+    pathname.startsWith('/api/') &&
+    !['GET', 'HEAD', 'OPTIONS'].includes(method) &&
+    !isNextStockAuthenticationMutation(pathname)
   ) {
     showNextStockPreviewBlocked();
     return new Response(
