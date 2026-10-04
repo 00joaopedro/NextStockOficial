@@ -254,7 +254,9 @@ export function validateTree(npmTree, lockfile, installedPackages) {
   const npmLegacyNestedExceptions = problems.filter(
     (problem) =>
       problem.type === 'extraneous' &&
-      ((problem.name === 'balanced-match' && problem.version === '1.0.2' && problem.path === 'node_modules/test-exclude/node_modules/balanced-match') ||
+      ((problem.name === 'brace-expansion' && problem.version === '5.0.12' && problem.path === 'node_modules/brace-expansion') ||
+       (problem.name === 'balanced-match' && problem.version === '4.0.4' && problem.path === 'node_modules/brace-expansion/node_modules/balanced-match') ||
+       (problem.name === 'balanced-match' && problem.version === '1.0.2' && problem.path === 'node_modules/test-exclude/node_modules/balanced-match') ||
        (problem.name === 'brace-expansion' && problem.version === '2.1.7' && problem.path === 'node_modules/test-exclude/node_modules/glob/node_modules/brace-expansion')),
   );
   const tolerated = [];
