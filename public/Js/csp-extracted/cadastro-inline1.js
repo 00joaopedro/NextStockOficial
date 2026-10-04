@@ -122,7 +122,14 @@
       }
 
       salvarContextoProducao(branch);
-      await carregarContextoSistema();
+      // Context is auxiliary UI state. A transient failure in
+      // /api/system/context must not discard a valid JWT/profile and prevent
+      // product registration; the API remains the authority for permissions.
+      try {
+        await carregarContextoSistema();
+      } catch (error) {
+        console.warn("Falha ao carregar contexto do sistema; continuando com o perfil autenticado.", error);
+      }
       return branch;
     }
 
@@ -724,3 +731,4 @@
     }
     aplicarSanitizacaoNosInputs();
   
+

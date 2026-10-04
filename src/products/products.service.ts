@@ -178,13 +178,24 @@ export class ProductsService {
       const image = product.images[0];
       return image?.thumbnailPath ?? image?.mediumPath ?? image?.storagePath;
     });
-    const resolvedUrls = this.storage
-      ? await this.storage.getProductImageUrls(imagePaths)
-      : new Map<string, string>();
-    await this.recordProductUsage(user, tenant, 'products_list', {
+    // Image URL generation is an optional presentation concern. In production
+    // signed-URL calls can be slow or temporarily unavailable; they must not
+    // turn an otherwise healthy product list into a 500/timeout.
+    let resolvedUrls = new Map<string, string>();
+    if (this.storage) {
+      try {
+        resolvedUrls = await this.storage.getProductImageUrls(imagePaths);
+      } catch {
+        // Keep persisted metadata and render the product without a thumbnail
+        // until storage recovers.
+        resolvedUrls = new Map<string, string>();
+      }
+    }
+    // Usage telemetry is non-critical and must not add latency to GET /products.
+    void this.recordProductUsage(user, tenant, 'products_list', {
       dbReadCount: 2,
       metadata: { count: products.length },
-    });
+    }).catch(() => undefined);
 
     return {
       ok: true,
@@ -395,10 +406,10 @@ export class ProductsService {
         },
         include: { images: true },
       });
-      await this.recordProductUsage(user, tenant, 'product_create', {
+      void this.recordProductUsage(user, tenant, 'product_create', {
         dbWriteCount: 1,
         metadata: { productId: product.id },
-      });
+      }).catch(() => undefined);
 
       return { ok: true, product: await this.formatProduct(product) };
     } catch (error) {
@@ -426,10 +437,10 @@ export class ProductsService {
         data: await this.buildUpdateData(tenant.id, tenant.branchId, id, dto),
         include: { images: { orderBy: { createdAt: 'asc' } } },
       });
-      await this.recordProductUsage(user, tenant, 'product_update', {
+      void this.recordProductUsage(user, tenant, 'product_update', {
         dbWriteCount: 1,
         metadata: { productId: product.id },
-      });
+      }).catch(() => undefined);
 
       return { ok: true, product: await this.formatProduct(product) };
     } catch (error) {
@@ -453,10 +464,10 @@ export class ProductsService {
     await this.prisma.product.delete({
       where: { id, tenantId: tenant.id, branchId: tenant.branchId },
     });
-    await this.recordProductUsage(user, tenant, 'product_delete', {
+    void this.recordProductUsage(user, tenant, 'product_delete', {
       dbWriteCount: 1,
       metadata: { productId: id },
-    });
+    }).catch(() => undefined);
 
     return { ok: true };
   }
@@ -998,3 +1009,4 @@ function calculateSalePriceCents(
 ) {
   return Math.round(costPriceCents + costPriceCents * (profitPercent / 100));
 }
+
