@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -17,7 +18,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { FastifyFileInterceptor } from '../common/fastify-file.interceptor';
-import type { Request } from '../common/http-types';
+import type { CompatibleReply, Request } from '../common/http-types';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
@@ -89,6 +90,26 @@ export class ProductsController {
       selectedBranchId,
       devContextMode,
     );
+  }
+
+  @Get(':id/images/:imageId/url')
+  @UseGuards(OptionalJwtAuthGuard)
+  async resolveImageUrl(
+    @Req() req: Request,
+    @Res() reply: CompatibleReply,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('imageId', ParseUUIDPipe) imageId: string,
+    @Query('branchId') branchId: string | undefined,
+    @Headers('x-nextstock-dev-context') devContextMode: string | undefined,
+  ) {
+    const url = await this.productsService.resolveImageUrl(
+      req.user,
+      id,
+      imageId,
+      branchId,
+      devContextMode,
+    );
+    return reply.header('location', url).code(302).send();
   }
 
   @Post()
@@ -212,3 +233,4 @@ export class ProductsController {
     );
   }
 }
+
