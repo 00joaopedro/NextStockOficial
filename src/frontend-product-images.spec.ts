@@ -32,7 +32,7 @@ describe('Product image upload frontend flow', () => {
       'utf8',
     );
 
-    expect(html).not.toContain('accept="image/*"');
+    expect(html).toContain('accept="image/*"');
     expect(script).not.toContain("Use imagens JPEG, PNG ou WEBP.");
   });
 

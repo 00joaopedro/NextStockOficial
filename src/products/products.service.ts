@@ -477,7 +477,7 @@ export class ProductsService {
       const product = await this.prisma.product.update({
         where: { id, tenantId: tenant.id, branchId: tenant.branchId },
         data: await this.buildUpdateData(tenant.id, tenant.branchId, id, dto),
-        include: { images: { orderBy: { createdAt: 'asc' } } },
+        include: { images: { orderBy: { createdAt: 'desc' } } },
       });
       void this.recordProductUsage(user, tenant, 'product_update', {
         dbWriteCount: 1,
@@ -559,7 +559,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId: tenant.id, branchId: tenant.branchId },
-      include: { images: { orderBy: { createdAt: 'asc' } } },
+      include: { images: { orderBy: { createdAt: 'desc' } } },
     });
 
     return { ok: true, product: await this.formatProduct(product!) };

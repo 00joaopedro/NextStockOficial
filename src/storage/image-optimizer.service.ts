@@ -49,7 +49,9 @@ export class ImageOptimizerService {
         // Let Sharp decode any supported image format. The browser/MIME
         // declaration is not authoritative and some mobile providers send
         // an empty or non-standard MIME type for valid photos.
-        failOn: 'none',
+        // Accept any image format Sharp can decode, but reject decoder
+        // warnings so truncated or otherwise damaged uploads are not stored.
+        failOn: 'warning',
         limitInputPixels: pixelLimit,
         sequentialRead: true,
         pages: 1,
@@ -142,7 +144,9 @@ export class ImageOptimizerService {
     deadline: number,
   ): Promise<OptimizedImageVariant> {
     const pipeline = sharp(input, {
-      failOn: 'none',
+      // Keep MIME-independent format detection while rejecting decoder
+      // warnings for truncated or otherwise damaged uploads.
+      failOn: 'warning',
       limitInputPixels: pixelLimit,
       sequentialRead: true,
       pages: 1,
