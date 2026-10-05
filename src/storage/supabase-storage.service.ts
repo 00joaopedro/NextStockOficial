@@ -27,7 +27,6 @@ type UploadFile = {
   buffer?: Buffer;
 };
 
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const ALLOWED_EXPENSE_TYPES = new Map<string, ExpenseFileType>([
   ['image/jpeg', ExpenseFileType.image],
   ['image/png', ExpenseFileType.image],
@@ -744,12 +743,6 @@ export class SupabaseStorageService {
   private assertImage(file: UploadFile, maxSizeBytes: number) {
     if (!file?.buffer?.length) {
       throw new BadRequestException('Nenhum arquivo de imagem foi enviado.');
-    }
-
-    if (!file.mimetype || !ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
-      throw new BadRequestException(
-        'Formato invalido. Use imagens JPEG, PNG ou WEBP.',
-      );
     }
 
     if ((file.size ?? file.buffer.length) > maxSizeBytes) {
