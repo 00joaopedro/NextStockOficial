@@ -335,10 +335,14 @@
         if (search) params.set("search", search);
         const response = await fetch(`/api/products?${params}`, {
           credentials: "include",
+          cache: "no-store",
           signal: productsRequestController.signal,
           headers: selectedBranch?.id
-            ? { "x-nextstock-branch-id": selectedBranch.id }
-            : {}
+            ? {
+                "x-nextstock-branch-id": selectedBranch.id,
+                "Cache-Control": "no-cache"
+              }
+            : { "Cache-Control": "no-cache" }
         });
         const data = await response.json().catch(() => ({}));
 
@@ -1292,4 +1296,3 @@
 
     initProductsPage();
   
-
