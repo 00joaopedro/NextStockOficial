@@ -204,6 +204,22 @@ function getRuntimeFallbackContext() {
         sessionStorage.getItem('nextstockSystemType') ||
         user.systemType ||
         'padrao';
+    const cachedBackendMode = sessionStorage.getItem('nextstockBackendMode');
+    const cachedPreview = cachedBackendMode === 'preview' ||
+        sessionStorage.getItem('nextstockPreviewMode') === 'true' ||
+        sessionStorage.getItem('nextstockIsPreview') === 'true';
+    if (cachedPreview || cachedBackendMode !== 'production') {
+        return {
+            systemMode: 'PREVIEW',
+            tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+            mode: 'visualizacao',
+            systemType,
+            role: user.role,
+            isSuperAdmin: isSuperAdminUser(user),
+            is_super_admin: isSuperAdminUser(user),
+            isDevSuperAdmin: user.isDevSuperAdmin === true,
+        };
+    }
     return {
         systemMode: 'PRODUCTION',
         tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
