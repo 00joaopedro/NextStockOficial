@@ -291,7 +291,10 @@
     function mapApiProduct(product) {
       const imageMetadata = product.imageMetadata || [];
       const apiImages = imageMetadata
-        .map((image) => image.fileUrl || image.signedUrl || image.url)
+        .map((image) => image.fileUrl || image.signedUrl || image.url ||
+          (image.id && product.id
+            ? `/api/products/${product.id}/images/${image.id}/url?branchId=${encodeURIComponent(sessionStorage.getItem("nextstockBranchId") || "")}`
+            : null))
         .filter(isRenderableImageUrl);
       const fallbackImages = (product.imagens || []).filter(isRenderableImageUrl);
 
@@ -1289,3 +1292,4 @@
 
     initProductsPage();
   
+

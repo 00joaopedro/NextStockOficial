@@ -272,7 +272,65 @@ function normalizeContext(value: unknown): SystemContextResponse {
 }
 
 function getRuntimeFallbackContext(): SystemContextResponse {
-  return FALLBACK_CONTEXT;
+  // A transient context/billing failure must not downgrade an authenticated
+  // production session to the public preview.  The preview fallback is only
+  // valid when there is no authenticated profile in session storage.
+  let user: {
+    role?: SystemContextResponse['role'];
+    systemType?: string;
+    isSuperAdmin?: boolean;
+    is_super_admin?: boolean;
+    isDevSuperAdmin?: boolean;
+  } | null = null;
+  try {
+    user = JSON.parse(
+      sessionStorage.getItem('nextstockAuthenticatedUser') || 'null',
+    );
+  } catch {
+    user = null;
+  }
+
+  if (!user) {
+    return FALLBACK_CONTEXT;
+  }
+
+  const systemType =
+    sessionStorage.getItem('nextstockSelectedSystemType') ||
+    sessionStorage.getItem('nextstockSystemType') ||
+    user.systemType ||
+    'padrao';
+
+  const cachedBackendMode = sessionStorage.getItem('nextstockBackendMode');
+  const cachedPreview =
+    cachedBackendMode === 'preview' ||
+    sessionStorage.getItem('nextstockPreviewMode') === 'true' ||
+    sessionStorage.getItem('nextstockIsPreview') === 'true';
+
+  // If the last authoritative context was preview (or production has not yet
+  // been established), fail closed. Never grant mutation UI from a fallback.
+  if (cachedPreview || cachedBackendMode !== 'production') {
+    return {
+      systemMode: 'PREVIEW',
+      tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+      mode: 'visualizacao',
+      systemType,
+      role: user.role,
+      isSuperAdmin: isSuperAdminUser(user),
+      is_super_admin: isSuperAdminUser(user),
+      isDevSuperAdmin: user.isDevSuperAdmin === true,
+    };
+  }
+
+  return {
+    systemMode: 'PRODUCTION',
+    tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+    mode: systemType === 'petshop' ? 'petshop' : 'padrao',
+    systemType,
+    role: user.role,
+    isSuperAdmin: isSuperAdminUser(user),
+    is_super_admin: isSuperAdminUser(user),
+    isDevSuperAdmin: user.isDevSuperAdmin === true,
+  };
 }
 
 function getSelectedBranchId(): string | null {
@@ -739,3 +797,4 @@ if (document.readyState === 'loading') {
 }
 
 export {};
+

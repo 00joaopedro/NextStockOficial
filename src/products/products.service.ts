@@ -159,6 +159,7 @@ export class ProductsService {
             orderBy: { createdAt: 'asc' },
             take: 1,
             select: {
+              id: true,
               fileName: true,
               fileUrl: true,
               storagePath: true,
@@ -174,23 +175,11 @@ export class ProductsService {
         take: limit,
       }),
     ]);
-    const imagePaths = products.map((product) => {
-      const image = product.images[0];
-      return image?.thumbnailPath ?? image?.mediumPath ?? image?.storagePath;
-    });
-    // Image URL generation is an optional presentation concern. In production
-    // signed-URL calls can be slow or temporarily unavailable; they must not
-    // turn an otherwise healthy product list into a 500/timeout.
-    let resolvedUrls = new Map<string, string>();
-    if (this.storage) {
-      try {
-        resolvedUrls = await this.storage.getProductImageUrls(imagePaths);
-      } catch {
-        // Keep persisted metadata and render the product without a thumbnail
-        // until storage recovers.
-        resolvedUrls = new Map<string, string>();
-      }
-    }
+    // Do not synchronously call remote Storage while listing products. Signed
+    // URL generation can take tens of seconds on a busy Supabase pool and was
+    // the cause of the observed 499/500 responses. Existing public/variant
+    // URLs are still used below; path-only images can be resolved lazily later.
+    const resolvedUrls = new Map<string, string>();
     // Usage telemetry is non-critical and must not add latency to GET /products.
     void this.recordProductUsage(user, tenant, 'products_list', {
       dbReadCount: 2,
@@ -223,6 +212,7 @@ export class ProductsService {
             ? [
                 {
                   fileName: image.fileName,
+                  id: image.id,
                   fileUrl: thumbnailUrl,
                   storagePath: image.storagePath,
                   thumbnailUrl,
@@ -383,6 +373,58 @@ export class ProductsService {
       mode: tenant.mode,
       product: await this.formatProduct(product),
     };
+  }
+
+  async resolveImageUrl(
+    user: AuthenticatedUser | undefined,
+    productId: string,
+    imageId: string,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    if (!this.storage) {
+      throw new BadRequestException('Product image storage is not configured.');
+    }
+
+    const tenant = await this.getReadableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
+    if (!tenant) {
+      throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
+    }
+
+    const image = await this.prisma.productImage.findFirst({
+      where: {
+        id: imageId,
+        productId,
+        product: { tenantId: tenant.id, branchId: tenant.branchId },
+      },
+      select: {
+        fileUrl: true,
+        mediumUrl: true,
+        thumbnailUrl: true,
+        storagePath: true,
+        mediumPath: true,
+        thumbnailPath: true,
+      },
+    });
+    if (!image) {
+      throw new NotFoundException('Product image not found.');
+    }
+
+    const url =
+      image.thumbnailUrl ||
+      image.mediumUrl ||
+      image.fileUrl ||
+      (await this.storage.getProductImageUrl(
+        image.thumbnailPath ?? image.mediumPath ?? image.storagePath,
+      ));
+    if (!url) {
+      throw new NotFoundException('Product image URL not found.');
+    }
+    return url;
   }
 
   async create(
@@ -1009,4 +1051,3 @@ function calculateSalePriceCents(
 ) {
   return Math.round(costPriceCents + costPriceCents * (profitPercent / 100));
 }
-
