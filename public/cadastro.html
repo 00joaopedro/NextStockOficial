@@ -245,6 +245,41 @@
       transform: scale(1.03);
     }
 
+    .btn:disabled {
+      cursor: wait;
+      opacity: 0.58;
+      transform: none;
+    }
+
+    .operation-alert {
+      border-radius: 6px;
+      display: block;
+      font-size: 0.86rem;
+      font-weight: 700;
+      margin-top: 8px;
+      padding: 8px 10px;
+      text-align: center;
+    }
+
+    .operation-alert[hidden] {
+      display: none;
+    }
+
+    .operation-alert.loading {
+      background: #fff4cc;
+      color: #745b00;
+    }
+
+    .operation-alert.success {
+      background: #d9f5df;
+      color: #176b2c;
+    }
+
+    .operation-alert.error {
+      background: #ffe0e0;
+      color: #9b1c1c;
+    }
+
     .btn-cadastrar { background: #4CAF50; }
     .btn-consultar { background: #ffb546; }
     .btn-novo      { background: #2196F3; }
@@ -606,6 +641,8 @@
             </div>
           </div>
         </div>
+
+        <div id="operacaoAlerta" class="operation-alert" role="status" aria-live="polite" hidden></div>
 
         <div class="actions">
           <button type="button" class="btn btn-cadastrar" id="btnCadastrar">Cadastrar</button>
