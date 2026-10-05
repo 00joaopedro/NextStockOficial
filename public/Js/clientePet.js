@@ -80,6 +80,7 @@
   let agendamentoMode = 'create';
   let currentPhotos = [];
   let pendingPhotoFiles = [];
+  let mutationInFlight = false;
   let authContext = {
     profile: null,
     selectedBranch: null,
@@ -361,6 +362,55 @@
     disableWriteButtons(!authContext.isReady || authContext.isPreview);
   }
 
+  const mutationControls = [
+    btnCriarCliente,
+    btnSalvarCliente,
+    btnSalvarPerfilCliente,
+    btnAtualizarPerfilCliente,
+    btnApagarPerfilCliente,
+    btnAdicionarAnimal,
+    btnAtualizarAnimal,
+    btnApagarAnimal,
+    btnSalvarAnimal,
+  ];
+
+  function setMutationBusy(busy, label = '') {
+    mutationControls.forEach((button) => {
+      if (!button) return;
+      if (busy && !button.dataset.originalText) {
+        button.dataset.originalText = button.textContent || '';
+      }
+      button.disabled = busy || button.disabled;
+      button.setAttribute('aria-busy', busy ? 'true' : 'false');
+      if (busy && label && (button === btnSalvarCliente || button === btnSalvarPerfilCliente || button === btnSalvarAnimal || button === btnApagarPerfilCliente || button === btnApagarAnimal)) {
+        button.textContent = label;
+      }
+      if (!busy && button.dataset.originalText) {
+        button.textContent = button.dataset.originalText;
+        delete button.dataset.originalText;
+      }
+    });
+  }
+
+  async function runMutation({ loading, success, busyLabel }, action) {
+    if (mutationInFlight) return false;
+    mutationInFlight = true;
+    setMutationBusy(true, busyLabel);
+    showAlertPopup('Processando', loading, false);
+    try {
+      await action();
+      showAlertPopup('Sucesso', success);
+      return true;
+    } catch (error) {
+      showAlertPopup('Erro', error?.message || 'Nao foi possivel concluir a acao.');
+      return false;
+    } finally {
+      mutationInFlight = false;
+      setMutationBusy(false);
+      setWriteControls();
+    }
+  }
+
   function ensureCanWrite() {
     if (!authContext.isReady) {
       showAlertPopup('Sessao invalida', 'Sessao expirada ou invalida. Faca login novamente.');
@@ -557,13 +607,18 @@
       showAlertPopup('Aviso', 'Preencha nome completo e telefone.');
       return;
     }
-    await apiFetch(`/api/pet-clients/${cliente.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    await runMutation({
+      loading: 'Salvando perfil do cliente...',
+      success: 'Perfil do cliente salvo com sucesso.',
+      busyLabel: 'Salvando...',
+    }, async () => {
+      await apiFetch(`/api/pet-clients/${cliente.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      await loadClientes();
     });
-    await loadClientes();
-    showAlertPopup('Sucesso', 'Perfil do cliente salvo com sucesso.');
   }
 
   function updateClientProfile() {
@@ -578,12 +633,16 @@
       showAlertPopup('Aviso', 'Selecione um cliente.');
       return;
     }
-    showConfirmPopup('Apagar perfil', `Deseja realmente apagar o perfil de "${cliente.nomeCompleto}"?`, async () => {
+    showConfirmPopup('Apagar perfil', `Deseja realmente apagar o perfil de "${cliente.nomeCompleto}"?`, () => runMutation({
+      loading: 'Apagando perfil do cliente...',
+      success: 'Perfil do cliente apagado com sucesso.',
+      busyLabel: 'Apagando...',
+    }, async () => {
       await apiFetch(`/api/pet-clients/${cliente.id}`, { method: 'DELETE' });
       selectedClientId = null;
+      selectedPetId = null;
       await loadClientes();
-      showAlertPopup('Sucesso', 'Perfil do cliente apagado com sucesso.');
-    });
+    }));
   }
 
   function openClienteModal() {
@@ -618,15 +677,20 @@
       showAlertPopup('Aviso', 'Preencha nome completo e numero de telefone.');
       return;
     }
-    const response = await apiFetch('/api/pet-clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+    await runMutation({
+      loading: 'Criando perfil do cliente...',
+      success: 'Cliente criado com sucesso.',
+      busyLabel: 'Criando...',
+    }, async () => {
+      const response = await apiFetch('/api/pet-clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      selectedClientId = response.client.id;
+      closeClienteModal();
+      await loadClientes();
     });
-    selectedClientId = response.client.id;
-    closeClienteModal();
-    await loadClientes();
-    showAlertPopup('Sucesso', 'Cliente criado com sucesso.');
   }
 
   async function loadAgendamentos() {
@@ -969,18 +1033,23 @@
       ? `/api/pet-clients/${cliente.id}/pets`
       : `/api/pets/${editingPetId}`;
     const method = modalMode === 'create' ? 'POST' : 'PATCH';
-    const response = await apiFetch(url, {
-      method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    await runMutation({
+      loading: modalMode === 'create' ? 'Criando perfil do animal...' : 'Salvando perfil do animal...',
+      success: modalMode === 'create' ? 'Animal cadastrado com sucesso.' : 'Dados do animal atualizados com sucesso.',
+      busyLabel: modalMode === 'create' ? 'Criando...' : 'Salvando...',
+    }, async () => {
+      const response = await apiFetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const petId = response.pet.id;
+      await uploadPendingPhotos(petId);
+      selectedPetId = petId;
+      closeAnimalModal();
+      await loadClientes();
+      fillAnimalSelect();
     });
-    const petId = response.pet.id;
-    await uploadPendingPhotos(petId);
-    selectedPetId = petId;
-    closeAnimalModal();
-    await loadClientes();
-    fillAnimalSelect();
-    showAlertPopup('Sucesso', modalMode === 'create' ? 'Animal cadastrado com sucesso.' : 'Dados do animal atualizados com sucesso.');
   }
 
   async function uploadPendingPhotos(petId) {
@@ -1003,13 +1072,16 @@
       showAlertPopup('Aviso', 'Selecione um animal para apagar.');
       return;
     }
-    showConfirmPopup('Confirmar exclusao', `Deseja realmente apagar o animal "${pet.nome || 'Sem nome'}"?`, async () => {
+    showConfirmPopup('Confirmar exclusao', `Deseja realmente apagar o animal "${pet.nome || 'Sem nome'}"?`, () => runMutation({
+      loading: 'Apagando perfil do animal...',
+      success: 'Animal apagado com sucesso.',
+      busyLabel: 'Apagando...',
+    }, async () => {
       await apiFetch(`/api/pets/${pet.id}`, { method: 'DELETE' });
       selectedPetId = null;
       await loadClientes();
       await loadAgendamentos();
-      showAlertPopup('Sucesso', 'Animal apagado com sucesso.');
-    });
+    }));
   }
 
   function updateSelectedPet() {
@@ -1091,12 +1163,14 @@
     agDescricaoCounter.textContent = `${agDescricao.value.length} / 500`;
   }
 
-  function showAlertPopup(title, message) {
+  function showAlertPopup(title, message, withConfirmation = true) {
     popupTitle.textContent = title;
     popupMessage.textContent = message;
-    popupActions.innerHTML = '<button type="button" class="btn btn-save" id="popupOkBtn">OK</button>';
+    popupActions.innerHTML = withConfirmation
+      ? '<button type="button" class="btn btn-save" id="popupOkBtn">OK</button>'
+      : '<span class="popup-loading" role="status" aria-live="polite">Aguarde...</span>';
     popupOverlay.classList.add('active');
-    document.getElementById('popupOkBtn').addEventListener('click', closePopup);
+    document.getElementById('popupOkBtn')?.addEventListener('click', closePopup);
   }
 
   function showConfirmPopup(title, message, onConfirm) {
