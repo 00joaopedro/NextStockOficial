@@ -1051,4 +1051,3 @@ function calculateSalePriceCents(
 ) {
   return Math.round(costPriceCents + costPriceCents * (profitPercent / 100));
 }
-
