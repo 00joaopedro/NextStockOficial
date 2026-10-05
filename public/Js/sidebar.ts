@@ -300,6 +300,27 @@ function getRuntimeFallbackContext(): SystemContextResponse {
     user.systemType ||
     'padrao';
 
+  const cachedBackendMode = sessionStorage.getItem('nextstockBackendMode');
+  const cachedPreview =
+    cachedBackendMode === 'preview' ||
+    sessionStorage.getItem('nextstockPreviewMode') === 'true' ||
+    sessionStorage.getItem('nextstockIsPreview') === 'true';
+
+  // If the last authoritative context was preview (or production has not yet
+  // been established), fail closed. Never grant mutation UI from a fallback.
+  if (cachedPreview || cachedBackendMode !== 'production') {
+    return {
+      systemMode: 'PREVIEW',
+      tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+      mode: 'visualizacao',
+      systemType,
+      role: user.role,
+      isSuperAdmin: isSuperAdminUser(user),
+      is_super_admin: isSuperAdminUser(user),
+      isDevSuperAdmin: user.isDevSuperAdmin === true,
+    };
+  }
+
   return {
     systemMode: 'PRODUCTION',
     tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
