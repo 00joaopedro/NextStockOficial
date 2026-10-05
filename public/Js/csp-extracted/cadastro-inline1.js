@@ -758,3 +758,47 @@
           .catch((error) => alert(error.message));
       }
 
+      imagensSelecionadas.splice(index, 1);
+      renderizarListaImagens();
+    });
+
+    btnConsultar.addEventListener("click", abrirModalConsulta);
+    btnFecharModal.addEventListener("click", fecharModalConsulta);
+    btnOkConsulta.addEventListener("click", confirmarConsultaProduto);
+    pesquisaProdutoInput.addEventListener("input", () => {
+      clearTimeout(consultaDebounceTimer);
+      const requisicaoAtual = ++consultaRequisicao;
+      definirMensagemResultado("Pesquisando...");
+      consultaDebounceTimer = setTimeout(async () => {
+        try {
+          await buscarProdutos(pesquisaProdutoInput.value, { forcar: true });
+          if (requisicaoAtual !== consultaRequisicao) return;
+          renderizarResultadosConsulta();
+        } catch (error) {
+          if (error?.name === "AbortError") return;
+          if (requisicaoAtual === consultaRequisicao) definirMensagemResultado(error.message);
+        }
+      }, 250);
+    });
+
+    btnCadastrar.addEventListener("click", cadastrarProduto);
+    btnNovo.addEventListener("click", novoProduto);
+    btnAtualizar.addEventListener("click", atualizarProduto);
+    btnDeletar.addEventListener("click", deletarProduto);
+
+    consultaModal.addEventListener("click", function (event) {
+      if (event.target === consultaModal) {
+        fecharModalConsulta();
+      }
+    });
+
+    if (window.isNextStockDemoMode?.()) {
+      modoSistema = "visualizacao";
+      definirMensagemResultado("Modo visualizacao: consultas demonstrativas e alteracoes bloqueadas.");
+    } else {
+      inicializarContextoAutenticado()
+        .then(() => buscarProdutos())
+        .catch((error) => console.warn(error.message));
+    }
+    aplicarSanitizacaoNosInputs();
+  
