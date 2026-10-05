@@ -10,6 +10,7 @@
     const btnNovo = document.getElementById("btnNovo");
     const btnAtualizar = document.getElementById("btnAtualizar");
     const btnDeletar = document.getElementById("btnDeletar");
+    const operacaoAlerta = document.getElementById("operacaoAlerta");
 
     const consultaModal = document.getElementById("consultaModal");
     const pesquisaProdutoInput = document.getElementById("pesquisaProdutoInput");
@@ -24,6 +25,13 @@
     let modoSistema = "pendente";
     let usuarioSuperAdmin = sessionStorage.getItem("nextstockIsSuperAdmin") === "true";
     let sessaoAutenticada = false;
+    let sessaoValidadaEm = 0;
+    let sessaoValidacaoEmAndamento = null;
+    let operacaoEmAndamento = false;
+    let consultaAbortController = null;
+    let consultaDebounceTimer = null;
+    let consultaRequisicao = 0;
+    let produtosConsultaCarregadosEm = 0;
     let selectedBranch = lerSelectedBranch();
     let systemTypeAtual = sessionStorage.getItem("nextstockSelectedSystemType") ||
       sessionStorage.getItem("nextstockSystemType") ||
@@ -31,6 +39,48 @@
       "padrao";
     const mensagemModoVisualizacao = "Modo visualiza\u00e7\u00e3o: altera\u00e7\u00e3o bloqueada.";
     const mensagemSessaoInvalida = "Sess\u00e3o expirada ou inv\u00e1lida. Fa\u00e7a login novamente.";
+    const botoesDeOperacao = [btnCadastrar, btnAtualizar, btnDeletar];
+
+    function mostrarAlertaOperacao(tipo, mensagem) {
+      if (!operacaoAlerta) return;
+      operacaoAlerta.className = `operation-alert ${tipo}`;
+      operacaoAlerta.textContent = mensagem;
+      operacaoAlerta.hidden = false;
+    }
+
+    function definirOperacaoEmAndamento(emAndamento, textoBotao = "") {
+      operacaoEmAndamento = emAndamento;
+      botoesDeOperacao.forEach((botao) => {
+        if (!botao) return;
+        botao.disabled = emAndamento;
+        if (botao === btnCadastrar && emAndamento) {
+          botao.dataset.textoOriginal = botao.textContent;
+          botao.textContent = textoBotao || "Aguarde...";
+        } else if (botao === btnCadastrar && !emAndamento && botao.dataset.textoOriginal) {
+          botao.textContent = botao.dataset.textoOriginal;
+          delete botao.dataset.textoOriginal;
+        }
+      });
+    }
+
+    async function executarAlteracao(textoCarregamento, operacao, mensagemSucesso) {
+      if (operacaoEmAndamento) return;
+
+      definirOperacaoEmAndamento(true, "Aguarde...");
+      mostrarAlertaOperacao("loading", textoCarregamento);
+
+      try {
+        const resultado = await operacao();
+        mostrarAlertaOperacao("success", resultado?.mensagem || mensagemSucesso);
+        return resultado;
+      } catch (error) {
+        const mensagem = error?.message || "Nao foi possivel concluir a operacao.";
+        mostrarAlertaOperacao("error", mensagem);
+        return null;
+      } finally {
+        definirOperacaoEmAndamento(false);
+      }
+    }
 
     function detectarPreviewExplicito() {
       const params = new URLSearchParams(window.location.search);
@@ -93,44 +143,60 @@
       return null;
     }
 
-    async function validarSessaoReal() {
-      let profile;
+    async function validarSessaoReal({ forcar = false } = {}) {
+      const agora = Date.now();
+      if (!forcar && sessaoAutenticada && selectedBranch?.id && agora - sessaoValidadaEm < 30000) {
+        return selectedBranch;
+      }
+      if (sessaoValidacaoEmAndamento) return sessaoValidacaoEmAndamento;
+
+      sessaoValidacaoEmAndamento = (async () => {
+        let profile;
+
+        try {
+          profile = await apiFetch("/auth/profile");
+        } catch {
+          sessaoAutenticada = false;
+          sessaoValidadaEm = 0;
+          window.clearNextStockSessionState?.();
+          throw new Error(mensagemSessaoInvalida);
+        }
+
+        const user = profile.user || profile;
+        usuarioSuperAdmin = isSuperAdminUser(user) || usuarioSuperAdmin;
+        sessaoAutenticada = true;
+        sessaoValidadaEm = Date.now();
+        sessionStorage.setItem("nextstockAuthenticatedUser", JSON.stringify(user));
+
+        if (usuarioSuperAdmin) {
+          sessionStorage.setItem("nextstockIsSuperAdmin", "true");
+        }
+
+        const branch = profile.selectedBranch || selectedBranch || obterBranchDoPerfil(user);
+        if (!branch?.tenantId) {
+          throw new Error("Usuario sem tenant/empresa vinculado.");
+        }
+        if (!branch?.id) {
+          throw new Error("Usuario sem filial selecionada.");
+        }
+
+        salvarContextoProducao(branch);
+        // Context is auxiliary UI state. A transient failure in
+        // /api/system/context must not discard a valid JWT/profile and prevent
+        // product registration; the API remains the authority for permissions.
+        try {
+          await carregarContextoSistema();
+        } catch (error) {
+          console.warn("Falha ao carregar contexto do sistema; continuando com o perfil autenticado.", error);
+        }
+        return branch;
+      })();
 
       try {
-        profile = await apiFetch("/auth/profile");
-      } catch {
-        sessaoAutenticada = false;
-        window.clearNextStockSessionState?.();
-        throw new Error(mensagemSessaoInvalida);
+        return await sessaoValidacaoEmAndamento;
+      } finally {
+        sessaoValidacaoEmAndamento = null;
       }
-
-      const user = profile.user || profile;
-      usuarioSuperAdmin = isSuperAdminUser(user) || usuarioSuperAdmin;
-      sessaoAutenticada = true;
-      sessionStorage.setItem("nextstockAuthenticatedUser", JSON.stringify(user));
-
-      if (usuarioSuperAdmin) {
-        sessionStorage.setItem("nextstockIsSuperAdmin", "true");
-      }
-
-      const branch = profile.selectedBranch || selectedBranch || obterBranchDoPerfil(user);
-      if (!branch?.tenantId) {
-        throw new Error("Usuario sem tenant/empresa vinculado.");
-      }
-      if (!branch?.id) {
-        throw new Error("Usuario sem filial selecionada.");
-      }
-
-      salvarContextoProducao(branch);
-      // Context is auxiliary UI state. A transient failure in
-      // /api/system/context must not discard a valid JWT/profile and prevent
-      // product registration; the API remains the authority for permissions.
-      try {
-        await carregarContextoSistema();
-      } catch (error) {
-        console.warn("Falha ao carregar contexto do sistema; continuando com o perfil autenticado.", error);
-      }
-      return branch;
     }
 
     async function carregarContextoSistema() {
@@ -353,8 +419,9 @@
       produtoSelecionadoConsulta = null;
       definirMensagemResultado("Carregando produtos...");
       try {
-        await buscarProdutos();
+        await buscarProdutos("", { forcar: true });
       } catch (error) {
+        if (error?.name === "AbortError") return;
         definirMensagemResultado(error.message);
         return;
       }
@@ -384,6 +451,10 @@
       usuarioSuperAdmin = isSuperAdminUser(data.user || data) || usuarioSuperAdmin;
 
       if (!response.ok) {
+        if (response.status === 401) {
+          sessaoAutenticada = false;
+          sessaoValidadaEm = 0;
+        }
         throw new Error(obterMensagemErro(response, data));
       }
 
@@ -397,26 +468,40 @@
         user?.is_super_admin === true;
     }
 
-    async function buscarProdutos(termo = "") {
+    async function buscarProdutos(termo = "", { forcar = false } = {}) {
       const params = new URLSearchParams();
       const pesquisa = sanitizarEntrada(termo);
 
+      if (!pesquisa && !forcar && produtosConsulta.length > 0 && Date.now() - produtosConsultaCarregadosEm < 10000) {
+        return produtosConsulta;
+      }
+
       if (pesquisa) params.set("search", pesquisa);
 
-      const data = await apiFetch(`/products${params.toString() ? `?${params}` : ""}`);
+      consultaAbortController?.abort();
+      consultaAbortController = new AbortController();
+      const data = await apiFetch(`/products${params.toString() ? `?${params}` : ""}`, {
+        signal: consultaAbortController.signal
+      });
       const modoApi = normalizarModoApi(data.mode);
       if (modoApi !== "visualizacao" || !sessaoAutenticada || detectarPreviewExplicito()) {
         modoSistema = modoApi;
       }
       if (data.isSuperAdmin) usuarioSuperAdmin = true;
       produtosConsulta = data.products || [];
+      if (!pesquisa) produtosConsultaCarregadosEm = Date.now();
       return produtosConsulta;
     }
 
     function alteracaoBloqueadaEmVisualizacao() {
       if (!detectarPreviewExplicito() && modoSistema !== "visualizacao") return false;
-      alert(mensagemModoVisualizacao);
       return true;
+    }
+
+    function exigirAlteracaoPermitida() {
+      if (alteracaoBloqueadaEmVisualizacao()) {
+        throw new Error(mensagemModoVisualizacao);
+      }
     }
 
     function validarObrigatorios(dados) {
@@ -437,9 +522,7 @@
 
       if (imagensParaUpload.length === 0) return { total: 0, falhas: [] };
 
-      const falhas = [];
-
-      for (const imagem of imagensParaUpload) {
+      const resultados = await Promise.all(imagensParaUpload.map(async (imagem) => {
         const formData = new FormData();
         formData.append("file", imagem.arquivo);
 
@@ -448,13 +531,16 @@
             method: "POST",
             body: formData
           });
+          return null;
         } catch (error) {
-          falhas.push({
+          return {
             nome: imagem.nome,
             mensagem: error.message || "Falha no upload."
-          });
+          };
         }
-      }
+      }));
+
+      const falhas = resultados.filter(Boolean);
 
       return { total: imagensParaUpload.length, falhas };
     }
@@ -523,65 +609,47 @@
     }
 
     async function cadastrarProduto() {
-      let dados;
-      try {
-        dados = obterDadosFormulario();
-      } catch (error) {
-        alert(error.message);
-        return;
-      }
+      await executarAlteracao("Cadastrando produto...", async () => {
+        const dados = obterDadosFormulario();
+        if (!validarObrigatorios(dados)) {
+          throw new Error("Preencha os campos obrigatórios.");
+        }
 
-      if (!validarObrigatorios(dados)) {
-        alert("Preencha os campos obrigatórios.");
-        return;
-      }
-
-      try {
         await validarSessaoReal();
-        if (alteracaoBloqueadaEmVisualizacao()) return;
+        exigirAlteracaoPermitida();
 
         const data = await apiFetch("/products", {
           method: "POST",
           body: JSON.stringify(montarPayloadProduto(dados))
         });
 
+        let mensagem = "Produto cadastrado com sucesso.";
         if (imagensSelecionadas.length > 0) {
           const resultadoUpload = await enviarImagensProduto(data.product.id);
 
           if (resultadoUpload.falhas.length > 0) {
-            alert(`Produto cadastrado, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`);
+            mensagem = `Produto cadastrado com sucesso, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`;
           }
         }
 
-        alert("Produto cadastrado com sucesso.");
         limparFormularioCompleto();
-      } catch (error) {
-        alert(error.message);
-      }
+        return { mensagem };
+      }, "Produto cadastrado com sucesso.");
     }
 
     async function atualizarProduto() {
-      if (!produtoEmEdicaoId) {
-        alert("Consulte e selecione um produto para atualizar.");
-        return;
-      }
+      await executarAlteracao("Atualizando produto...", async () => {
+        if (!produtoEmEdicaoId) {
+          throw new Error("Consulte e selecione um produto para atualizar.");
+        }
 
-      let dados;
-      try {
-        dados = obterDadosFormulario();
-      } catch (error) {
-        alert(error.message);
-        return;
-      }
+        const dados = obterDadosFormulario();
+        if (!validarObrigatorios(dados)) {
+          throw new Error("Preencha os campos obrigatórios.");
+        }
 
-      if (!validarObrigatorios(dados)) {
-        alert("Preencha os campos obrigatórios.");
-        return;
-      }
-
-      try {
         await validarSessaoReal();
-        if (alteracaoBloqueadaEmVisualizacao()) return;
+        exigirAlteracaoPermitida();
 
         await apiFetch(`/products/${produtoEmEdicaoId}`, {
           method: "PATCH",
@@ -590,14 +658,11 @@
 
         const resultadoUpload = await enviarImagensProduto(produtoEmEdicaoId, true);
 
-        if (resultadoUpload.falhas.length > 0) {
-          alert(`Produto atualizado, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`);
-        }
-
-        alert("Produto atualizado com sucesso.");
-      } catch (error) {
-        alert(error.message);
-      }
+        const mensagem = resultadoUpload.falhas.length > 0
+          ? `Produto atualizado com sucesso, mas ${resultadoUpload.falhas.length} imagem(ns) falharam no upload.`
+          : "Produto atualizado com sucesso.";
+        return { mensagem };
+      }, "Produto atualizado com sucesso.");
     }
 
     async function deletarProduto() {
@@ -609,18 +674,16 @@
       const confirmar = confirm("Deseja realmente excluir este produto?");
       if (!confirmar) return;
 
-      try {
+      await executarAlteracao("Excluindo produto...", async () => {
         await validarSessaoReal();
-        if (alteracaoBloqueadaEmVisualizacao()) return;
+        exigirAlteracaoPermitida();
 
         await apiFetch(`/products/${produtoEmEdicaoId}`, {
           method: "DELETE"
         });
-        alert("Produto excluido com sucesso.");
         limparFormularioCompleto();
-      } catch (error) {
-        alert(error.message);
-      }
+        return { mensagem: "Produto excluido com sucesso." };
+      }, "Produto excluido com sucesso.");
     }
 
     function novoProduto() {
@@ -685,50 +748,13 @@
       if (imagem?.id && produtoEmEdicaoId) {
         await validarSessaoReal()
           .then(() => {
-            if (alteracaoBloqueadaEmVisualizacao()) return undefined;
+            if (alteracaoBloqueadaEmVisualizacao()) {
+              throw new Error(mensagemModoVisualizacao);
+            }
             return apiFetch(`/products/${produtoEmEdicaoId}/images/${imagem.id}`, {
               method: "DELETE"
             });
           })
           .catch((error) => alert(error.message));
       }
-
-      imagensSelecionadas.splice(index, 1);
-      renderizarListaImagens();
-    });
-
-    btnConsultar.addEventListener("click", abrirModalConsulta);
-    btnFecharModal.addEventListener("click", fecharModalConsulta);
-    btnOkConsulta.addEventListener("click", confirmarConsultaProduto);
-    pesquisaProdutoInput.addEventListener("input", async () => {
-      try {
-        await buscarProdutos(pesquisaProdutoInput.value);
-      } catch (error) {
-        definirMensagemResultado(error.message);
-        return;
-      }
-      renderizarResultadosConsulta();
-    });
-
-    btnCadastrar.addEventListener("click", cadastrarProduto);
-    btnNovo.addEventListener("click", novoProduto);
-    btnAtualizar.addEventListener("click", atualizarProduto);
-    btnDeletar.addEventListener("click", deletarProduto);
-
-    consultaModal.addEventListener("click", function (event) {
-      if (event.target === consultaModal) {
-        fecharModalConsulta();
-      }
-    });
-
-    if (window.isNextStockDemoMode?.()) {
-      modoSistema = "visualizacao";
-      definirMensagemResultado("Modo visualizacao: consultas demonstrativas e alteracoes bloqueadas.");
-    } else {
-      inicializarContextoAutenticado()
-        .then(() => buscarProdutos())
-        .catch((error) => console.warn(error.message));
-    }
-    aplicarSanitizacaoNosInputs();
-  
 
