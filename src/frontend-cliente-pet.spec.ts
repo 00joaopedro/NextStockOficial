@@ -37,6 +37,7 @@ describe('clientePet.html production wiring', () => {
     expect(script).toContain('let mutationInFlight = false;');
     expect(script).toContain("showAlertPopup('Processando', loading, false)");
     expect(script).toContain("button.setAttribute('aria-busy'");
+    expect(script).toContain('setMutationBusy(false);');
     expect(script).toContain("loading: 'Criando perfil do cliente...'");
     expect(script).toContain("loading: 'Apagando perfil do cliente...'");
     expect(script).toContain('Criando perfil do animal...');

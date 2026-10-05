@@ -406,6 +406,7 @@
       return false;
     } finally {
       mutationInFlight = false;
+      setMutationBusy(false);
       setWriteControls();
     }
   }
