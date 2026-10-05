@@ -174,23 +174,11 @@ export class ProductsService {
         take: limit,
       }),
     ]);
-    const imagePaths = products.map((product) => {
-      const image = product.images[0];
-      return image?.thumbnailPath ?? image?.mediumPath ?? image?.storagePath;
-    });
-    // Image URL generation is an optional presentation concern. In production
-    // signed-URL calls can be slow or temporarily unavailable; they must not
-    // turn an otherwise healthy product list into a 500/timeout.
-    let resolvedUrls = new Map<string, string>();
-    if (this.storage) {
-      try {
-        resolvedUrls = await this.storage.getProductImageUrls(imagePaths);
-      } catch {
-        // Keep persisted metadata and render the product without a thumbnail
-        // until storage recovers.
-        resolvedUrls = new Map<string, string>();
-      }
-    }
+    // Do not synchronously call remote Storage while listing products. Signed
+    // URL generation can take tens of seconds on a busy Supabase pool and was
+    // the cause of the observed 499/500 responses. Existing public/variant
+    // URLs are still used below; path-only images can be resolved lazily later.
+    const resolvedUrls = new Map<string, string>();
     // Usage telemetry is non-critical and must not add latency to GET /products.
     void this.recordProductUsage(user, tenant, 'products_list', {
       dbReadCount: 2,
