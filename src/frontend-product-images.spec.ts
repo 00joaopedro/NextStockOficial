@@ -25,6 +25,27 @@ describe('Product image upload frontend flow', () => {
     expect(html).not.toContain('function enviarMetadadosImagens');
   });
 
+  it('cadastro exibe estado da operacao e bloqueia duplo clique', () => {
+    const html = publicFile('cadastro.html');
+
+    expect(html).toContain('id="operacaoAlerta"');
+    expect(html).toContain('executarAlteracao');
+    expect(html).toContain('operacaoEmAndamento');
+    expect(html).toContain('botao.disabled = emAndamento');
+    expect(html).toContain('Cadastrando produto...');
+    expect(html).toContain('Produto cadastrado com sucesso.');
+  });
+
+  it('cadastro reduz chamadas redundantes e evita tempestade de consultas', () => {
+    const html = publicFile('cadastro.html');
+
+    expect(html).toContain('sessaoValidacaoEmAndamento');
+    expect(html).toContain('agora - sessaoValidadaEm < 30000');
+    expect(html).toContain('consultaAbortController?.abort()');
+    expect(html).toContain('setTimeout(async () =>');
+    expect(html).toContain('Promise.all(imagensParaUpload.map');
+  });
+
   it('produtos renderiza somente URLs validas e usa fallback', () => {
     const html = publicFile('produtos.html');
 
