@@ -190,7 +190,30 @@ function normalizeContext(value) {
     };
 }
 function getRuntimeFallbackContext() {
-    return FALLBACK_CONTEXT;
+    let user = null;
+    try {
+        user = JSON.parse(sessionStorage.getItem('nextstockAuthenticatedUser') || 'null');
+    }
+    catch {
+        user = null;
+    }
+    if (!user) {
+        return FALLBACK_CONTEXT;
+    }
+    const systemType = sessionStorage.getItem('nextstockSelectedSystemType') ||
+        sessionStorage.getItem('nextstockSystemType') ||
+        user.systemType ||
+        'padrao';
+    return {
+        systemMode: 'PRODUCTION',
+        tenantType: systemType === 'petshop' ? 'PETSHOP' : 'STANDARD',
+        mode: systemType === 'petshop' ? 'petshop' : 'padrao',
+        systemType,
+        role: user.role,
+        isSuperAdmin: isSuperAdminUser(user),
+        is_super_admin: isSuperAdminUser(user),
+        isDevSuperAdmin: user.isDevSuperAdmin === true,
+    };
 }
 function getSelectedBranchId() {
     try {
@@ -605,3 +628,4 @@ else {
     void loadSidebar();
 }
 export {};
+
