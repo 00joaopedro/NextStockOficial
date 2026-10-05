@@ -20,8 +20,8 @@ describe('clientePet.html production wiring', () => {
     'utf8',
   );
 
-  it('nao executa mais o script mockado inline como fonte principal', () => {
-    expect(html).toContain('const clientes = [');
+  it('carrega apenas o script real, sem o mock legado duplicado', () => {
+    expect(html).not.toContain('csp-extracted/clientePet-inline1.js');
     expect(html).toContain('./Js/clientePet.js');
   });
 
@@ -31,6 +31,16 @@ describe('clientePet.html production wiring', () => {
     expect(script).toContain('/api/pet-clients');
     expect(script).toContain('/api/pets/${petId}/photos');
     expect(script).toContain('new FormData()');
+  });
+
+  it('protege mutacoes contra duplicidade e informa o estado da operacao', () => {
+    expect(script).toContain('let mutationInFlight = false;');
+    expect(script).toContain("showAlertPopup('Processando', loading, false)");
+    expect(script).toContain("button.setAttribute('aria-busy'");
+    expect(script).toContain("loading: 'Criando perfil do cliente...'");
+    expect(script).toContain("loading: 'Apagando perfil do cliente...'");
+    expect(script).toContain('Criando perfil do animal...');
+    expect(script).toContain('Apagando perfil do animal...');
   });
 
   it('bloqueia modo padrao e escrita em visualizacao no frontend', () => {
