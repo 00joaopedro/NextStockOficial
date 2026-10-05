@@ -159,6 +159,7 @@ export class ProductsService {
             orderBy: { createdAt: 'asc' },
             take: 1,
             select: {
+              id: true,
               fileName: true,
               fileUrl: true,
               storagePath: true,
@@ -211,6 +212,7 @@ export class ProductsService {
             ? [
                 {
                   fileName: image.fileName,
+                  id: image.id,
                   fileUrl: thumbnailUrl,
                   storagePath: image.storagePath,
                   thumbnailUrl,
@@ -371,6 +373,58 @@ export class ProductsService {
       mode: tenant.mode,
       product: await this.formatProduct(product),
     };
+  }
+
+  async resolveImageUrl(
+    user: AuthenticatedUser | undefined,
+    productId: string,
+    imageId: string,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    if (!this.storage) {
+      throw new BadRequestException('Product image storage is not configured.');
+    }
+
+    const tenant = await this.getReadableTenant(
+      user,
+      selectedBranchId,
+      devContextMode,
+    );
+    if (!tenant) {
+      throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
+    }
+
+    const image = await this.prisma.productImage.findFirst({
+      where: {
+        id: imageId,
+        productId,
+        product: { tenantId: tenant.id, branchId: tenant.branchId },
+      },
+      select: {
+        fileUrl: true,
+        mediumUrl: true,
+        thumbnailUrl: true,
+        storagePath: true,
+        mediumPath: true,
+        thumbnailPath: true,
+      },
+    });
+    if (!image) {
+      throw new NotFoundException('Product image not found.');
+    }
+
+    const url =
+      image.thumbnailUrl ||
+      image.mediumUrl ||
+      image.fileUrl ||
+      (await this.storage.getProductImageUrl(
+        image.thumbnailPath ?? image.mediumPath ?? image.storagePath,
+      ));
+    if (!url) {
+      throw new NotFoundException('Product image URL not found.');
+    }
+    return url;
   }
 
   async create(
