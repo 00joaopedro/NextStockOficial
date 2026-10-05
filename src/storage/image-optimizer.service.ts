@@ -46,6 +46,11 @@ export class ImageOptimizerService {
     let metadataSource: Sharp | undefined;
     try {
       metadataSource = sharp(file.buffer, {
+        // Let Sharp decode any supported image format. The browser/MIME
+        // declaration is not authoritative and some mobile providers send
+        // an empty or non-standard MIME type for valid photos.
+        // Accept any image format Sharp can decode, but reject decoder
+        // warnings so truncated or otherwise damaged uploads are not stored.
         failOn: 'warning',
         limitInputPixels: pixelLimit,
         sequentialRead: true,
@@ -67,15 +72,6 @@ export class ImageOptimizerService {
           `A imagem excede o limite de ${pixelLimit} pixels.`,
         );
       }
-      if ((metadata.pages ?? 1) !== 1) {
-        throw new BadRequestException(
-          'Imagens animadas ou com multiplas paginas nao sao aceitas.',
-        );
-      }
-      if (!['jpeg', 'png', 'webp'].includes(metadata.format)) {
-        throw new Error(`unsupported image format: ${metadata.format}`);
-      }
-
       metadataSource.destroy();
       metadataSource = undefined;
       // Variants are intentionally sequential: only one libvips decode/encode
@@ -148,6 +144,8 @@ export class ImageOptimizerService {
     deadline: number,
   ): Promise<OptimizedImageVariant> {
     const pipeline = sharp(input, {
+      // Keep MIME-independent format detection while rejecting decoder
+      // warnings for truncated or otherwise damaged uploads.
       failOn: 'warning',
       limitInputPixels: pixelLimit,
       sequentialRead: true,

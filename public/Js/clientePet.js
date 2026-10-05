@@ -1144,12 +1144,6 @@
       animalFotos.value = '';
       return;
     }
-    const invalid = selectedFiles.find((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type));
-    if (invalid) {
-      showAlertPopup('Formato invalido', 'Use imagens JPEG, PNG ou WEBP.');
-      animalFotos.value = '';
-      return;
-    }
     pendingPhotoFiles.push(...selectedFiles);
     animalFotos.value = '';
     renderPhotoManager();

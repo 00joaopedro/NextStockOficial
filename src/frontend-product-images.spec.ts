@@ -25,6 +25,24 @@ describe('Product image upload frontend flow', () => {
     expect(html).not.toContain('function enviarMetadadosImagens');
   });
 
+  it('aceita fotos do cadastroPet sem bloquear MIME informado pelo navegador', () => {
+    const html = publicFile('clientePet.html');
+    const script = readFileSync(
+      join(__dirname, '..', 'public', 'Js', 'clientePet.js'),
+      'utf8',
+    );
+
+    expect(html).toContain('accept="image/*"');
+    expect(script).not.toContain("Use imagens JPEG, PNG ou WEBP.");
+  });
+
+  it('consulta produtos sem reutilizar resposta HTTP antiga', () => {
+    const html = publicFile('produtos.html');
+
+    expect(html).toContain('cache: "no-store"');
+    expect(html).toContain('"Cache-Control": "no-cache"');
+  });
+
   it('cadastro exibe estado da operacao e bloqueia duplo clique', () => {
     const html = publicFile('cadastro.html');
 

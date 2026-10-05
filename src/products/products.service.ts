@@ -156,7 +156,7 @@ export class ProductsService {
           sku: true,
           barcode: true,
           images: {
-            orderBy: { createdAt: 'asc' },
+            orderBy: { createdAt: 'desc' },
             take: 1,
             select: {
               id: true,
@@ -286,7 +286,7 @@ export class ProductsService {
         quantity: true,
         unit: true,
         images: {
-          orderBy: { createdAt: 'asc' },
+          orderBy: { createdAt: 'desc' },
           take: 1,
         },
       },
@@ -361,7 +361,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId: tenant.id, branchId: tenant.branchId },
-      include: { images: { orderBy: { createdAt: 'asc' } } },
+      include: { images: { orderBy: { createdAt: 'desc' } } },
     });
 
     if (!product) {
@@ -477,7 +477,7 @@ export class ProductsService {
       const product = await this.prisma.product.update({
         where: { id, tenantId: tenant.id, branchId: tenant.branchId },
         data: await this.buildUpdateData(tenant.id, tenant.branchId, id, dto),
-        include: { images: { orderBy: { createdAt: 'asc' } } },
+        include: { images: { orderBy: { createdAt: 'desc' } } },
       });
       void this.recordProductUsage(user, tenant, 'product_update', {
         dbWriteCount: 1,
@@ -559,7 +559,7 @@ export class ProductsService {
 
     const product = await this.prisma.product.findFirst({
       where: { id, tenantId: tenant.id, branchId: tenant.branchId },
-      include: { images: { orderBy: { createdAt: 'asc' } } },
+      include: { images: { orderBy: { createdAt: 'desc' } } },
     });
 
     return { ok: true, product: await this.formatProduct(product!) };

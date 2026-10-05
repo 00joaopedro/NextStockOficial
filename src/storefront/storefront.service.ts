@@ -295,7 +295,7 @@ export class StorefrontService {
             category: true,
             unit: true,
             images: {
-              orderBy: { createdAt: 'asc' },
+              orderBy: { createdAt: 'desc' },
               take: 1,
               select: {
                 thumbnailPath: true,
@@ -348,7 +348,7 @@ export class StorefrontService {
             category: true,
             unit: true,
             images: {
-              orderBy: { createdAt: 'asc' },
+              orderBy: { createdAt: 'desc' },
               take: 3,
               select: {
                 mediumPath: true,
