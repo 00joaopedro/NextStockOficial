@@ -141,10 +141,13 @@ export function wrapText(value: string, width: number): string[] {
   let current = '';
   for (const word of words) {
     let remaining = word;
+    if (displayWidth(remaining) > width && current) {
+      lines.push(current);
+      current = '';
+    }
     while (displayWidth(remaining) > width) {
       const [part, rest] = takeColumns(remaining, width);
-      if (part) lines.push(current ? `${current} ${part}` : part);
-      current = '';
+      if (part) lines.push(part);
       remaining = rest;
     }
     if (!remaining) continue;
@@ -179,18 +182,18 @@ export function htmlToReceiptText(html: string, width: PaperWidthMm): string {
   const columns = columnsFor(width);
   const source = decodeHtmlEntities(
     String(html || '')
-      .replace(/<style[\\s\\S]*?<\\/style>/gi, '')
-      .replace(/<script[\\s\\S]*?<\\/script>/gi, '')
-      .replace(/<br\\s*\\/?\\s*>/gi, '\\n')
-      .replace(/<\\/(?:td|th|span)>/gi, ' ')
-      .replace(/<\\/p>|<\\/div>|<\\/section>|<\\/tr>|<\\/h[1-6]>/gi, '\\n')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<br\s*\/?\s*>/gi, '\n')
+      .replace(/<\/(?:td|th|span)>/gi, ' ')
+      .replace(/<\/p>|<\/div>|<\/section>|<\/tr>|<\/h[1-6]>/gi, '\n')
       .replace(/<[^>]+>/g, ''),
   );
   return source
-    .split(/\\r?\\n/)
-    .flatMap((line) => wrapText(line.replace(/\\s+/g, ' ').trim(), columns))
-    .join('\\n')
-    .replace(/\\n{3,}/g, '\\n\\n')
+    .split(/\r?\n/)
+    .flatMap((line) => wrapText(line.replace(/\s+/g, ' ').trim(), columns))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
 
@@ -200,7 +203,7 @@ export function encodeEscPosText(
 ): Buffer {
   const bytes: number[] = [];
   for (const character of text) {
-    if (character === '\\n' || character === '\\r' || character === '\\t') {
+    if (character === '\n' || character === '\r' || character === '\t') {
       bytes.push(character.charCodeAt(0));
       continue;
     }
@@ -227,7 +230,7 @@ export function encodeEscPos(
     0x61,
     0x01,
   ]);
-  const body = Buffer.concat([encodeEscPosText(text, codePage), Buffer.from('\\n\\n')]);
+  const body = Buffer.concat([encodeEscPosText(text, codePage), Buffer.from('\n\n')]);
   const footer = Buffer.from([ESC, 0x64, 0x03, GS, 0x56, 0x00]);
   void width;
   return Buffer.concat([header, body, footer]);
