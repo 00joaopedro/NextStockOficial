@@ -19,6 +19,7 @@
     scanPending: false,
     printing: false,
     printRequestKey: null,
+    printAgentToken: "",
     fiscalConfig: null,
     preview: false,
   };
@@ -660,9 +661,9 @@
         throw new Error("Nenhum documento imprimível foi retornado.");
       }
       if (els.receiptPrintMode?.value === "direct") {
-        const token = els.printAgentToken?.value?.trim() || sessionStorage.getItem("nextstockPrintAgentToken") || "";
+        const token = els.printAgentToken?.value?.trim() || state.printAgentToken;
         if (!token) throw new Error("Informe o token do agente local de impressão.");
-        sessionStorage.setItem("nextstockPrintAgentToken", token);
+        state.printAgentToken = token;
         const response = await fetch(`${PRINT_AGENT_URL}/v1/print`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
