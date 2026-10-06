@@ -7,6 +7,7 @@ import {
   PrintJob,
   UnknownPrintError,
 } from './print-queue';
+import { queryWindowsSpooler } from './windows-spooler';
 
 const port = Number(process.env.NEXTSTOCK_PRINT_AGENT_PORT || 17890);
 const token = process.env.NEXTSTOCK_PRINT_AGENT_TOKEN;
@@ -46,9 +47,39 @@ class WindowsShareTransport implements PrinterTransport {
             : resolve(),
         ),
       );
+      const snapshot = await queryWindowsSpooler(share, job.id);
+      if (snapshot.state === 'error') {
+        return { status: 'error' as const, error: snapshot.error };
+      }
+      if (snapshot.state === 'unknown') {
+        return { status: 'unknown' as const, error: snapshot.error };
+      }
+      if (snapshot.state === 'spooled') {
+        return {
+          status: 'spooled' as const,
+          spoolerJobId: snapshot.jobId,
+        };
+      }
+      return { status: 'accepted' as const };
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
+  }
+
+  async query(job: PrintJob) {
+    const share = process.env.NEXTSTOCK_PRINTER_SHARE;
+    if (!share) {
+      return {
+        status: 'error' as const,
+        error: 'NEXTSTOCK_PRINTER_SHARE is required.',
+      };
+    }
+    const snapshot = await queryWindowsSpooler(share, job.id, job.spoolerJobId);
+    return {
+      status: snapshot.state,
+      spoolerJobId: snapshot.jobId,
+      error: snapshot.error,
+    };
   }
 }
 
