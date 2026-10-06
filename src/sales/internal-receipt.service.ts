@@ -35,6 +35,7 @@ export class InternalReceiptService {
     sale: InternalReceiptSale;
     context: InternalReceiptContext;
     origin: 'cash_register' | 'history' | 'order' | 'legacy';
+    idempotencyKey?: string;
   }) {
     const { sale, context } = input;
     const audit = await this.prisma.$transaction(async (tx) => {
@@ -59,6 +60,26 @@ export class InternalReceiptService {
         throw new Error(
           'Receipt allocation could not recover its scoped document.',
         );
+      if (input.idempotencyKey && tx.fiscalDocumentEvent.findFirst) {
+        const previous = await tx.fiscalDocumentEvent.findFirst({
+          where: {
+            documentId: document.id,
+            requestPayload: {
+              path: ['idempotencyKey'],
+              equals: input.idempotencyKey,
+            },
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { eventType: true, printNumber: true },
+        });
+        if (previous?.printNumber) {
+          return {
+            documentId: document.id,
+            eventType: previous.eventType,
+            printNumber: previous.printNumber,
+          };
+        }
+      }
       const allocated = await tx.saleDocument.update({
         where: {
           id: document.id,
@@ -88,6 +109,9 @@ export class InternalReceiptService {
             saleId: sale.id,
             origin: input.origin,
             printNumber,
+            ...(input.idempotencyKey
+              ? { idempotencyKey: input.idempotencyKey }
+              : {}),
           } satisfies Prisma.InputJsonValue,
           createdById: context.userId,
         },

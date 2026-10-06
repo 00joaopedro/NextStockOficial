@@ -18,6 +18,8 @@
     activeSuggestion: -1,
     scanPending: false,
     printing: false,
+    printRequestKey: null,
+    printAgentToken: "",
     fiscalConfig: null,
     preview: false,
   };
@@ -60,7 +62,11 @@
     discountValue: document.getElementById("discountValue"),
     toasts: document.getElementById("toastContainer"),
     model65Notice: document.getElementById("model65Notice"),
+    receiptPrintMode: document.getElementById("receiptPrintMode"),
+    printAgentToken: document.getElementById("printAgentToken"),
   };
+
+  const PRINT_AGENT_URL = "http://127.0.0.1:17890";
 
   const PAYMENT_METHODS = {
     dinheiro: "cash",
@@ -635,21 +641,43 @@
     }
     if (state.printing) return;
     state.printing = true;
+    state.printRequestKey = state.printRequestKey || crypto.randomUUID();
+    let completed = false;
     els.receipt.disabled = true;
     try {
       const result = await api(
         `/api/sales/${encodeURIComponent(state.lastSale.id)}/model-65/print`,
-        { method: "POST" },
+        { method: "POST", headers: { "x-nextstock-print-idempotency-key": state.printRequestKey } },
       );
       if (result.mode === "nfce65" && !result.html) {
         toast(
           "NFC-e autorizada. A impressão fiscal ficará disponível no histórico.",
           "success",
         );
+        completed = true;
         return;
       }
       if (result.mode !== "internal_receipt" || !result.html) {
         throw new Error("Nenhum documento imprimível foi retornado.");
+      }
+      if (els.receiptPrintMode?.value === "direct") {
+        const token = els.printAgentToken?.value?.trim() || state.printAgentToken;
+        if (!token) throw new Error("Informe o token do agente local de impressão.");
+        state.printAgentToken = token;
+        const response = await fetch(`${PRINT_AGENT_URL}/v1/print`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            idempotencyKey: `${result.documentId}:${result.printNumber}`,
+            paperWidthMm: result.paperWidthMm === 58 ? 58 : 80,
+            html: result.html,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Agente local recusou o recibo.");
+        toast(`Recibo ${data.job?.status === "printed" ? "impresso" : "enviado para a fila local"}.`, "success");
+        completed = true;
+        return;
       }
       const frame = document.createElement("iframe");
       frame.hidden = true;
@@ -666,10 +694,12 @@
         "Recibo interno gerado — documento sem validade fiscal.",
         "warning",
       );
+      completed = true;
     } catch (error) {
       toast(error.message, "error");
     } finally {
       state.printing = false;
+      if (completed) state.printRequestKey = null;
       els.receipt.disabled = !state.lastSale;
     }
   }

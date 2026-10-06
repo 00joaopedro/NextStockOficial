@@ -27,6 +27,7 @@ export class Model65DecisionService {
     saleId: string,
     selectedBranchId?: string,
     devContextMode?: string,
+    printIdempotencyKey?: string,
   ) {
     const context = await this.tenantContext.resolve(user, {
       selectedBranchId,
@@ -87,6 +88,7 @@ export class Model65DecisionService {
         branchId: context.branchId!,
       },
       origin: 'cash_register',
+      idempotencyKey: printIdempotencyKey,
     });
     return {
       mode: 'internal_receipt' as const,
@@ -95,6 +97,7 @@ export class Model65DecisionService {
       documentId: receipt.documentId,
       printEvent: receipt.eventType,
       printNumber: receipt.printNumber,
+      paperWidthMm: receipt.paperWidthMm,
     };
   }
 
