@@ -7,7 +7,10 @@ import {
   PrintJob,
   UnknownPrintError,
 } from './print-queue';
-import { queryWindowsSpooler } from './windows-spooler';
+import {
+  queryWindowsSpooler,
+  submitWindowsSpoolerJob,
+} from './windows-spooler';
 
 const port = Number(process.env.NEXTSTOCK_PRINT_AGENT_PORT || 17890);
 const token = process.env.NEXTSTOCK_PRINT_AGENT_TOKEN;
@@ -36,31 +39,17 @@ class WindowsShareTransport implements PrinterTransport {
     const file = path.join(directory, `${job.id}.bin`);
     try {
       await writeFile(file, payload);
-      await new Promise<void>((resolve, reject) =>
-        execFile('cmd.exe', ['/c', 'copy', '/b', file, share], (error) =>
-          error
-            ? reject(
-                new UnknownPrintError(
-                  error instanceof Error ? error.message : String(error),
-                ),
-              )
-            : resolve(),
-        ),
-      );
-      const snapshot = await queryWindowsSpooler(share, job.id);
-      if (snapshot.state === 'error') {
-        return { status: 'error' as const, error: snapshot.error };
-      }
-      if (snapshot.state === 'unknown') {
-        return { status: 'unknown' as const, error: snapshot.error };
-      }
+      const snapshot = await submitWindowsSpoolerJob(share, file);
       if (snapshot.state === 'spooled') {
         return {
           status: 'spooled' as const,
           spoolerJobId: snapshot.jobId,
         };
       }
-      return { status: 'accepted' as const };
+      return {
+        status: 'unknown' as const,
+        error: snapshot.error || 'Windows spooler did not accept the job.',
+      };
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -74,9 +63,16 @@ class WindowsShareTransport implements PrinterTransport {
         error: 'NEXTSTOCK_PRINTER_SHARE is required.',
       };
     }
-    const snapshot = await queryWindowsSpooler(share, job.id, job.spoolerJobId);
+    if (!job.spoolerJobId) {
+      return {
+        status: 'unknown' as const,
+        error: 'The spooler job identifier was not captured.',
+      };
+    }
+    const snapshot = await queryWindowsSpooler(share, job.spoolerJobId);
     return {
-      status: snapshot.state,
+      status:
+        snapshot.state === 'error' ? ('spooled' as const) : snapshot.state,
       spoolerJobId: snapshot.jobId,
       error: snapshot.error,
     };
