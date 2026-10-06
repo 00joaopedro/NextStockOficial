@@ -649,7 +649,88 @@
           grid-template-columns: 1fr;
         }
       }
-    </style>
+    
+      .print-agent-panel {
+        margin-top: 18px;
+      }
+
+      .print-agent-panel .note-title {
+        align-items: center;
+      }
+
+      .print-agent-status {
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        padding: 7px 12px;
+        white-space: nowrap;
+      }
+
+      .print-agent-status.info {
+        background: #eaf8f8;
+        color: #0d6d6d;
+      }
+
+      .print-agent-status.success {
+        background: #e8f7ed;
+        color: #1e6d38;
+      }
+
+      .print-agent-status.warning {
+        background: #fff4df;
+        color: #805200;
+      }
+
+      .print-agent-status.error {
+        background: #fdecec;
+        color: #a92222;
+      }
+
+      .print-agent-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
+      }
+
+      .print-agent-actions button,
+      .print-agent-actions a {
+        border: 0;
+        border-radius: 10px;
+        background: #0d6d6d;
+        color: #fff;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 10px 14px;
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      .print-agent-actions button.secondary {
+        background: #31566f;
+      }
+
+      .print-agent-actions button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      @media (max-width: 760px) {
+        .print-agent-panel .note-title {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .print-agent-actions button,
+        .print-agent-actions a {
+          flex: 1 1 100%;
+        }
+      }
+</style>
     <link rel="modulepreload" href="./dist/sidebar.js" />
   </head>
   <body>
@@ -716,7 +797,36 @@
           </div>
         </section>
 
-        <section class="note-wrapper admin-only" id="fiscalAdminPanel" hidden>
+        
+        <section class="note-wrapper print-agent-panel" aria-labelledby="printAgentTitle">
+          <div class="note-title">
+            <h2 id="printAgentTitle">Agente de impressão local</h2>
+            <span class="print-agent-status info" id="printAgentStatus" role="status">Não verificado</span>
+          </div>
+          <p class="footer-note">
+            Para impressão direta em Windows 10/11 64-bit, instale o agente no computador conectado à impressora e informe o token gerado na instalação.
+          </p>
+          <div class="fields">
+            <div class="field span-8">
+              <label for="printAgentToken">Token do agente</label>
+              <input id="printAgentToken" type="password" autocomplete="off" placeholder="Cole aqui o token da instalação" />
+              <span class="hint">O token fica salvo somente nesta sessão do navegador.</span>
+            </div>
+            <div class="field span-4 print-agent-actions">
+              <button type="button" id="btnPrintAgentSave">Salvar token</button>
+              <button type="button" id="btnPrintAgentCopy" class="secondary">Copiar token</button>
+            </div>
+            <div class="field span-12 print-agent-actions">
+              <a id="btnPrintAgentDownload" href="https://github.com/00joaopedro/NextStockOficial/releases/latest/download/NextStock-Agente-Impressao-Setup.exe" target="_blank" rel="noopener">Baixar agente Windows</a>
+              <button type="button" id="btnPrintAgentConnection">Testar conexão</button>
+              <button type="button" id="btnPrintAgentPrint">Testar impressão</button>
+            </div>
+          </div>
+          <p class="footer-note" id="printAgentHelp">
+            Primeiro instale o agente, informe o token e teste a conexão. O teste de impressão envia uma via física e pede confirmação antes de iniciar.
+          </p>
+        </section>
+<section class="note-wrapper admin-only" id="fiscalAdminPanel" hidden>
           <div class="note-title">
             <h2>Configuração fiscal e certificado</h2>
             <div
