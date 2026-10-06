@@ -80,12 +80,14 @@ export class SalesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Headers('x-nextstock-branch-id') selectedBranchId?: string,
     @Headers('x-nextstock-dev-context') devContextMode?: string,
+    @Headers('x-nextstock-print-idempotency-key') printIdempotencyKey?: string,
   ) {
     return this.model65Decision.print(
       req.user,
       id,
       selectedBranchId,
       devContextMode,
+      printIdempotencyKey,
     );
   }
 

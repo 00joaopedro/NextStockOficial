@@ -40,7 +40,10 @@ describe('InternalReceiptService RC-012', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'receipt-a' }),
         update: jest.fn(),
       },
-      fiscalDocumentEvent: { create: jest.fn().mockResolvedValue({}) },
+      fiscalDocumentEvent: {
+        create: jest.fn().mockResolvedValue({}),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     };
     numbers.forEach((printCounter) =>
       tx.saleDocument.update.mockResolvedValueOnce({ printCounter }),
@@ -109,6 +112,31 @@ describe('InternalReceiptService RC-012', () => {
     await service.issueAndRender({ sale, context, origin: 'order' });
     expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
     expect(tx.fiscalDocumentEvent.count).toBeUndefined();
+  });
+
+  it('reutiliza a mesma via quando a requisição de impressão é repetida', async () => {
+    const { service, tx } = setup([1, 2]);
+    tx.fiscalDocumentEvent.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        eventType: 'internal_receipt_printed',
+        printNumber: 1,
+      });
+    const first = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      idempotencyKey: 'print-attempt-1',
+    });
+    const second = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      idempotencyKey: 'print-attempt-1',
+    });
+    expect(second.printNumber).toBe(first.printNumber);
+    expect(tx.saleDocument.update).toHaveBeenCalledTimes(1);
+    expect(tx.fiscalDocumentEvent.create).toHaveBeenCalledTimes(1);
   });
 
   it('propaga falha do evento para rollback da transacao', async () => {

@@ -16,6 +16,7 @@
     "start:railway": "npm run start:prod",
     "start:api": "node dist/src/main.js",
     "start:audit-worker": "node dist/src/audit-worker.js",
+    "printing:agent": "node dist/scripts/printing/agent.js",
     "migration:job": "ts-node scripts/migrations/cloud-run-migrate.ts",
     "db:migrate": "prisma migrate deploy",
     "prisma:migrate": "prisma migrate deploy",

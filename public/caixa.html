@@ -923,6 +923,14 @@
       <p id="model65Notice" style="margin:10px 0 0;padding:10px;border:1px solid #ffb74d;border-radius:10px;background:#fff4df;color:#704700;font-weight:700;">
         Sem certificado A1 válido — será impresso recibo interno, sem validade fiscal.
       </p>
+      <div style="margin-top:10px;display:grid;gap:6px;">
+        <label for="receiptPrintMode">Modo de impressão</label>
+        <select id="receiptPrintMode">
+          <option value="browser">Navegador</option>
+          <option value="direct">Direta / ESC-POS</option>
+        </select>
+        <input id="printAgentToken" type="password" autocomplete="off" placeholder="Token do agente local (sessão)" />
+      </div>
     </aside>
   </div>
 
