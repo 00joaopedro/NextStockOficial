@@ -563,6 +563,7 @@ export class SalesService {
     id: string,
     selectedBranchId?: string,
     devContextMode?: string,
+    printIdempotencyKey?: string,
   ) {
     const context = await this.resolveContext(
       user,
@@ -584,6 +585,7 @@ export class SalesService {
         branchId: context.branchId!,
       },
       origin: 'history',
+      idempotencyKey: printIdempotencyKey,
     });
 
     return {
@@ -597,6 +599,7 @@ export class SalesService {
       documentId: printed.documentId,
       printEvent: printed.eventType,
       printNumber: printed.printNumber,
+      printAttemptId: printed.attemptId,
       html: printed.html,
     };
   }
