@@ -134,7 +134,12 @@ export async function queryWindowsSpooler(
           });
           return;
         }
-        resolve(parseWindowsSpoolerResponse(stdout));
+        const snapshot = parseWindowsSpoolerResponse(stdout);
+        resolve(
+          snapshot.state === 'accepted' && jobId
+            ? { state: 'printed' }
+            : snapshot,
+        );
       },
     );
   });
