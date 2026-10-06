@@ -76,6 +76,20 @@ const ENTITY_NAMES: Record<string, string> = {
   gt: '>',
   quot: '"',
   apos: "'",
+  aacute: 'á',
+  agrave: 'à',
+  atilde: 'ã',
+  acirc: 'â',
+  eacute: 'é',
+  ecirc: 'ê',
+  iacute: 'í',
+  oacute: 'ó',
+  ocirc: 'ô',
+  otilde: 'õ',
+  uacute: 'ú',
+  uuml: 'ü',
+  ccedil: 'ç',
+  aacute_upper: 'Á',
 };
 
 export function columnsFor(width: PaperWidthMm): number {
