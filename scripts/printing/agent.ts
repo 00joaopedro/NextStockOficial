@@ -38,7 +38,11 @@ class WindowsShareTransport implements PrinterTransport {
       await new Promise<void>((resolve, reject) =>
         execFile('cmd.exe', ['/c', 'copy', '/b', file, share], (error) =>
           error
-            ? reject(new UnknownPrintError(error instanceof Error ? error.message : String(error)))
+            ? reject(
+                new UnknownPrintError(
+                  error instanceof Error ? error.message : String(error),
+                ),
+              )
             : resolve(),
         ),
       );
