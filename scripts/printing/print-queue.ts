@@ -1,7 +1,12 @@
 import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { PaperWidthMm, encodeEscPos, htmlToReceiptText } from './escpos';
+import {
+  EscPosCodePage,
+  PaperWidthMm,
+  encodeEscPos,
+  htmlToReceiptText,
+} from './escpos';
 
 export type PrintJobStatus =
   | 'pending'
@@ -72,6 +77,7 @@ export class PrintQueue {
     private readonly filePath: string,
     private readonly transport: PrinterTransport,
     private readonly maxAttempts = 3,
+    private readonly codePage: EscPosCodePage = 'cp858',
   ) {}
 
   private async loadPersistedJobs(): Promise<PrintJob[]> {
@@ -255,7 +261,7 @@ export class PrintQueue {
       await this.persist();
       const text = htmlToReceiptText(job.html, job.paperWidthMm);
       const result = (await this.transport.send(
-        encodeEscPos(text, job.paperWidthMm),
+        encodeEscPos(text, job.paperWidthMm, this.codePage),
         job,
       )) || { status: 'printed' as const };
       if (result.spoolerJobId) job.spoolerJobId = result.spoolerJobId;
