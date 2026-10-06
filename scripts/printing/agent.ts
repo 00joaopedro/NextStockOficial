@@ -134,6 +134,11 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
 createServer((req, res) => {
   void handleRequest(req, res);
 }).listen(port, '127.0.0.1', () => {
-  await mkdir('./.nextstock-print', { recursive: true });
-  console.log(`NextStock print agent listening on 127.0.0.1:${port}`);
+  void mkdir('./.nextstock-print', { recursive: true })
+    .then(() => {
+      console.log(`NextStock print agent listening on 127.0.0.1:${port}`);
+    })
+    .catch((error: unknown) => {
+      console.error('Unable to initialize print agent storage.', error);
+    });
 });
