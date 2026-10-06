@@ -261,10 +261,7 @@ export class PrintQueue {
       job.updatedAt = new Date().toISOString();
       await this.persist();
       if (job.status === 'error' && job.attempts < this.maxAttempts) {
-        setTimeout(
-          () => void this.process(id),
-          250 * 2 ** (job.attempts - 1),
-        );
+        setTimeout(() => void this.process(id), 250 * 2 ** (job.attempts - 1));
       }
     } finally {
       this.active.delete(id);
