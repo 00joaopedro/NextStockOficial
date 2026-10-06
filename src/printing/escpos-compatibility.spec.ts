@@ -26,8 +26,8 @@ describe('ESC/POS receipt compatibility', () => {
 
   it('wraps text according to 58 mm and 80 mm printable columns', () => {
     const receipt = '<p>Produto com descrição muito longa para validar a largura</p>';
-    const narrow = htmlToReceiptText(receipt, 58).split('\\n');
-    const wide = htmlToReceiptText(receipt, 80).split('\\n');
+    const narrow = htmlToReceiptText(receipt, 58).split('\n');
+    const wide = htmlToReceiptText(receipt, 80).split('\n');
 
     expect(columnsFor(58)).toBe(32);
     expect(columnsFor(80)).toBe(48);
