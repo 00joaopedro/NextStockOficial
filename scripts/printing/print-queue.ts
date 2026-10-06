@@ -3,7 +3,12 @@ import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PaperWidthMm, encodeEscPos, htmlToReceiptText } from './escpos';
 
-export type PrintJobStatus = 'pending' | 'sent' | 'printed' | 'error';
+export type PrintJobStatus =
+  | 'pending'
+  | 'sent'
+  | 'printed'
+  | 'error'
+  | 'unknown';
 export type PrintJob = {
   id: string;
   idempotencyKey: string;
@@ -15,6 +20,17 @@ export type PrintJob = {
   updatedAt: string;
   error?: string;
 };
+export type PrintResolution =
+  | 'confirm_not_printed'
+  | 'confirm_printed'
+  | 'cancel';
+
+export class UnknownPrintError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UnknownPrintError';
+  }
+}
 
 export interface PrinterTransport {
   send(payload: Buffer, job: PrintJob): Promise<void>;
@@ -61,7 +77,9 @@ export class PrintQueue {
           this.jobs
             .filter(
               (job) =>
-                job.status !== 'printed' && job.attempts < this.maxAttempts,
+                job.status !== 'printed' &&
+                job.status !== 'unknown' &&
+                job.attempts < this.maxAttempts,
             )
             .forEach((job) => void this.process(job.id));
         });
@@ -90,7 +108,12 @@ export class PrintQueue {
       (job) => job.idempotencyKey === input.idempotencyKey,
     );
     if (existing) {
-      if (existing.status !== 'printed') void this.process(existing.id);
+      if (
+        existing.status !== 'printed' &&
+        existing.status !== 'unknown'
+      ) {
+        void this.process(existing.id);
+      }
       return existing;
     }
     const now = new Date().toISOString();
@@ -113,10 +136,38 @@ export class PrintQueue {
     return this.jobs.find((job) => job.id === id);
   }
 
+  async resolve(id: string, resolution: PrintResolution) {
+    await this.load();
+    const job = this.jobs.find((item) => item.id === id);
+    if (!job) return undefined;
+    if (resolution === 'confirm_printed') {
+      job.status = 'printed';
+      job.error = undefined;
+    } else if (resolution === 'confirm_not_printed') {
+      job.status = 'pending';
+      job.error = undefined;
+      job.attempts = 0;
+      void this.process(job.id);
+    } else {
+      job.status = 'error';
+      job.error = 'Cancelled by operator after ambiguous delivery.';
+    }
+    job.updatedAt = new Date().toISOString();
+    await this.persist();
+    return job;
+  }
+
   async process(id: string) {
     await this.load();
     const job = this.jobs.find((item) => item.id === id);
-    if (!job || this.active.has(id) || job.status === 'printed') return job;
+    if (
+      !job ||
+      this.active.has(id) ||
+      job.status === 'printed' ||
+      job.status === 'unknown'
+    ) {
+      return job;
+    }
     this.active.add(id);
     try {
       job.attempts += 1;
@@ -131,10 +182,10 @@ export class PrintQueue {
       await this.persist();
     } catch (error) {
       job.error = error instanceof Error ? error.message : String(error);
-      job.status = 'error';
+      job.status = error instanceof UnknownPrintError ? 'unknown' : 'error';
       job.updatedAt = new Date().toISOString();
       await this.persist();
-      if (job.attempts < this.maxAttempts) {
+      if (job.status === 'error' && job.attempts < this.maxAttempts) {
         setTimeout(() => void this.process(id), 250 * 2 ** (job.attempts - 1));
       }
     } finally {
