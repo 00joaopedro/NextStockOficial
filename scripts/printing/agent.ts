@@ -5,7 +5,6 @@ import {
   SimulatedPrinterTransport,
   PrinterTransport,
   PrintJob,
-  UnknownPrintError,
 } from './print-queue';
 import {
   queryWindowsSpooler,
@@ -32,7 +31,6 @@ class WindowsShareTransport implements PrinterTransport {
     const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
     const { tmpdir } = await import('node:os');
     const path = await import('node:path');
-    const { execFile } = await import('node:child_process');
     const share = process.env.NEXTSTOCK_PRINTER_SHARE;
     if (!share) throw new Error('NEXTSTOCK_PRINTER_SHARE is required.');
     const directory = await mkdtemp(path.join(tmpdir(), 'nextstock-print-'));
