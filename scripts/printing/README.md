@@ -15,6 +15,6 @@ Os bytes ESC/POS são gravados em `.nextstock-print/output`. A fila persiste em 
 
 ## Windows / impressora compartilhada
 
-Configure `NEXTSTOCK_PRINTER_MODE=windows` e `NEXTSTOCK_PRINTER_SHARE` com o compartilhamento da impressora (por exemplo `\\localhost\Thermal80`) e execute `install-windows-service.ps1` como administrador. O driver/compartilhamento do Windows continua sendo responsável pelo spool físico.
+Instale o NSSM (https://nssm.cc), configure `NEXTSTOCK_PRINTER_SHARE` com o compartilhamento da impressora (por exemplo `\\localhost\Thermal80`) e execute `install-windows-service.ps1` como administrador. O script usa o NSSM como wrapper de serviço real; o driver/compartilhamento do Windows continua sendo responsável pelo spool físico.
 
 Para a aplicação publicada, defina `NEXTSTOCK_PRINT_AGENT_ORIGINS` com os domínios exatos usados pelo NextStock. O padrão permite `nextstocks.online`, `www.nextstocks.online` e localhost.
