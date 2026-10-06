@@ -5,6 +5,7 @@ import {
   SimulatedPrinterTransport,
   PrinterTransport,
   PrintJob,
+  UnknownPrintError,
 } from './print-queue';
 
 const port = Number(process.env.NEXTSTOCK_PRINT_AGENT_PORT || 17890);
@@ -37,7 +38,11 @@ class WindowsShareTransport implements PrinterTransport {
       await new Promise<void>((resolve, reject) =>
         execFile('cmd.exe', ['/c', 'copy', '/b', file, share], (error) =>
           error
-            ? reject(error instanceof Error ? error : new Error(String(error)))
+            ? reject(
+                new UnknownPrintError(
+                  error instanceof Error ? error.message : String(error),
+                ),
+              )
             : resolve(),
         ),
       );
@@ -118,6 +123,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
           html: input.html,
           paperWidthMm: width as 58 | 80,
         }),
+      });
+    }
+    const resolveMatch = req.url?.match(/^\/v1\/jobs\/([^/]+)\/resolve$/);
+    if (req.method === 'POST' && resolveMatch) {
+      const input = await body(req);
+      const resolution = input.resolution;
+      if (
+        resolution !== 'confirm_not_printed' &&
+        resolution !== 'confirm_printed' &&
+        resolution !== 'cancel'
+      ) {
+        return json(req, res, 400, { error: 'Invalid print resolution.' });
+      }
+      return json(req, res, 200, {
+        job: await queue.resolve(resolveMatch[1], resolution),
       });
     }
     const match = req.url?.match(/^\/v1\/jobs\/([^/]+)$/);

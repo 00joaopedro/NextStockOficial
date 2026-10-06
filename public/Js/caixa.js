@@ -634,6 +634,44 @@
     }
   }
 
+  async function waitForPrintJob(jobId, token) {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const response = await fetch(
+        `${PRINT_AGENT_URL}/v1/jobs/${encodeURIComponent(jobId)}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || "Não foi possível consultar a fila de impressão.");
+      }
+      const job = data.job;
+      if (!job || ["printed", "error", "unknown"].includes(job.status)) {
+        return job;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+    return null;
+  }
+
+  async function resolveUnknownPrintJob(jobId, token) {
+    const response = await fetch(
+      `${PRINT_AGENT_URL}/v1/jobs/${encodeURIComponent(jobId)}/resolve`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ resolution: "confirm_not_printed" }),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Não foi possível confirmar o reenvio.");
+    }
+    return data.job;
+  }
+
   async function printReceipt() {
     if (!state.lastSale?.id) {
       toast("Conclua uma venda antes de imprimir o recibo.", "warning");
@@ -675,7 +713,26 @@
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || "Agente local recusou o recibo.");
-        toast(`Recibo ${data.job?.status === "printed" ? "impresso" : "enviado para a fila local"}.`, "success");
+        const jobId = data.job?.id;
+        if (!jobId) throw new Error("O agente não retornou o identificador da impressão.");
+        let job = await waitForPrintJob(jobId, token);
+        if (job?.status === "unknown") {
+          const retry = window.confirm(
+            "A conexão caiu depois do envio. Não é possível confirmar se o papel saiu. Reenviar pode duplicar a via. Deseja confirmar que não imprimiu e reenviar?",
+          );
+          if (!retry) {
+            toast("Impressão em estado desconhecido. Não reenviamos automaticamente.", "warning");
+            return;
+          }
+          await resolveUnknownPrintJob(jobId, token);
+          job = await waitForPrintJob(jobId, token);
+        }
+        if (job?.status !== "printed") {
+          throw new Error(
+            job?.error || "A impressão não foi confirmada pelo agente local.",
+          );
+        }
+        toast("Recibo impresso e confirmado pelo agente local.", "success");
         completed = true;
         return;
       }
