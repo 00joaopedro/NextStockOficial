@@ -34,6 +34,24 @@ describe('local thermal print queue', () => {
     await rm(directory, { recursive: true, force: true });
   });
 
+  it('persists spooler acceptance and job identity while monitoring', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'nextstock-print-test-'));
+    const queue = new PrintQueue(join(directory, 'queue.json'), {
+      send: async () => ({ status: 'spooled', spoolerJobId: 'job-42' }),
+      query: async () => ({ status: 'printed' }),
+    });
+    const job = await queue.enqueue({
+      idempotencyKey: 'spooled-1',
+      html: '<p>Teste</p>',
+      paperWidthMm: 80,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const stored = await queue.get(job.id);
+    expect(stored?.status).toBe('spooled');
+    expect(stored?.spoolerJobId).toBe('job-42');
+    await rm(directory, { recursive: true, force: true });
+  });
+
   it('retries transport failures and ends in error after the configured limit', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'nextstock-print-test-'));
     let attempts = 0;

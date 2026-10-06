@@ -5,10 +5,13 @@ import { PaperWidthMm, encodeEscPos, htmlToReceiptText } from './escpos';
 
 export type PrintJobStatus =
   | 'pending'
+  | 'accepted'
+  | 'spooled'
   | 'sent'
   | 'printed'
   | 'error'
   | 'unknown';
+
 export type PrintJob = {
   id: string;
   idempotencyKey: string;
@@ -18,12 +21,20 @@ export type PrintJob = {
   attempts: number;
   createdAt: string;
   updatedAt: string;
+  spoolerJobId?: string;
   error?: string;
 };
+
 export type PrintResolution =
   | 'confirm_not_printed'
   | 'confirm_printed'
   | 'cancel';
+
+export type PrintTransportResult = {
+  status: 'accepted' | 'spooled' | 'printed' | 'error' | 'unknown';
+  spoolerJobId?: string;
+  error?: string;
+};
 
 export class UnknownPrintError extends Error {
   constructor(message: string) {
@@ -33,15 +44,17 @@ export class UnknownPrintError extends Error {
 }
 
 export interface PrinterTransport {
-  send(payload: Buffer, job: PrintJob): Promise<void>;
+  send(payload: Buffer, job: PrintJob): Promise<PrintTransportResult | void>;
+  query?(job: PrintJob): Promise<PrintTransportResult>;
 }
 
 export class SimulatedPrinterTransport implements PrinterTransport {
   constructor(private readonly outputDirectory: string) {}
 
-  async send(payload: Buffer, job: PrintJob) {
+  async send(payload: Buffer, job: PrintJob): Promise<PrintTransportResult> {
     await mkdir(this.outputDirectory, { recursive: true });
     await writeFile(join(this.outputDirectory, `${job.id}.bin`), payload);
+    return { status: 'printed' };
   }
 }
 
@@ -53,6 +66,7 @@ export class PrintQueue {
   private persistTail: Promise<void> = Promise.resolve();
   private active = new Set<string>();
   private retryAfterActive = new Set<string>();
+  private monitoring = new Set<string>();
 
   constructor(
     private readonly filePath: string,
@@ -78,11 +92,14 @@ export class PrintQueue {
           this.jobs
             .filter(
               (job) =>
-                job.status !== 'printed' &&
-                job.status !== 'unknown' &&
-                job.attempts < this.maxAttempts,
+                !['printed', 'unknown', 'accepted', 'spooled'].includes(
+                  job.status,
+                ) && job.attempts < this.maxAttempts,
             )
             .forEach((job) => void this.process(job.id));
+          this.jobs
+            .filter((job) => ['accepted', 'spooled'].includes(job.status))
+            .forEach((job) => void this.monitor(job.id));
         });
       }
     })();
@@ -99,6 +116,52 @@ export class PrintQueue {
     return this.persistTail;
   }
 
+  private async monitor(id: string) {
+    await this.load();
+    if (this.monitoring.has(id)) return;
+    this.monitoring.add(id);
+    try {
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const job = this.jobs.find((item) => item.id === id);
+        if (
+          !job ||
+          ['printed', 'error', 'unknown'].includes(job.status) ||
+          !this.transport.query
+        ) {
+          return;
+        }
+        const result = await this.transport.query(job);
+        if (result.spoolerJobId) job.spoolerJobId = result.spoolerJobId;
+        if (result.error) job.error = result.error;
+        if (result.status === 'accepted' || result.status === 'spooled') {
+          job.status = result.status;
+          job.updatedAt = new Date().toISOString();
+          await this.persist();
+          continue;
+        }
+        job.status = result.status;
+        job.error =
+          result.status === 'printed' ? undefined : result.error || job.error;
+        job.updatedAt = new Date().toISOString();
+        await this.persist();
+        // A spooler-reported error happens after acceptance. Keep the
+        // job terminal/observable and require operator resolution; retrying
+        // here could duplicate a receipt that remains queued in Windows.
+        return;
+      }
+      const job = this.jobs.find((item) => item.id === id);
+      if (job && ['accepted', 'spooled'].includes(job.status)) {
+        job.status = 'unknown';
+        job.error = 'Spooler status timed out; operator confirmation required.';
+        job.updatedAt = new Date().toISOString();
+        await this.persist();
+      }
+    } finally {
+      this.monitoring.delete(id);
+    }
+  }
+
   async enqueue(input: {
     idempotencyKey: string;
     html: string;
@@ -109,7 +172,9 @@ export class PrintQueue {
       (job) => job.idempotencyKey === input.idempotencyKey,
     );
     if (existing) {
-      if (existing.status !== 'printed' && existing.status !== 'unknown') {
+      if (
+        !['printed', 'unknown', 'accepted', 'spooled'].includes(existing.status)
+      ) {
         void this.process(existing.id);
       }
       return existing;
@@ -138,8 +203,6 @@ export class PrintQueue {
     await this.load();
     const job = this.jobs.find((item) => item.id === id);
     if (!job) return undefined;
-    // Resolutions are valid only while delivery is ambiguous. Once a job has
-    // transitioned, repeating the request must be a harmless no-op.
     if (job.status !== 'unknown') return job;
     if (resolution === 'confirm_printed') {
       job.status = 'printed';
@@ -168,23 +231,29 @@ export class PrintQueue {
     if (
       !job ||
       this.active.has(id) ||
-      job.status === 'printed' ||
-      job.status === 'unknown'
+      ['printed', 'unknown', 'accepted', 'spooled'].includes(job.status)
     ) {
       return job;
     }
     this.active.add(id);
     try {
       job.attempts += 1;
-      job.status = 'sent';
+      job.status = 'accepted';
       job.updatedAt = new Date().toISOString();
       await this.persist();
       const text = htmlToReceiptText(job.html, job.paperWidthMm);
-      await this.transport.send(encodeEscPos(text, job.paperWidthMm), job);
-      job.status = 'printed';
-      job.error = undefined;
+      const result = (await this.transport.send(
+        encodeEscPos(text, job.paperWidthMm),
+        job,
+      )) || { status: 'printed' as const };
+      if (result.spoolerJobId) job.spoolerJobId = result.spoolerJobId;
+      job.status = result.status;
+      job.error = result.status === 'printed' ? undefined : result.error;
       job.updatedAt = new Date().toISOString();
       await this.persist();
+      if (result.status === 'accepted' || result.status === 'spooled') {
+        void this.monitor(job.id);
+      }
     } catch (error) {
       job.error = error instanceof Error ? error.message : String(error);
       job.status = error instanceof UnknownPrintError ? 'unknown' : 'error';

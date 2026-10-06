@@ -50,3 +50,15 @@ O instalador é restrito a Windows 10/11 x64 nativo. A distribuição para macOS
 ## Publicação do instalador
 
 O workflow gera o arquivo `NextStock-Agente-Impressao-Setup.exe` como artefato do build Windows. Antes de disponibilizar aos usuários, um mantenedor deve baixar esse artefato e anexá-lo manualmente a uma GitHub Release. O botão da página NF-e abre a página oficial de releases para que o usuário baixe a versão publicada.
+## Estados do spooler Windows
+
+O agente consulta o spooler local com `Get-PrintJob` após enviar o arquivo RAW. A fila pode informar:
+
+- `accepted`: o envio foi aceito, mas o job ainda não foi localizado;
+- `spooled`: o job foi localizado na fila do Windows e seu identificador foi salvo;
+- `printed`: o job saiu da fila após ter sido identificado;
+- `error`: o spooler informou falha conhecida;
+- `unknown`: o spooler não respondeu ou o tempo de consulta terminou.
+
+A consulta do spooler melhora a rastreabilidade, mas não confirma fisicamente a saída do papel. Estados `unknown` continuam exigindo confirmação manual e não são reenviados automaticamente.
+
