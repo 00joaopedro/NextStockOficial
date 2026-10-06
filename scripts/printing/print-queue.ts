@@ -52,6 +52,7 @@ export class PrintQueue {
   private resumed = false;
   private persistTail: Promise<void> = Promise.resolve();
   private active = new Set<string>();
+  private retryAfterActive = new Set<string>();
 
   constructor(
     private readonly filePath: string,
@@ -137,6 +138,9 @@ export class PrintQueue {
     await this.load();
     const job = this.jobs.find((item) => item.id === id);
     if (!job) return undefined;
+    // Resolutions are valid only while delivery is ambiguous. Once a job has
+    // transitioned, repeating the request must be a harmless no-op.
+    if (job.status !== 'unknown') return job;
     if (resolution === 'confirm_printed') {
       job.status = 'printed';
       job.error = undefined;
@@ -144,7 +148,11 @@ export class PrintQueue {
       job.status = 'pending';
       job.error = undefined;
       job.attempts = 0;
-      void this.process(job.id);
+      if (this.active.has(job.id)) {
+        this.retryAfterActive.add(job.id);
+      } else {
+        void this.process(job.id);
+      }
     } else {
       job.status = 'error';
       job.error = 'Cancelled by operator after ambiguous delivery.';
@@ -187,6 +195,9 @@ export class PrintQueue {
       }
     } finally {
       this.active.delete(id);
+      if (this.retryAfterActive.delete(id)) {
+        queueMicrotask(() => void this.process(id));
+      }
     }
     return job;
   }
