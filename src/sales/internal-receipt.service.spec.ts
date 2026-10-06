@@ -92,6 +92,7 @@ describe('InternalReceiptService RC-012', () => {
           eventType,
           status: SaleDocumentStatus.internal_issued,
           printNumber: number,
+          attemptId: expect.any(String),
           createdById: context.userId,
           requestPayload: expect.objectContaining({
             printNumber: number,
@@ -101,6 +102,7 @@ describe('InternalReceiptService RC-012', () => {
         }),
       });
       expect(result).toMatchObject({ printNumber: number, eventType });
+      expect(result.attemptId).toEqual(expect.any(String));
       expect(result.html).toContain(`Via de impressão: ${number}`);
       expect(result.html).toContain('RECIBO INTERNO — SEM VALIDADE FISCAL');
       expect(result.html).toContain('&lt;Produto &amp; teste&gt;');
@@ -121,6 +123,7 @@ describe('InternalReceiptService RC-012', () => {
       .mockResolvedValueOnce({
         eventType: 'internal_receipt_printed',
         printNumber: 1,
+        attemptId: '00000000-0000-4000-8000-000000000105',
       });
     const first = await service.issueAndRender({
       sale,
@@ -135,6 +138,7 @@ describe('InternalReceiptService RC-012', () => {
       idempotencyKey: 'print-attempt-1',
     });
     expect(second.printNumber).toBe(first.printNumber);
+    expect(second.attemptId).toBe('00000000-0000-4000-8000-000000000105');
     expect(tx.saleDocument.update).toHaveBeenCalledTimes(1);
     expect(tx.fiscalDocumentEvent.create).toHaveBeenCalledTimes(1);
   });
