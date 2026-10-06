@@ -42,6 +42,7 @@ export function htmlToReceiptText(html: string, width: PaperWidthMm): string {
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
     .replace(/<br\s*\/?\s*>/gi, '\n')
+    .replace(/<\/(?:td|th|span)>/gi, ' ')
     .replace(/<\/p>|<\/div>|<\/section>|<\/tr>|<\/h[1-6]>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/gi, ' ')
