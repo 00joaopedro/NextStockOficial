@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { PaperWidthMm, encodeEscPos, htmlToReceiptText } from './escpos';
@@ -74,17 +74,26 @@ export class PrintQueue {
     private readonly maxAttempts = 3,
   ) {}
 
+  private async loadPersistedJobs(): Promise<PrintJob[]> {
+    const candidates = [this.filePath, `${this.filePath}.bak`];
+    for (const candidate of candidates) {
+      try {
+        const parsed: unknown = JSON.parse(
+          await readFile(candidate, 'utf8'),
+        );
+        if (Array.isArray(parsed)) return parsed as PrintJob[];
+      } catch {
+        // Try the previous atomic snapshot before starting empty.
+      }
+    }
+    return [];
+  }
+
   private async load() {
     if (this.loaded) return;
     if (this.loadPromise) return this.loadPromise;
     this.loadPromise = (async () => {
-      try {
-        this.jobs = JSON.parse(
-          await readFile(this.filePath, 'utf8'),
-        ) as PrintJob[];
-      } catch {
-        this.jobs = [];
-      }
+      this.jobs = await this.loadPersistedJobs();
       this.loaded = true;
       if (!this.resumed) {
         this.resumed = true;
@@ -111,6 +120,11 @@ export class PrintQueue {
       await mkdir(dirname(this.filePath), { recursive: true });
       const temporary = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
       await writeFile(temporary, JSON.stringify(this.jobs, null, 2), 'utf8');
+      try {
+        await copyFile(this.filePath, `${this.filePath}.bak`);
+      } catch {
+        // There is no previous snapshot on the first write.
+      }
       await rename(temporary, this.filePath);
     });
     return this.persistTail;
