@@ -44,7 +44,9 @@ export class PrintQueue {
     if (this.loaded) return;
     this.loaded = true;
     try {
-      this.jobs = JSON.parse(await readFile(this.filePath, 'utf8')) as PrintJob[];
+      this.jobs = JSON.parse(
+        await readFile(this.filePath, 'utf8'),
+      ) as PrintJob[];
     } catch {
       this.jobs = [];
     }
@@ -57,12 +59,25 @@ export class PrintQueue {
     await rename(temporary, this.filePath);
   }
 
-  async enqueue(input: { idempotencyKey: string; html: string; paperWidthMm: PaperWidthMm }) {
+  async enqueue(input: {
+    idempotencyKey: string;
+    html: string;
+    paperWidthMm: PaperWidthMm;
+  }) {
     await this.load();
-    const existing = this.jobs.find((job) => job.idempotencyKey === input.idempotencyKey);
+    const existing = this.jobs.find(
+      (job) => job.idempotencyKey === input.idempotencyKey,
+    );
     if (existing) return existing;
     const now = new Date().toISOString();
-    const job: PrintJob = { id: randomUUID(), ...input, status: 'pending', attempts: 0, createdAt: now, updatedAt: now };
+    const job: PrintJob = {
+      id: randomUUID(),
+      ...input,
+      status: 'pending',
+      attempts: 0,
+      createdAt: now,
+      updatedAt: now,
+    };
     this.jobs.push(job);
     await this.persist();
     void this.process(job.id);
