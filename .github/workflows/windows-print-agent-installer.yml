@@ -1,0 +1,81 @@
+name: Windows print agent installer
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/printing/**"
+      - "installer/windows/**"
+      - "tsconfig.scripts.json"
+      - "tsconfig.scripts.build.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/windows-print-agent-installer.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-installer:
+    name: Build Windows 10/11 x64 installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.23.1
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build print agent
+        run: npm run build:scripts
+
+      - name: Prepare self-contained installer payload
+        shell: pwsh
+        run: |
+          $staging = Join-Path $env:GITHUB_WORKSPACE "installer/windows/staging"
+          $nodeZip = Join-Path $env:RUNNER_TEMP "node.zip"
+          $nodeExtract = Join-Path $env:RUNNER_TEMP "node-extract"
+          $winswPath = Join-Path $staging "NextStockPrintAgent.exe"
+
+          Remove-Item $staging -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path "$staging/node", "$staging/agent" | Out-Null
+
+          Copy-Item "installer/windows/NextStockPrintAgent.xml" "$staging/NextStockPrintAgent.xml"
+          Copy-Item "installer/windows/install-service.ps1" "$staging/install-service.ps1"
+          Copy-Item "dist/scripts/printing/*.js" "$staging/agent/"
+
+          Invoke-WebRequest -Uri "https://nodejs.org/dist/v22.23.1/node-v22.23.1-win-x64.zip" -OutFile $nodeZip
+          Expand-Archive -Path $nodeZip -DestinationPath $nodeExtract -Force
+          Copy-Item "$nodeExtract/node-v22.23.1-win-x64/node.exe" "$staging/node/node.exe"
+
+          Invoke-WebRequest -Uri "https://github.com/winsw/winsw/releases/download/v3.0.0/WinSW-x64.exe" -OutFile $winswPath
+
+          if (-not (Test-Path "$staging/node/node.exe")) { throw "Node.js portátil não foi preparado." }
+          if (-not (Test-Path "$staging/agent/agent.js")) { throw "Agente compilado não foi preparado." }
+          if (-not (Test-Path $winswPath)) { throw "Wrapper do serviço não foi preparado." }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress --yes
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "installer/windows/NextStockPrintAgent.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: NextStock-Agente-Impressao-Windows-x64
+          path: installer/windows/output/NextStock-Agente-Impressao-Setup.exe
+          if-no-files-found: error
