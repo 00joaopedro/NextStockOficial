@@ -1,7 +1,11 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PrintQueue, PrinterTransport } from '../../scripts/printing/print-queue';
+import {
+  PrintQueue,
+  PrinterTransport,
+  UnknownPrintError,
+} from '../../scripts/printing/print-queue';
 import { columnsFor, encodeEscPos, htmlToReceiptText } from '../../scripts/printing/escpos';
 
 describe('local thermal print queue', () => {
@@ -40,4 +44,30 @@ describe('local thermal print queue', () => {
     expect((await queue.get(job.id))?.status).toBe('error');
     await rm(directory, { recursive: true, force: true });
   });
+  it('pauses ambiguous transport failures without automatic retry', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'nextstock-print-test-'));
+    let attempts = 0;
+    const queue = new PrintQueue(
+      join(directory, 'queue.json'),
+      {
+        send: async () => {
+          attempts += 1;
+          throw new UnknownPrintError('spooler response lost');
+        },
+      },
+      3,
+    );
+    const job = await queue.enqueue({
+      idempotencyKey: 'unknown-1',
+      html: '<p>Teste</p>',
+      paperWidthMm: 80,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(attempts).toBe(1);
+    expect((await queue.get(job.id))?.status).toBe('unknown');
+    await queue.resolve(job.id, 'confirm_printed');
+    expect((await queue.get(job.id))?.status).toBe('printed');
+    await rm(directory, { recursive: true, force: true });
+  });
+
 });
