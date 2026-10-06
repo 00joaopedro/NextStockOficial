@@ -13,14 +13,39 @@ $programDataRoot = Join-Path $env:ProgramData "NextStock\PrintAgent"
 $queueFile = Join-Path $programDataRoot "queue.json"
 $tokenFile = Join-Path $programDataRoot "agent-token.txt"
 
-New-Item -ItemType Directory -Force -Path $programDataRoot | Out-Null
+function Invoke-WinSw {
+  param(
+    [string[]]$Arguments,
+    [string]$Action
+  )
+
+  & $serviceExe @Arguments 2>$null
+  $exitCode = $LASTEXITCODE
+  if ($exitCode -ne 0) {
+    throw "Falha ao executar '$Action' no serviço do agente (código $exitCode)."
+  }
+}
+
+function Get-ExistingAgentService {
+  return Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+}
 
 if ($Uninstall) {
-  if (Test-Path $serviceExe) {
-    & $serviceExe stop 2>$null
-    & $serviceExe uninstall 2>$null
+  $existingService = Get-ExistingAgentService
+  if ($existingService -and -not (Test-Path $serviceExe)) {
+    throw "O serviço está registrado, mas o executável do agente não foi encontrado. Os dados foram preservados."
   }
-  Remove-Item $programDataRoot -Recurse -Force -ErrorAction SilentlyContinue
+
+  if ($existingService) {
+    Invoke-WinSw -Arguments @("stop") -Action "parar"
+    Invoke-WinSw -Arguments @("uninstall") -Action "desregistrar"
+  }
+
+  if (Get-ExistingAgentService) {
+    throw "O serviço ainda está registrado. A fila e o token foram preservados."
+  }
+
+  Remove-Item $programDataRoot -Recurse -Force -ErrorAction Stop
   exit 0
 }
 
@@ -28,8 +53,26 @@ if ([string]::IsNullOrWhiteSpace($PrinterShare)) {
   throw "Informe o compartilhamento da impressora, por exemplo: \\localhost\Thermal80"
 }
 
+$shareMatch = [regex]::Match($PrinterShare, '^\\\\([^\\]+)\\([^\\]+)$')
+if (-not $shareMatch.Success) {
+  throw "Use um compartilhamento Windows no formato \\localhost\NomeDaImpressora."
+}
+$shareHost = $shareMatch.Groups[1].Value
+$localHosts = @("localhost", "127.0.0.1", ".", $env:COMPUTERNAME)
+if ($localHosts -notcontains $shareHost) {
+  throw "Nesta versão o agente aceita somente compartilhamentos locais do próprio computador. Compartilhamentos remotos exigem configuração de identidade do serviço."
+}
+
 if (-not (Test-Path $serviceExe)) {
   throw "O instalador está incompleto: serviço Windows não encontrado."
+}
+
+New-Item -ItemType Directory -Force -Path $programDataRoot | Out-Null
+
+$existingService = Get-ExistingAgentService
+if ($existingService) {
+  Invoke-WinSw -Arguments @("stop") -Action "parar"
+  Invoke-WinSw -Arguments @("uninstall") -Action "desregistrar"
 }
 
 $token = $null
@@ -46,6 +89,7 @@ if ([string]::IsNullOrWhiteSpace($token)) {
 
 $escapedShare = [System.Security.SecurityElement]::Escape($PrinterShare)
 $escapedQueue = [System.Security.SecurityElement]::Escape($queueFile)
+$escapedLogPath = [System.Security.SecurityElement]::Escape((Join-Path $programDataRoot "logs"))
 $xml = @"
 <service>
   <id>$serviceName</id>
@@ -54,9 +98,9 @@ $xml = @"
   <executable>%BASE%\node\node.exe</executable>
   <arguments>"%BASE%\agent\agent.js"</arguments>
   <workingdirectory>%BASE%\agent</workingdirectory>
-  <logpath>$programDataRoot\logs</logpath>
+  <logpath>$escapedLogPath</logpath>
   <log mode="roll-by-size">
-    <sizeThreshold>10485760</sizeThreshold>
+    <sizeThreshold>10240</sizeThreshold>
     <keepFiles>5</keepFiles>
   </log>
   <onfailure action="restart" delay="10 sec" />
@@ -69,14 +113,8 @@ $xml = @"
 "@
 Set-Content -Path $serviceXml -Value $xml -Encoding UTF8
 
-if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-  & $serviceExe stop 2>$null
-  & $serviceExe uninstall 2>$null
-}
-& $serviceExe install
-if ($LASTEXITCODE -ne 0) { throw "Não foi possível registrar o serviço do agente." }
-& $serviceExe start
-if ($LASTEXITCODE -ne 0) { throw "O serviço foi instalado, mas não iniciou." }
+Invoke-WinSw -Arguments @("install") -Action "instalar"
+Invoke-WinSw -Arguments @("start") -Action "iniciar"
 
 Write-Output "NextStock Print Agent instalado."
 Write-Output "Token salvo em: $tokenFile"
