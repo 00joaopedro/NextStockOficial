@@ -121,7 +121,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         }),
       });
     }
-    const resolveMatch = req.url?.match(/^\\/v1\\/jobs\\/([^/]+)\\/resolve$/);
+    const resolveMatch = req.url?.match(/^\/v1\/jobs\/([^/]+)\/resolve$/);
     if (req.method === 'POST' && resolveMatch) {
       const input = await body(req);
       const resolution = input.resolution;
@@ -136,7 +136,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         job: await queue.resolve(resolveMatch[1], resolution),
       });
     }
-    const match = req.url?.match(/^\\/v1\\/jobs\\/([^/]+)$/);
+    const match = req.url?.match(/^\/v1\/jobs\/([^/]+)$/);
     if (req.method === 'GET' && match)
       return json(req, res, 200, { job: await queue.get(match[1]) });
     return json(req, res, 404, { error: 'Not found.' });
