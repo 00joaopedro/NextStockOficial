@@ -9,7 +9,7 @@ $serviceName = "NextStockPrintAgent"
 $installRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $serviceExe = Join-Path $installRoot "$serviceName.exe"
 $serviceXml = Join-Path $installRoot "$serviceName.xml"
-$programDataRoot = Join-Path \${env:ProgramData} "NextStock\PrintAgent"
+$programDataRoot = Join-Path $env:ProgramData "NextStock\PrintAgent"
 $queueFile = Join-Path $programDataRoot "queue.json"
 $tokenFile = Join-Path $programDataRoot "agent-token.txt"
 
@@ -40,7 +40,7 @@ if ([string]::IsNullOrWhiteSpace($token)) {
   $bytes = New-Object byte[] 32
   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
-  $token = [Convert]::ToHexString($bytes).ToLowerInvariant()
+  $token = [BitConverter]::ToString($bytes).Replace("-", "").ToLowerInvariant()
   Set-Content -Path $tokenFile -Value $token -Encoding ascii
 }
 
