@@ -29,7 +29,11 @@ describe('InternalReceiptService RC-012', () => {
     branchId: '00000000-0000-4000-8000-000000000104',
   };
 
-  function setup(numbers: number[] = [1]) {
+  function setup(
+    numbers: number[] = [1],
+    paperWidthMm = 80,
+    receiptTimezone = 'America/Sao_Paulo',
+  ) {
     const tx: any = {
       $executeRaw: jest.fn().mockResolvedValue(1),
       saleDocument: {
@@ -44,13 +48,13 @@ describe('InternalReceiptService RC-012', () => {
     const prisma: any = {
       $transaction: jest.fn((callback) => callback(tx)),
       companyFiscalConfig: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({
-            legalName: 'Empresa Teste',
-            tradeName: null,
-            cnpj: '11222333000181',
-          }),
+        findUnique: jest.fn().mockResolvedValue({
+          legalName: 'Empresa Teste',
+          tradeName: null,
+          cnpj: '11222333000181',
+          receiptPaperWidthMm: paperWidthMm,
+          receiptTimezone,
+        }),
       },
       branch: { findFirst: jest.fn().mockResolvedValue({ name: 'Matriz' }) },
     };
@@ -125,5 +129,46 @@ describe('InternalReceiptService RC-012', () => {
     ).rejects.toThrow('scoped document');
     expect(tx.saleDocument.update).not.toHaveBeenCalled();
     expect(tx.fiscalDocumentEvent.create).not.toHaveBeenCalled();
+  });
+
+  it.each([58, 80] as const)(
+    'renderiza largura térmica configurada de %imm',
+    async (paperWidthMm) => {
+      const { service } = setup([1], paperWidthMm);
+      const result = await service.issueAndRender({
+        sale,
+        context,
+        origin: 'cash_register',
+      });
+      expect(result.paperWidthMm).toBe(paperWidthMm);
+      expect(result.html).toContain(
+        `@page{size:${paperWidthMm}mm 200mm;margin:0}`,
+      );
+      expect(result.html).toContain(`data-paper-width-mm="${paperWidthMm}"`);
+      expect(result.html).toContain('Subtotal');
+      expect(result.html).toContain('Desconto');
+      expect(result.html).toContain('Troco');
+    },
+  );
+
+  it('usa 80mm como fallback seguro para configuração ausente ou inválida', async () => {
+    const { service } = setup([1], 72);
+    const result = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'history',
+    });
+    expect(result.paperWidthMm).toBe(80);
+    expect(result.html).toContain('@page{size:80mm 200mm;margin:0}');
+  });
+
+  it('formata a data usando o fuso horário configurado da filial', async () => {
+    const { service } = setup([1], 80, 'America/Sao_Paulo');
+    const result = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+    });
+    expect(result.html).toContain('01/07/2026, 09:00:00');
   });
 });

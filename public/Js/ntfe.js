@@ -239,6 +239,8 @@
       configCountry: config?.country || 'Brasil',
       configNfeSeries: config?.nfeSeries || '1',
       configNfceSeries: config?.nfceSeries || '1',
+      configReceiptPaperWidthMm: config?.receiptPaperWidthMm || 80,
+      configReceiptTimezone: config?.receiptTimezone || 'America/Sao_Paulo',
     };
     Object.entries(configFields).forEach(([id, fieldValue]) =>
       setValue(id, fieldValue),
@@ -630,6 +632,8 @@
       country: value('configCountry') || 'Brasil',
       nfeSeries: value('configNfeSeries'),
       nfceSeries: value('configNfceSeries'),
+      receiptPaperWidthMm: Number(value('configReceiptPaperWidthMm') || 80),
+      receiptTimezone: value('configReceiptTimezone') || 'America/Sao_Paulo',
       provider: state.fiscalConfig?.provider || 'mock',
     };
     setCertificateBusy(true);
@@ -766,7 +770,10 @@
   async function init() {
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
-      setStatus("Modo visualizacao: emissao e configuracoes fiscais bloqueadas.", "info");
+      setStatus(
+        'Modo visualizacao: emissao e configuracoes fiscais bloqueadas.',
+        'info',
+      );
       return;
     }
     elements.addItem.disabled = true;

@@ -1,1140 +1,1384 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NF-e 55 | NextStock</title>
-
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: "Segoe UI", sans-serif;
-    }
-
-    :root {
-      --bg-dark: #0d1b2a;
-      --bg-cyan: #00cfcf;
-      --sidebar: #071b31;
-      --sidebar-hover: #00cfcf;
-      --panel: rgba(255, 255, 255, 0.97);
-      --panel-2: #f6fbfc;
-      --text: #22313f;
-      --muted: #5d7285;
-      --border: #d9e3ea;
-      --success: #2e9d57;
-      --danger: #e53935;
-      --warning: #ffb74d;
-      --info: #1976d2;
-      --shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
-      --radius: 18px;
-      --sidebar-width: 16vw;
-    }
-
-    html, body {
-      width: 100%;
-      height: 100%;
-    }
-
-    body {
-      display: flex;
-      background: linear-gradient(135deg, var(--bg-dark), var(--bg-cyan));
-      min-height: 100vh;
-      color: var(--text);
-      overflow: hidden;
-    }
-
-    .app {
-      display: flex;
-      width: 100%;
-      min-height: 100vh;
-    }
-
-    /* Sidebar */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--sidebar);
-      height: 100vh;
-      position: fixed;
-      top: 0;
-      left: 0;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      padding-top: 18px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      z-index: 1000;
-    }
-
-    .sidebar::-webkit-scrollbar {
-      width: 7px;
-    }
-
-    .sidebar::-webkit-scrollbar-thumb {
-      background: #00cfcf;
-      border-radius: 8px;
-    }
-
-    .sidebar h2 {
-      text-align: center;
-      margin-bottom: 22px;
-      color: #00cfcf;
-      font-size: 1.5rem;
-      padding: 0 10px;
-    }
-
-    .menu {
-      list-style: none;
-      padding-bottom: 22px;
-    }
-
-    .menu a {
-      color: inherit;
-      text-decoration: none;
-      display: block;
-    }
-
-    .menu li {
-      padding: 13.5px 18px;
-      cursor: pointer;
-      transition: background 0.25s, color 0.25s;
-      font-size: clamp(18px, 2.2vw, 28px);
-    }
-
-    .menu li:hover,
-    .menu li.active {
-      background: var(--sidebar-hover);
-      color: #0d1b2a;
-    }
-
-    /* Main */
-    .main {
-      margin-left: var(--sidebar-width);
-      width: calc(100% - var(--sidebar-width));
-      min-height: 100vh;
-      overflow-y: auto;
-      padding: 24px;
-    }
-
-    .main::-webkit-scrollbar {
-      width: 8px;
-    }
-
-    .main::-webkit-scrollbar-thumb {
-      background: rgba(255,255,255,0.35);
-      border-radius: 8px;
-    }
-
-    .page-header {
-      color: #fff;
-      margin-bottom: 18px;
-    }
-
-    .page-header h1 {
-      font-size: clamp(1.8rem, 2.6vw, 2.6rem);
-      margin-bottom: 6px;
-    }
-
-    .page-header p {
-      font-weight: 400;
-      opacity: 0.95;
-    }
-
-    .top-tools {
-      display: grid;
-      grid-template-columns: minmax(260px, 1.4fr) repeat(5, auto);
-      gap: 12px;
-      margin-bottom: 18px;
-      align-items: center;
-    }
-
-    .search-area {
-      position: relative;
-      background: var(--panel);
-      border-radius: 16px;
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
-      padding: 14px;
-    }
-
-    .search-area label {
-      display: block;
-      font-size: 0.9rem;
-      color: var(--muted);
-      margin-bottom: 8px;
-      font-weight: 700;
-    }
-
-    .search-area input {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-size: 0.96rem;
-      outline: none;
-    }
-
-    .autocomplete-list {
-      position: absolute;
-      left: 14px;
-      right: 14px;
-      top: calc(100% - 6px);
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      box-shadow: 0 12px 24px rgba(0,0,0,0.12);
-      max-height: 240px;
-      overflow-y: auto;
-      z-index: 20;
-      display: none;
-    }
-
-    .autocomplete-item {
-      padding: 12px 14px;
-      border-bottom: 1px solid #eef3f6;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .autocomplete-item:hover {
-      background: #f1fcfc;
-    }
-
-    .autocomplete-item strong {
-      display: block;
-      font-size: 0.95rem;
-      color: var(--text);
-    }
-
-    .autocomplete-item span {
-      display: block;
-      font-size: 0.86rem;
-      color: var(--muted);
-      margin-top: 4px;
-      font-weight: 400;
-    }
-
-    .toolbar-btn {
-      border: none;
-      border-radius: 14px;
-      padding: 16px 18px;
-      min-height: 76px;
-      color: #fff;
-      cursor: pointer;
-      font-size: 0.98rem;
-      font-weight: 700;
-      box-shadow: var(--shadow);
-      transition: transform 0.2s, opacity 0.2s;
-    }
-
-    .toolbar-btn:hover {
-      transform: translateY(-2px);
-      opacity: 0.95;
-    }
-
-    .btn-new {
-      background: var(--warning);
-      color: #1f2a35;
-    }
-
-    .btn-send {
-      background: var(--success);
-    }
-
-    .btn-secondary {
-      background: var(--info);
-    }
-
-    .toolbar-btn:disabled {
-      cursor: not-allowed;
-      opacity: 0.55;
-      transform: none;
-    }
-
-    .note-wrapper {
-      background: var(--panel);
-      border-radius: 22px;
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border);
-      padding: 22px;
-    }
-
-    .note-title {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      flex-wrap: wrap;
-      align-items: center;
-      margin-bottom: 18px;
-      padding-bottom: 14px;
-      border-bottom: 1px solid #e9f0f4;
-    }
-
-    .note-title h2 {
-      font-size: 1.45rem;
-      color: var(--text);
-    }
-
-    .note-title .status {
-      background: #eaf8f8;
-      color: #0d6d6d;
-      border: 1px solid #bcecec;
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-size: 0.88rem;
-      font-weight: 700;
-    }
-
-    .grid {
-      display: grid;
-      gap: 18px;
-    }
-
-    .section {
-      background: var(--panel-2);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 18px;
-    }
-
-    .section h3 {
-      font-size: 1.05rem;
-      margin-bottom: 14px;
-      color: #10283f;
-    }
-
-    .fields {
-      display: grid;
-      grid-template-columns: repeat(12, 1fr);
-      gap: 12px;
-    }
-
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 7px;
-    }
-
-    .field label {
-      font-size: 0.88rem;
-      font-weight: 700;
-      color: #385064;
-    }
-
-    .field input,
-    .field select,
-    .field textarea {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: #fff;
-      padding: 11px 12px;
-      font-size: 0.93rem;
-      outline: none;
-      color: var(--text);
-    }
-
-    .field input:focus,
-    .field select:focus,
-    .field textarea:focus {
-      border-color: var(--bg-cyan);
-      box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
-    }
-
-    .field textarea {
-      resize: vertical;
-      min-height: 96px;
-    }
-
-    .span-1  { grid-column: span 1; }
-    .span-2  { grid-column: span 2; }
-    .span-3  { grid-column: span 3; }
-    .span-4  { grid-column: span 4; }
-    .span-5  { grid-column: span 5; }
-    .span-6  { grid-column: span 6; }
-    .span-7  { grid-column: span 7; }
-    .span-8  { grid-column: span 8; }
-    .span-9  { grid-column: span 9; }
-    .span-10 { grid-column: span 10; }
-    .span-12 { grid-column: span 12; }
-
-    .hint {
-      font-size: 0.84rem;
-      color: var(--muted);
-      font-weight: 400;
-      margin-top: 2px;
-    }
-
-    .items-header {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .btn-add-item {
-      border: none;
-      background: var(--info);
-      color: #fff;
-      padding: 11px 14px;
-      border-radius: 12px;
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .items-list {
-      display: grid;
-      gap: 14px;
-    }
-
-    .item-card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 14px;
-    }
-
-    .item-top {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 12px;
-      gap: 12px;
-    }
-
-    .item-top h4 {
-      font-size: 1rem;
-      color: #12314a;
-    }
-
-    .btn-remove-item {
-      border: none;
-      background: var(--danger);
-      color: #fff;
-      padding: 9px 12px;
-      border-radius: 10px;
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .totals-box {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 12px;
-    }
-
-    .total-card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-    }
-
-    .total-card span {
-      display: block;
-      font-size: 0.84rem;
-      color: var(--muted);
-      margin-bottom: 6px;
-    }
-
-    .total-card strong {
-      font-size: 1.12rem;
-      color: #0f2840;
-    }
-
-    .footer-note {
-      margin-top: 16px;
-      font-size: 0.88rem;
-      color: var(--muted);
-      font-weight: 400;
-      line-height: 1.5;
-    }
-
-    .fiscal-overview {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .fiscal-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 15px;
-      box-shadow: var(--shadow);
-    }
-
-    .fiscal-card span {
-      display: block;
-      color: var(--muted);
-      font-size: 0.82rem;
-      margin-bottom: 6px;
-    }
-
-    .fiscal-card strong {
-      overflow-wrap: anywhere;
-    }
-
-    .environment-badge {
-      display: inline-flex;
-      align-items: center;
-      min-height: 40px;
-      padding: 9px 13px;
-      border-radius: 999px;
-      background: #fff4df;
-      color: #805200;
-      font-weight: 900;
-      border: 1px solid #ffd797;
-    }
-
-    .environment-badge.production {
-      background: #fdecec;
-      border-color: #f3adad;
-      color: #a92222;
-    }
-
-    .certificate-actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      align-items: end;
-    }
-
-    .certificate-actions button {
-      border: none;
-      border-radius: 12px;
-      padding: 11px 14px;
-      color: #fff;
-      background: var(--info);
-      cursor: pointer;
-      font-weight: 700;
-    }
-
-    .certificate-actions button.danger {
-      background: var(--danger);
-    }
-
-    .certificate-actions button.production {
-      background: #8e2020;
-    }
-
-    .certificate-actions button:disabled {
-      opacity: 0.55;
-      cursor: not-allowed;
-    }
-
-    .admin-only[hidden] {
-      display: none !important;
-    }
-
-    @media (max-width: 1200px) {
-      .top-tools {
-        grid-template-columns: 1fr;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NF-e 55 | NextStock</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: 'Segoe UI', sans-serif;
       }
 
-      .toolbar-btn {
-        min-height: auto;
-      }
-
-      .totals-box {
-        grid-template-columns: repeat(2, 1fr);
-      }
-
-      .fiscal-overview {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-
-    @media (max-width: 980px) {
       :root {
-        --sidebar-width: 220px;
+        --bg-dark: #0d1b2a;
+        --bg-cyan: #00cfcf;
+        --sidebar: #071b31;
+        --sidebar-hover: #00cfcf;
+        --panel: rgba(255, 255, 255, 0.97);
+        --panel-2: #f6fbfc;
+        --text: #22313f;
+        --muted: #5d7285;
+        --border: #d9e3ea;
+        --success: #2e9d57;
+        --danger: #e53935;
+        --warning: #ffb74d;
+        --info: #1976d2;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+        --radius: 18px;
+        --sidebar-width: 16vw;
       }
 
-      .fields {
-        grid-template-columns: repeat(6, 1fr);
-      }
-
-      .span-1, .span-2, .span-3, .span-4, .span-5, .span-6,
-      .span-7, .span-8, .span-9, .span-10, .span-12 {
-        grid-column: span 6;
-      }
-    }
-
-    @media (max-width: 680px) {
+      html,
       body {
-        overflow: auto;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        display: flex;
+        background: linear-gradient(135deg, var(--bg-dark), var(--bg-cyan));
+        min-height: 100vh;
+        color: var(--text);
+        overflow: hidden;
       }
 
       .app {
-        flex-direction: column;
+        display: flex;
+        width: 100%;
+        min-height: 100vh;
       }
 
+      /* Sidebar */
       .sidebar {
-        position: relative;
-        width: 100%;
-        min-width: 100%;
-        height: 280px;
+        width: var(--sidebar-width);
+        background: var(--sidebar);
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        padding-top: 18px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        z-index: 1000;
       }
 
+      .sidebar::-webkit-scrollbar {
+        width: 7px;
+      }
+
+      .sidebar::-webkit-scrollbar-thumb {
+        background: #00cfcf;
+        border-radius: 8px;
+      }
+
+      .sidebar h2 {
+        text-align: center;
+        margin-bottom: 22px;
+        color: #00cfcf;
+        font-size: 1.5rem;
+        padding: 0 10px;
+      }
+
+      .menu {
+        list-style: none;
+        padding-bottom: 22px;
+      }
+
+      .menu a {
+        color: inherit;
+        text-decoration: none;
+        display: block;
+      }
+
+      .menu li {
+        padding: 13.5px 18px;
+        cursor: pointer;
+        transition:
+          background 0.25s,
+          color 0.25s;
+        font-size: clamp(18px, 2.2vw, 28px);
+      }
+
+      .menu li:hover,
+      .menu li.active {
+        background: var(--sidebar-hover);
+        color: #0d1b2a;
+      }
+
+      /* Main */
       .main {
-        margin-left: 0;
+        margin-left: var(--sidebar-width);
+        width: calc(100% - var(--sidebar-width));
+        min-height: 100vh;
+        overflow-y: auto;
+        padding: 24px;
+      }
+
+      .main::-webkit-scrollbar {
+        width: 8px;
+      }
+
+      .main::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.35);
+        border-radius: 8px;
+      }
+
+      .page-header {
+        color: #fff;
+        margin-bottom: 18px;
+      }
+
+      .page-header h1 {
+        font-size: clamp(1.8rem, 2.6vw, 2.6rem);
+        margin-bottom: 6px;
+      }
+
+      .page-header p {
+        font-weight: 400;
+        opacity: 0.95;
+      }
+
+      .top-tools {
+        display: grid;
+        grid-template-columns: minmax(260px, 1.4fr) repeat(5, auto);
+        gap: 12px;
+        margin-bottom: 18px;
+        align-items: center;
+      }
+
+      .search-area {
+        position: relative;
+        background: var(--panel);
+        border-radius: 16px;
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow);
+        padding: 14px;
+      }
+
+      .search-area label {
+        display: block;
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-bottom: 8px;
+        font-weight: 700;
+      }
+
+      .search-area input {
         width: 100%;
-        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 0.96rem;
+        outline: none;
+      }
+
+      .autocomplete-list {
+        position: absolute;
+        left: 14px;
+        right: 14px;
+        top: calc(100% - 6px);
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.12);
+        max-height: 240px;
+        overflow-y: auto;
+        z-index: 20;
+        display: none;
+      }
+
+      .autocomplete-item {
+        padding: 12px 14px;
+        border-bottom: 1px solid #eef3f6;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .autocomplete-item:hover {
+        background: #f1fcfc;
+      }
+
+      .autocomplete-item strong {
+        display: block;
+        font-size: 0.95rem;
+        color: var(--text);
+      }
+
+      .autocomplete-item span {
+        display: block;
+        font-size: 0.86rem;
+        color: var(--muted);
+        margin-top: 4px;
+        font-weight: 400;
+      }
+
+      .toolbar-btn {
+        border: none;
+        border-radius: 14px;
+        padding: 16px 18px;
+        min-height: 76px;
+        color: #fff;
+        cursor: pointer;
+        font-size: 0.98rem;
+        font-weight: 700;
+        box-shadow: var(--shadow);
+        transition:
+          transform 0.2s,
+          opacity 0.2s;
+      }
+
+      .toolbar-btn:hover {
+        transform: translateY(-2px);
+        opacity: 0.95;
+      }
+
+      .btn-new {
+        background: var(--warning);
+        color: #1f2a35;
+      }
+
+      .btn-send {
+        background: var(--success);
+      }
+
+      .btn-secondary {
+        background: var(--info);
+      }
+
+      .toolbar-btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        transform: none;
+      }
+
+      .note-wrapper {
+        background: var(--panel);
+        border-radius: 22px;
+        box-shadow: var(--shadow);
+        border: 1px solid var(--border);
+        padding: 22px;
+      }
+
+      .note-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+        margin-bottom: 18px;
+        padding-bottom: 14px;
+        border-bottom: 1px solid #e9f0f4;
+      }
+
+      .note-title h2 {
+        font-size: 1.45rem;
+        color: var(--text);
+      }
+
+      .note-title .status {
+        background: #eaf8f8;
+        color: #0d6d6d;
+        border: 1px solid #bcecec;
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-size: 0.88rem;
+        font-weight: 700;
+      }
+
+      .grid {
+        display: grid;
+        gap: 18px;
+      }
+
+      .section {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      .section h3 {
+        font-size: 1.05rem;
+        margin-bottom: 14px;
+        color: #10283f;
       }
 
       .fields {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        gap: 12px;
       }
 
-      .span-1, .span-2, .span-3, .span-4, .span-5, .span-6,
-      .span-7, .span-8, .span-9, .span-10, .span-12 {
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .field label {
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #385064;
+      }
+
+      .field input,
+      .field select,
+      .field textarea {
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: #fff;
+        padding: 11px 12px;
+        font-size: 0.93rem;
+        outline: none;
+        color: var(--text);
+      }
+
+      .field input:focus,
+      .field select:focus,
+      .field textarea:focus {
+        border-color: var(--bg-cyan);
+        box-shadow: 0 0 0 3px rgba(0, 207, 207, 0.18);
+      }
+
+      .field textarea {
+        resize: vertical;
+        min-height: 96px;
+      }
+
+      .span-1 {
         grid-column: span 1;
+      }
+      .span-2 {
+        grid-column: span 2;
+      }
+      .span-3 {
+        grid-column: span 3;
+      }
+      .span-4 {
+        grid-column: span 4;
+      }
+      .span-5 {
+        grid-column: span 5;
+      }
+      .span-6 {
+        grid-column: span 6;
+      }
+      .span-7 {
+        grid-column: span 7;
+      }
+      .span-8 {
+        grid-column: span 8;
+      }
+      .span-9 {
+        grid-column: span 9;
+      }
+      .span-10 {
+        grid-column: span 10;
+      }
+      .span-12 {
+        grid-column: span 12;
+      }
+
+      .hint {
+        font-size: 0.84rem;
+        color: var(--muted);
+        font-weight: 400;
+        margin-top: 2px;
+      }
+
+      .items-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn-add-item {
+        border: none;
+        background: var(--info);
+        color: #fff;
+        padding: 11px 14px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .items-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .item-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 14px;
+      }
+
+      .item-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        gap: 12px;
+      }
+
+      .item-top h4 {
+        font-size: 1rem;
+        color: #12314a;
+      }
+
+      .btn-remove-item {
+        border: none;
+        background: var(--danger);
+        color: #fff;
+        padding: 9px 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-weight: 700;
       }
 
       .totals-box {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+
+      .total-card {
+        background: #fff;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 14px;
+      }
+
+      .total-card span {
+        display: block;
+        font-size: 0.84rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+
+      .total-card strong {
+        font-size: 1.12rem;
+        color: #0f2840;
+      }
+
+      .footer-note {
+        margin-top: 16px;
+        font-size: 0.88rem;
+        color: var(--muted);
+        font-weight: 400;
+        line-height: 1.5;
       }
 
       .fiscal-overview {
-        grid-template-columns: 1fr;
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
       }
-    }
-  </style>
-  <link rel="modulepreload" href="./dist/sidebar.js">
-</head>
-<body>
-  <div class="app">
-  <div id="sidebar-container"></div>
 
-    <main class="main">
-      <div class="page-header">
-        <h1>Criação de Nota Fiscal Eletrônica - Modelo 55</h1>
-        <p>Preencha manualmente os dados da nota ou pesquise um cliente cadastrado para completar o destinatário automaticamente.</p>
-      </div>
+      .fiscal-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 15px;
+        box-shadow: var(--shadow);
+      }
 
-      <div class="top-tools">
-        <div class="search-area">
-          <label for="searchClient">Pesquisar cliente cadastrado</label>
-          <input
-            type="text"
-            id="searchClient"
-            placeholder="Digite nome, CPF/CNPJ, e-mail ou telefone"
-            autocomplete="off"
-          />
-          <div class="autocomplete-list" id="autocompleteList"></div>
-        </div>
+      .fiscal-card span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.82rem;
+        margin-bottom: 6px;
+      }
 
-        <button class="toolbar-btn btn-new" id="btnNovo">Novo</button>
-        <button class="toolbar-btn btn-send" id="btnEnviar" disabled>Enviar para SEFAZ</button>
-        <button class="toolbar-btn btn-secondary" id="btnConsultar" disabled>Consultar status</button>
-        <button class="toolbar-btn btn-secondary" id="btnXml" disabled>Baixar XML</button>
-        <button class="toolbar-btn btn-secondary" id="btnPdf" disabled>Baixar DANFE</button>
-      </div>
+      .fiscal-card strong {
+        overflow-wrap: anywhere;
+      }
 
-      <section aria-labelledby="fiscalOverviewTitle">
+      .environment-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 9px 13px;
+        border-radius: 999px;
+        background: #fff4df;
+        color: #805200;
+        font-weight: 900;
+        border: 1px solid #ffd797;
+      }
+
+      .environment-badge.production {
+        background: #fdecec;
+        border-color: #f3adad;
+        color: #a92222;
+      }
+
+      .certificate-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: end;
+      }
+
+      .certificate-actions button {
+        border: none;
+        border-radius: 12px;
+        padding: 11px 14px;
+        color: #fff;
+        background: var(--info);
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .certificate-actions button.danger {
+        background: var(--danger);
+      }
+
+      .certificate-actions button.production {
+        background: #8e2020;
+      }
+
+      .certificate-actions button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+
+      .admin-only[hidden] {
+        display: none !important;
+      }
+
+      @media (max-width: 1200px) {
+        .top-tools {
+          grid-template-columns: 1fr;
+        }
+
+        .toolbar-btn {
+          min-height: auto;
+        }
+
+        .totals-box {
+          grid-template-columns: repeat(2, 1fr);
+        }
+
+        .fiscal-overview {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 980px) {
+        :root {
+          --sidebar-width: 220px;
+        }
+
+        .fields {
+          grid-template-columns: repeat(6, 1fr);
+        }
+
+        .span-1,
+        .span-2,
+        .span-3,
+        .span-4,
+        .span-5,
+        .span-6,
+        .span-7,
+        .span-8,
+        .span-9,
+        .span-10,
+        .span-12 {
+          grid-column: span 6;
+        }
+      }
+
+      @media (max-width: 680px) {
+        body {
+          overflow: auto;
+        }
+
+        .app {
+          flex-direction: column;
+        }
+
+        .sidebar {
+          position: relative;
+          width: 100%;
+          min-width: 100%;
+          height: 280px;
+        }
+
+        .main {
+          margin-left: 0;
+          width: 100%;
+          padding: 16px;
+        }
+
+        .fields {
+          grid-template-columns: 1fr;
+        }
+
+        .span-1,
+        .span-2,
+        .span-3,
+        .span-4,
+        .span-5,
+        .span-6,
+        .span-7,
+        .span-8,
+        .span-9,
+        .span-10,
+        .span-12 {
+          grid-column: span 1;
+        }
+
+        .totals-box {
+          grid-template-columns: 1fr;
+        }
+
+        .fiscal-overview {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <link rel="modulepreload" href="./dist/sidebar.js" />
+  </head>
+  <body>
+    <div class="app">
+      <div id="sidebar-container"></div>
+
+      <main class="main">
         <div class="page-header">
-          <h2 id="fiscalOverviewTitle">Situação fiscal da filial</h2>
-        </div>
-        <div class="fiscal-overview">
-          <div class="fiscal-card">
-            <span>Ambiente controlado pelo backend</span>
-            <strong id="fiscalEnvironmentSummary">Carregando...</strong>
-          </div>
-          <div class="fiscal-card">
-            <span>Certificado A1</span>
-            <strong id="certificateStatusSummary">Carregando...</strong>
-          </div>
-          <div class="fiscal-card">
-            <span>Validade</span>
-            <strong id="certificateExpirySummary">—</strong>
-          </div>
-          <div class="fiscal-card">
-            <span>CNPJ do certificado</span>
-            <strong id="certificateCnpjSummary">—</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="note-wrapper admin-only" id="fiscalAdminPanel" hidden>
-        <div class="note-title">
-          <h2>Configuração fiscal e certificado</h2>
-          <div class="status" id="certificateActionStatus" role="status" aria-live="polite">
-            Somente administradores podem alterar estes dados.
-          </div>
-        </div>
-        <div class="grid">
-          <div class="section">
-            <h3>Dados fiscais persistidos da filial</h3>
-            <div class="fields">
-              <div class="field span-6">
-                <label for="configLegalName">Razão social</label>
-                <input id="configLegalName" type="text" maxlength="180" />
-              </div>
-              <div class="field span-3">
-                <label for="configTradeName">Nome fantasia</label>
-                <input id="configTradeName" type="text" maxlength="180" />
-              </div>
-              <div class="field span-3">
-                <label for="configCnpj">CNPJ</label>
-                <input id="configCnpj" type="text" maxlength="20" />
-              </div>
-              <div class="field span-3">
-                <label for="configStateRegistration">Inscrição Estadual</label>
-                <input id="configStateRegistration" type="text" maxlength="30" />
-              </div>
-              <div class="field span-3">
-                <label for="configMunicipalRegistration">Inscrição Municipal</label>
-                <input id="configMunicipalRegistration" type="text" maxlength="30" />
-              </div>
-              <div class="field span-3">
-                <label for="configCrt">CRT</label>
-                <select id="configCrt">
-                  <option value="1">1 - Simples Nacional</option>
-                  <option value="2">2 - Simples excesso sublimite</option>
-                  <option value="3">3 - Regime Normal</option>
-                </select>
-              </div>
-              <div class="field span-3">
-                <label for="configTaxRegime">Regime tributário</label>
-                <input id="configTaxRegime" type="text" maxlength="60" />
-              </div>
-              <div class="field span-5">
-                <label for="configStreet">Logradouro</label>
-                <input id="configStreet" type="text" maxlength="180" />
-              </div>
-              <div class="field span-2">
-                <label for="configNumber">Número</label>
-                <input id="configNumber" type="text" maxlength="30" />
-              </div>
-              <div class="field span-5">
-                <label for="configComplement">Complemento</label>
-                <input id="configComplement" type="text" maxlength="120" />
-              </div>
-              <div class="field span-3">
-                <label for="configDistrict">Bairro</label>
-                <input id="configDistrict" type="text" maxlength="100" />
-              </div>
-              <div class="field span-3">
-                <label for="configCity">Município</label>
-                <input id="configCity" type="text" maxlength="100" />
-              </div>
-              <div class="field span-2">
-                <label for="configCityCode">Código IBGE</label>
-                <input id="configCityCode" type="text" maxlength="7" />
-              </div>
-              <div class="field span-1">
-                <label for="configState">UF</label>
-                <input id="configState" type="text" maxlength="2" />
-              </div>
-              <div class="field span-2">
-                <label for="configZipCode">CEP</label>
-                <input id="configZipCode" type="text" maxlength="12" />
-              </div>
-              <div class="field span-1">
-                <label for="configCountry">País</label>
-                <input id="configCountry" type="text" maxlength="80" value="Brasil" />
-              </div>
-              <div class="field span-2">
-                <label for="configNfeSeries">Série NF-e</label>
-                <input id="configNfeSeries" type="text" maxlength="10" />
-              </div>
-              <div class="field span-2">
-                <label for="configNfceSeries">Série NFC-e</label>
-                <input id="configNfceSeries" type="text" maxlength="10" />
-              </div>
-              <div class="field span-8 certificate-actions">
-                <button type="button" id="btnFiscalConfigSave">Salvar configuração fiscal</button>
-                <span class="hint">O ambiente de produção não pode ser ativado por este formulário.</span>
-              </div>
-            </div>
-          </div>
-          <div class="section">
-            <h3>Certificado digital A1</h3>
-            <div class="fields">
-              <div class="field span-4">
-                <label for="certificateFile">Arquivo .pfx ou .p12</label>
-                <input id="certificateFile" type="file" accept=".pfx,.p12,application/x-pkcs12,application/pkcs12" />
-              </div>
-              <div class="field span-4">
-                <label for="certificatePassword">Senha do certificado</label>
-                <input id="certificatePassword" type="password" maxlength="512" autocomplete="new-password" />
-              </div>
-              <div class="field span-4">
-                <label>Arquivo atual</label>
-                <strong id="certificateFileSummary">Nenhum certificado configurado</strong>
-                <span class="hint" id="certificateMetadataSummary"></span>
-              </div>
-              <div class="field span-12 certificate-actions">
-                <button type="button" id="btnCertificateUpload">Enviar e validar</button>
-                <button type="button" id="btnCertificateValidate">Validar novamente</button>
-                <button type="button" id="btnCertificateRemove" class="danger">Remover certificado</button>
-                <button type="button" id="btnActivateProduction" class="production">Ativar produção</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="note-wrapper">
-        <div class="note-title">
-          <h2>NF-e 55</h2>
-          <div class="status" id="fiscalStatus">Validando contexto...</div>
+          <h1>Criação de Nota Fiscal Eletrônica - Modelo 55</h1>
+          <p>
+            Preencha manualmente os dados da nota ou pesquise um cliente
+            cadastrado para completar o destinatário automaticamente.
+          </p>
         </div>
 
-        <div class="grid">
-          <!-- Identificação da nota -->
-          <div class="section">
-            <h3>Identificação da Nota</h3>
-            <div class="fields">
-              <div class="field span-3">
-                <label>Número da Nota</label>
-                <input type="text" id="numeroNota" placeholder="Gerado pelo backend" readonly />
-              </div>
-
-              <div class="field span-2">
-                <label>Série</label>
-                <input type="text" id="serieNota" placeholder="Configurada pela filial" readonly />
-              </div>
-
-              <div class="field span-3">
-                <label>Data de emissão</label>
-                <input type="datetime-local" id="dataEmissao" />
-              </div>
-
-              <div class="field span-2">
-                <label>Tipo de operação</label>
-                <select id="tipoOperacao">
-                  <option value="saida">Saída</option>
-                  <option value="entrada">Entrada</option>
-                </select>
-              </div>
-
-              <div class="field span-2">
-                <label>Finalidade</label>
-                <select id="finalidade">
-                  <option value="normal">Normal</option>
-                  <option value="complementar">Complementar</option>
-                  <option value="ajuste">Ajuste</option>
-                  <option value="devolucao">Devolução</option>
-                </select>
-              </div>
-
-              <div class="field span-4">
-                <label>Natureza da operação</label>
-                <input type="text" id="naturezaOperacao" placeholder="Ex.: Venda de mercadoria" />
-              </div>
-
-              <div class="field span-2">
-                <label>Modelo</label>
-                <input type="text" value="55" readonly />
-              </div>
-
-              <div class="field span-2">
-                <label>Forma de emissão</label>
-                <select id="formaEmissao">
-                  <option value="normal">Normal</option>
-                  <option value="contingencia">Contingência</option>
-                </select>
-              </div>
-
-              <div class="field span-2">
-                <label>Presença do comprador</label>
-                <select id="indPres">
-                  <option value="0">Não se aplica</option>
-                  <option value="1">Operação presencial</option>
-                  <option value="2">Internet</option>
-                  <option value="3">Teleatendimento</option>
-                  <option value="4">Entrega em domicílio</option>
-                  <option value="9">Outros</option>
-                </select>
-              </div>
-
-              <div class="field span-2">
-                <label>Consumidor final</label>
-                <select id="indFinal">
-                  <option value="0">Não</option>
-                  <option value="1">Sim</option>
-                </select>
-              </div>
-
-              <div class="field span-2">
-                <label>Ambiente</label>
-                <div id="ambiente" class="environment-badge" role="status">HOMOLOGAÇÃO</div>
-              </div>
-            </div>
+        <div class="top-tools">
+          <div class="search-area">
+            <label for="searchClient">Pesquisar cliente cadastrado</label>
+            <input
+              type="text"
+              id="searchClient"
+              placeholder="Digite nome, CPF/CNPJ, e-mail ou telefone"
+              autocomplete="off"
+            />
+            <div class="autocomplete-list" id="autocompleteList"></div>
           </div>
 
-          <!-- Emitente -->
-          <div class="section">
-            <h3>Dados do Emitente</h3>
-            <div class="fields">
-              <div class="field span-6">
-                <label>Razão social</label>
-                <input type="text" id="emitRazao" placeholder="Razão social do emitente" />
-              </div>
-
-              <div class="field span-3">
-                <label>Nome fantasia</label>
-                <input type="text" id="emitFantasia" placeholder="Nome fantasia" />
-              </div>
-
-              <div class="field span-3">
-                <label>CNPJ</label>
-                <input type="text" id="emitCnpj" placeholder="00.000.000/0000-00" />
-              </div>
-
-              <div class="field span-3">
-                <label>Inscrição Estadual</label>
-                <input type="text" id="emitIe" placeholder="IE do emitente" />
-              </div>
-
-              <div class="field span-3">
-                <label>CRT</label>
-                <select id="emitCrt">
-                  <option value="1">1 - Simples Nacional</option>
-                  <option value="2">2 - Simples Nacional excesso sublimite</option>
-                  <option value="3">3 - Regime Normal</option>
-                </select>
-              </div>
-
-              <div class="field span-6">
-                <label>Endereço</label>
-                <input type="text" id="emitEndereco" placeholder="Rua, avenida, número" />
-              </div>
-
-              <div class="field span-3">
-                <label>Bairro</label>
-                <input type="text" id="emitBairro" placeholder="Bairro" />
-              </div>
-
-              <div class="field span-3">
-                <label>Município</label>
-                <input type="text" id="emitMunicipio" placeholder="Município" />
-              </div>
-
-              <div class="field span-2">
-                <label>UF</label>
-                <input type="text" id="emitUf" maxlength="2" placeholder="UF" />
-              </div>
-
-              <div class="field span-2">
-                <label>CEP</label>
-                <input type="text" id="emitCep" placeholder="00000-000" />
-              </div>
-
-              <div class="field span-2">
-                <label>Telefone</label>
-                <input type="text" id="emitTelefone" placeholder="(00) 00000-0000" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Destinatário -->
-          <div class="section">
-            <h3>Destinatário / Cliente</h3>
-            <div class="fields">
-              <div class="field span-6">
-                <label>Nome / Razão social</label>
-                <input type="text" id="destNome" placeholder="Nome do cliente" />
-              </div>
-
-              <div class="field span-3">
-                <label>Tipo de documento</label>
-                <select id="destTipoDoc">
-                  <option value="cpf">CPF</option>
-                  <option value="cnpj">CNPJ</option>
-                  <option value="estrangeiro">Estrangeiro</option>
-                </select>
-              </div>
-
-              <div class="field span-3">
-                <label>CPF / CNPJ</label>
-                <input type="text" id="destDoc" placeholder="Documento do cliente" />
-              </div>
-
-              <div class="field span-3">
-                <label>Inscrição Estadual</label>
-                <input type="text" id="destIe" placeholder="Informe IE ou ISENTO" />
-              </div>
-
-              <div class="field span-3">
-                <label>Indicador IE</label>
-                <select id="destIndIe">
-                  <option value="1">1 - Contribuinte ICMS</option>
-                  <option value="2">2 - Isento</option>
-                  <option value="9">9 - Não contribuinte</option>
-                </select>
-              </div>
-
-              <div class="field span-3">
-                <label>E-mail</label>
-                <input type="email" id="destEmail" placeholder="cliente@email.com" />
-              </div>
-
-              <div class="field span-3">
-                <label>Telefone</label>
-                <input type="text" id="destTelefone" placeholder="(00) 00000-0000" />
-              </div>
-
-              <div class="field span-6">
-                <label>Endereço</label>
-                <input type="text" id="destEndereco" placeholder="Rua, avenida, número" />
-              </div>
-
-              <div class="field span-2">
-                <label>Número</label>
-                <input type="text" id="destNumero" placeholder="Número" />
-              </div>
-
-              <div class="field span-3">
-                <label>Bairro</label>
-                <input type="text" id="destBairro" placeholder="Bairro" />
-              </div>
-
-              <div class="field span-3">
-                <label>Município</label>
-                <input type="text" id="destMunicipio" placeholder="Município" />
-              </div>
-
-              <div class="field span-3">
-                <label>Código IBGE</label>
-                <input type="text" id="destCityCodeIbge" maxlength="7" placeholder="0000000" />
-              </div>
-
-              <div class="field span-2">
-                <label>UF</label>
-                <input type="text" id="destUf" maxlength="2" placeholder="UF" />
-              </div>
-
-              <div class="field span-2">
-                <label>CEP</label>
-                <input type="text" id="destCep" placeholder="00000-000" />
-              </div>
-
-              <div class="field span-2">
-                <label>País</label>
-                <input type="text" id="destPais" value="Brasil" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Produtos -->
-          <div class="section">
-            <div class="items-header">
-              <h3>Produtos / Serviços da Nota</h3>
-              <button type="button" class="btn-add-item" id="btnAddItem">+ Adicionar item</button>
-            </div>
-
-            <div class="items-list" id="itemsList"></div>
-          </div>
-
-          <!-- Totais -->
-          <div class="section">
-            <h3>Totais da NF-e</h3>
-            <div class="totals-box">
-              <div class="total-card">
-                <span>Valor dos produtos</span>
-                <strong id="totalProdutos">R$ 0,00</strong>
-              </div>
-
-              <div class="total-card">
-                <span>Desconto total</span>
-                <strong id="totalDesconto">R$ 0,00</strong>
-              </div>
-
-              <div class="total-card">
-                <span>Frete</span>
-                <strong id="totalFrete">R$ 0,00</strong>
-              </div>
-
-              <div class="total-card">
-                <span>Valor total da nota</span>
-                <strong id="valorNota">R$ 0,00</strong>
-              </div>
-            </div>
-          </div>
-
-          <!-- Transporte e pagamento -->
-          <div class="section">
-            <h3>Transporte e Pagamento</h3>
-            <div class="fields">
-              <div class="field span-3">
-                <label>Modalidade do frete</label>
-                <select id="modFrete">
-                  <option value="0">0 - Por conta do emitente</option>
-                  <option value="1">1 - Por conta do destinatário</option>
-                  <option value="2">2 - Terceiros</option>
-                  <option value="9">9 - Sem frete</option>
-                </select>
-              </div>
-
-              <div class="field span-3">
-                <label>Valor do frete</label>
-                <input type="number" id="frete" min="0" step="0.01" placeholder="0.00" />
-              </div>
-
-              <div class="field span-3">
-                <label>Forma de pagamento</label>
-                <select id="formaPagamento">
-                  <option value="01">01 - Dinheiro</option>
-                  <option value="03">03 - Cartão de crédito</option>
-                  <option value="04">04 - Cartão de débito</option>
-                  <option value="15">15 - Boleto</option>
-                  <option value="17">17 - PIX</option>
-                  <option value="90">90 - Sem pagamento</option>
-                  <option value="99">99 - Outros</option>
-                </select>
-              </div>
-
-              <div class="field span-3">
-                <label>Valor pago</label>
-                <input type="number" id="valorPago" min="0" step="0.01" placeholder="0.00" />
-              </div>
-
-              <div class="field span-4">
-                <label>Transportadora</label>
-                <input type="text" id="transportadora" placeholder="Nome da transportadora" />
-              </div>
-
-              <div class="field span-4">
-                <label>CNPJ transportadora</label>
-                <input type="text" id="transpCnpj" placeholder="00.000.000/0000-00" />
-              </div>
-
-              <div class="field span-4">
-                <label>Placa do veículo</label>
-                <input type="text" id="placaVeiculo" placeholder="ABC1D23" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Informações adicionais -->
-          <div class="section">
-            <h3>Informações adicionais</h3>
-            <div class="fields">
-              <div class="field span-12">
-                <label>Informações complementares para a nota</label>
-                <textarea id="infoAdicionais" placeholder="Observações fiscais, dados complementares, mensagens ao Fisco ou ao destinatário"></textarea>
-              </div>
-            </div>
-          </div>
+          <button class="toolbar-btn btn-new" id="btnNovo">Novo</button>
+          <button class="toolbar-btn btn-send" id="btnEnviar" disabled>
+            Enviar para SEFAZ
+          </button>
+          <button class="toolbar-btn btn-secondary" id="btnConsultar" disabled>
+            Consultar status
+          </button>
+          <button class="toolbar-btn btn-secondary" id="btnXml" disabled>
+            Baixar XML
+          </button>
+          <button class="toolbar-btn btn-secondary" id="btnPdf" disabled>
+            Baixar DANFE
+          </button>
         </div>
 
-        <p class="footer-note">
-          Os dados fiscais são validados e persistidos pelo backend. Autorização somente ocorre quando um provedor fiscal real confirma o retorno da SEFAZ.
-        </p>
-      </section>
-    </main>
-  </div>
+        <section aria-labelledby="fiscalOverviewTitle">
+          <div class="page-header">
+            <h2 id="fiscalOverviewTitle">Situação fiscal da filial</h2>
+          </div>
+          <div class="fiscal-overview">
+            <div class="fiscal-card">
+              <span>Ambiente controlado pelo backend</span>
+              <strong id="fiscalEnvironmentSummary">Carregando...</strong>
+            </div>
+            <div class="fiscal-card">
+              <span>Certificado A1</span>
+              <strong id="certificateStatusSummary">Carregando...</strong>
+            </div>
+            <div class="fiscal-card">
+              <span>Validade</span>
+              <strong id="certificateExpirySummary">—</strong>
+            </div>
+            <div class="fiscal-card">
+              <span>CNPJ do certificado</span>
+              <strong id="certificateCnpjSummary">—</strong>
+            </div>
+          </div>
+        </section>
 
-  <script src="./dist/session-state.js"></script>
-  <script src="./Js/csp-extracted/ntfe-inline1.js"></script>
-  <script src="./Js/ntfe.js"></script>
-  <script type="module" src="./dist/sidebar.js"></script>
-</body>
+        <section class="note-wrapper admin-only" id="fiscalAdminPanel" hidden>
+          <div class="note-title">
+            <h2>Configuração fiscal e certificado</h2>
+            <div
+              class="status"
+              id="certificateActionStatus"
+              role="status"
+              aria-live="polite"
+            >
+              Somente administradores podem alterar estes dados.
+            </div>
+          </div>
+          <div class="grid">
+            <div class="section">
+              <h3>Dados fiscais persistidos da filial</h3>
+              <div class="fields">
+                <div class="field span-6">
+                  <label for="configLegalName">Razão social</label>
+                  <input id="configLegalName" type="text" maxlength="180" />
+                </div>
+                <div class="field span-3">
+                  <label for="configTradeName">Nome fantasia</label>
+                  <input id="configTradeName" type="text" maxlength="180" />
+                </div>
+                <div class="field span-3">
+                  <label for="configCnpj">CNPJ</label>
+                  <input id="configCnpj" type="text" maxlength="20" />
+                </div>
+                <div class="field span-3">
+                  <label for="configStateRegistration"
+                    >Inscrição Estadual</label
+                  >
+                  <input
+                    id="configStateRegistration"
+                    type="text"
+                    maxlength="30"
+                  />
+                </div>
+                <div class="field span-3">
+                  <label for="configMunicipalRegistration"
+                    >Inscrição Municipal</label
+                  >
+                  <input
+                    id="configMunicipalRegistration"
+                    type="text"
+                    maxlength="30"
+                  />
+                </div>
+                <div class="field span-3">
+                  <label for="configCrt">CRT</label>
+                  <select id="configCrt">
+                    <option value="1">1 - Simples Nacional</option>
+                    <option value="2">2 - Simples excesso sublimite</option>
+                    <option value="3">3 - Regime Normal</option>
+                  </select>
+                </div>
+                <div class="field span-3">
+                  <label for="configTaxRegime">Regime tributário</label>
+                  <input id="configTaxRegime" type="text" maxlength="60" />
+                </div>
+                <div class="field span-5">
+                  <label for="configStreet">Logradouro</label>
+                  <input id="configStreet" type="text" maxlength="180" />
+                </div>
+                <div class="field span-2">
+                  <label for="configNumber">Número</label>
+                  <input id="configNumber" type="text" maxlength="30" />
+                </div>
+                <div class="field span-5">
+                  <label for="configComplement">Complemento</label>
+                  <input id="configComplement" type="text" maxlength="120" />
+                </div>
+                <div class="field span-3">
+                  <label for="configDistrict">Bairro</label>
+                  <input id="configDistrict" type="text" maxlength="100" />
+                </div>
+                <div class="field span-3">
+                  <label for="configCity">Município</label>
+                  <input id="configCity" type="text" maxlength="100" />
+                </div>
+                <div class="field span-2">
+                  <label for="configCityCode">Código IBGE</label>
+                  <input id="configCityCode" type="text" maxlength="7" />
+                </div>
+                <div class="field span-1">
+                  <label for="configState">UF</label>
+                  <input id="configState" type="text" maxlength="2" />
+                </div>
+                <div class="field span-2">
+                  <label for="configZipCode">CEP</label>
+                  <input id="configZipCode" type="text" maxlength="12" />
+                </div>
+                <div class="field span-1">
+                  <label for="configCountry">País</label>
+                  <input
+                    id="configCountry"
+                    type="text"
+                    maxlength="80"
+                    value="Brasil"
+                  />
+                </div>
+                <div class="field span-2">
+                  <label for="configNfeSeries">Série NF-e</label>
+                  <input id="configNfeSeries" type="text" maxlength="10" />
+                </div>
+                <div class="field span-2">
+                  <label for="configNfceSeries">Série NFC-e</label>
+                  <input id="configNfceSeries" type="text" maxlength="10" />
+                </div>
+                <div class="field span-2">
+                  <label for="configReceiptPaperWidthMm"
+                    >Bobina do recibo</label
+                  >
+                  <select id="configReceiptPaperWidthMm">
+                    <option value="58">58 mm</option>
+                    <option value="80">80 mm</option>
+                  </select>
+                </div>
+                <div class="field span-3">
+                  <label for="configReceiptTimezone"
+                    >Fuso horário do recibo</label
+                  >
+                  <select id="configReceiptTimezone">
+                    <option value="America/Sao_Paulo">
+                      Brasília / São Paulo
+                    </option>
+                    <option value="America/Belem">Belém</option>
+                    <option value="America/Manaus">Manaus</option>
+                    <option value="America/Rio_Branco">Rio Branco</option>
+                  </select>
+                </div>
+                <div class="field span-8 certificate-actions">
+                  <button type="button" id="btnFiscalConfigSave">
+                    Salvar configuração fiscal
+                  </button>
+                  <span class="hint"
+                    >O ambiente de produção não pode ser ativado por este
+                    formulário.</span
+                  >
+                </div>
+              </div>
+            </div>
+            <div class="section">
+              <h3>Certificado digital A1</h3>
+              <div class="fields">
+                <div class="field span-4">
+                  <label for="certificateFile">Arquivo .pfx ou .p12</label>
+                  <input
+                    id="certificateFile"
+                    type="file"
+                    accept=".pfx,.p12,application/x-pkcs12,application/pkcs12"
+                  />
+                </div>
+                <div class="field span-4">
+                  <label for="certificatePassword">Senha do certificado</label>
+                  <input
+                    id="certificatePassword"
+                    type="password"
+                    maxlength="512"
+                    autocomplete="new-password"
+                  />
+                </div>
+                <div class="field span-4">
+                  <label>Arquivo atual</label>
+                  <strong id="certificateFileSummary"
+                    >Nenhum certificado configurado</strong
+                  >
+                  <span class="hint" id="certificateMetadataSummary"></span>
+                </div>
+                <div class="field span-12 certificate-actions">
+                  <button type="button" id="btnCertificateUpload">
+                    Enviar e validar
+                  </button>
+                  <button type="button" id="btnCertificateValidate">
+                    Validar novamente
+                  </button>
+                  <button
+                    type="button"
+                    id="btnCertificateRemove"
+                    class="danger"
+                  >
+                    Remover certificado
+                  </button>
+                  <button
+                    type="button"
+                    id="btnActivateProduction"
+                    class="production"
+                  >
+                    Ativar produção
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="note-wrapper">
+          <div class="note-title">
+            <h2>NF-e 55</h2>
+            <div class="status" id="fiscalStatus">Validando contexto...</div>
+          </div>
+
+          <div class="grid">
+            <!-- Identificação da nota -->
+            <div class="section">
+              <h3>Identificação da Nota</h3>
+              <div class="fields">
+                <div class="field span-3">
+                  <label>Número da Nota</label>
+                  <input
+                    type="text"
+                    id="numeroNota"
+                    placeholder="Gerado pelo backend"
+                    readonly
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>Série</label>
+                  <input
+                    type="text"
+                    id="serieNota"
+                    placeholder="Configurada pela filial"
+                    readonly
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Data de emissão</label>
+                  <input type="datetime-local" id="dataEmissao" />
+                </div>
+
+                <div class="field span-2">
+                  <label>Tipo de operação</label>
+                  <select id="tipoOperacao">
+                    <option value="saida">Saída</option>
+                    <option value="entrada">Entrada</option>
+                  </select>
+                </div>
+
+                <div class="field span-2">
+                  <label>Finalidade</label>
+                  <select id="finalidade">
+                    <option value="normal">Normal</option>
+                    <option value="complementar">Complementar</option>
+                    <option value="ajuste">Ajuste</option>
+                    <option value="devolucao">Devolução</option>
+                  </select>
+                </div>
+
+                <div class="field span-4">
+                  <label>Natureza da operação</label>
+                  <input
+                    type="text"
+                    id="naturezaOperacao"
+                    placeholder="Ex.: Venda de mercadoria"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>Modelo</label>
+                  <input type="text" value="55" readonly />
+                </div>
+
+                <div class="field span-2">
+                  <label>Forma de emissão</label>
+                  <select id="formaEmissao">
+                    <option value="normal">Normal</option>
+                    <option value="contingencia">Contingência</option>
+                  </select>
+                </div>
+
+                <div class="field span-2">
+                  <label>Presença do comprador</label>
+                  <select id="indPres">
+                    <option value="0">Não se aplica</option>
+                    <option value="1">Operação presencial</option>
+                    <option value="2">Internet</option>
+                    <option value="3">Teleatendimento</option>
+                    <option value="4">Entrega em domicílio</option>
+                    <option value="9">Outros</option>
+                  </select>
+                </div>
+
+                <div class="field span-2">
+                  <label>Consumidor final</label>
+                  <select id="indFinal">
+                    <option value="0">Não</option>
+                    <option value="1">Sim</option>
+                  </select>
+                </div>
+
+                <div class="field span-2">
+                  <label>Ambiente</label>
+                  <div id="ambiente" class="environment-badge" role="status">
+                    HOMOLOGAÇÃO
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Emitente -->
+            <div class="section">
+              <h3>Dados do Emitente</h3>
+              <div class="fields">
+                <div class="field span-6">
+                  <label>Razão social</label>
+                  <input
+                    type="text"
+                    id="emitRazao"
+                    placeholder="Razão social do emitente"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Nome fantasia</label>
+                  <input
+                    type="text"
+                    id="emitFantasia"
+                    placeholder="Nome fantasia"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>CNPJ</label>
+                  <input
+                    type="text"
+                    id="emitCnpj"
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Inscrição Estadual</label>
+                  <input type="text" id="emitIe" placeholder="IE do emitente" />
+                </div>
+
+                <div class="field span-3">
+                  <label>CRT</label>
+                  <select id="emitCrt">
+                    <option value="1">1 - Simples Nacional</option>
+                    <option value="2">
+                      2 - Simples Nacional excesso sublimite
+                    </option>
+                    <option value="3">3 - Regime Normal</option>
+                  </select>
+                </div>
+
+                <div class="field span-6">
+                  <label>Endereço</label>
+                  <input
+                    type="text"
+                    id="emitEndereco"
+                    placeholder="Rua, avenida, número"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Bairro</label>
+                  <input type="text" id="emitBairro" placeholder="Bairro" />
+                </div>
+
+                <div class="field span-3">
+                  <label>Município</label>
+                  <input
+                    type="text"
+                    id="emitMunicipio"
+                    placeholder="Município"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>UF</label>
+                  <input
+                    type="text"
+                    id="emitUf"
+                    maxlength="2"
+                    placeholder="UF"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>CEP</label>
+                  <input type="text" id="emitCep" placeholder="00000-000" />
+                </div>
+
+                <div class="field span-2">
+                  <label>Telefone</label>
+                  <input
+                    type="text"
+                    id="emitTelefone"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Destinatário -->
+            <div class="section">
+              <h3>Destinatário / Cliente</h3>
+              <div class="fields">
+                <div class="field span-6">
+                  <label>Nome / Razão social</label>
+                  <input
+                    type="text"
+                    id="destNome"
+                    placeholder="Nome do cliente"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Tipo de documento</label>
+                  <select id="destTipoDoc">
+                    <option value="cpf">CPF</option>
+                    <option value="cnpj">CNPJ</option>
+                    <option value="estrangeiro">Estrangeiro</option>
+                  </select>
+                </div>
+
+                <div class="field span-3">
+                  <label>CPF / CNPJ</label>
+                  <input
+                    type="text"
+                    id="destDoc"
+                    placeholder="Documento do cliente"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Inscrição Estadual</label>
+                  <input
+                    type="text"
+                    id="destIe"
+                    placeholder="Informe IE ou ISENTO"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Indicador IE</label>
+                  <select id="destIndIe">
+                    <option value="1">1 - Contribuinte ICMS</option>
+                    <option value="2">2 - Isento</option>
+                    <option value="9">9 - Não contribuinte</option>
+                  </select>
+                </div>
+
+                <div class="field span-3">
+                  <label>E-mail</label>
+                  <input
+                    type="email"
+                    id="destEmail"
+                    placeholder="cliente@email.com"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Telefone</label>
+                  <input
+                    type="text"
+                    id="destTelefone"
+                    placeholder="(00) 00000-0000"
+                  />
+                </div>
+
+                <div class="field span-6">
+                  <label>Endereço</label>
+                  <input
+                    type="text"
+                    id="destEndereco"
+                    placeholder="Rua, avenida, número"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>Número</label>
+                  <input type="text" id="destNumero" placeholder="Número" />
+                </div>
+
+                <div class="field span-3">
+                  <label>Bairro</label>
+                  <input type="text" id="destBairro" placeholder="Bairro" />
+                </div>
+
+                <div class="field span-3">
+                  <label>Município</label>
+                  <input
+                    type="text"
+                    id="destMunicipio"
+                    placeholder="Município"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Código IBGE</label>
+                  <input
+                    type="text"
+                    id="destCityCodeIbge"
+                    maxlength="7"
+                    placeholder="0000000"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>UF</label>
+                  <input
+                    type="text"
+                    id="destUf"
+                    maxlength="2"
+                    placeholder="UF"
+                  />
+                </div>
+
+                <div class="field span-2">
+                  <label>CEP</label>
+                  <input type="text" id="destCep" placeholder="00000-000" />
+                </div>
+
+                <div class="field span-2">
+                  <label>País</label>
+                  <input type="text" id="destPais" value="Brasil" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Produtos -->
+            <div class="section">
+              <div class="items-header">
+                <h3>Produtos / Serviços da Nota</h3>
+                <button type="button" class="btn-add-item" id="btnAddItem">
+                  + Adicionar item
+                </button>
+              </div>
+
+              <div class="items-list" id="itemsList"></div>
+            </div>
+
+            <!-- Totais -->
+            <div class="section">
+              <h3>Totais da NF-e</h3>
+              <div class="totals-box">
+                <div class="total-card">
+                  <span>Valor dos produtos</span>
+                  <strong id="totalProdutos">R$ 0,00</strong>
+                </div>
+
+                <div class="total-card">
+                  <span>Desconto total</span>
+                  <strong id="totalDesconto">R$ 0,00</strong>
+                </div>
+
+                <div class="total-card">
+                  <span>Frete</span>
+                  <strong id="totalFrete">R$ 0,00</strong>
+                </div>
+
+                <div class="total-card">
+                  <span>Valor total da nota</span>
+                  <strong id="valorNota">R$ 0,00</strong>
+                </div>
+              </div>
+            </div>
+
+            <!-- Transporte e pagamento -->
+            <div class="section">
+              <h3>Transporte e Pagamento</h3>
+              <div class="fields">
+                <div class="field span-3">
+                  <label>Modalidade do frete</label>
+                  <select id="modFrete">
+                    <option value="0">0 - Por conta do emitente</option>
+                    <option value="1">1 - Por conta do destinatário</option>
+                    <option value="2">2 - Terceiros</option>
+                    <option value="9">9 - Sem frete</option>
+                  </select>
+                </div>
+
+                <div class="field span-3">
+                  <label>Valor do frete</label>
+                  <input
+                    type="number"
+                    id="frete"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div class="field span-3">
+                  <label>Forma de pagamento</label>
+                  <select id="formaPagamento">
+                    <option value="01">01 - Dinheiro</option>
+                    <option value="03">03 - Cartão de crédito</option>
+                    <option value="04">04 - Cartão de débito</option>
+                    <option value="15">15 - Boleto</option>
+                    <option value="17">17 - PIX</option>
+                    <option value="90">90 - Sem pagamento</option>
+                    <option value="99">99 - Outros</option>
+                  </select>
+                </div>
+
+                <div class="field span-3">
+                  <label>Valor pago</label>
+                  <input
+                    type="number"
+                    id="valorPago"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                  />
+                </div>
+
+                <div class="field span-4">
+                  <label>Transportadora</label>
+                  <input
+                    type="text"
+                    id="transportadora"
+                    placeholder="Nome da transportadora"
+                  />
+                </div>
+
+                <div class="field span-4">
+                  <label>CNPJ transportadora</label>
+                  <input
+                    type="text"
+                    id="transpCnpj"
+                    placeholder="00.000.000/0000-00"
+                  />
+                </div>
+
+                <div class="field span-4">
+                  <label>Placa do veículo</label>
+                  <input type="text" id="placaVeiculo" placeholder="ABC1D23" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Informações adicionais -->
+            <div class="section">
+              <h3>Informações adicionais</h3>
+              <div class="fields">
+                <div class="field span-12">
+                  <label>Informações complementares para a nota</label>
+                  <textarea
+                    id="infoAdicionais"
+                    placeholder="Observações fiscais, dados complementares, mensagens ao Fisco ou ao destinatário"
+                  ></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p class="footer-note">
+            Os dados fiscais são validados e persistidos pelo backend.
+            Autorização somente ocorre quando um provedor fiscal real confirma o
+            retorno da SEFAZ.
+          </p>
+        </section>
+      </main>
+    </div>
+
+    <script src="./dist/session-state.js"></script>
+    <script src="./Js/csp-extracted/ntfe-inline1.js"></script>
+    <script src="./Js/ntfe.js"></script>
+    <script type="module" src="./dist/sidebar.js"></script>
+  </body>
 </html>
