@@ -108,10 +108,7 @@ export class PrintQueue {
       (job) => job.idempotencyKey === input.idempotencyKey,
     );
     if (existing) {
-      if (
-        existing.status !== 'printed' &&
-        existing.status !== 'unknown'
-      ) {
+      if (existing.status !== 'printed' && existing.status !== 'unknown') {
         void this.process(existing.id);
       }
       return existing;
