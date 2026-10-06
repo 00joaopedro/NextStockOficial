@@ -32,6 +32,9 @@ export class SimulatedPrinterTransport implements PrinterTransport {
 export class PrintQueue {
   private jobs: PrintJob[] = [];
   private loaded = false;
+  private loadPromise: Promise<void> | null = null;
+  private resumed = false;
+  private persistTail: Promise<void> = Promise.resolve();
   private active = new Set<string>();
 
   constructor(
@@ -42,21 +45,39 @@ export class PrintQueue {
 
   private async load() {
     if (this.loaded) return;
-    this.loaded = true;
-    try {
-      this.jobs = JSON.parse(
-        await readFile(this.filePath, 'utf8'),
-      ) as PrintJob[];
-    } catch {
-      this.jobs = [];
-    }
+    if (this.loadPromise) return this.loadPromise;
+    this.loadPromise = (async () => {
+      try {
+        this.jobs = JSON.parse(
+          await readFile(this.filePath, 'utf8'),
+        ) as PrintJob[];
+      } catch {
+        this.jobs = [];
+      }
+      this.loaded = true;
+      if (!this.resumed) {
+        this.resumed = true;
+        queueMicrotask(() => {
+          this.jobs
+            .filter(
+              (job) =>
+                job.status !== 'printed' && job.attempts < this.maxAttempts,
+            )
+            .forEach((job) => void this.process(job.id));
+        });
+      }
+    })();
+    return this.loadPromise;
   }
 
   private async persist() {
-    await mkdir(dirname(this.filePath), { recursive: true });
-    const temporary = `${this.filePath}.${process.pid}.tmp`;
-    await writeFile(temporary, JSON.stringify(this.jobs, null, 2), 'utf8');
-    await rename(temporary, this.filePath);
+    this.persistTail = this.persistTail.then(async () => {
+      await mkdir(dirname(this.filePath), { recursive: true });
+      const temporary = `${this.filePath}.${process.pid}.${randomUUID()}.tmp`;
+      await writeFile(temporary, JSON.stringify(this.jobs, null, 2), 'utf8');
+      await rename(temporary, this.filePath);
+    });
+    return this.persistTail;
   }
 
   async enqueue(input: {
@@ -68,7 +89,10 @@ export class PrintQueue {
     const existing = this.jobs.find(
       (job) => job.idempotencyKey === input.idempotencyKey,
     );
-    if (existing) return existing;
+    if (existing) {
+      if (existing.status !== 'printed') void this.process(existing.id);
+      return existing;
+    }
     const now = new Date().toISOString();
     const job: PrintJob = {
       id: randomUUID(),
