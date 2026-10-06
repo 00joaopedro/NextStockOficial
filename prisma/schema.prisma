@@ -1573,6 +1573,7 @@ model CompanyFiscalConfig {
   deletedAt                      DateTime?                    @map("deleted_at")
   nfeSeries                      String                       @default("1") @map("nfe_series")
   nfceSeries                     String                       @default("1") @map("nfce_series")
+  receiptPaperWidthMm            Int                          @default(80) @map("receipt_paper_width_mm")
   nextNfeNumber                  Int                          @default(1) @map("next_nfe_number")
   nextNfceNumber                 Int                          @default(1) @map("next_nfce_number")
   provider                       String                       @default("mock")

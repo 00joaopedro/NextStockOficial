@@ -835,6 +835,9 @@ export class FiscalService {
       ...(dto.environment ? { environment: dto.environment } : {}),
       nfeSeries: dto.nfeSeries.trim(),
       nfceSeries: dto.nfceSeries.trim(),
+      ...(dto.receiptPaperWidthMm
+        ? { receiptPaperWidthMm: dto.receiptPaperWidthMm }
+        : {}),
     };
     this.validation.assertConfig({
       ...data,
@@ -1182,6 +1185,7 @@ export class FiscalService {
       environment: config.environment,
       nfeSeries: config.nfeSeries,
       nfceSeries: config.nfceSeries,
+      receiptPaperWidthMm: config.receiptPaperWidthMm,
       provider: config.provider,
       hasCertificate: Boolean(
         config.certificateSecretRef || config.certificatePath,

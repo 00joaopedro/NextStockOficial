@@ -3,6 +3,7 @@ import {
   IsEnum,
   IsInt,
   IsObject,
+  IsIn,
   IsOptional,
   IsString,
   Max,
@@ -94,6 +95,12 @@ export class CompanyFiscalConfigDto {
   @IsString()
   @MaxLength(10)
   nfceSeries!: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @IsIn([58, 80])
+  receiptPaperWidthMm?: number;
 
   @IsOptional()
   @IsString()

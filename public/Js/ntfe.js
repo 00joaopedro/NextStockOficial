@@ -239,6 +239,7 @@
       configCountry: config?.country || 'Brasil',
       configNfeSeries: config?.nfeSeries || '1',
       configNfceSeries: config?.nfceSeries || '1',
+      configReceiptPaperWidthMm: config?.receiptPaperWidthMm || 80,
     };
     Object.entries(configFields).forEach(([id, fieldValue]) =>
       setValue(id, fieldValue),
@@ -630,6 +631,7 @@
       country: value('configCountry') || 'Brasil',
       nfeSeries: value('configNfeSeries'),
       nfceSeries: value('configNfceSeries'),
+      receiptPaperWidthMm: Number(value('configReceiptPaperWidthMm') || 80),
       provider: state.fiscalConfig?.provider || 'mock',
     };
     setCertificateBusy(true);
