@@ -1,0 +1,9 @@
+<service>
+  <id>NextStockPrintAgent</id>
+  <name>NextStock Print Agent</name>
+  <description>Agente local de impressão ESC/POS do NextStock.</description>
+  <executable>%BASE%\node\node.exe</executable>
+  <arguments>"%BASE%\agent\agent.js"</arguments>
+  <workingdirectory>%BASE%\agent</workingdirectory>
+  <onfailure action="restart" delay="10 sec" />
+</service>
