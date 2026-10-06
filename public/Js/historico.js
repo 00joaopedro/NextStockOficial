@@ -26,7 +26,11 @@
     productsList: document.getElementById("productsList"),
     documentsList: document.getElementById("documentsList"),
     printBtn: document.getElementById("printBtn"),
+    printMode: document.getElementById("historyPrintMode"),
+    printAgentToken: document.getElementById("historyPrintAgentToken"),
   };
+
+  const PRINT_AGENT_URL = "http://127.0.0.1:17890";
 
   const DOCUMENT_LABELS = {
     receipt: "Recibo interno — sem validade fiscal",
@@ -432,15 +436,66 @@
     }
   }
 
+  async function waitForPrintJob(jobId, token) {
+    for (let attempt = 0; attempt < 24; attempt += 1) {
+      const response = await fetch(PRINT_AGENT_URL + "/v1/jobs/" + encodeURIComponent(jobId), { headers: { Authorization: "Bearer " + token } });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Nao foi possivel consultar a fila de impressao.");
+      const job = data.job;
+      if (!job || ["printed", "error", "unknown"].includes(job.status)) return job;
+      await new Promise((resolve) => window.setTimeout(resolve, 750));
+    }
+    return null;
+  }
+
+  async function resolveUnknownPrintJob(jobId, token) {
+    const response = await fetch(PRINT_AGENT_URL + "/v1/jobs/" + encodeURIComponent(jobId) + "/resolve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+      body: JSON.stringify({ resolution: "confirm_not_printed" }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Nao foi possivel confirmar o reenvio.");
+    return data.job;
+  }
+
   async function printReceipt(id) {
     try {
-      const result = await apiFetch(
-        `/api/sales/${encodeURIComponent(id)}/receipt`,
-      );
-      const popup = window.open("", "_blank");
-      if (!popup) {
-        throw new Error("Permita pop-ups para imprimir o recibo.");
+      const result = await apiFetch("/api/sales/" + encodeURIComponent(id) + "/receipt", {
+        headers: { "x-nextstock-print-idempotency-key": crypto.randomUUID() },
+      });
+      if (els.printMode && els.printMode.value === "direct") {
+        const token = els.printAgentToken && els.printAgentToken.value.trim();
+        if (!token) throw new Error("Informe o token do agente local de impressao.");
+        const response = await fetch(PRINT_AGENT_URL + "/v1/print", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+          body: JSON.stringify({
+            idempotencyKey: result.printAttemptId || (result.documentId + ":" + result.printNumber),
+            paperWidthMm: result.paperWidthMm === 58 ? 58 : 80,
+            html: result.html,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "Agente local recusou o recibo.");
+        const jobId = data.job && data.job.id;
+        if (!jobId) throw new Error("O agente nao retornou o identificador da impressao.");
+        let job = await waitForPrintJob(jobId, token);
+        if (job && job.status === "unknown") {
+          const retry = window.confirm("A conexao caiu depois do envio. Nao e possivel confirmar se o papel saiu. Reenviar pode duplicar a via fisica. Deseja confirmar que nao imprimiu e reenviar?");
+          if (!retry) {
+            window.alert("Impressao em estado desconhecido. Nao reenviamos automaticamente.");
+            return;
+          }
+          await resolveUnknownPrintJob(jobId, token);
+          job = await waitForPrintJob(jobId, token);
+        }
+        if (!job || job.status !== "printed") throw new Error((job && job.error) || "A impressao nao foi confirmada pelo agente local.");
+        window.alert("Reimpressao historica " + result.printNumber + " enviada e confirmada pelo agente local.");
+        return;
       }
+      const popup = window.open("", "_blank");
+      if (!popup) throw new Error("Permita pop-ups para imprimir o recibo.");
       popup.opener = null;
       popup.document.open();
       popup.document.write(sanitizePrintableReceipt(result.html));
@@ -450,7 +505,6 @@
       window.alert(error.message);
     }
   }
-
   function sanitizePrintableReceipt(value) {
     const parser = new DOMParser();
     const parsed = parser.parseFromString(

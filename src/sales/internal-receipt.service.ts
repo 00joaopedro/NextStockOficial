@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { Prisma, SaleDocumentStatus, SaleDocumentType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -70,13 +71,14 @@ export class InternalReceiptService {
             },
           },
           orderBy: { createdAt: 'desc' },
-          select: { eventType: true, printNumber: true },
+          select: { eventType: true, printNumber: true, attemptId: true },
         });
-        if (previous?.printNumber) {
+        if (previous?.printNumber != null) {
           return {
             documentId: document.id,
             eventType: previous.eventType,
             printNumber: previous.printNumber,
+            attemptId: previous.attemptId ?? undefined,
           };
         }
       }
@@ -93,6 +95,7 @@ export class InternalReceiptService {
         select: { printCounter: true },
       });
       const printNumber = allocated.printCounter;
+      const attemptId = randomUUID();
       const eventType =
         printNumber === 1
           ? 'internal_receipt_printed'
@@ -103,12 +106,14 @@ export class InternalReceiptService {
           eventType,
           status: SaleDocumentStatus.internal_issued,
           printNumber,
+          attemptId,
           requestPayload: {
             tenantId: context.tenantId,
             branchId: context.branchId,
             saleId: sale.id,
             origin: input.origin,
             printNumber,
+            printAttemptId: attemptId,
             ...(input.idempotencyKey
               ? { idempotencyKey: input.idempotencyKey }
               : {}),
@@ -116,7 +121,7 @@ export class InternalReceiptService {
           createdById: context.userId,
         },
       });
-      return { documentId: document.id, eventType, printNumber };
+      return { documentId: document.id, eventType, printNumber, attemptId };
     });
     const [company, branch] = await Promise.all([
       this.prisma.companyFiscalConfig.findUnique({
