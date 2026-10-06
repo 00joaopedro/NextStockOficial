@@ -74,7 +74,7 @@ begin
   ) and (ResultCode = 0);
 
   if not Result then
-    MsgBox('O agente não foi instalado/removido corretamente. Nenhuma operação de merge foi realizada; verifique o log do instalador e tente novamente.', mbError, MB_OK);
+    MsgBox('O agente não foi instalado/removido corretamente. A operação foi interrompida; verifique o log do instalador e tente novamente.', mbError, MB_OK);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
