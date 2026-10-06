@@ -78,9 +78,7 @@ export class PrintQueue {
     const candidates = [this.filePath, `${this.filePath}.bak`];
     for (const candidate of candidates) {
       try {
-        const parsed: unknown = JSON.parse(
-          await readFile(candidate, 'utf8'),
-        );
+        const parsed: unknown = JSON.parse(await readFile(candidate, 'utf8'));
         if (Array.isArray(parsed)) return parsed as PrintJob[];
       } catch {
         // Try the previous atomic snapshot before starting empty.
