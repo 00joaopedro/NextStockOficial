@@ -56,7 +56,7 @@ jobs:
           Expand-Archive -Path $nodeZip -DestinationPath $nodeExtract -Force
           Copy-Item "$nodeExtract/node-v22.23.1-win-x64/node.exe" "$staging/node/node.exe"
 
-          Invoke-WebRequest -Uri "https://github.com/winsw/winsw/releases/download/v3.0.0/WinSW-x64.exe" -OutFile $winswPath
+          Invoke-WebRequest -Uri "https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe" -OutFile $winswPath
 
           if (-not (Test-Path "$staging/node/node.exe")) { throw "Node.js portátil não foi preparado." }
           if (-not (Test-Path "$staging/agent/agent.js")) { throw "Agente compilado não foi preparado." }
