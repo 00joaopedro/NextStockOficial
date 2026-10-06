@@ -187,9 +187,7 @@ export function parseWindowsSpoolerResponse(
   output: string,
 ): WindowsSpoolerSnapshot {
   try {
-    return normalizeSnapshot(
-      JSON.parse(output.trim()),
-    );
+    return normalizeSnapshot(JSON.parse(output.trim()));
   } catch (error) {
     return {
       state: 'unknown',
