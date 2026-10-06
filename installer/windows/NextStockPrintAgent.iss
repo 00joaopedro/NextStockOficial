@@ -13,6 +13,7 @@ DefaultDirName={autopf}\NextStock\PrintAgent
 DefaultGroupName=NextStock
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
+MinVersion=10.0
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=output
