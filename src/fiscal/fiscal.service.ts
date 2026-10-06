@@ -838,6 +838,9 @@ export class FiscalService {
       ...(dto.receiptPaperWidthMm
         ? { receiptPaperWidthMm: dto.receiptPaperWidthMm }
         : {}),
+      ...(dto.receiptTimezone
+        ? { receiptTimezone: dto.receiptTimezone.trim() }
+        : {}),
     };
     this.validation.assertConfig({
       ...data,
@@ -1186,6 +1189,7 @@ export class FiscalService {
       nfeSeries: config.nfeSeries,
       nfceSeries: config.nfceSeries,
       receiptPaperWidthMm: config.receiptPaperWidthMm,
+      receiptTimezone: config.receiptTimezone,
       provider: config.provider,
       hasCertificate: Boolean(
         config.certificateSecretRef || config.certificatePath,

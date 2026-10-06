@@ -104,6 +104,17 @@ export class CompanyFiscalConfigDto {
 
   @IsOptional()
   @IsString()
+  @IsIn([
+    'America/Sao_Paulo',
+    'America/Belem',
+    'America/Manaus',
+    'America/Rio_Branco',
+  ])
+  @MaxLength(64)
+  receiptTimezone?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(60)
   provider?: string;
 

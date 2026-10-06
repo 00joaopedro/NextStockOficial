@@ -29,7 +29,11 @@ describe('InternalReceiptService RC-012', () => {
     branchId: '00000000-0000-4000-8000-000000000104',
   };
 
-  function setup(numbers: number[] = [1], paperWidthMm = 80) {
+  function setup(
+    numbers: number[] = [1],
+    paperWidthMm = 80,
+    receiptTimezone = 'America/Sao_Paulo',
+  ) {
     const tx: any = {
       $executeRaw: jest.fn().mockResolvedValue(1),
       saleDocument: {
@@ -49,6 +53,7 @@ describe('InternalReceiptService RC-012', () => {
           tradeName: null,
           cnpj: '11222333000181',
           receiptPaperWidthMm: paperWidthMm,
+          receiptTimezone,
         }),
       },
       branch: { findFirst: jest.fn().mockResolvedValue({ name: 'Matriz' }) },
@@ -137,7 +142,7 @@ describe('InternalReceiptService RC-012', () => {
       });
       expect(result.paperWidthMm).toBe(paperWidthMm);
       expect(result.html).toContain(
-        `@page{size:${paperWidthMm}mm auto;margin:0}`,
+        `@page{size:${paperWidthMm}mm 200mm;margin:0}`,
       );
       expect(result.html).toContain(`data-paper-width-mm="${paperWidthMm}"`);
       expect(result.html).toContain('Subtotal');
@@ -154,6 +159,16 @@ describe('InternalReceiptService RC-012', () => {
       origin: 'history',
     });
     expect(result.paperWidthMm).toBe(80);
-    expect(result.html).toContain('@page{size:80mm auto;margin:0}');
+    expect(result.html).toContain('@page{size:80mm 200mm;margin:0}');
+  });
+
+  it('formata a data usando o fuso horário configurado da filial', async () => {
+    const { service } = setup([1], 80, 'America/Sao_Paulo');
+    const result = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+    });
+    expect(result.html).toContain('01/07/2026, 09:00:00');
   });
 });

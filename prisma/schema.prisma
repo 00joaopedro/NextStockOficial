@@ -1574,6 +1574,7 @@ model CompanyFiscalConfig {
   nfeSeries                      String                       @default("1") @map("nfe_series")
   nfceSeries                     String                       @default("1") @map("nfce_series")
   receiptPaperWidthMm            Int                          @default(80) @map("receipt_paper_width_mm")
+  receiptTimezone                String                       @default("America/Sao_Paulo") @map("receipt_timezone")
   nextNfeNumber                  Int                          @default(1) @map("next_nfe_number")
   nextNfceNumber                 Int                          @default(1) @map("next_nfce_number")
   provider                       String                       @default("mock")
