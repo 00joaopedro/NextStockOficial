@@ -59,7 +59,12 @@ async function bootstrap() {
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         imgSrc: ["'self'", 'data:', 'blob:', ...assetOrigins()],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],
-        connectSrc: ["'self'", ...allowedOrigins(), ...serviceOrigins()],
+        connectSrc: [
+          "'self'",
+          'http://127.0.0.1:17890',
+          ...allowedOrigins(),
+          ...serviceOrigins(),
+        ],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
