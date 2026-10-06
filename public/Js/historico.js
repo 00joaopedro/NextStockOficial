@@ -26,7 +26,11 @@
     productsList: document.getElementById("productsList"),
     documentsList: document.getElementById("documentsList"),
     printBtn: document.getElementById("printBtn"),
+    printMode: document.getElementById("historyPrintMode"),
+    printAgentToken: document.getElementById("historyPrintAgentToken"),
   };
+
+  const PRINT_AGENT_URL = "http://127.0.0.1:17890";
 
   const DOCUMENT_LABELS = {
     receipt: "Recibo interno — sem validade fiscal",
