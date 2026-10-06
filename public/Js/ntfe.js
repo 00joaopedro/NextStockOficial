@@ -776,7 +776,7 @@
 
 
   const PRINT_AGENT_URL = 'http://127.0.0.1:17890';
-  const PRINT_AGENT_DOWNLOAD_URL = 'https://github.com/00joaopedro/NextStockOficial/releases/latest/download/NextStock-Agente-Impressao-Setup.exe';
+  const PRINT_AGENT_DOWNLOAD_URL = 'https://github.com/00joaopedro/NextStockOficial/releases/latest';
   const PRINT_AGENT_TOKEN_KEY = 'nextstockPrintAgentToken';
 
   function readPrintAgentToken() {
