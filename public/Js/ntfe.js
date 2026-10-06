@@ -651,7 +651,6 @@
         body: JSON.stringify(payload),
       });
       await loadFiscalConfig();
-    initializePrintAgentPanel();
       setCertificateMessage('Configuração fiscal salva.', 'success');
     } catch (error) {
       setCertificateMessage(
@@ -961,6 +960,7 @@
   }
 
   async function init() {
+    initializePrintAgentPanel();
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
       setStatus(
