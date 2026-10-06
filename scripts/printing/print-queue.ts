@@ -146,11 +146,9 @@ export class PrintQueue {
           result.status === 'printed' ? undefined : result.error || job.error;
         job.updatedAt = new Date().toISOString();
         await this.persist();
-        if (result.status === 'error') {
-          if (job.attempts < this.maxAttempts) {
-            setTimeout(() => void this.process(id), 250 * 2 ** (job.attempts - 1));
-          }
-        }
+        // A spooler-reported error happens after acceptance. Keep the
+        // job terminal/observable and require operator resolution; retrying
+        // here could duplicate a receipt that remains queued in Windows.
         return;
       }
       const job = this.jobs.find((item) => item.id === id);
@@ -256,8 +254,6 @@ export class PrintQueue {
       await this.persist();
       if (result.status === 'accepted' || result.status === 'spooled') {
         void this.monitor(job.id);
-      } else if (result.status === 'error' && job.attempts < this.maxAttempts) {
-        setTimeout(() => void this.process(id), 250 * 2 ** (job.attempts - 1));
       }
     } catch (error) {
       job.error = error instanceof Error ? error.message : String(error);
