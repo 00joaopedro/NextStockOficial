@@ -89,7 +89,7 @@ const ENTITY_NAMES: Record<string, string> = {
   uacute: 'ú',
   uuml: 'ü',
   ccedil: 'ç',
-  aacute_upper: 'Á',
+  Aacute: 'Á',
 };
 
 export function columnsFor(width: PaperWidthMm): number {
@@ -170,7 +170,7 @@ function decodeHtmlEntities(value: string): string {
       if (token.startsWith('#')) {
         return String.fromCodePoint(parseInt(token.slice(1), 10));
       }
-      return ENTITY_NAMES[token.toLowerCase()] || entity;
+      return ENTITY_NAMES[token] || ENTITY_NAMES[token.toLowerCase()] || entity;
     },
   );
 }
