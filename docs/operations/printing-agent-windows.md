@@ -62,3 +62,16 @@ O agente consulta o spooler local com `Get-PrintJob` após enviar o arquivo RAW.
 
 A consulta do spooler melhora a rastreabilidade, mas não confirma fisicamente a saída do papel. Estados `unknown` continuam exigindo confirmação manual e não são reenviados automaticamente.
 
+
+## Compatibilidade ESC/POS
+
+O agente converte o conteúdo HTML para texto de recibo antes do envio RAW:
+
+- 58 mm usa 32 colunas e 80 mm usa 48 colunas;
+- a quebra respeita a largura visual, inclusive para caracteres largos;
+- o código de página padrão é CP858, com acentos portugueses e euro;
+- CP850 continua disponível quando a impressora exigir esse perfil;
+- o comando de corte completo é enviado após três linhas de avanço;
+- o agente não confirma fisicamente a saída do papel: essa limitação continua dependente da impressora.
+
+A fila grava uma cópia ".bak" do último estado válido antes de substituir o arquivo principal. Após reiniciar o agente, trabalhos pendentes são retomados e, se o arquivo principal estiver inválido, a última cópia válida é carregada.
