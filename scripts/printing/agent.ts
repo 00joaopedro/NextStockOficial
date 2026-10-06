@@ -106,6 +106,13 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
       error: 'Unauthorized local print agent request.',
     });
   try {
+    if (req.method === 'GET' && req.url === '/v1/health') {
+      return json(req, res, 200, {
+        status: 'ok',
+        service: 'NextStockPrintAgent',
+        version: '1.0.0',
+      });
+    }
     if (req.method === 'POST' && req.url === '/v1/print') {
       const input = await body(req);
       const width = Number(input.paperWidthMm);
