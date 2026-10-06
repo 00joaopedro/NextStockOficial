@@ -10,7 +10,10 @@ export function columnsFor(width: PaperWidthMm) {
 }
 
 export function wrapText(value: string, width: number): string[] {
-  const words = String(value || '').trim().split(/\s+/).filter(Boolean);
+  const words = String(value || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   if (!words.length) return [''];
   const lines: string[] = [];
   let current = '';
@@ -56,6 +59,7 @@ export function htmlToReceiptText(html: string, width: PaperWidthMm): string {
 }
 
 export function encodeEscPos(text: string, width: PaperWidthMm): Buffer {
+  void width;
   const header = Buffer.from([ESC, 0x40, ESC, 0x61, 0x01]);
   const body = Buffer.from(`${text}\n\n`, 'utf8');
   const footer = Buffer.from([ESC, 0x64, 0x03, GS, 0x56, 0x00]);
