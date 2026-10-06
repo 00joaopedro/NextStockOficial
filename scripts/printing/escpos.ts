@@ -65,8 +65,11 @@ const CP858_BYTES: Record<string, number> = {
   Ê: 0xd2,
   Í: 0xd6,
   '€': 0xd5,
+  Ó: 0xe0,
   Ô: 0xe2,
   Õ: 0xe5,
+  Ú: 0xe9,
+  õ: 0xe4,
 };
 
 const ENTITY_NAMES: Record<string, string> = {
