@@ -1,6 +1,8 @@
 (function () {
   "use strict";
 
+  const PRINT_AGENT_SESSION_KEY = "nextstockPrintAgentToken";
+
   const state = {
     profile: null,
     selectedBranch: null,
@@ -19,7 +21,7 @@
     scanPending: false,
     printing: false,
     printRequestKey: null,
-    printAgentToken: "",
+    printAgentToken: sessionStorage.getItem(PRINT_AGENT_SESSION_KEY) || "",
     fiscalConfig: null,
     preview: false,
   };
@@ -702,6 +704,7 @@
         const token = els.printAgentToken?.value?.trim() || state.printAgentToken;
         if (!token) throw new Error("Informe o token do agente local de impressão.");
         state.printAgentToken = token;
+        sessionStorage.setItem(PRINT_AGENT_SESSION_KEY, token);
         const response = await fetch(`${PRINT_AGENT_URL}/v1/print`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },

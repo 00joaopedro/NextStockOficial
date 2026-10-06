@@ -41,6 +41,13 @@
     activateProduction: document.getElementById('btnActivateProduction'),
     adminPanel: document.getElementById('fiscalAdminPanel'),
     fiscalConfigSave: document.getElementById('btnFiscalConfigSave'),
+    printAgentStatus: document.getElementById('printAgentStatus'),
+    printAgentHelp: document.getElementById('printAgentHelp'),
+    printAgentToken: document.getElementById('printAgentToken'),
+    printAgentSave: document.getElementById('btnPrintAgentSave'),
+    printAgentCopy: document.getElementById('btnPrintAgentCopy'),
+    printAgentConnection: document.getElementById('btnPrintAgentConnection'),
+    printAgentPrint: document.getElementById('btnPrintAgentPrint'),
   };
 
   function selectedBranch() {
@@ -767,7 +774,193 @@
     }
   }
 
+
+  const PRINT_AGENT_URL = 'http://127.0.0.1:17890';
+  const PRINT_AGENT_DOWNLOAD_URL = 'https://github.com/00joaopedro/NextStockOficial/releases/latest';
+  const PRINT_AGENT_TOKEN_KEY = 'nextstockPrintAgentToken';
+
+  function readPrintAgentToken() {
+    try {
+      return sessionStorage.getItem(PRINT_AGENT_TOKEN_KEY) || '';
+    } catch {
+      return '';
+    }
+  }
+
+  function savePrintAgentToken(token) {
+    try {
+      sessionStorage.setItem(PRINT_AGENT_TOKEN_KEY, token);
+    } catch {
+      // A sessão pode bloquear storage; o campo ainda permanece utilizável.
+    }
+    if (elements.printAgentToken) elements.printAgentToken.value = token;
+  }
+
+  function setPrintAgentStatus(message, tone = 'info') {
+    if (!elements.printAgentStatus) return;
+    elements.printAgentStatus.textContent = message;
+    elements.printAgentStatus.className = `print-agent-status ${tone}`;
+  }
+
+  function setPrintAgentHelp(message) {
+    if (elements.printAgentHelp) elements.printAgentHelp.textContent = message;
+  }
+
+  function agentToken() {
+    return elements.printAgentToken?.value.trim() || readPrintAgentToken();
+  }
+
+  async function agentFetch(path, options = {}) {
+    const token = agentToken();
+    if (!token) throw new Error('Informe o token gerado na instalação do agente.');
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(`${PRINT_AGENT_URL}${path}`, {
+        ...options,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(options.headers || {}),
+        },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || `Agente respondeu com HTTP ${response.status}.`);
+      }
+      return data;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('O agente não respondeu dentro do tempo esperado.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  }
+
+  function delay(milliseconds) {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+  }
+
+  async function testPrintAgentConnection() {
+    const token = agentToken();
+    if (!token) {
+      setPrintAgentStatus('Token necessário', 'warning');
+      setPrintAgentHelp('Cole o token gerado pelo instalador antes de testar a conexão.');
+      return;
+    }
+    savePrintAgentToken(token);
+    setPrintAgentStatus('Testando conexão…', 'info');
+    setPrintAgentHelp('Verificando o agente local em 127.0.0.1:17890.');
+    try {
+      const result = await agentFetch('/v1/health');
+      setPrintAgentStatus('Agente conectado', 'success');
+      setPrintAgentHelp(`Agente ${result.version || ''} respondeu corretamente. Você já pode testar a impressão.`);
+    } catch (error) {
+      const message = error?.message || 'Não foi possível conectar ao agente.';
+      const tone = /token|401|unauthorized/i.test(message) ? 'warning' : 'error';
+      setPrintAgentStatus(tone === 'warning' ? 'Token inválido' : 'Agente indisponível', tone);
+      setPrintAgentHelp(message + ' Confirme se o serviço está instalado e em execução.');
+    }
+  }
+
+  async function waitForPrintAgentJob(jobId) {
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await delay(500);
+      const result = await agentFetch(`/v1/jobs/${encodeURIComponent(jobId)}`);
+      const status = result.job?.status;
+      if (['printed', 'unknown', 'error'].includes(status)) return result.job;
+    }
+    throw new Error('O agente não confirmou o resultado. Consulte o status da fila antes de reenviar.');
+  }
+
+  async function testPrintAgentPrint() {
+    if (state.preview) {
+      setPrintAgentStatus('Disponível fora da prévia', 'warning');
+      setPrintAgentHelp('Abra um documento fiscal real para executar uma impressão física de teste.');
+      return;
+    }
+    const token = agentToken();
+    if (!token) {
+      setPrintAgentStatus('Token necessário', 'warning');
+      setPrintAgentHelp('Cole o token gerado pelo instalador antes de testar a impressão.');
+      return;
+    }
+    if (!window.confirm('O teste enviará uma via física para a impressora configurada. Deseja continuar?')) return;
+    savePrintAgentToken(token);
+    elements.printAgentPrint.disabled = true;
+    setPrintAgentStatus('Enviando teste…', 'info');
+    setPrintAgentHelp('Aguardando o agente e o spooler do Windows.');
+    try {
+      const paperWidthMm = Number(value('configReceiptPaperWidthMm')) === 58 ? 58 : 80;
+      const idempotencyKey = `ntfe-agent-test:${window.crypto?.randomUUID?.() || Date.now()}`;
+      const now = new Date().toLocaleString('pt-BR');
+      const result = await agentFetch('/v1/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idempotencyKey,
+          paperWidthMm,
+          html: `<div><strong>NextStock</strong></div><div>Teste de impressão</div><div>${now}</div><div>Agente conectado com sucesso.</div>`,
+        }),
+      });
+      const job = await waitForPrintAgentJob(result.job?.id);
+      if (job?.status === 'printed') {
+        setPrintAgentStatus('Teste impresso', 'success');
+        setPrintAgentHelp('O agente confirmou o envio da via de teste ao transporte configurado.');
+      } else if (job?.status === 'unknown') {
+        setPrintAgentStatus('Resultado desconhecido', 'warning');
+        setPrintAgentHelp('O envio começou, mas não foi possível confirmar o papel. Não reenvie automaticamente; consulte a fila antes de decidir.');
+      } else {
+        throw new Error(job?.error || 'O agente registrou uma falha no teste.');
+      }
+    } catch (error) {
+      setPrintAgentStatus('Falha no teste', 'error');
+      setPrintAgentHelp(error?.message || 'Não foi possível concluir o teste de impressão.');
+    } finally {
+      elements.printAgentPrint.disabled = false;
+    }
+  }
+
+  async function copyPrintAgentToken() {
+    const token = agentToken();
+    if (!token) {
+      setPrintAgentStatus('Token necessário', 'warning');
+      return;
+    }
+    savePrintAgentToken(token);
+    try {
+      await navigator.clipboard.writeText(token);
+      setPrintAgentHelp('Token copiado para a área de transferência.');
+    } catch {
+      elements.printAgentToken?.focus();
+      elements.printAgentToken?.select();
+      setPrintAgentHelp('Não foi possível copiar automaticamente. O token foi selecionado para cópia manual.');
+    }
+  }
+
+  function initializePrintAgentPanel() {
+    const token = readPrintAgentToken();
+    if (elements.printAgentToken) elements.printAgentToken.value = token;
+    if (!token) setPrintAgentStatus('Não verificado', 'info');
+    elements.printAgentSave?.addEventListener('click', () => {
+      const nextToken = agentToken();
+      if (!nextToken) {
+        setPrintAgentStatus('Token necessário', 'warning');
+        return;
+      }
+      savePrintAgentToken(nextToken);
+      setPrintAgentStatus('Token salvo', 'success');
+      setPrintAgentHelp('Agora teste a conexão com o agente local.');
+    });
+    elements.printAgentCopy?.addEventListener('click', copyPrintAgentToken);
+    elements.printAgentConnection?.addEventListener('click', testPrintAgentConnection);
+    elements.printAgentPrint?.addEventListener('click', testPrintAgentPrint);
+  }
+
   async function init() {
+    initializePrintAgentPanel();
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
       setStatus(

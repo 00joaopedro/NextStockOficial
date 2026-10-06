@@ -46,3 +46,7 @@ Os arquivos da fila e os logs ficam em:
 `C:\ProgramData\NextStock\PrintAgent`
 
 O instalador é restrito a Windows 10/11 x64 nativo. A distribuição para macOS, Linux ou Windows ARM não faz parte desta etapa.
+
+## Publicação do instalador
+
+O workflow gera o arquivo `NextStock-Agente-Impressao-Setup.exe` como artefato do build Windows. Antes de disponibilizar aos usuários, um mantenedor deve baixar esse artefato e anexá-lo manualmente a uma GitHub Release. O botão da página NF-e abre a página oficial de releases para que o usuário baixe a versão publicada.
