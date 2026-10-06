@@ -75,3 +75,9 @@ O agente converte o conteúdo HTML para texto de recibo antes do envio RAW:
 - o agente não confirma fisicamente a saída do papel: essa limitação continua dependente da impressora.
 
 A fila grava uma cópia ".bak" do último estado válido antes de substituir o arquivo principal. Após reiniciar o agente, trabalhos pendentes são retomados e, se o arquivo principal estiver inválido, a última cópia válida é carregada.
+
+Para impressoras que exigem CP850, configure a variável de ambiente do serviço:
+
+`NEXTSTOCK_PRINT_CODE_PAGE=cp850`
+
+Quando essa variável não existe ou contém outro valor, o agente usa CP858, que é o padrão recomendado para acentos portugueses e o símbolo do euro.
