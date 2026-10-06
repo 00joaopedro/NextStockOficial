@@ -76,7 +76,6 @@ const ENTITY_NAMES: Record<string, string> = {
   gt: '>',
   quot: '"',
   apos: "'",
-  nbsp: ' ',
 };
 
 export function columnsFor(width: PaperWidthMm): number {
@@ -192,14 +191,9 @@ export function encodeEscPosText(
       continue;
     }
     const codePoint = character.codePointAt(0) || 0;
-    bytes.push(
-      codePoint <= 0x7f
-        ? codePoint
-        : CP858_BYTES[character] ?? 0x3f,
-    );
-  }
-  if (codePage === 'cp850') {
-    bytes[bytes.indexOf(0xd5)] = 0x3f;
+    const encoded =
+      codePoint <= 0x7f ? codePoint : CP858_BYTES[character] ?? 0x3f;
+    bytes.push(codePage === 'cp850' && character === '€' ? 0x3f : encoded);
   }
   return Buffer.from(bytes);
 }
