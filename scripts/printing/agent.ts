@@ -86,7 +86,11 @@ const transport: PrinterTransport =
         process.env.NEXTSTOCK_SIMULATED_PRINTER_DIR ||
           './.nextstock-print/output',
       );
-const queue = new PrintQueue(queueFile, transport);
+const codePage =
+  process.env.NEXTSTOCK_PRINT_CODE_PAGE === 'cp850'
+    ? ('cp850' as const)
+    : ('cp858' as const);
+const queue = new PrintQueue(queueFile, transport, 3, codePage);
 
 function authorized(req: IncomingMessage) {
   return req.headers.authorization === `Bearer ${token}`;
