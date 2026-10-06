@@ -46,3 +46,15 @@ Os arquivos da fila e os logs ficam em:
 `C:\ProgramData\NextStock\PrintAgent`
 
 O instalador é restrito a Windows 10/11 x64 nativo. A distribuição para macOS, Linux ou Windows ARM não faz parte desta etapa.
+## Publicação do instalador
+
+O instalador é publicado automaticamente em uma GitHub Release quando uma tag no formato `print-agent-vX.Y.Z` é criada. Exemplo:
+
+```bash
+git tag print-agent-v1.0.0
+git push origin print-agent-v1.0.0
+```
+
+Depois da conclusão do workflow, o botão da página NF-e usa o arquivo estável da release mais recente:
+`https://github.com/00joaopedro/NextStockOficial/releases/latest/download/NextStock-Agente-Impressao-Setup.exe`.
+
