@@ -73,11 +73,12 @@ export class InternalReceiptService {
           orderBy: { createdAt: 'desc' },
           select: { eventType: true, printNumber: true, attemptId: true },
         });
-        if (previous?.printNumber) {
+        if (previous?.printNumber != null) {
           return {
             documentId: document.id,
             eventType: previous.eventType,
             printNumber: previous.printNumber,
+            attemptId: previous.attemptId ?? undefined,
           };
         }
       }
