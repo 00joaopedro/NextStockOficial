@@ -14,8 +14,8 @@ DefaultGroupName=NextStock
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 MinVersion=10.0
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64os
+ArchitecturesInstallIn64BitMode=x64os
 OutputDir=output
 OutputBaseFilename=NextStock-Agente-Impressao-Setup
 Compression=lzma2
@@ -31,12 +31,6 @@ Source: "staging\install-service.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "staging\node\node.exe"; DestDir: "{app}\node"; Flags: ignoreversion
 Source: "staging\agent\*"; DestDir: "{app}\agent"; Flags: recursesubdirs ignoreversion
 
-[Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-service.ps1"" -PrinterShare ""{code:GetPrinterShare}"""; StatusMsg: "Instalando o serviço do agente..."; Flags: runhidden waituntilterminated
-
-[UninstallRun]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\install-service.ps1"" -Uninstall"; RunOnceId: "RemoveNextStockPrintAgent"; Flags: runhidden waituntilterminated
-
 [Code]
 var
   PrinterPage: TInputQueryWizardPage;
@@ -47,7 +41,7 @@ begin
     wpSelectDir,
     'Configuração da impressora',
     'Informe o compartilhamento da impressora Windows',
-    'O agente precisa acessar uma impressora compartilhada pelo Windows. Exemplo: \\localhost\Thermal80'
+    'Use um compartilhamento local do próprio computador. Exemplo: \\localhost\Thermal80'
   );
   PrinterPage.Add('Compartilhamento da impressora:', False);
   PrinterPage.Values[0] := '\\localhost\Thermal80';
@@ -58,6 +52,45 @@ begin
   Result := PrinterPage.Values[0];
 end;
 
+function RunAgentScript(UninstallMode: Boolean): Boolean;
+var
+  ResultCode: Integer;
+  Params: String;
+  ScriptPath: String;
+begin
+  ScriptPath := ExpandConstant('{app}\install-service.ps1');
+  if UninstallMode then
+    Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '" -Uninstall'
+  else
+    Params := '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptPath + '" -PrinterShare "' + PrinterPage.Values[0] + '"';
+
+  Result := Exec(
+    ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Params,
+    '',
+    SW_HIDE,
+    ewWaitUntilTerminated,
+    ResultCode
+  ) and (ResultCode = 0);
+
+  if not Result then
+    MsgBox('O agente não foi instalado/removido corretamente. Nenhuma operação de merge foi realizada; verifique o log do instalador e tente novamente.', mbError, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    if not RunAgentScript(False) then
+      Abort;
+  end;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := RunAgentScript(True);
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
@@ -66,6 +99,11 @@ begin
     if Trim(PrinterPage.Values[0]) = '' then
     begin
       MsgBox('Informe o compartilhamento da impressora para continuar.', mbError, MB_OK);
+      Result := False;
+    end
+    else if Pos('"', PrinterPage.Values[0]) > 0 then
+    begin
+      MsgBox('O compartilhamento não pode conter aspas.', mbError, MB_OK);
       Result := False;
     end;
   end;
