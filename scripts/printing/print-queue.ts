@@ -92,7 +92,12 @@ export class PrintQueue {
           this.jobs
             .filter(
               (job) =>
-                !['printed', 'unknown', 'accepted', 'spooled'].includes(job.status) &&
+                ![
+                  'printed',
+                  'unknown',
+                  'accepted',
+                  'spooled',
+                ].includes(job.status) &&
                 job.attempts < this.maxAttempts,
             )
             .forEach((job) => void this.process(job.id));
