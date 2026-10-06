@@ -1,4 +1,6 @@
 (function () {
+  const PRINT_AGENT_SESSION_KEY = "nextstockPrintAgentToken";
+
   const state = {
     selectedBranch: null,
     page: 1,
@@ -31,7 +33,7 @@
   };
 
   const PRINT_AGENT_URL = "http://127.0.0.1:17890";
-  if (els.printAgentToken) els.printAgentToken.value = sessionStorage.getItem("nextstockPrintAgentToken") || "";
+  if (els.printAgentToken) els.printAgentToken.value = sessionStorage.getItem(PRINT_AGENT_SESSION_KEY) || "";
 
   const DOCUMENT_LABELS = {
     receipt: "Recibo interno — sem validade fiscal",
@@ -467,7 +469,7 @@
       });
       if (els.printMode && els.printMode.value === "direct") {
         const token = els.printAgentToken && els.printAgentToken.value.trim();
-    if (token) sessionStorage.setItem("nextstockPrintAgentToken", token);
+    if (token) sessionStorage.setItem(PRINT_AGENT_SESSION_KEY, token);
         if (!token) throw new Error("Informe o token do agente local de impressao.");
         const response = await fetch(PRINT_AGENT_URL + "/v1/print", {
           method: "POST",
