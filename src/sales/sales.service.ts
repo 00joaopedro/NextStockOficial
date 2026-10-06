@@ -600,6 +600,7 @@ export class SalesService {
       printEvent: printed.eventType,
       printNumber: printed.printNumber,
       printAttemptId: printed.attemptId,
+      paperWidthMm: printed.paperWidthMm,
       html: printed.html,
     };
   }
