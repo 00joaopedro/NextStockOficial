@@ -195,6 +195,11 @@ const schema = Joi.object({
     .min(1)
     .default(300),
   SESSION_HASH_SECRET: Joi.string().min(32).allow('').optional(),
+  SESSION_IDLE_TTL_SECONDS: Joi.number()
+    .integer()
+    .min(300)
+    .max(86400)
+    .default(1800),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   STOREFRONT_PUBLIC_READ_ENABLED: Joi.string()
     .valid('true', 'false')
