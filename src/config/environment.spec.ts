@@ -71,11 +71,12 @@ describe('Google OAuth local JWT signing contract', () => {
     },
   );
 
-  it('accepts a bounded idle session renewal window', () => {
+  it('uses a twelve-hour idle session window by default and accepts overrides', () => {
+    expect(validateEnvironment({ ...base }).SESSION_IDLE_TTL_SECONDS).toBe(43_200);
     expect(() =>
       validateEnvironment({
         ...base,
-        SESSION_IDLE_TTL_SECONDS: '1800',
+        SESSION_IDLE_TTL_SECONDS: '43200',
       }),
     ).not.toThrow();
     expect(() =>
