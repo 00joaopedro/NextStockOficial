@@ -71,6 +71,21 @@ describe('Google OAuth local JWT signing contract', () => {
     },
   );
 
+  it('accepts a bounded idle session renewal window', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        SESSION_IDLE_TTL_SECONDS: '1800',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        SESSION_IDLE_TTL_SECONDS: '86401',
+      }),
+    ).toThrow('SESSION_IDLE_TTL_SECONDS');
+  });
+
   it('accepts Google OAuth with complete local signing configuration in the default mode', () => {
     expect(() =>
       validateEnvironment({
