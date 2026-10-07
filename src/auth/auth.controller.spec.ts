@@ -601,6 +601,55 @@ describe('AuthController', () => {
     expect(res.send).toHaveBeenCalledTimes(1);
   });
 
+  it('capabilities informa quando o Google OAuth esta pronto para uso', () => {
+    const envKeys = [
+      'GOOGLE_OAUTH_ENABLED',
+      'GOOGLE_OAUTH_CLIENT_ID',
+      'GOOGLE_OAUTH_CLIENT_SECRET',
+      'GOOGLE_OAUTH_CALLBACK_URL',
+      'LOCAL_AUTH_JWT_ACTIVE_KEY',
+      'LOCAL_AUTH_JWT_KID',
+    ] as const;
+    const previous = Object.fromEntries(
+      envKeys.map((key) => [key, process.env[key]]),
+    );
+    try {
+      Object.assign(process.env, {
+        GOOGLE_OAUTH_ENABLED: 'true',
+        GOOGLE_OAUTH_CLIENT_ID: '',
+        GOOGLE_OAUTH_CLIENT_SECRET: '',
+        GOOGLE_OAUTH_CALLBACK_URL: '',
+        LOCAL_AUTH_JWT_ACTIVE_KEY: '',
+        LOCAL_AUTH_JWT_KID: '',
+      });
+      expect(new AuthController(authService).capabilities()).toEqual({
+        googleOAuthEnabled: false,
+        googleOAuthConfigured: false,
+        googleOAuthReason: 'not_configured',
+      });
+
+      Object.assign(process.env, {
+        GOOGLE_OAUTH_ENABLED: 'true',
+        GOOGLE_OAUTH_CLIENT_ID: 'client-id',
+        GOOGLE_OAUTH_CLIENT_SECRET: 'client-secret',
+        GOOGLE_OAUTH_CALLBACK_URL: 'https://example.test/api/auth/google/callback',
+        LOCAL_AUTH_JWT_ACTIVE_KEY: 'x'.repeat(32),
+        LOCAL_AUTH_JWT_KID: 'test-key',
+      });
+      expect(new AuthController(authService).capabilities()).toEqual({
+        googleOAuthEnabled: true,
+        googleOAuthConfigured: true,
+        googleOAuthReason: null,
+      });
+    } finally {
+      envKeys.forEach((key) => {
+        const value = previous[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      });
+    }
+  });
+
   it('Google callback possui rate limit separado do controller', () => {
     expect(
       Reflect.getMetadata(
