@@ -352,7 +352,9 @@ describe('frontend auth pages', () => {
       'renderSidebar(container, snapshot.context, snapshot.menu);',
     );
     expect(source).toContain('const snapshot = readSidebarSnapshot();');
-    expect(source).toContain('void fetchBilling(context).then');
+    expect(source).toContain(
+      'void withTimeout(fetchBilling(context), SIDEBAR_CONTEXT_TIMEOUT_MS).then',
+    );
     expect(source).toContain('writeSidebarSnapshot(resolved, menu);');
     expect(source).toContain("data-sidebar-state', 'revalidating'");
 
