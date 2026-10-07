@@ -410,9 +410,15 @@ describe('ProductsService', () => {
   it('renova URLs do Storage ao renderizar imagens persistidas', async () => {
     const { prisma } = makeService(SystemMode.padrao);
     const storage = {
-      getProductImageUrl: jest.fn().mockResolvedValue(
-        'https://storage.test/fresh-product-image.webp',
+      getProductImageUrls: jest.fn().mockResolvedValue(
+        new Map([
+          [
+            'tenant-id/branch-id/products/product-id/image.jpg',
+            'https://storage.test/fresh-product-image.webp',
+          ],
+        ]),
       ),
+      getProductImageUrl: jest.fn(),
     };
     const service = new ProductsService(
       prisma,
@@ -426,9 +432,9 @@ describe('ProductsService', () => {
     expect((result.products[0] as any).imageMetadata[0].fileUrl).toBe(
       'https://storage.test/fresh-product-image.webp',
     );
-    expect(storage.getProductImageUrl).toHaveBeenCalledWith(
+    expect(storage.getProductImageUrls).toHaveBeenCalledWith([
       'tenant-id/branch-id/products/product-id/image.jpg',
-    );
+    ]);
   });
 
   it('retorna imagens com URL renderizavel em GET /api/products', async () => {
