@@ -588,20 +588,52 @@ export class AuthService {
   }
 
   async issueSessionForProfile(profileId: string) {
-    const eligible = await this.assertGoogleLoginEligibility(profileId);
+    return this.issueLocalSessionForProfile(profileId, 'google');
+  }
+
+  async issueLocalSessionForProfile(
+    profileId: string,
+    authMethod: 'password' | 'google',
+  ) {
     if (!this.localJwt)
       throw new ServiceUnavailableException(
         'Local session provider is unavailable.',
       );
+
+    if (authMethod === 'google') {
+      const eligible = await this.assertGoogleLoginEligibility(profileId);
+      const accessToken = await this.localJwt.sign({
+        sub: eligible.profileId,
+        jti: randomUUID(),
+        authMethod,
+      });
+      return {
+        accessToken,
+        user: eligible.user,
+        selectedBranch: eligible.selectedBranch,
+      };
+    }
+
+    const profile = await this.findProfileRecord({ profileId });
+    this.assertEmployeeCanAuthenticate(profile);
+    const credential = await this.prisma.localCredential.findUnique({
+      where: { profileId },
+      select: { credentialVersion: true, status: true },
+    });
+    if (!credential || credential.status !== 'active')
+      throw new UnauthorizedException('Local credential is unavailable.');
+
+    const context = await this.prepareLoginContext(profile);
     const accessToken = await this.localJwt.sign({
-      sub: eligible.profileId,
+      sub: profileId,
       jti: randomUUID(),
-      authMethod: 'google',
+      authMethod,
+      credentialVersion: credential.credentialVersion,
     });
     return {
       accessToken,
-      user: eligible.user,
-      selectedBranch: eligible.selectedBranch,
+      user: context.user,
+      selectedBranch: context.selectedBranch,
     };
   }
 
