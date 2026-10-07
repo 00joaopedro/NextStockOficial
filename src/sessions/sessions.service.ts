@@ -18,7 +18,7 @@ export class SessionsService {
   ) {}
 
   private sessionIdleTtlSeconds() {
-    const configured = Number(process.env.SESSION_IDLE_TTL_SECONDS || 1800);
+    const configured = Number(process.env.SESSION_IDLE_TTL_SECONDS || 43_200);
     if (
       !Number.isInteger(configured) ||
       configured < 300 ||
