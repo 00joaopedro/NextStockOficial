@@ -19,7 +19,11 @@ export class SessionsService {
 
   private sessionIdleTtlSeconds() {
     const configured = Number(process.env.SESSION_IDLE_TTL_SECONDS || 1800);
-    if (!Number.isInteger(configured) || configured < 300 || configured > 86_400) {
+    if (
+      !Number.isInteger(configured) ||
+      configured < 300 ||
+      configured > 86_400
+    ) {
       throw new Error('SESSION_IDLE_TTL_SECONDS is invalid.');
     }
     return configured;
