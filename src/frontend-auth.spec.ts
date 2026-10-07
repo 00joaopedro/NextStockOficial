@@ -131,6 +131,7 @@ describe('frontend auth pages', () => {
     );
     expect(html).toContain('id="googleLoginLink"');
     expect(html).toMatch(/id="googleLoginLink"[^>]+hidden/);
+    expect(html).toContain('id="googleLoginStatus"');
     expect(html).toContain('/auth/capabilities');
     expect(html).toContain('googleOAuthEnabled === true');
     expect(html).toContain("googleLoginLink.addEventListener('click'");

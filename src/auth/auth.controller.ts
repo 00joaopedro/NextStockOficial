@@ -97,7 +97,9 @@ export class AuthController {
   @Get('capabilities')
   @CsrfExempt()
   capabilities() {
-    return { googleOAuthEnabled: process.env.GOOGLE_OAUTH_ENABLED === 'true' };
+    return {
+      googleOAuthEnabled: process.env.GOOGLE_OAUTH_ENABLED === 'true',
+    };
   }
 
   @Get('google/link/start')
