@@ -228,6 +228,24 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
 
   const response = await originalNextStockFetch(...args);
 
+  // A local JWT can expire while the revocable session remains active. Refresh
+  // only safe idempotent reads, then retry the original request once.
+  if (
+    response.status === 401 &&
+    ['GET', 'HEAD'].includes(method) &&
+    pathname.startsWith('/api/') &&
+    pathname !== '/api/auth/session/refresh' &&
+    !pathname.startsWith('/api/auth/login') &&
+    !pathname.startsWith('/api/auth/register')
+  ) {
+    const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    }).catch(() => null);
+    if (refresh?.ok) return originalNextStockFetch(...args);
+  }
+
   if (
     response.status === 402 &&
     !window.location.pathname.toLowerCase().endsWith('/perfil.html')
