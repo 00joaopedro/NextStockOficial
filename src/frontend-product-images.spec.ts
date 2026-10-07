@@ -20,7 +20,7 @@ describe('Product image upload frontend flow', () => {
     const html = publicFile('cadastro.html');
 
     expect(html).toContain('new FormData()');
-    expect(html).toContain('formData.append("file", imagem.arquivo)');
+    expect(html).toContain('formData.append("file", imagem.arquivo, imagem.nome)');
     expect(html).toContain('/products/${productId}/images/upload');
     expect(html).not.toContain('function enviarMetadadosImagens');
   });
@@ -61,7 +61,9 @@ describe('Product image upload frontend flow', () => {
     expect(html).toContain('agora - sessaoValidadaEm < 30000');
     expect(html).toContain('consultaAbortController?.abort()');
     expect(html).toContain('setTimeout(async () =>');
-    expect(html).toContain('Promise.all(imagensParaUpload.map');
+    expect(html).toContain('for (const imagem of imagensParaUpload)');
+    expect(html).toContain('formData.append("file", imagem.arquivo, imagem.nome)');
+    expect(html).not.toContain('Promise.all(imagensParaUpload.map');
   });
 
   it('produtos renderiza somente URLs validas e usa fallback', () => {
