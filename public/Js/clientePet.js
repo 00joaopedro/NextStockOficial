@@ -1141,12 +1141,12 @@
     if (!selectedFiles.length) return;
 
     const invalidFile = selectedFiles.find(
-      (file) => !file.type.startsWith('image/') || file.size > 5 * 1024 * 1024,
+      (file) => !file.type.startsWith('image/'),
     );
     if (invalidFile) {
       showAlertPopup(
         'Imagem invalida',
-        'Use apenas imagens de ate 5 MB por arquivo.',
+        'Selecione apenas arquivos de imagem.',
       );
       animalFotos.value = '';
       return;
