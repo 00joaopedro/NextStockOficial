@@ -601,6 +601,17 @@ export class AuthService {
       );
 
     if (authMethod === 'google') {
+      const identity = await this.prisma.authIdentity.findFirst({
+        where: {
+          userProfileId: profileId,
+          provider: 'GOOGLE',
+          status: 'active',
+          disabledAt: null,
+        },
+        select: { id: true },
+      });
+      if (!identity)
+        throw new UnauthorizedException('Google identity is unavailable.');
       const eligible = await this.assertGoogleLoginEligibility(profileId);
       const accessToken = await this.localJwt.sign({
         sub: eligible.profileId,
