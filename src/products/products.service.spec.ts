@@ -407,6 +407,30 @@ describe('ProductsService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('renova URLs do Storage ao renderizar imagens persistidas', async () => {
+    const { prisma } = makeService(SystemMode.padrao);
+    const storage = {
+      getProductImageUrl: jest.fn().mockResolvedValue(
+        'https://storage.test/fresh-product-image.webp',
+      ),
+    };
+    const service = new ProductsService(
+      prisma,
+      undefined,
+      undefined,
+      storage as any,
+    );
+
+    const result = await service.findAll(user, {});
+
+    expect((result.products[0] as any).imageMetadata[0].fileUrl).toBe(
+      'https://storage.test/fresh-product-image.webp',
+    );
+    expect(storage.getProductImageUrl).toHaveBeenCalledWith(
+      'tenant-id/branch-id/products/product-id/image.jpg',
+    );
+  });
+
   it('retorna imagens com URL renderizavel em GET /api/products', async () => {
     const { service } = makeService(SystemMode.padrao);
 
