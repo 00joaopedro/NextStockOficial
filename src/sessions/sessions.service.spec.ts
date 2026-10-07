@@ -52,6 +52,31 @@ describe('SessionsService', () => {
     ).resolves.toMatchObject({ id: 'session-1' });
   });
 
+  it('renews an active session without exposing its token', async () => {
+    process.env.SESSION_IDLE_TTL_SECONDS = '43200';
+    const findFirst = jest.fn().mockResolvedValue({
+      id: 'session-1',
+      profileId: 'profile-1',
+      tenantId: 'tenant-1',
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const service = new SessionsService({
+      userSession: { findFirst, updateMany },
+    } as any);
+
+    await expect(service.findActive('opaque')).resolves.toMatchObject({
+      id: 'session-1',
+      profileId: 'profile-1',
+    });
+    await expect(service.renew('opaque', 'jwt-subject')).resolves.toBe(true);
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ jwtSubject: 'jwt-subject' }),
+      }),
+    );
+  });
+
   it('rejects revoked or expired sessions', async () => {
     const service = new SessionsService({
       userSession: {

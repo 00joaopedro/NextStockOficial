@@ -17,6 +17,56 @@ export class SessionsService {
     @Optional() private readonly audit?: AuditService,
   ) {}
 
+  private sessionIdleTtlSeconds() {
+    const configured = Number(process.env.SESSION_IDLE_TTL_SECONDS || 43_200);
+    if (
+      !Number.isInteger(configured) ||
+      configured < 300 ||
+      configured > 86_400
+    ) {
+      throw new Error('SESSION_IDLE_TTL_SECONDS is invalid.');
+    }
+    return configured;
+  }
+
+  sessionExpiresAt(now = Date.now()) {
+    return new Date(now + this.sessionIdleTtlSeconds() * 1000);
+  }
+
+  async findActive(token: string | undefined) {
+    if (!token) return undefined;
+    return this.prisma.userSession.findFirst({
+      where: {
+        tokenIdHash: this.hash(token),
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      select: {
+        id: true,
+        profileId: true,
+        tenantId: true,
+        expiresAt: true,
+      },
+    });
+  }
+
+  async renew(token: string | undefined, jwtSubject: string | null) {
+    if (!token) return false;
+    const result = await this.prisma.userSession.updateMany({
+      where: {
+        tokenIdHash: this.hash(token),
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: {
+        jwtSubject,
+        expiresAt: this.sessionExpiresAt(),
+        lastSeenAt: new Date(),
+      },
+    });
+    return result.count === 1;
+  }
+
   async findActiveId(token: string | undefined, profileId: string) {
     if (!token) return undefined;
     const session = await this.prisma.userSession.findFirst({

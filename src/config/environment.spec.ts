@@ -71,6 +71,32 @@ describe('Google OAuth local JWT signing contract', () => {
     },
   );
 
+  it('uses a twelve-hour idle session window by default and accepts overrides', () => {
+    expect(validateEnvironment({ ...base }).SESSION_IDLE_TTL_SECONDS).toBe(43_200);
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        SESSION_IDLE_TTL_SECONDS: '43200',
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        SESSION_IDLE_TTL_SECONDS: '86401',
+      }),
+    ).toThrow('SESSION_IDLE_TTL_SECONDS');
+  });
+
+  it('rejects an idle session window that does not exceed the local jwt ttl', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        LOCAL_AUTH_JWT_TTL_SECONDS: '900',
+        SESSION_IDLE_TTL_SECONDS: '900',
+      }),
+    ).toThrow('SESSION_IDLE_TTL_SECONDS');
+  });
+
   it('accepts Google OAuth with complete local signing configuration in the default mode', () => {
     expect(() =>
       validateEnvironment({

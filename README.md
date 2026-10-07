@@ -256,7 +256,10 @@ Runbooks de producao:
 ## Sessoes revogaveis e inventario de arquivos
 
 Novos logins recebem `jwt` e `nextstock_session`, ambos HttpOnly. A aplicacao
-armazena somente HMAC do identificador opaco. Ative
+armazena somente HMAC do identificador opaco. O JWT permanece curto por seguranca;
+enquanto a sessao revogavel estiver ativa, leituras autenticadas renovam o JWT
+automaticamente por `POST /api/auth/session/refresh`. O intervalo ocioso da sessao
+fica em `SESSION_IDLE_TTL_SECONDS` (padrao de 12 horas; use segundos para alterar). Ative
 `SESSION_ENFORCEMENT_ENABLED=true` apenas depois da migration e de um rollout
 validado em staging. `POST /api/auth/logout` revoga a sessao atual e
 `POST /api/auth/logout-all` revoga todas as sessoes do profile.

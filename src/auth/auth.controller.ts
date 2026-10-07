@@ -488,6 +488,70 @@ export class AuthController {
     return result;
   }
 
+  @Post('session/refresh')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 30, windowMs: 60_000 })
+  @CsrfExempt()
+  async refreshSession(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+  ) {
+    const sessions = this.sessions;
+    if (!sessions)
+      throw new UnauthorizedException('Session service unavailable.');
+
+    const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
+    const active = await sessions.findActive(sessionToken);
+    if (!active) {
+      this.recordSessionRefreshOutcome(
+        req,
+        AuditOutcome.DENIED,
+        'SESSION_NOT_FOUND',
+      );
+      throw new UnauthorizedException('Active session required.');
+    }
+
+    const claims = this.localAuthClaimsFromToken(req.cookies?.jwt);
+    if (!claims || claims.subject !== active.profileId) {
+      this.recordSessionRefreshOutcome(
+        req,
+        AuditOutcome.DENIED,
+        'SESSION_CLAIMS_MISMATCH',
+        active.profileId,
+      );
+      throw new UnauthorizedException('Local session refresh unavailable.');
+    }
+
+    try {
+      const refreshed = await this.authService.issueLocalSessionForProfile(
+        active.profileId,
+        claims.authMethod,
+      );
+      const token = sessions.expiresAtFromJwt(refreshed.accessToken);
+      const renewed = await sessions.renew(sessionToken, token.subject);
+      if (!renewed) throw new UnauthorizedException('Session expired.');
+
+      setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
+      this.setJwtCookie(reply, refreshed.accessToken);
+      reply.header('Cache-Control', 'no-store');
+      this.recordSessionRefreshOutcome(
+        req,
+        AuditOutcome.SUCCESS,
+        'SESSION_REFRESHED',
+        active.profileId,
+      );
+      return { ok: true };
+    } catch (error) {
+      this.recordSessionRefreshOutcome(
+        req,
+        AuditOutcome.DENIED,
+        'SESSION_REFRESH_FAILED',
+        active.profileId,
+      );
+      throw error;
+    }
+  }
+
   @Post('logout')
   async logout(
     @Res({ passthrough: true }) reply: CompatibleReply,
@@ -558,6 +622,27 @@ export class AuthController {
     });
   }
 
+  private recordSessionRefreshOutcome(
+    req: AuthenticatedHttpRequest,
+    outcome: AuditOutcome,
+    reasonCode: string,
+    actorProfileId?: string,
+  ) {
+    void this.audit?.record({
+      ...this.audit.fromRequest(req),
+      eventType: 'auth.session.refresh',
+      action: 'refresh_session',
+      outcome,
+      severity:
+        outcome === AuditOutcome.SUCCESS
+          ? AuditSeverity.LOW
+          : AuditSeverity.MEDIUM,
+      reasonCode,
+      actorProfileId,
+      metadata: { stage: 'session_refresh' },
+    });
+  }
+
   private async createSession(
     req: AuthenticatedHttpRequest | undefined,
     reply: CompatibleReply,
@@ -566,15 +651,51 @@ export class AuthController {
   ) {
     if (!this.sessions) return;
     const token = this.sessions.expiresAtFromJwt(accessToken);
+    const isRenewableLocalJwt = Boolean(
+      this.localAuthClaimsFromToken(accessToken),
+    );
+    const sessionExpiresAt = isRenewableLocalJwt
+      ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
+      : token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
       tenantId: user.tenantId,
       jwtSubject: token.subject,
-      expiresAt: token.expiresAt,
+      expiresAt: sessionExpiresAt,
       metadata: this.sessions.metadataFromRequest(req),
     });
     setSessionCookie(reply, session.token, session.expiresAt);
     reply.header('Cache-Control', 'no-store');
+  }
+
+  private localAuthClaimsFromToken(
+    token?: string,
+  ): { authMethod: 'password' | 'google'; subject: string } | null {
+    if (!token) return null;
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(
+        normalized.length + ((4 - (normalized.length % 4)) % 4),
+        '=',
+      );
+      const claims = JSON.parse(
+        Buffer.from(padded, 'base64').toString('utf8'),
+      ) as {
+        authMethod?: unknown;
+        sub?: unknown;
+      };
+      if (
+        (claims.authMethod !== 'password' && claims.authMethod !== 'google') ||
+        typeof claims.sub !== 'string' ||
+        !claims.sub
+      )
+        return null;
+      return { authMethod: claims.authMethod, subject: claims.sub };
+    } catch {
+      return null;
+    }
   }
 
   private getJwtMaxAgeMs(accessToken: string) {

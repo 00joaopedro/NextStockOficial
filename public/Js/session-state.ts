@@ -132,6 +132,7 @@ const AUTHENTICATION_MUTATION_PATHS = new Set([
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/auth/reset-password/supabase',
+  '/api/auth/session/refresh',
 ]);
 
 function isNextStockAuthenticationMutation(pathname: string): boolean {
@@ -226,7 +227,40 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
     );
   }
 
+  const isApiMutation =
+    pathname.startsWith('/api/') &&
+    !['GET', 'HEAD', 'OPTIONS'].includes(method) &&
+    !isNextStockAuthenticationMutation(pathname);
+
+  // Refresh before mutations so an expired local JWT never reaches a form
+  // handler as a recoverable 401. The mutation itself is never replayed.
+  if (isApiMutation) {
+    await originalNextStockFetch('/api/auth/session/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    }).catch(() => null);
+  }
+
   const response = await originalNextStockFetch(...args);
+
+  // A local JWT can expire while the revocable session remains active. Refresh
+  // only safe idempotent reads, then retry the original request once.
+  if (
+    response.status === 401 &&
+    ['GET', 'HEAD'].includes(method) &&
+    pathname.startsWith('/api/') &&
+    pathname !== '/api/auth/session/refresh' &&
+    !pathname.startsWith('/api/auth/login') &&
+    !pathname.startsWith('/api/auth/register')
+  ) {
+    const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+    }).catch(() => null);
+    if (refresh?.ok) return originalNextStockFetch(...args);
+  }
 
   if (
     response.status === 402 &&
