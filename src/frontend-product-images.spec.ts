@@ -20,7 +20,7 @@ describe('Product image upload frontend flow', () => {
     const html = publicFile('cadastro.html');
 
     expect(html).toContain('new FormData()');
-    expect(html).toContain('formData.append("file", imagem.arquivo)');
+    expect(html).toContain('formData.append("file", imagem.arquivo, imagem.nome)');
     expect(html).toContain('/products/${productId}/images/upload');
     expect(html).not.toContain('function enviarMetadadosImagens');
   });
