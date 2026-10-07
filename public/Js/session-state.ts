@@ -132,6 +132,7 @@ const AUTHENTICATION_MUTATION_PATHS = new Set([
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/auth/reset-password/supabase',
+  '/api/auth/session/refresh',
 ]);
 
 function isNextStockAuthenticationMutation(pathname: string): boolean {
