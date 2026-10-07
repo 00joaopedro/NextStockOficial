@@ -235,6 +235,44 @@ function injectSidebarStyles(): void {
     .sidebar .menu-item.disabled > a {
       pointer-events: none;
     }
+
+    .sidebar-loading-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 128px;
+      margin: 12px;
+      padding: 18px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.35;
+      text-align: center;
+    }
+
+    .sidebar-loading-spinner {
+      width: 28px;
+      height: 28px;
+      border: 3px solid rgba(255, 255, 255, 0.28);
+      border-top-color: var(--cyan, #00cfcf);
+      border-radius: 50%;
+      animation: nextstock-sidebar-spin 0.8s linear infinite;
+    }
+
+    @keyframes nextstock-sidebar-spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @media (min-width: 768px) {
+      .sidebar-loading-state {
+        margin-inline: 16px;
+      }
+    }
   `;
 
   document.head.appendChild(style);
@@ -752,7 +790,7 @@ async function loadSidebar(): Promise<void> {
     markSidebarPerformance('nextstock-sidebar-first-menu');
   } else {
     injectSidebarStyles();
-    container.innerHTML = '<aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true"><div class="sidebar-brand"><h2>NextStock</h2></div><ul class="menu"><li class="menu-item"><a href="perfil.html">Perfil</a></li></ul></aside>';
+    container.innerHTML = '<aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true"><div class="sidebar-brand"><h2>NextStock</h2></div><div class="sidebar-loading-state" role="status" aria-live="polite"><span class="sidebar-loading-spinner" aria-hidden="true"></span><span>Carregando menu...</span></div></aside>';
     markSidebarPerformance('nextstock-sidebar-shell');
   }
 
