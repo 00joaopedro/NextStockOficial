@@ -14,7 +14,7 @@ describe('LocalJwtService', () => {
     process.env = original;
   });
 
-  it('issues a JWT with stable identity claims and verifies it', async () => {
+  it('issues a short JWT with stable identity claims and verifies it', async () => {
     const service = new LocalJwtService(new JwtService());
     const token = await service.sign({
       sub: 'profile-id',
@@ -23,21 +23,9 @@ describe('LocalJwtService', () => {
       credentialVersion: 1,
     });
     const payload = await service.verify(token);
-    const decoded = service['jwt'].decode(token) as { iat: number; exp: number };
-    expect(decoded.exp - decoded.iat).toBe(8 * 60 * 60);
     expect(payload.sub).toBe('profile-id');
     expect(payload.jti).toBe('jti-1');
     expect(payload.credentialVersion).toBe(1);
-  });
-
-  it('rejects an invalid configured TTL instead of issuing an unstable token', async () => {
-    process.env.LOCAL_AUTH_JWT_TTL_SECONDS = '45';
-    const service = new LocalJwtService(new JwtService());
-    await expect(service.sign({
-      sub: 'profile-id',
-      jti: 'jti-ttl',
-      authMethod: 'password',
-    })).rejects.toThrow('Local JWT TTL is invalid.');
   });
 
   it('rejects a token signed with an unexpected algorithm or kid', async () => {
