@@ -44,6 +44,7 @@ const PAGE_VIEW_ENDPOINT = '/api/usage/page-view';
 const SIDEBAR_CACHE_KEY = 'nextstock.sidebar.snapshot';
 const SIDEBAR_CACHE_SCHEMA = 1;
 const SIDEBAR_CACHE_TTL_MS = 3 * 60 * 1000;
+const SIDEBAR_CONTEXT_TIMEOUT_MS = 8 * 1000;
 
 const FALLBACK_CONTEXT: SystemContextResponse = {
   systemMode: 'PREVIEW',
@@ -266,6 +267,26 @@ function injectSidebarStyles(): void {
 
     @keyframes nextstock-sidebar-spin {
       to { transform: rotate(360deg); }
+    }
+
+    .sidebar-loading-profile {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 8px 14px;
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    .sidebar-loading-profile:focus-visible,
+    .sidebar-loading-profile:hover {
+      background: rgba(0, 207, 207, 0.18);
+      border-color: var(--cyan, #00cfcf);
     }
 
     @media (min-width: 768px) {
@@ -686,6 +707,25 @@ async function fetchBilling(context: SystemContextResponse): Promise<SystemConte
   return context;
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`Sidebar request timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error: unknown) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
 function renderSidebar(
   container: HTMLElement,
   context: SystemContextResponse,
@@ -790,18 +830,18 @@ async function loadSidebar(): Promise<void> {
     markSidebarPerformance('nextstock-sidebar-first-menu');
   } else {
     injectSidebarStyles();
-    container.innerHTML = '<aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true"><div class="sidebar-brand"><h2>NextStock</h2></div><div class="sidebar-loading-state" role="status" aria-live="polite"><span class="sidebar-loading-spinner" aria-hidden="true"></span><span>Carregando menu...</span></div></aside>';
+    container.innerHTML = '<aside id="sidebar" class="sidebar sidebar-loading" aria-busy="true"><div class="sidebar-brand"><h2>NextStock</h2></div><div class="sidebar-loading-state" role="status" aria-live="polite"><span class="sidebar-loading-spinner" aria-hidden="true"></span><span>Carregando menu...</span><a class="sidebar-loading-profile" href="perfil.html">Abrir Perfil</a></div></aside>';
     markSidebarPerformance('nextstock-sidebar-shell');
   }
 
   try {
-    const context = await fetchSystemContext();
+    const context = await withTimeout(fetchSystemContext(), SIDEBAR_CONTEXT_TIMEOUT_MS);
     const provisional = snapshot
       ? getMenuByContext({ ...context, billingAllowed: snapshot.context.billingAllowed })
       : getMenuByContext({ ...context, billingAllowed: false });
     renderSidebar(container, context, provisional);
     markSidebarPerformance('nextstock-sidebar-first-menu');
-    void fetchBilling(context).then((resolved) => {
+    void withTimeout(fetchBilling(context), SIDEBAR_CONTEXT_TIMEOUT_MS).then((resolved) => {
       const menu = getMenuByContext(resolved);
       renderSidebar(container, resolved, menu);
       writeSidebarSnapshot(resolved, menu);
