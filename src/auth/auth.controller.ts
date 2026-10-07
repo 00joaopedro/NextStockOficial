@@ -497,7 +497,8 @@ export class AuthController {
     @Res({ passthrough: true }) reply: CompatibleReply,
   ) {
     const sessions = this.sessions;
-    if (!sessions) throw new UnauthorizedException('Session service unavailable.');
+    if (!sessions)
+      throw new UnauthorizedException('Session service unavailable.');
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
     const active = await sessions.findActive(sessionToken);
     if (!active) throw new UnauthorizedException('Active session required.');
@@ -511,10 +512,7 @@ export class AuthController {
       claims.authMethod,
     );
     const token = sessions.expiresAtFromJwt(refreshed.accessToken);
-    const renewed = await sessions.renew(
-      sessionToken,
-      token.subject,
-    );
+    const renewed = await sessions.renew(sessionToken, token.subject);
     if (!renewed) throw new UnauthorizedException('Session expired.');
 
     setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
@@ -601,7 +599,8 @@ export class AuthController {
   ) {
     if (!this.sessions) return;
     const token = this.sessions.expiresAtFromJwt(accessToken);
-    const sessionExpiresAt = this.sessions.sessionExpiresAt?.() ?? token.expiresAt;
+    const sessionExpiresAt =
+      this.sessions.sessionExpiresAt?.() ?? token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
       tenantId: user.tenantId,
@@ -625,7 +624,9 @@ export class AuthController {
         normalized.length + ((4 - (normalized.length % 4)) % 4),
         '=',
       );
-      const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
+      const claims = JSON.parse(
+        Buffer.from(padded, 'base64').toString('utf8'),
+      ) as {
         authMethod?: unknown;
         sub?: unknown;
       };
@@ -633,7 +634,8 @@ export class AuthController {
         (claims.authMethod !== 'password' && claims.authMethod !== 'google') ||
         typeof claims.sub !== 'string' ||
         !claims.sub
-      ) return null;
+      )
+        return null;
       return { authMethod: claims.authMethod, subject: claims.sub };
     } catch {
       return null;
