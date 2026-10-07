@@ -301,6 +301,46 @@ export class SupabaseStorageService {
       .getPublicUrl(storagePath).data.publicUrl;
   }
 
+  async getPetPhotoUrls(storagePaths: Array<string | null | undefined>) {
+    const paths = [
+      ...new Set(storagePaths.filter((path): path is string => Boolean(path))),
+    ];
+    const urls = new Map<string, string>();
+    if (!paths.length) return urls;
+
+    if (!this.useSignedUrls) {
+      for (const path of paths) {
+        urls.set(
+          path,
+          this.supabase.admin.storage
+            .from(this.petPhotosBucket)
+            .getPublicUrl(path).data.publicUrl,
+        );
+      }
+      return urls;
+    }
+
+    await Promise.all(
+      paths.map((path) => this.storedFiles?.assertDownloadable(path)),
+    );
+
+    const { data, error } = await this.supabase.admin.storage
+      .from(this.petPhotosBucket)
+      .createSignedUrls(paths, this.signedUrlTtl());
+    if (error) {
+      throw new InternalServerErrorException(
+        `Supabase Storage signed URLs failed: ${error.message}`,
+      );
+    }
+
+    for (const item of data ?? []) {
+      if (item.path && item.signedUrl) urls.set(item.path, item.signedUrl);
+    }
+
+    await Promise.all(paths.map((path) => this.storedFiles?.touch(path)));
+    return urls;
+  }
+
   async getProductImageUrl(storagePath?: string | null) {
     if (!storagePath) {
       return null;

@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { UsageService } from '../usage/usage.service';
+import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { CreatePetClientDto } from './dto/create-pet-client.dto';
 import { PetClientQueryDto } from './dto/pet-client-query.dto';
 import { UpdatePetClientDto } from './dto/update-pet-client.dto';
@@ -42,6 +43,7 @@ export class PetClientsService {
     private readonly prisma: PrismaService,
     @Optional() private readonly usageService?: UsageService,
     @Optional() private readonly tenantContext?: TenantContextService,
+    @Optional() private readonly storage?: SupabaseStorageService,
   ) {}
 
   async findAll(
@@ -154,7 +156,7 @@ export class PetClientsService {
     return {
       ok: true,
       mode: context.mode,
-      clients: clients.map((client) => this.formatClient(client)),
+      clients: await Promise.all(clients.map((client) => this.formatClient(client))),
       meta: {
         page,
         pageSize,
@@ -176,7 +178,7 @@ export class PetClientsService {
     return {
       ok: true,
       mode: context.mode,
-      client: this.formatClient(client),
+      client: await this.formatClient(client),
     };
   }
 
@@ -202,7 +204,7 @@ export class PetClientsService {
 
     return {
       ok: true,
-      client: this.formatClient(client),
+      client: await this.formatClient(client),
     };
   }
 
@@ -242,7 +244,7 @@ export class PetClientsService {
 
     return {
       ok: true,
-      client: this.formatClient(client),
+      client: await this.formatClient(client),
     };
   }
 
@@ -399,7 +401,20 @@ export class PetClientsService {
     return data;
   }
 
-  private formatClient(client: any) {
+  private async formatClient(client: any) {
+    const pets = Array.isArray(client.pets) ? client.pets : [];
+    const photoPaths = pets.flatMap((pet: any) =>
+      (pet.photos ?? []).flatMap((photo: any) => [
+        photo.thumbnailPath,
+        photo.mediumPath,
+        photo.storagePath,
+      ]),
+    );
+    const urls =
+      this.storage && typeof this.storage.getPetPhotoUrls === 'function'
+        ? await this.storage.getPetPhotoUrls(photoPaths)
+        : new Map<string, string>();
+
     return {
       id: client.id,
       tenantId: client.tenantId,
@@ -410,29 +425,37 @@ export class PetClientsService {
       document: client.document,
       address: client.address ?? {},
       notes: client.notes,
-      pets: Array.isArray(client.pets)
-        ? client.pets.map((pet: any) => ({
-            id: pet.id,
-            tenantId: pet.tenantId,
-            clientId: pet.clientId,
-            name: pet.name,
-            species: pet.species,
-            breed: pet.breed,
-            birthDate: pet.birthDate,
-            ageText: pet.ageText,
-            weight: pet.weight,
-            height: pet.height,
-            width: pet.width,
-            length: pet.length,
-            foodPerDay: pet.foodPerDay,
-            description: pet.description,
-            vaccinesTaken: pet.vaccinesTaken,
-            vaccinesPending: pet.vaccinesPending,
-            photos: pet.photos ?? [],
-            createdAt: pet.createdAt,
-            updatedAt: pet.updatedAt,
-          }))
-        : [],
+      pets: pets.map((pet: any) => ({
+        id: pet.id,
+        tenantId: pet.tenantId,
+        branchId: pet.branchId,
+        clientId: pet.clientId,
+        name: pet.name,
+        species: pet.species,
+        breed: pet.breed,
+        birthDate: pet.birthDate,
+        ageText: pet.ageText,
+        weight: pet.weight,
+        height: pet.height,
+        width: pet.width,
+        length: pet.length,
+        foodPerDay: pet.foodPerDay,
+        description: pet.description,
+        vaccinesTaken: pet.vaccinesTaken,
+        vaccinesPending: pet.vaccinesPending,
+        photos: (pet.photos ?? []).map((photo: any) => {
+          const renderPath = photo.mediumPath || photo.storagePath;
+          const thumbnailPath = photo.thumbnailPath || renderPath;
+          const fileUrl =
+            urls.get(renderPath) || photo.mediumUrl || photo.fileUrl || null;
+          const thumbnailUrl =
+            urls.get(thumbnailPath) || photo.thumbnailUrl || fileUrl;
+
+          return { ...photo, fileUrl, mediumUrl: fileUrl, thumbnailUrl };
+        }),
+        createdAt: pet.createdAt,
+        updatedAt: pet.updatedAt,
+      })),
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
     };

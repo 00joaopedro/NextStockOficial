@@ -198,6 +198,54 @@ describe('PetsService', () => {
     expect(prisma.petPhoto.create).toHaveBeenCalled();
   });
 
+  it('recria URLs das fotos do perfil antes de responder', async () => {
+    const prisma = prismaMock();
+    prisma.pet.findFirst.mockResolvedValueOnce({
+      id: 'pet-1',
+      tenantId: 'tenant-pet',
+      branchId: 'branch-pet',
+      clientId: 'client-1',
+      name: 'Thor',
+      species: 'dog',
+      photos: [
+        {
+          id: 'photo-1',
+          storagePath: 'tenant-pet/branch-pet/pet-1/original.webp',
+          mediumPath: 'tenant-pet/branch-pet/pet-1/medium.webp',
+          thumbnailPath: 'tenant-pet/branch-pet/pet-1/thumb.webp',
+          fileUrl: 'expired-original',
+          mediumUrl: 'expired-medium',
+          thumbnailUrl: 'expired-thumb',
+        },
+      ],
+    });
+    const storage = {
+      getPetPhotoUrls: jest.fn().mockResolvedValue(
+        new Map([
+          ['tenant-pet/branch-pet/pet-1/medium.webp', 'fresh-medium'],
+          ['tenant-pet/branch-pet/pet-1/thumb.webp', 'fresh-thumb'],
+        ]),
+      ),
+    };
+    const service = new PetsService(
+      prisma as any,
+      { resolvePetShopContext: jest.fn().mockResolvedValue(context) } as any,
+      storage as any,
+    );
+
+    const result = await service.findOne(user(), 'pet-1');
+
+    expect(result.pet.photos[0]).toMatchObject({
+      mediumUrl: 'fresh-medium',
+      thumbnailUrl: 'fresh-thumb',
+    });
+    expect(storage.getPetPhotoUrls).toHaveBeenCalledWith([
+      'tenant-pet/branch-pet/pet-1/thumb.webp',
+      'tenant-pet/branch-pet/pet-1/medium.webp',
+      'tenant-pet/branch-pet/pet-1/original.webp',
+    ]);
+  });
+
   it('lista historico do pet com contrato padrao e sem soft-deletados', async () => {
     const prisma = prismaMock();
     const service = new PetsService(

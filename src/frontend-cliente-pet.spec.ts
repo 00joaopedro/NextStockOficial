@@ -31,6 +31,9 @@ describe('clientePet.html production wiring', () => {
     expect(script).toContain('/api/pet-clients');
     expect(script).toContain('/api/pets/${petId}/photos');
     expect(script).toContain('new FormData()');
+    expect(script).toContain("formData.append('file', file, file.name)");
+    expect(script).toContain("!file.type.startsWith('image/')");
+    expect(script).not.toContain('file.size > 5 * 1024 * 1024');
   });
 
   it('protege mutacoes contra duplicidade e informa o estado da operacao', () => {

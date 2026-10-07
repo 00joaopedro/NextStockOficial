@@ -1055,7 +1055,7 @@
   async function uploadPendingPhotos(petId) {
     for (const file of pendingPhotoFiles) {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file, file.name);
       await apiFetch(`/api/pets/${petId}/photos`, {
         method: 'POST',
         body: formData,
@@ -1139,6 +1139,19 @@
     if (!ensureCanWrite()) return;
     const selectedFiles = Array.from(files || []);
     if (!selectedFiles.length) return;
+
+    const invalidFile = selectedFiles.find(
+      (file) => !file.type.startsWith('image/'),
+    );
+    if (invalidFile) {
+      showAlertPopup(
+        'Imagem invalida',
+        'Selecione apenas arquivos de imagem.',
+      );
+      animalFotos.value = '';
+      return;
+    }
+
     if (currentPhotos.length + pendingPhotoFiles.length + selectedFiles.length > 3) {
       showAlertPopup('Limite excedido', 'E permitido adicionar no maximo 3 fotos por animal.');
       animalFotos.value = '';
