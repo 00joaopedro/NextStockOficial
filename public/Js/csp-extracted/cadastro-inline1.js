@@ -522,25 +522,25 @@
 
       if (imagensParaUpload.length === 0) return { total: 0, falhas: [] };
 
-      const resultados = await Promise.all(imagensParaUpload.map(async (imagem) => {
+      const falhas = [];
+
+      for (const imagem of imagensParaUpload) {
         const formData = new FormData();
-        formData.append("file", imagem.arquivo);
+        formData.append("file", imagem.arquivo, imagem.nome);
 
         try {
-          await apiFetch(`/products/${productId}/images/upload`, {
+          const resultado = await apiFetch(`/products/${productId}/images/upload`, {
             method: "POST",
             body: formData
           });
-          return null;
+          if (resultado?.image?.id) imagem.id = resultado.image.id;
         } catch (error) {
-          return {
+          falhas.push({
             nome: imagem.nome,
             mensagem: error.message || "Falha no upload."
-          };
+          });
         }
-      }));
-
-      const falhas = resultados.filter(Boolean);
+      }
 
       return { total: imagensParaUpload.length, falhas };
     }
