@@ -227,8 +227,9 @@ export class PetsService {
       file,
     });
 
+    let photo: any;
     try {
-      const photo = await this.prisma.petPhoto.create({
+      photo = await this.prisma.petPhoto.create({
         data: {
           tenantId: context.tenantId,
           branchId: context.branchId,
@@ -236,14 +237,6 @@ export class PetsService {
           ...uploaded,
         },
       });
-
-      await this.recordUsage(user, 'pet_photo_upload', 0, 1, {
-        petId: id,
-        photoId: photo.id,
-      });
-
-      const [formattedPhoto] = await this.formatPhotos([photo]);
-      return { ok: true, photo: formattedPhoto };
     } catch (error) {
       await this.storage.removePetPhotoVariants(
         uploaded.storagePath,
@@ -252,6 +245,14 @@ export class PetsService {
       );
       throw error;
     }
+
+    await this.recordUsage(user, 'pet_photo_upload', 0, 1, {
+      petId: id,
+      photoId: photo.id,
+    });
+
+    const [formattedPhoto] = await this.formatPhotos([photo]);
+    return { ok: true, photo: formattedPhoto };
   }
 
   async removePhoto(
