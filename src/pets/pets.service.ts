@@ -68,7 +68,7 @@ export class PetsService {
 
     return {
       ok: true,
-      pets: pets.map((pet) => this.formatPet(pet)),
+      pets: await Promise.all(pets.map((pet) => this.formatPet(pet))),
     };
   }
 
@@ -99,7 +99,7 @@ export class PetsService {
 
     return {
       ok: true,
-      pet: this.formatPet(pet),
+      pet: await this.formatPet(pet),
     };
   }
 
@@ -117,7 +117,7 @@ export class PetsService {
 
     return {
       ok: true,
-      pet: this.formatPet(pet),
+      pet: await this.formatPet(pet),
     };
   }
 
@@ -152,7 +152,7 @@ export class PetsService {
 
     return {
       ok: true,
-      pet: this.formatPet(pet),
+      pet: await this.formatPet(pet),
     };
   }
 
@@ -195,7 +195,7 @@ export class PetsService {
       orderBy: { createdAt: 'asc' },
     });
 
-    return { ok: true, photos };
+    return { ok: true, photos: await this.formatPhotos(photos) };
   }
 
   async addPhoto(
@@ -242,7 +242,8 @@ export class PetsService {
         photoId: photo.id,
       });
 
-      return { ok: true, photo };
+      const [formattedPhoto] = await this.formatPhotos([photo]);
+      return { ok: true, photo: formattedPhoto };
     } catch (error) {
       await this.storage.removePetPhotoVariants(
         uploaded.storagePath,
@@ -412,10 +413,39 @@ export class PetsService {
     return data;
   }
 
-  private formatPet(pet: any) {
+  private async formatPhotos(photos: any[]) {
+    const paths = photos.flatMap((photo) => [
+      photo.thumbnailPath,
+      photo.mediumPath,
+      photo.storagePath,
+    ]);
+    const urls =
+      typeof this.storage.getPetPhotoUrls === 'function'
+        ? await this.storage.getPetPhotoUrls(paths)
+        : new Map<string, string>();
+
+    return photos.map((photo) => {
+      const renderPath = photo.mediumPath || photo.storagePath;
+      const thumbnailPath = photo.thumbnailPath || renderPath;
+      const fileUrl =
+        urls.get(renderPath) || photo.mediumUrl || photo.fileUrl || null;
+      const thumbnailUrl =
+        urls.get(thumbnailPath) || photo.thumbnailUrl || fileUrl;
+
+      return {
+        ...photo,
+        fileUrl,
+        mediumUrl: fileUrl,
+        thumbnailUrl,
+      };
+    });
+  }
+
+  private async formatPet(pet: any) {
     return {
       id: pet.id,
       tenantId: pet.tenantId,
+      branchId: pet.branchId,
       clientId: pet.clientId,
       name: pet.name,
       species: pet.species,
@@ -430,7 +460,7 @@ export class PetsService {
       description: pet.description,
       vaccinesTaken: pet.vaccinesTaken,
       vaccinesPending: pet.vaccinesPending,
-      photos: pet.photos ?? [],
+      photos: await this.formatPhotos(pet.photos ?? []),
       createdAt: pet.createdAt,
       updatedAt: pet.updatedAt,
     };
