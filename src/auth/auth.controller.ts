@@ -496,8 +496,10 @@ export class AuthController {
     @Req() req: AuthenticatedHttpRequest,
     @Res({ passthrough: true }) reply: CompatibleReply,
   ) {
+    const sessions = this.sessions;
+    if (!sessions) throw new UnauthorizedException('Session service unavailable.');
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
-    const active = await this.sessions?.findActive(sessionToken);
+    const active = await sessions.findActive(sessionToken);
     if (!active) throw new UnauthorizedException('Active session required.');
 
     const authMethod = this.localAuthMethodFromToken(req.cookies?.jwt);
@@ -508,14 +510,14 @@ export class AuthController {
       active.profileId,
       authMethod,
     );
-    const token = this.sessions.expiresAtFromJwt(refreshed.accessToken);
-    const renewed = await this.sessions.renew(
+    const token = sessions.expiresAtFromJwt(refreshed.accessToken);
+    const renewed = await sessions.renew(
       sessionToken,
       token.subject,
     );
     if (!renewed) throw new UnauthorizedException('Session expired.');
 
-    setSessionCookie(reply, sessionToken!, this.sessions.sessionExpiresAt());
+    setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
     this.setJwtCookie(reply, refreshed.accessToken);
     reply.header('Cache-Control', 'no-store');
     return { ok: true };
