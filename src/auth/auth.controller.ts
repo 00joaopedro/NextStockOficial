@@ -655,7 +655,7 @@ export class AuthController {
       this.localAuthClaimsFromToken(accessToken),
     );
     const sessionExpiresAt = isRenewableLocalJwt
-      ? this.sessions.sessionExpiresAt?.() ?? token.expiresAt
+      ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
       : token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
