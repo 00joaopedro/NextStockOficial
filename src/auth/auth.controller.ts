@@ -488,6 +488,39 @@ export class AuthController {
     return result;
   }
 
+  @Post('session/refresh')
+  @UseGuards(AuthRateLimitGuard)
+  @RateLimit({ max: 30, windowMs: 60_000 })
+  @CsrfExempt()
+  async refreshSession(
+    @Req() req: AuthenticatedHttpRequest,
+    @Res({ passthrough: true }) reply: CompatibleReply,
+  ) {
+    const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
+    const active = await this.sessions?.findActive(sessionToken);
+    if (!active) throw new UnauthorizedException('Active session required.');
+
+    const authMethod = this.localAuthMethodFromToken(req.cookies?.jwt);
+    if (!authMethod)
+      throw new UnauthorizedException('Local session refresh unavailable.');
+
+    const refreshed = await this.authService.issueLocalSessionForProfile(
+      active.profileId,
+      authMethod,
+    );
+    const token = this.sessions.expiresAtFromJwt(refreshed.accessToken);
+    const renewed = await this.sessions.renew(
+      sessionToken,
+      token.subject,
+    );
+    if (!renewed) throw new UnauthorizedException('Session expired.');
+
+    setSessionCookie(reply, sessionToken!, this.sessions.sessionExpiresAt());
+    this.setJwtCookie(reply, refreshed.accessToken);
+    reply.header('Cache-Control', 'no-store');
+    return { ok: true };
+  }
+
   @Post('logout')
   async logout(
     @Res({ passthrough: true }) reply: CompatibleReply,
@@ -566,15 +599,35 @@ export class AuthController {
   ) {
     if (!this.sessions) return;
     const token = this.sessions.expiresAtFromJwt(accessToken);
+    const sessionExpiresAt = this.sessions.sessionExpiresAt?.() ?? token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
       tenantId: user.tenantId,
       jwtSubject: token.subject,
-      expiresAt: token.expiresAt,
+      expiresAt: sessionExpiresAt,
       metadata: this.sessions.metadataFromRequest(req),
     });
     setSessionCookie(reply, session.token, session.expiresAt);
     reply.header('Cache-Control', 'no-store');
+  }
+
+  private localAuthMethodFromToken(token?: string) {
+    if (!token) return null;
+    try {
+      const payload = token.split('.')[1];
+      if (!payload) return null;
+      const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized.padEnd(
+        normalized.length + ((4 - (normalized.length % 4)) % 4),
+        '=',
+      );
+      const method = (JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
+        authMethod?: unknown;
+      }).authMethod;
+      return method === 'password' || method === 'google' ? method : null;
+    } catch {
+      return null;
+    }
   }
 
   private getJwtMaxAgeMs(accessToken: string) {
