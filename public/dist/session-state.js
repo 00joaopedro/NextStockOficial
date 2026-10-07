@@ -168,6 +168,18 @@ window.fetch = async (...args) => {
             headers: { 'Content-Type': 'application/json' },
         });
     }
+    const isApiMutation = pathname.startsWith('/api/') &&
+        !['GET', 'HEAD', 'OPTIONS'].includes(method) &&
+        !isNextStockAuthenticationMutation(pathname);
+    // Refresh before mutations so an expired local JWT never reaches a form
+    // handler as a recoverable 401. The mutation itself is never replayed.
+    if (isApiMutation) {
+        await originalNextStockFetch('/api/auth/session/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        }).catch(() => null);
+    }
     const response = await originalNextStockFetch(...args);
     // Renew the revocable local session only for idempotent reads.
     if (response.status === 401 &&
