@@ -502,13 +502,13 @@ export class AuthController {
     const active = await sessions.findActive(sessionToken);
     if (!active) throw new UnauthorizedException('Active session required.');
 
-    const authMethod = this.localAuthMethodFromToken(req.cookies?.jwt);
-    if (!authMethod)
+    const claims = this.localAuthClaimsFromToken(req.cookies?.jwt);
+    if (!claims || claims.subject !== active.profileId)
       throw new UnauthorizedException('Local session refresh unavailable.');
 
     const refreshed = await this.authService.issueLocalSessionForProfile(
       active.profileId,
-      authMethod,
+      claims.authMethod,
     );
     const token = sessions.expiresAtFromJwt(refreshed.accessToken);
     const renewed = await sessions.renew(
@@ -613,7 +613,7 @@ export class AuthController {
     reply.header('Cache-Control', 'no-store');
   }
 
-  private localAuthMethodFromToken(token?: string) {
+  private localAuthClaimsFromToken(token?: string) {
     if (!token) return null;
     try {
       const payload = token.split('.')[1];
@@ -623,10 +623,16 @@ export class AuthController {
         normalized.length + ((4 - (normalized.length % 4)) % 4),
         '=',
       );
-      const method = (JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
+      const claims = JSON.parse(Buffer.from(padded, 'base64').toString('utf8')) as {
         authMethod?: unknown;
-      }).authMethod;
-      return method === 'password' || method === 'google' ? method : null;
+        sub?: unknown;
+      };
+      if (
+        (claims.authMethod !== 'password' && claims.authMethod !== 'google') ||
+        typeof claims.sub !== 'string' ||
+        !claims.sub
+      ) return null;
+      return { authMethod: claims.authMethod, subject: claims.sub };
     } catch {
       return null;
     }
