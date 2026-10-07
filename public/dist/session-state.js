@@ -101,6 +101,7 @@ const AUTHENTICATION_MUTATION_PATHS = new Set([
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
     '/api/auth/reset-password/supabase',
+    '/api/auth/session/refresh',
 ]);
 function isNextStockAuthenticationMutation(pathname) {
     return AUTHENTICATION_MUTATION_PATHS.has(pathname);
@@ -168,6 +169,21 @@ window.fetch = async (...args) => {
         });
     }
     const response = await originalNextStockFetch(...args);
+    // Renew the revocable local session only for idempotent reads.
+    if (response.status === 401 &&
+        ['GET', 'HEAD'].includes(method) &&
+        pathname.startsWith('/api/') &&
+        pathname !== '/api/auth/session/refresh' &&
+        !pathname.startsWith('/api/auth/login') &&
+        !pathname.startsWith('/api/auth/register')) {
+        const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+        }).catch(() => null);
+        if (refresh?.ok)
+            return originalNextStockFetch(...args);
+    }
     if (response.status === 402 &&
         !window.location.pathname.toLowerCase().endsWith('/perfil.html')) {
         const body = (await response
