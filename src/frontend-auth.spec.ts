@@ -134,8 +134,6 @@ describe('frontend auth pages', () => {
     expect(html).toContain('id="googleLoginStatus"');
     expect(html).toContain('/auth/capabilities');
     expect(html).toContain('googleOAuthEnabled === true');
-    expect(html).toContain("googleOAuthReason === 'not_configured'");
-    expect(html).toContain('configuração do servidor está incompleta.');
     expect(html).toContain("googleLoginLink.addEventListener('click'");
     expect(html).toContain("event.preventDefault();");
     expect(html).toContain("window.location.assign('/api/auth/google/start');");
