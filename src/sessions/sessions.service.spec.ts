@@ -70,9 +70,11 @@ describe('SessionsService', () => {
       profileId: 'profile-1',
     });
     await expect(service.renew('opaque', 'jwt-subject')).resolves.toBe(true);
-    expect(updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ jwtSubject: 'jwt-subject' }),
-    }));
+    expect(updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ jwtSubject: 'jwt-subject' }),
+      }),
+    );
   });
 
   it('rejects revoked or expired sessions', async () => {
