@@ -253,7 +253,9 @@
           url.origin === window.location.origin ||
           url.hostname.endsWith(".supabase.co") ||
           url.hostname.endsWith(".supabase.in");
-        return url.protocol === "https:" && allowedHost ? url.href : null;
+        const sameOrigin = url.origin === window.location.origin;
+        const secureExternal = url.protocol === "https:" && allowedHost;
+        return (sameOrigin || secureExternal) ? url.href : null;
       } catch {
         return null;
       }
