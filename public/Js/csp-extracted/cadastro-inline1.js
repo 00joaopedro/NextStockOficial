@@ -280,7 +280,6 @@
 
     function sanitizarEntrada(valor) {
       return String(valor)
-        .trim()
         .replace(/[\0\x08\x09\x1a\n\r"'\\;%]/g, "")
         .replace(/\s+/g, " ")
         .slice(0, 150);
