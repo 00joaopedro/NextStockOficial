@@ -199,7 +199,20 @@ const schema = Joi.object({
     .integer()
     .min(300)
     .max(86400)
-    .default(1800),
+    .default(1800)
+    .custom((value, helpers) => {
+      const localJwtTtl = Number(
+        helpers.state.ancestors[0]?.LOCAL_AUTH_JWT_TTL_SECONDS ?? 300,
+      );
+      if (Number.isInteger(localJwtTtl) && value <= localJwtTtl) {
+        return helpers.error('any.invalid');
+      }
+      return value;
+    })
+    .messages({
+      'any.invalid':
+        'SESSION_IDLE_TTL_SECONDS must be greater than LOCAL_AUTH_JWT_TTL_SECONDS.',
+    }),
   SESSION_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   STOREFRONT_PUBLIC_READ_ENABLED: Joi.string()
     .valid('true', 'false')
