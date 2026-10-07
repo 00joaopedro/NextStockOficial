@@ -42,6 +42,8 @@ vincular uma conta a outro perfil por coincidência de e-mail.
 ## Diagnóstico
 
 O endpoint `GET /api/auth/capabilities` informa se o Google está realmente pronto.
-A página de login só libera o botão quando todas as configurações obrigatórias estão
-presentes; se o recurso estiver habilitado, mas incompleto, ela exibe uma mensagem
-explicando que a configuração do servidor precisa ser concluída.
+O backend valida as variáveis durante a inicialização. Se o OAuth estiver habilitado
+com alguma variável obrigatória ausente, a API não inicia e o deploy deve ser
+corrigido antes de liberar o recurso. A página também trata respostas HTTP de erro
+no endpoint de capabilities como falha de verificação, sem informar que o recurso
+foi desabilitado.
