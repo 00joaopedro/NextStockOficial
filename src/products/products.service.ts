@@ -843,16 +843,21 @@ export class ProductsService {
     const imageMetadata = await Promise.all(
       product.images.map(async (image) => {
         const renderUrl =
+          (this.storage && (image.mediumPath || image.storagePath)
+            ? await this.storage.getProductImageUrl(
+                image.mediumPath || image.storagePath,
+              )
+            : null) ||
           image.mediumUrl ||
           image.fileUrl ||
-          (this.storage
-            ? await this.storage.getProductImageUrl(image.storagePath)
-            : null);
+          null;
         const thumbnailUrl =
-          image.thumbnailUrl ||
-          (this.storage
-            ? await this.storage.getProductImageUrl(image.thumbnailPath)
+          (this.storage && (image.thumbnailPath || image.mediumPath || image.storagePath)
+            ? await this.storage.getProductImageUrl(
+                image.thumbnailPath || image.mediumPath || image.storagePath,
+              )
             : null) ||
+          image.thumbnailUrl ||
           renderUrl;
 
         return {
