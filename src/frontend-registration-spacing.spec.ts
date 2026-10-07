@@ -15,18 +15,22 @@ function sanitizerFunction(script: string) {
 }
 
 describe('registration fields preserve spaces while typing', () => {
-  it('does not trim the current input value on every keystroke', () => {
+  it('does not trim the cadastro input value on every keystroke', () => {
     const cadastro = sanitizerFunction(
       readPublicScript('Js/csp-extracted/cadastro-inline1.js'),
     );
-    const caixa = sanitizerFunction(
-      readPublicScript('Js/csp-extracted/caixa-inline1.js'),
-    );
 
     expect(cadastro).toContain('.replace(');
-    expect(caixa).toContain('.replace(');
     expect(cadastro).not.toContain('.trim()');
-    expect(caixa).not.toContain('.trim()');
+  });
+
+  it('asserts the behavior of the active cash-register script', () => {
+    const caixa = readPublicScript('Js/caixa.js');
+
+    expect(caixa).toContain(
+      'els.searchInput.addEventListener("input", scheduleAutocomplete)',
+    );
+    expect(caixa).not.toContain('sanitizarEntrada');
   });
 
   it('keeps pet profile spaces until the final payload normalization', () => {
