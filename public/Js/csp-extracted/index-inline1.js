@@ -16,6 +16,7 @@
     let referralSystemType = null;
 
     const googleLoginLink = document.getElementById('googleLoginLink');
+    const googleLoginStatus = document.getElementById('googleLoginStatus');
     if (googleLoginLink) {
       googleLoginLink.addEventListener('click', (event) => {
         if (
@@ -32,9 +33,26 @@
       fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
         .then((response) => response.ok ? response.json() : null)
         .then((capabilities) => {
-          if (capabilities?.googleOAuthEnabled === true) googleLoginLink.hidden = false;
+          if (capabilities?.googleOAuthEnabled === true) {
+            googleLoginLink.hidden = false;
+            if (googleLoginStatus) googleLoginStatus.hidden = true;
+            return;
+          }
+          if (googleLoginStatus) {
+            googleLoginStatus.textContent =
+              capabilities?.googleOAuthReason === 'not_configured'
+                ? 'Login com Google está temporariamente indisponível. A configuração do servidor está incompleta.'
+                : 'Login com Google não está habilitado neste ambiente.';
+            googleLoginStatus.hidden = false;
+          }
         })
-        .catch(() => { googleLoginLink.hidden = true; });
+        .catch(() => {
+          googleLoginLink.hidden = true;
+          if (googleLoginStatus) {
+            googleLoginStatus.textContent = 'Não foi possível verificar o login com Google.';
+            googleLoginStatus.hidden = false;
+          }
+        });
     }
 
     const previewBtn = document.getElementById('previewBtn');
