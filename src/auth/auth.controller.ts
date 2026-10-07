@@ -613,7 +613,9 @@ export class AuthController {
     reply.header('Cache-Control', 'no-store');
   }
 
-  private localAuthClaimsFromToken(token?: string) {
+  private localAuthClaimsFromToken(
+    token?: string,
+  ): { authMethod: 'password' | 'google'; subject: string } | null {
     if (!token) return null;
     try {
       const payload = token.split('.')[1];
