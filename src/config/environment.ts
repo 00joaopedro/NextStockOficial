@@ -199,7 +199,7 @@ const schema = Joi.object({
     .integer()
     .min(300)
     .max(86400)
-    .default(1800)
+    .default(43_200)
     .custom((value, helpers) => {
       const localJwtTtl = Number(
         helpers.state.ancestors[0]?.LOCAL_AUTH_JWT_TTL_SECONDS ?? 300,
