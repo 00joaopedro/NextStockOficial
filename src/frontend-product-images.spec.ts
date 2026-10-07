@@ -61,7 +61,9 @@ describe('Product image upload frontend flow', () => {
     expect(html).toContain('agora - sessaoValidadaEm < 30000');
     expect(html).toContain('consultaAbortController?.abort()');
     expect(html).toContain('setTimeout(async () =>');
-    expect(html).toContain('Promise.all(imagensParaUpload.map');
+    expect(html).toContain('for (const imagem of imagensParaUpload)');
+    expect(html).toContain('formData.append("file", imagem.arquivo, imagem.nome)');
+    expect(html).not.toContain('Promise.all(imagensParaUpload.map');
   });
 
   it('produtos renderiza somente URLs validas e usa fallback', () => {
