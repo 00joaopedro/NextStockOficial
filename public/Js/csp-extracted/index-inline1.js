@@ -31,7 +31,10 @@
         window.location.assign('/api/auth/google/start');
       });
       fetch(`${API}/auth/capabilities`, { credentials: 'same-origin' })
-        .then((response) => response.ok ? response.json() : null)
+        .then((response) => {
+          if (!response.ok) throw new Error('Google OAuth capability check failed');
+          return response.json();
+        })
         .then((capabilities) => {
           if (capabilities?.googleOAuthEnabled === true) {
             googleLoginLink.hidden = false;
@@ -39,10 +42,7 @@
             return;
           }
           if (googleLoginStatus) {
-            googleLoginStatus.textContent =
-              capabilities?.googleOAuthReason === 'not_configured'
-                ? 'Login com Google está temporariamente indisponível. A configuração do servidor está incompleta.'
-                : 'Login com Google não está habilitado neste ambiente.';
+            googleLoginStatus.textContent = 'Login com Google não está habilitado neste ambiente.';
             googleLoginStatus.hidden = false;
           }
         })
