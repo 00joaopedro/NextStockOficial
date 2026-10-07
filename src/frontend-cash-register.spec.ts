@@ -23,6 +23,7 @@ describe('caixa.html production PDV integration', () => {
 
   it('desativa o checkout local legado e carrega o script real', () => {
     expect(html).toContain('data-legacy-cash-script="disabled"');
+    expect(html).not.toContain('./Js/csp-extracted/caixa-inline1.js');
     expect(html).toContain('./Js/caixa.js');
     expect(script).not.toContain('produtosCatalogo');
   });
