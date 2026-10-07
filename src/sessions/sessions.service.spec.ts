@@ -53,7 +53,7 @@ describe('SessionsService', () => {
   });
 
   it('renews an active session without exposing its token', async () => {
-    process.env.SESSION_IDLE_TTL_SECONDS = '1800';
+    process.env.SESSION_IDLE_TTL_SECONDS = '43200';
     const findFirst = jest.fn().mockResolvedValue({
       id: 'session-1',
       profileId: 'profile-1',
