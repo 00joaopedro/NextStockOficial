@@ -109,6 +109,33 @@ describe('InternalReceiptService RC-012', () => {
     },
   );
 
+  it('renderiza previa fiscal separada do recibo interno', async () => {
+    const { service, tx } = setup([1]);
+    const result = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'history',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-1',
+    });
+
+    expect(tx.fiscalDocumentEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventType: 'fiscal_preview_printed',
+        status: SaleDocumentStatus.draft,
+      }),
+    });
+    expect(result).toMatchObject({
+      mode: 'fiscal_preview',
+      eventType: 'fiscal_preview_printed',
+    });
+    expect(result.html).toContain('PRÉVIA FISCAL — SEM VALOR FISCAL');
+    expect(result.html).toContain(
+      'NÃO AUTORIZADA PELA SEFAZ — NÃO É NFC-e/NF-e VÁLIDA',
+    );
+    expect(result.html).not.toContain('RECIBO INTERNO — SEM VALIDADE FISCAL');
+  });
+
   it('usa ON CONFLICT no find-or-create e nao usa count + 1', async () => {
     const { service, tx } = setup();
     await service.issueAndRender({ sale, context, origin: 'order' });
