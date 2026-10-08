@@ -370,6 +370,7 @@ export class FiscalService {
     this.validation.assertSaleEligible(document.sale);
     this.validation.assertConfig(config, true);
     this.validation.assertItems(document.sale.items, config);
+    this.validation.assertStoredPayload(document.normalizedPayload, config);
     const provider = this.getProvider(config!.provider);
     if (
       config!.environment === FiscalEnvironment.producao &&
