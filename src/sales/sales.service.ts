@@ -887,7 +887,7 @@ export class SalesService {
             cfop: item.cfopSnapshot || '',
             origin: item.originSnapshot || '0',
             unit: item.unitSnapshot || 'UN',
-            taxableUnit: item.product?.taxableUnit || item.unitSnapshot || 'UN',
+            taxableUnit: item.taxableUnitSnapshot || item.unitSnapshot || 'UN',
             quantity: Number(item.quantityDecimal || item.quantity || 0),
             icmsCst: item.icmsCstSnapshot,
             icmsCsosn: item.icmsCsosnSnapshot,
