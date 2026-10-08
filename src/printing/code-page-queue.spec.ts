@@ -24,7 +24,7 @@ describe('configured print code page', () => {
       html: '<p>Promoções</p>',
       paperWidthMm: 80,
     });
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await queue.waitForIdle();
 
     expect(payload?.subarray(0, 5)).toEqual(
       Buffer.from([0x1b, 0x40, 0x1b, 0x74, 0x02]),
