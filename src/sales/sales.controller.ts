@@ -75,6 +75,44 @@ export class SalesController {
     );
   }
 
+  @Post(':id/fiscal-preview/print')
+  @Roles(Role.Admin, Role.Vendedor)
+  fiscalPreview(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+    @Headers('x-nextstock-print-idempotency-key') printIdempotencyKey?: string,
+  ) {
+    return this.salesService.fiscalPreview(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+      printIdempotencyKey,
+      'cash_register',
+    );
+  }
+
+  @Post(':id/fiscal-preview/history-print')
+  @Roles(Role.Admin, Role.Vendedor)
+  fiscalPreviewFromHistory(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+    @Headers('x-nextstock-print-idempotency-key') printIdempotencyKey?: string,
+  ) {
+    return this.salesService.fiscalPreview(
+      req.user,
+      id,
+      selectedBranchId,
+      devContextMode,
+      printIdempotencyKey,
+      'history',
+    );
+  }
+
   @Post(':id/model-65/print')
   @Roles(Role.Admin, Role.Vendedor)
   printModel65(

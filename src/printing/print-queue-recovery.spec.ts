@@ -3,9 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PrintQueue, PrinterTransport } from '../../scripts/printing/print-queue';
 
-const wait = (milliseconds: number) =>
-  new Promise((resolve) => setTimeout(resolve, milliseconds));
-
 describe('print queue restart recovery', () => {
   it('resumes persisted pending jobs after a new queue instance loads', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'nextstock-recovery-test-'));
@@ -37,7 +34,7 @@ describe('print queue restart recovery', () => {
     };
     const queue = new PrintQueue(filePath, transport);
     await queue.get('recovery-1');
-    await wait(80);
+    await queue.waitForIdle();
 
     expect(sends).toBe(1);
     expect((await queue.get('recovery-1'))?.status).toBe('printed');

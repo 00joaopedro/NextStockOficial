@@ -46,7 +46,10 @@ describe('InternalReceiptService RC-012', () => {
       },
     };
     numbers.forEach((printCounter) =>
-      tx.saleDocument.update.mockResolvedValueOnce({ printCounter }),
+      tx.saleDocument.update.mockResolvedValueOnce({
+        printCounter,
+        fiscalPreviewPrintCounter: printCounter,
+      }),
     );
     const prisma: any = {
       $transaction: jest.fn((callback) => callback(tx)),
@@ -108,6 +111,61 @@ describe('InternalReceiptService RC-012', () => {
       expect(result.html).toContain('&lt;Produto &amp; teste&gt;');
     },
   );
+
+  it('numera recibo interno e previa fiscal de forma independente', async () => {
+    const { service } = setup([1, 1, 2]);
+    const internal = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+    });
+    const firstPreview = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-1',
+    });
+    const secondPreview = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-2',
+    });
+
+    expect(internal.printNumber).toBe(1);
+    expect(firstPreview.printNumber).toBe(1);
+    expect(secondPreview.printNumber).toBe(2);
+  });
+
+  it('renderiza previa fiscal separada do recibo interno', async () => {
+    const { service, tx } = setup([1]);
+    const result = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'history',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-1',
+    });
+
+    expect(tx.fiscalDocumentEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventType: 'fiscal_preview_printed',
+        status: SaleDocumentStatus.draft,
+        requestPayload: expect.objectContaining({ origin: 'history' }),
+      }),
+    });
+    expect(result).toMatchObject({
+      mode: 'fiscal_preview',
+      eventType: 'fiscal_preview_printed',
+    });
+    expect(result.html).toContain('PRÉVIA FISCAL — SEM VALOR FISCAL');
+    expect(result.html).toContain(
+      'NÃO AUTORIZADA PELA SEFAZ — NÃO É NFC-e/NF-e VÁLIDA',
+    );
+    expect(result.html).not.toContain('RECIBO INTERNO — SEM VALIDADE FISCAL');
+  });
 
   it('usa ON CONFLICT no find-or-create e nao usa count + 1', async () => {
     const { service, tx } = setup();

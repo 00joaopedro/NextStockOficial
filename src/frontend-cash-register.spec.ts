@@ -89,6 +89,14 @@ describe('caixa.html production PDV integration', () => {
     expect(script).toContain('result.mode !== "internal_receipt"');
   });
 
+  it('oferece prévia fiscal explícita sem autorização da SEFAZ', () => {
+    expect(html).toContain('IMPRIMIR PRÉVIA FISCAL');
+    expect(script).toContain('fiscalPreviewBtn');
+    expect(script).toContain('/fiscal-preview/print');
+    expect(script).toContain('mode !== "fiscal_preview"');
+    expect(script).toContain('sem valor fiscal');
+  });
+
   it('rotula fallback como recibo interno sem validade fiscal', () => {
     expect(html).toContain('IMPRIMIR RECIBO INTERNO');
     expect(html).toContain('sem validade fiscal');
