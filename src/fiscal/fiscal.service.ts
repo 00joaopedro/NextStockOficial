@@ -1164,6 +1164,8 @@ export class FiscalService {
           : 2,
       series: document.series || '1',
       number,
+      accessKey: document.accessKey || undefined,
+      protocol: document.protocol || undefined,
       providerConfig:
         config?.providerConfig && typeof config.providerConfig === 'object' && !Array.isArray(config.providerConfig)
           ? (config.providerConfig as Record<string, unknown>)
