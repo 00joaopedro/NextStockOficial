@@ -172,12 +172,26 @@ export class CertificateService {
         },
       );
       const encryptedBuffer = await this.storage.download(config.certificatePath);
-      const buffer = this.crypto.decryptCertificate(encryptedBuffer, {
+      const secretContext = {
         tenantId: context.tenantId,
         branchId: context.branchId!,
         certificatePath: config.certificatePath,
-      });
+      };
+      const legacyPlaintext = !isEncryptedCertificate(encryptedBuffer);
+      const buffer = legacyPlaintext
+        ? encryptedBuffer
+        : this.crypto.decryptCertificate(encryptedBuffer, secretContext);
       const parsed = this.parser.parse(buffer, password);
+      if (legacyPlaintext) {
+        await this.storage.upload(
+          config.certificatePath,
+          this.crypto.encryptCertificate(buffer, secretContext),
+          true,
+        );
+        this.logger.log(
+          `Legacy fiscal certificate re-encrypted for tenant ${context.tenantId}, branch ${context.branchId}; sensitive fields redacted.`,
+        );
+      }
       this.assertCertificateCnpj(parsed, config.cnpj);
       const updated = await this.prisma.companyFiscalConfig.update({
         where: { id: config.id },
@@ -187,9 +201,11 @@ export class CertificateService {
           certificateValidationStatus: CertificateValidationStatus.valid,
           certificateValidationErrorCode: null,
           activationStatus:
-            config.environment === FiscalEnvironment.producao
-              ? FiscalActivationStatus.ativo
-              : FiscalActivationStatus.homologacao,
+            config.activationStatus === FiscalActivationStatus.suspenso
+              ? FiscalActivationStatus.suspenso
+              : config.environment === FiscalEnvironment.producao
+                ? FiscalActivationStatus.ativo
+                : FiscalActivationStatus.homologacao,
         },
       });
       this.recordAudit(context, 'fiscal.certificate.validated', AuditOutcome.SUCCESS, {
@@ -360,8 +376,17 @@ export class CertificateService {
     if (!config.certificatePath || !config.certificatePasswordEncrypted) {
       throw new BadRequestException('Configure e valide o certificado A1 antes do teste.');
     }
+    if (config.provider !== 'mock') {
+      this.recordAudit(context, 'fiscal.communication.tested', AuditOutcome.FAILED, {
+        communication: 'unsupported_provider',
+        provider: config.provider,
+      });
+      throw new ServiceUnavailableException(
+        'Não existe um provider fiscal real suportado para testar a comunicação desta filial.',
+      );
+    }
     await this.validate(user, selectedBranchId, devContextMode);
-    const localOnly = config.provider === 'mock';
+    const localOnly = true;
     const result = {
       ok: true,
       environment: config.environment,
@@ -531,6 +556,10 @@ function sanitizeOriginalName(value: string) {
 
 function digits(value?: string | null) {
   return String(value || '').replace(/\D/g, '');
+}
+
+function isEncryptedCertificate(buffer: Buffer) {
+  return buffer.subarray(0, 9).toString('utf8') === 'a1blob:v1';
 }
 
 function exceptionCode(error: unknown) {
