@@ -26,7 +26,7 @@ describe('local thermal print queue', () => {
     const queue = new PrintQueue(join(directory, 'queue.json'), transport);
     const first = await queue.enqueue({ idempotencyKey: 'sale-1-print-1', html: '<p>Total</p>', paperWidthMm: 80 });
     const second = await queue.enqueue({ idempotencyKey: 'sale-1-print-1', html: '<p>Total</p>', paperWidthMm: 80 });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await queue.waitForIdle();
     expect(second.id).toBe(first.id);
     expect(sent).toHaveLength(1);
     expect((await queue.get(first.id))?.status).toBe('printed');
