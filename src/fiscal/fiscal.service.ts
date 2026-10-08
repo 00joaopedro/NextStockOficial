@@ -493,7 +493,10 @@ export class FiscalService {
     );
     let result;
     try {
-      result = await provider.sendNfe55(providerDocument);
+      result =
+        document.type === SaleDocumentType.nfce65
+          ? await provider.sendNfce65(providerDocument)
+          : await provider.sendNfe55(providerDocument);
     } catch (error) {
       const preNetwork =
         error instanceof FiscalProviderSendError &&
