@@ -25,16 +25,31 @@ export class CreateSaleItemDto {
   quantity!: number;
 }
 
+export class CreateMiscellaneousSaleItemDto {
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100_000_000)
+  amountCents!: number;
+}
+
 export class CreateSaleDto {
   @IsUUID()
   idempotencyKey!: string;
 
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => CreateSaleItemDto)
-  items!: CreateSaleItemDto[];
+  items?: CreateSaleItemDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(200)
+  @ValidateNested({ each: true })
+  @Type(() => CreateMiscellaneousSaleItemDto)
+  miscellaneousItems?: CreateMiscellaneousSaleItemDto[];
 
   @IsEnum(OrderPaymentMethod)
   paymentMethod!: OrderPaymentMethod;
