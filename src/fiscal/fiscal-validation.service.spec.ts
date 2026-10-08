@@ -70,6 +70,32 @@ describe('FiscalValidationService', () => {
       }),
     ).toEqual({ status: 'ok' });
   });
+  it('rejeita produto pesavel sem unidade tributavel e CSOSN para Simples', () => {
+    expect(() => service.assertItems([{
+      productNameSnapshot: 'Cafe por peso',
+      isWeighableSnapshot: true,
+      ncmSnapshot: '09012100',
+      cfopSnapshot: '5102',
+      unitSnapshot: 'KG',
+      originSnapshot: '0',
+      product: { taxableUnit: null, icmsCsosn: null },
+    }], { crt: 1 } as any)).toThrow(/unidade tributável|CSOSN/);
+  });
+
+  it('aceita dados fiscais completos de produto pesavel', () => {
+    expect(() => service.assertItems([{
+      productNameSnapshot: 'Cafe por peso',
+      isWeighableSnapshot: true,
+      ncmSnapshot: '09012100',
+      cfopSnapshot: '5102',
+      unitSnapshot: 'KG',
+      taxableUnitSnapshot: 'KG',
+      originSnapshot: '0',
+      icmsCsosnSnapshot: '102',
+      product: null,
+    }], { crt: 1 } as any)).not.toThrow();
+  });
+
 });
 
 describe('MockFiscalProvider', () => {
