@@ -350,7 +350,9 @@
         precoCusto: parseNumero(document.getElementById("precoCusto").value),
         percentualLucro: parseNumero(document.getElementById("percentualLucro").value),
         precoVenda: parseNumero(document.getElementById("precoVenda").value),
-        quantidade: Number(document.getElementById("quantidade").value),
+        quantidade: Number(String(document.getElementById("quantidade").value).replace(",", ".")),
+        unit: document.getElementById("unit").value.trim().toUpperCase() || "UN",
+        isWeighable: document.getElementById("isWeighable").checked,
         marca: document.getElementById("marca").value.trim(),
         categoria: document.getElementById("categoria").value.trim(),
         fornecedor: document.getElementById("fornecedor").value.trim(),
@@ -374,6 +376,8 @@
       document.getElementById("percentualLucro").value = produto.percentualLucro || "";
       document.getElementById("precoVenda").value = produto.precoVenda || "";
       document.getElementById("quantidade").value = produto.quantidade || "";
+      document.getElementById("unit").value = produto.unidadeVenda || produto.unit || "UN";
+      document.getElementById("isWeighable").checked = produto.pesavel === true || produto.isWeighable === true;
       document.getElementById("marca").value = produto.marca || "";
       document.getElementById("categoria").value = produto.categoria || "";
       document.getElementById("fornecedor").value = produto.fornecedor || "";
@@ -509,8 +513,10 @@
         dados.precoCusto >= 0 &&
         dados.percentualLucro >= 0 &&
         dados.precoVenda >= 0 &&
-        Number.isInteger(dados.quantidade) &&
-        dados.quantidade >= 0
+        Number.isFinite(dados.quantidade) &&
+        dados.quantidade >= 0 &&
+        (dados.isWeighable || Number.isInteger(dados.quantidade)) &&
+        (!dados.isWeighable || dados.unit.length > 0)
       );
     }
 
