@@ -31,7 +31,7 @@ export class CertificateCryptoService {
   }
 
   encryptPassword(password: string, context: CertificateSecretContext) {
-    return this.encrypt(Buffer.from(password, 'utf8'), context, 'a1-password');
+    return this.encrypt(Buffer.from(password, 'utf8'), context, 'a1-password').toString('utf8');
   }
 
   decryptPassword(value: string, context: CertificateSecretContext) {
