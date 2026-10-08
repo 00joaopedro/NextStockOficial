@@ -1132,8 +1132,16 @@ export class FiscalService {
     if (!name || name.toLowerCase() === 'mock') {
       return this.mockProvider;
     }
+    if (['sefaz', 'real', 'sefaz-br'].includes(name.toLowerCase())) {
+      if (!this.sefazProvider) {
+        throw new ServiceUnavailableException(
+          'Provider SEFAZ não está disponível no módulo fiscal.',
+        );
+      }
+      return this.sefazProvider;
+    }
     throw new ServiceUnavailableException(
-      `Provider fiscal "${name}" ainda nao possui adapter configurado.`,
+      `Provider fiscal "\${name}" ainda nao possui adapter configurado.`,
     );
   }
 
