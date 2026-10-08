@@ -99,20 +99,22 @@ export class InternalReceiptService {
         type: SaleDocumentType.receipt,
         deletedAt: null,
       };
-      const allocated = isFiscalPreview
-        ? await tx.saleDocument.update({
-            where: documentWhere,
-            data: { fiscalPreviewPrintCounter: { increment: 1 } },
-            select: { fiscalPreviewPrintCounter: true },
-          })
-        : await tx.saleDocument.update({
-            where: documentWhere,
-            data: { printCounter: { increment: 1 } },
-            select: { printCounter: true },
-          });
-      const printNumber = isFiscalPreview
-        ? allocated.fiscalPreviewPrintCounter
-        : allocated.printCounter;
+      let printNumber: number;
+      if (isFiscalPreview) {
+        const allocated = await tx.saleDocument.update({
+          where: documentWhere,
+          data: { fiscalPreviewPrintCounter: { increment: 1 } },
+          select: { fiscalPreviewPrintCounter: true },
+        });
+        printNumber = allocated.fiscalPreviewPrintCounter;
+      } else {
+        const allocated = await tx.saleDocument.update({
+          where: documentWhere,
+          data: { printCounter: { increment: 1 } },
+          select: { printCounter: true },
+        });
+        printNumber = allocated.printCounter;
+      }
       const attemptId = randomUUID();
       const eventType = printNumber === 1 ? eventTypes[0] : eventTypes[1];
       await tx.fiscalDocumentEvent.create({
