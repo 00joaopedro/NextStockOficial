@@ -24,6 +24,7 @@ import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { extractScanCodeCandidates, normalizeScanCode } from './scan-code.util';
+import { decimalStockValue, normalizeQuantity } from './quantity.util';
 
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
 const SESSION_EXPIRED_MESSAGE = 'Sessao expirada. Faca login novamente.';
@@ -152,6 +153,9 @@ export class ProductsService {
           name: true,
           salePriceCents: true,
           quantity: true,
+          quantityDecimal: true,
+          isWeighable: true,
+          unit: true,
           category: true,
           sku: true,
           barcode: true,
@@ -209,7 +213,9 @@ export class ProductsService {
           id: product.id,
           nome: product.name,
           precoVenda: centsToMoney(product.salePriceCents),
-          quantidade: String(product.quantity),
+          quantidade: String(product.isWeighable ? decimalStockValue(product.quantityDecimal) : product.quantity),
+          pesavel: product.isWeighable,
+          unidade: product.unit ?? 'UN',
           categoria: product.category ?? '',
           sku: product.sku ?? '',
           codigoBarra: product.barcode ?? '',
@@ -290,6 +296,8 @@ export class ProductsService {
         sku: true,
         salePriceCents: true,
         quantity: true,
+        quantityDecimal: true,
+        isWeighable: true,
         unit: true,
         images: {
           orderBy: { createdAt: 'desc' },
@@ -314,7 +322,7 @@ export class ProductsService {
       products: await Promise.all(
         rankedProducts.map(async (product) => {
           const unit = product.unit?.trim().toUpperCase() || 'UN';
-          const weighed = ['KG', 'KGM', 'G', 'GR'].includes(unit);
+          const weighed = product.isWeighable;
           const image = product.images[0];
           const imageUrl = image
             ? image.thumbnailUrl ||
@@ -333,9 +341,9 @@ export class ProductsService {
             barcode: product.barcode,
             sku: product.sku,
             salePriceCents: product.salePriceCents,
-            quantity: product.quantity,
+            quantity: weighed ? decimalStockValue(product.quantityDecimal) : product.quantity,
             saleMode: weighed ? 'weighed' : 'unit',
-            unitLabel: weighed ? 'kg' : 'un',
+            unitLabel: unit,
             imageUrl,
           };
         }),
@@ -737,6 +745,17 @@ export class ProductsService {
   private buildCreateData(dto: CreateProductDto) {
     const costPriceCents = moneyToCents(dto.precoCusto);
     const profitPercent = new Prisma.Decimal(dto.percentualLucro);
+    const quantity = normalizeQuantity(dto.quantidade);
+    const unit = clean(dto.unit)?.toUpperCase() ?? null;
+    const isWeighable =
+      dto.isWeighable === true ||
+      ['KG', 'KGM', 'G', 'GR'].includes(unit ?? '');
+    if (isWeighable && !unit) {
+      throw new BadRequestException('Produto pesável deve informar a unidade de venda.');
+    }
+    if (!isWeighable && !Number.isInteger(quantity)) {
+      throw new BadRequestException('Produtos vendidos por unidade aceitam apenas quantidade inteira.');
+    }
 
     return {
       name: dto.nome.trim(),
@@ -746,7 +765,9 @@ export class ProductsService {
         costPriceCents,
         dto.percentualLucro,
       ),
-      quantity: dto.quantidade,
+      quantity: isWeighable ? 0 : quantity,
+      quantityDecimal: isWeighable ? new Prisma.Decimal(quantity) : null,
+      isWeighable,
       brand: clean(dto.marca),
       category: clean(dto.categoria),
       supplier: clean(dto.fornecedor),
@@ -763,7 +784,7 @@ export class ProductsService {
       cfopDefault: fiscalDigits(dto.cfopDefault),
       cest: fiscalDigits(dto.cest),
       origin: clean(dto.origin),
-      unit: clean(dto.unit)?.toUpperCase() ?? null,
+      unit,
       icmsRate:
         dto.icmsRate === undefined ? null : new Prisma.Decimal(dto.icmsRate),
       ipiRate:
@@ -786,7 +807,12 @@ export class ProductsService {
     const data: Prisma.ProductUncheckedUpdateInput = {};
 
     if (dto.nome !== undefined) data.name = dto.nome.trim();
-    if (dto.quantidade !== undefined) data.quantity = dto.quantidade;
+    if (dto.quantidade !== undefined) {
+      const quantity = normalizeQuantity(dto.quantidade);
+      data.quantity = Number.isInteger(quantity) ? quantity : 0;
+      data.quantityDecimal = new Prisma.Decimal(quantity);
+    }
+    if (dto.isWeighable !== undefined) data.isWeighable = dto.isWeighable;
     if (dto.marca !== undefined) data.brand = clean(dto.marca);
     if (dto.categoria !== undefined) data.category = clean(dto.categoria);
     if (dto.fornecedor !== undefined) data.supplier = clean(dto.fornecedor);
@@ -892,7 +918,8 @@ export class ProductsService {
       precoCusto: centsToMoney(product.costPriceCents),
       percentualLucro: Number(product.profitPercent).toString(),
       precoVenda: centsToMoney(product.salePriceCents),
-      quantidade: String(product.quantity),
+      quantidade: String(product.isWeighable ? decimalStockValue(product.quantityDecimal) : product.quantity),
+      pesavel: product.isWeighable,
       marca: product.brand ?? '',
       categoria: product.category ?? '',
       fornecedor: product.supplier ?? '',
@@ -910,6 +937,8 @@ export class ProductsService {
       cest: product.cest ?? '',
       origin: product.origin ?? '',
       unit: product.unit ?? '',
+      unidadeVenda: product.unit ?? 'UN',
+      isWeighable: product.isWeighable,
       icmsRate: product.icmsRate === null ? null : Number(product.icmsRate),
       ipiRate: product.ipiRate === null ? null : Number(product.ipiRate),
       pisRate: product.pisRate === null ? null : Number(product.pisRate),
