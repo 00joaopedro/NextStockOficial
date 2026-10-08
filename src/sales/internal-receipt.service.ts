@@ -159,6 +159,7 @@ export class InternalReceiptService {
     const paperWidthMm = normalizePaperWidth(company?.receiptPaperWidthMm);
     return {
       ...audit,
+      mode,
       paperWidthMm,
       html: this.buildHtml({
         sale,
