@@ -31,6 +31,7 @@ import {
 import { SaleQueryDto } from './dto/sale-query.dto';
 import { InternalReceiptService } from './internal-receipt.service';
 import { sourcesFor } from '../orders/order-status-transitions';
+import { calculateQuantityPriceCents, decimalStockValue, normalizeQuantity } from '../products/quantity.util';
 
 const SALE_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' as const } },
@@ -187,6 +188,8 @@ export class SalesService {
             originSnapshot: null,
             cestSnapshot: null,
             quantity: 1,
+            quantityDecimal: null,
+            isWeighableSnapshot: false,
             unitPriceCents: item.amountCents,
             totalPriceCents: item.amountCents,
             unitCostCentsSnapshot: null,
@@ -224,7 +227,12 @@ export class SalesService {
           context.branchId!,
           pricedItems.flatMap((item) =>
             item.productId
-              ? [{ productId: item.productId, quantity: item.quantity }]
+              ? [{
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  quantityDecimal: item.quantityDecimal,
+                  isWeighable: item.isWeighableSnapshot,
+                }]
               : [],
           ),
         );
@@ -262,6 +270,8 @@ export class SalesService {
                 originSnapshot: item.originSnapshot,
                 cestSnapshot: item.cestSnapshot,
                 quantity: item.quantity,
+                quantityDecimal: item.quantityDecimal,
+                isWeighableSnapshot: item.isWeighableSnapshot,
                 unitPriceCents: item.unitPriceCents,
                 totalPriceCents: item.totalPriceCents,
                 unitCostCentsSnapshot: item.unitCostCentsSnapshot,
@@ -995,6 +1005,8 @@ export class SalesService {
         salePriceCents: true,
         costPriceCents: true,
         quantity: true,
+        quantityDecimal: true,
+        isWeighable: true,
       },
     });
     const byId = new Map(products.map((product) => [product.id, product]));
@@ -1006,7 +1018,21 @@ export class SalesService {
           'Produto da venda nao pertence ao tenant/filial atual.',
         );
       }
-      if (product.quantity < item.quantity) {
+      let requestedQuantity: number;
+      try {
+        requestedQuantity = normalizeQuantity(item.quantity, 'Quantidade');
+      } catch (error) {
+        throw new BadRequestException((error as Error).message);
+      }
+      if (!product.isWeighable && !Number.isInteger(requestedQuantity)) {
+        throw new BadRequestException(
+          `O produto ${product.name} aceita apenas quantidade inteira.`,
+        );
+      }
+      const availableQuantity = product.isWeighable
+        ? decimalStockValue(product.quantityDecimal)
+        : product.quantity;
+      if (availableQuantity < requestedQuantity) {
         throw new BadRequestException(
           `Estoque insuficiente para ${product.name}.`,
         );
@@ -1022,11 +1048,13 @@ export class SalesService {
         unitSnapshot: product.unit,
         originSnapshot: product.origin,
         cestSnapshot: product.cest,
-        quantity: item.quantity,
+        quantity: Number.isInteger(requestedQuantity) ? requestedQuantity : 1,
+        quantityDecimal: new Prisma.Decimal(requestedQuantity),
+        isWeighableSnapshot: product.isWeighable,
         unitPriceCents: product.salePriceCents,
-        totalPriceCents: product.salePriceCents * item.quantity,
+        totalPriceCents: calculateQuantityPriceCents(product.salePriceCents, requestedQuantity),
         unitCostCentsSnapshot: product.costPriceCents,
-        totalCostCentsSnapshot: product.costPriceCents * item.quantity,
+        totalCostCentsSnapshot: calculateQuantityPriceCents(product.costPriceCents, requestedQuantity),
       };
     });
   }
@@ -1035,7 +1063,12 @@ export class SalesService {
     tx: PrismaTx,
     tenantId: string,
     branchId: string,
-    items: Array<{ productId: string; quantity: number }>,
+    items: Array<{
+      productId: string;
+      quantity: number;
+      quantityDecimal: Prisma.Decimal | null;
+      isWeighable: boolean;
+    }>,
   ) {
     for (const item of items) {
       const updated = await tx.product.updateMany({
@@ -1043,9 +1076,13 @@ export class SalesService {
           id: item.productId,
           tenantId,
           branchId,
-          quantity: { gte: item.quantity },
+          ...(item.isWeighable
+            ? { quantityDecimal: { gte: item.quantityDecimal ?? item.quantity } }
+            : { quantity: { gte: item.quantity } }),
         },
-        data: { quantity: { decrement: item.quantity } },
+        data: item.isWeighable
+          ? { quantityDecimal: { decrement: item.quantityDecimal ?? item.quantity } }
+          : { quantity: { decrement: item.quantity } },
       });
       if (updated.count !== 1) {
         throw new BadRequestException(
@@ -1270,7 +1307,10 @@ export class SalesService {
         unitSnapshot: item.unitSnapshot,
         originSnapshot: item.originSnapshot,
         cestSnapshot: item.cestSnapshot,
-        quantity: item.quantity,
+        quantity: Number(item.quantityDecimal ?? item.quantity),
+        quantityDecimal: item.quantityDecimal,
+        quantityUnit: item.unitSnapshot || 'UN',
+        isWeighable: item.isWeighableSnapshot,
         unitPriceCents: item.unitPriceCents,
         totalPriceCents: item.totalPriceCents,
         unitCostCentsSnapshot: item.unitCostCentsSnapshot,
