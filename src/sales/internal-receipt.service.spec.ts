@@ -46,7 +46,10 @@ describe('InternalReceiptService RC-012', () => {
       },
     };
     numbers.forEach((printCounter) =>
-      tx.saleDocument.update.mockResolvedValueOnce({ printCounter }),
+      tx.saleDocument.update.mockResolvedValueOnce({
+        printCounter,
+        fiscalPreviewPrintCounter: printCounter,
+      }),
     );
     const prisma: any = {
       $transaction: jest.fn((callback) => callback(tx)),
