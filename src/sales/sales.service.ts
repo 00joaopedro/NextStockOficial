@@ -644,6 +644,53 @@ export class SalesService {
     };
   }
 
+  async fiscalPreview(
+    user: AuthenticatedUser | undefined,
+    id: string,
+    selectedBranchId?: string,
+    devContextMode?: string,
+    printIdempotencyKey?: string,
+    origin: 'cash_register' | 'history' = 'history',
+  ) {
+    const context = await this.resolveContext(
+      user,
+      selectedBranchId,
+      devContextMode,
+      false,
+    );
+    const sale = await this.findScopedSale(
+      context.tenantId,
+      context.branchId!,
+      id,
+    );
+    const printed = await this.internalReceipt.issueAndRender({
+      sale,
+      context: {
+        userId: context.userId,
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+      },
+      origin,
+      idempotencyKey: printIdempotencyKey,
+      mode: 'fiscal_preview',
+    });
+
+    return {
+      ok: true,
+      mode: 'fiscal_preview' as const,
+      printable: true,
+      fiscal: false,
+      authorized: false,
+      title: 'Prévia fiscal sem valor fiscal',
+      documentId: printed.documentId,
+      printEvent: printed.eventType,
+      printNumber: printed.printNumber,
+      printAttemptId: printed.attemptId,
+      paperWidthMm: printed.paperWidthMm,
+      html: printed.html,
+    };
+  }
+
   async receiptByOrder(
     user: AuthenticatedUser | undefined,
     orderId: string,
