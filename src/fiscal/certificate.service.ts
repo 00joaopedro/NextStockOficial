@@ -202,8 +202,11 @@ export class CertificateService {
           ? CertificateValidationStatus.expired
           : code === 'CERTIFICATE_CNPJ_MISMATCH'
             ? CertificateValidationStatus.cnpj_mismatch
-            : code === 'CERTIFICATE_SECRET_DECRYPT_FAILED'
-              ? CertificateValidationStatus.decrypt_error
+            : code === 'CERTIFICATE_SECRET_DECRYPT_FAILED' ||
+              code === 'CERTIFICATE_BLOB_DECRYPT_FAILED'
+            ? CertificateValidationStatus.decrypt_error
+            : code === 'CERTIFICATE_CNPJ_MISSING'
+              ? CertificateValidationStatus.cnpj_mismatch
               : CertificateValidationStatus.invalid;
       await this.prisma.companyFiscalConfig.update({
         where: { id: config.id },
