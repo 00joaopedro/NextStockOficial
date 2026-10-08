@@ -25,8 +25,8 @@ export type InternalReceiptSale = {
   items: Array<{
     productNameSnapshot: string;
     quantity: number;
-    quantityUnit: string;
-    isWeighable: boolean;
+    quantityUnit?: string;
+    isWeighable?: boolean;
     unitPriceCents: number;
     totalPriceCents: number;
   }>;
