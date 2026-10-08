@@ -39,6 +39,9 @@
     certificateValidate: document.getElementById('btnCertificateValidate'),
     certificateRemove: document.getElementById('btnCertificateRemove'),
     activateProduction: document.getElementById('btnActivateProduction'),
+    fiscalActivationStatus: document.getElementById('fiscalActivationStatus'),
+    fiscalCommunicationTest: document.getElementById('btnFiscalCommunicationTest'),
+    fiscalSuspend: document.getElementById('btnFiscalSuspend'),
     adminPanel: document.getElementById('fiscalAdminPanel'),
     fiscalConfigSave: document.getElementById('btnFiscalConfigSave'),
     printAgentStatus: document.getElementById('printAgentStatus'),
@@ -144,6 +147,8 @@
       state.preview || busy || !certificate?.present;
     elements.activateProduction.disabled =
       state.preview || busy || state.fiscalConfig?.environment === 'producao';
+    elements.fiscalCommunicationTest.disabled = state.preview || busy || !certificate?.present;
+    elements.fiscalSuspend.disabled = state.preview || busy || state.fiscalConfig?.activationStatus === 'suspenso';
     elements.fiscalConfigSave.disabled = state.preview || busy;
   }
 
@@ -179,6 +184,15 @@
     return `${(Number(size) / 1024).toFixed(1)} KB`;
   }
 
+  function activationLabel(status) {
+    return ({
+      pendente: 'PENDENTE',
+      homologacao: 'HOMOLOGAÇÃO',
+      ativo: 'ATIVO',
+      suspenso: 'SUSPENSO',
+    }[status] || 'PENDENTE');
+  }
+
   function certificateLabel(status) {
     return (
       {
@@ -212,6 +226,11 @@
     elements.certificateSummary.textContent = certificateLabel(
       certificate.status,
     );
+    const activationStatus = config?.activationStatus || certificate.activationStatus || 'pendente';
+    if (elements.fiscalActivationStatus) {
+      elements.fiscalActivationStatus.textContent = activationLabel(activationStatus);
+      elements.fiscalActivationStatus.dataset.status = activationStatus;
+    }
     elements.certificateExpiry.textContent = formatDate(certificate.expiresAt);
     elements.certificateCnpj.textContent = certificate.cnpj || '—';
     elements.certificateFileSummary.textContent =
@@ -719,6 +738,39 @@
     }
   }
 
+  async function testFiscalCommunication() {
+    if (state.certificateBusy) return;
+    setCertificateBusy(true);
+    setCertificateMessage('Validando certificado e comunicação...', 'warning');
+    try {
+      const result = await api('/api/fiscal/environment/communication-test', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      await loadFiscalConfig();
+      setCertificateMessage(result.message || 'Teste concluído.', result.communication === 'local_only' ? 'warning' : 'success');
+    } catch (error) {
+      setCertificateMessage(error.message || 'Falha no teste de comunicação.', 'error');
+    } finally {
+      setCertificateBusy(false);
+    }
+  }
+
+  async function suspendFiscalActivation() {
+    if (state.certificateBusy || !window.confirm('Suspender a ativação fiscal desta filial?')) return;
+    setCertificateBusy(true);
+    setCertificateMessage('Suspendo a ativação fiscal...', 'warning');
+    try {
+      await api('/api/fiscal/environment/suspend', { method: 'POST', body: JSON.stringify({}) });
+      await loadFiscalConfig();
+      setCertificateMessage('Ativação fiscal suspensa. A emissão em produção ficará bloqueada.', 'success');
+    } catch (error) {
+      setCertificateMessage(error.message || 'Não foi possível suspender a ativação.', 'error');
+    } finally {
+      setCertificateBusy(false);
+    }
+  }
+
   async function removeCertificate() {
     if (
       state.certificateBusy ||
@@ -1036,6 +1088,8 @@
   elements.certificateValidate.addEventListener('click', validateCertificate);
   elements.certificateRemove.addEventListener('click', removeCertificate);
   elements.activateProduction.addEventListener('click', activateProduction);
+  elements.fiscalCommunicationTest.addEventListener('click', testFiscalCommunication);
+  elements.fiscalSuspend.addEventListener('click', suspendFiscalActivation);
   elements.fiscalConfigSave.addEventListener('click', saveFiscalConfig);
 
   init();

@@ -182,6 +182,28 @@ export class FiscalController {
     );
   }
 
+  @Post('environment/communication-test')
+  @Roles(Role.Admin)
+  @UseGuards(PublicRateLimitGuard)
+  @RateLimit({ max: 6, windowMs: 60_000 })
+  testCommunication(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    return this.certificateService.testCommunication(req.user, branchId, devContext);
+  }
+
+  @Post('environment/suspend')
+  @Roles(Role.Admin)
+  suspendFiscal(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    return this.certificateService.suspend(req.user, branchId, devContext);
+  }
+
   @Get('documents/:id/xml')
   @Roles(Role.Admin, Role.Vendedor)
   xml(
