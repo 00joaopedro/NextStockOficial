@@ -214,7 +214,7 @@ export class CertificateService {
           activationStatus: FiscalActivationStatus.pendente,
         },
       });
-      this.recordAudit(context, 'fiscal.certificate.validation_failed', AuditOutcome.FAILURE, {
+      this.recordAudit(context, 'fiscal.certificate.validation_failed', AuditOutcome.FAILED, {
         reasonCode: code,
       });
       throw error;
