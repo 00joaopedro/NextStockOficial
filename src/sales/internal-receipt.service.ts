@@ -8,6 +8,8 @@ export type InternalReceiptContext = {
   tenantId: string;
   branchId: string;
 };
+export type ReceiptRenderMode = 'internal_receipt' | 'fiscal_preview';
+
 export type InternalReceiptSale = {
   id: string;
   orderId: string | null;
@@ -37,8 +39,14 @@ export class InternalReceiptService {
     context: InternalReceiptContext;
     origin: 'cash_register' | 'history' | 'order' | 'legacy';
     idempotencyKey?: string;
+    mode?: ReceiptRenderMode;
   }) {
     const { sale, context } = input;
+    const mode = input.mode ?? 'internal_receipt';
+    const isFiscalPreview = mode === 'fiscal_preview';
+    const eventTypes = isFiscalPreview
+      ? ['fiscal_preview_printed', 'fiscal_preview_reprinted']
+      : ['internal_receipt_printed', 'internal_receipt_reprinted'];
     const audit = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`
         INSERT INTO "sale_documents" ("id", "sale_id", "tenant_id", "branch_id", "order_id", "type", "status", "issued_at", "created_by_id", "updated_by_id", "created_at", "updated_at")
@@ -65,6 +73,7 @@ export class InternalReceiptService {
         const previous = await tx.fiscalDocumentEvent.findFirst({
           where: {
             documentId: document.id,
+            eventType: { in: eventTypes },
             requestPayload: {
               path: ['idempotencyKey'],
               equals: input.idempotencyKey,
@@ -96,15 +105,14 @@ export class InternalReceiptService {
       });
       const printNumber = allocated.printCounter;
       const attemptId = randomUUID();
-      const eventType =
-        printNumber === 1
-          ? 'internal_receipt_printed'
-          : 'internal_receipt_reprinted';
+      const eventType = printNumber === 1 ? eventTypes[0] : eventTypes[1];
       await tx.fiscalDocumentEvent.create({
         data: {
           documentId: document.id,
           eventType,
-          status: SaleDocumentStatus.internal_issued,
+          status: isFiscalPreview
+            ? SaleDocumentStatus.draft
+            : SaleDocumentStatus.internal_issued,
           printNumber,
           attemptId,
           requestPayload: {
@@ -157,6 +165,7 @@ export class InternalReceiptService {
         company,
         branchName: branch?.name || 'Filial',
         printNumber: audit.printNumber,
+        mode,
         paperWidthMm,
       }),
     };
@@ -173,6 +182,7 @@ export class InternalReceiptService {
     } | null;
     branchName: string;
     printNumber: number;
+    mode: ReceiptRenderMode;
     paperWidthMm: 58 | 80;
   }) {
     const { sale, company } = input;
@@ -184,10 +194,17 @@ export class InternalReceiptService {
       .join('');
     const companyName =
       company?.tradeName || company?.legalName || 'Empresa não configurada';
+    const isFiscalPreview = input.mode === 'fiscal_preview';
+    const documentHeading = isFiscalPreview
+      ? 'PRÉVIA FISCAL — SEM VALOR FISCAL'
+      : 'RECIBO INTERNO — SEM VALIDADE FISCAL';
+    const warningText = isFiscalPreview
+      ? 'NÃO AUTORIZADA PELA SEFAZ — NÃO É NFC-e/NF-e VÁLIDA'
+      : 'NÃO É NFC-e / NÃO É DOCUMENTO AUTORIZADO PELA SEFAZ';
     const width = `${input.paperWidthMm}mm`;
-    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Recibo interno ${escapeHtml(sale.id)}</title><style>
+    return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>${documentHeading} ${escapeHtml(sale.id)}</title><style>
 @page{size:${width} 200mm;margin:0}*{box-sizing:border-box}html,body{width:${width};margin:0;padding:0;background:#fff;color:#111}body{font-family:"Arial Narrow",Arial,sans-serif;font-size:11px;line-height:1.25;padding:4mm 3mm}.receipt{width:100%;max-width:${width};overflow-wrap:anywhere}.warning{border:1px solid #111;padding:3mm 2mm;text-align:center;font-weight:900;margin:2mm 0}.warning strong{display:block;font-size:13px;line-height:1.15}.warning span{display:block;font-size:9px;margin-top:1.5mm}h1{font-size:15px;text-align:center;margin:2mm 0 1mm;overflow-wrap:anywhere}p{margin:1mm 0}.meta{text-align:center}table{width:100%;border-collapse:collapse;table-layout:fixed;margin-top:3mm}th,td{border-bottom:1px dashed #777;padding:1.5mm 0;text-align:left;vertical-align:top;overflow-wrap:anywhere}th:nth-child(1),td:nth-child(1){width:42%}th:nth-child(2),td:nth-child(2){width:13%;text-align:right}th:nth-child(3),td:nth-child(3){width:22%;text-align:right}th:nth-child(4),td:nth-child(4){width:23%;text-align:right}.totals{margin-top:3mm;border-top:1px solid #111;padding-top:2mm}.line{display:flex;justify-content:space-between;gap:2mm}.total{font-size:15px;font-weight:bold;margin-top:1.5mm}.footer{margin-top:4mm}@media print{body{padding:3mm 2mm}.warning{break-inside:avoid}tr{break-inside:avoid}}
-</style></head><body><main class="receipt" data-paper-width-mm="${input.paperWidthMm}"><div class="warning"><strong>RECIBO INTERNO — SEM VALIDADE FISCAL</strong><span>NÃO É NFC-e / NÃO É DOCUMENTO AUTORIZADO PELA SEFAZ</span></div><h1>${escapeHtml(companyName)}</h1><section class="meta">${company?.cnpj ? `<p>CNPJ cadastrado: ${escapeHtml(company.cnpj)}</p>` : ''}<p>Filial: ${escapeHtml(input.branchName)}</p><p>Venda interna: ${escapeHtml(sale.id)}</p><p>Operador: ${escapeHtml(sale.sellerNameSnapshot)}</p><p>Data da venda: ${escapeHtml(formatReceiptDate(sale.soldAt, company?.receiptTimezone))}</p><p>Forma de pagamento: ${escapeHtml(sale.paymentMethod)}</p>${sale.paymentMachineNameSnapshot ? `<p>Maquininha: ${escapeHtml(sale.paymentMachineNameSnapshot)}</p>` : ''}<p>Via de impressão: ${input.printNumber}</p></section><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><section class="totals"><p class="line"><span>Subtotal</span><span>${formatCurrency(sale.subtotalCents)}</span></p><p class="line"><span>Desconto</span><span>${formatCurrency(sale.discountCents)}</span></p><p class="line total"><span>Total</span><span>${formatCurrency(sale.totalCents)}</span></p><p class="line"><span>Valor pago</span><span>${formatCurrency(sale.paidCents ?? sale.totalCents)}</span></p><p class="line"><span>Troco</span><span>${formatCurrency(sale.changeCents)}</span></p></section><div class="warning footer"><strong>RECIBO INTERNO — SEM VALIDADE FISCAL</strong><span>NÃO É NFC-e / NÃO É DOCUMENTO AUTORIZADO PELA SEFAZ</span></div></main></body></html>`;
+</style></head><body><main class="receipt" data-paper-width-mm="${input.paperWidthMm}"><div class="warning"><strong>${documentHeading}</strong><span>${warningText}</span></div><h1>${escapeHtml(companyName)}</h1><section class="meta">${company?.cnpj ? `<p>CNPJ cadastrado: ${escapeHtml(company.cnpj)}</p>` : ''}<p>Filial: ${escapeHtml(input.branchName)}</p><p>Venda interna: ${escapeHtml(sale.id)}</p><p>Operador: ${escapeHtml(sale.sellerNameSnapshot)}</p><p>Data da venda: ${escapeHtml(formatReceiptDate(sale.soldAt, company?.receiptTimezone))}</p><p>Forma de pagamento: ${escapeHtml(sale.paymentMethod)}</p>${sale.paymentMachineNameSnapshot ? `<p>Maquininha: ${escapeHtml(sale.paymentMachineNameSnapshot)}</p>` : ''}<p>Via de impressão: ${input.printNumber}</p></section><table><thead><tr><th>Produto</th><th>Qtd.</th><th>Unitário</th><th>Total</th></tr></thead><tbody>${rows}</tbody></table><section class="totals"><p class="line"><span>Subtotal</span><span>${formatCurrency(sale.subtotalCents)}</span></p><p class="line"><span>Desconto</span><span>${formatCurrency(sale.discountCents)}</span></p><p class="line total"><span>Total</span><span>${formatCurrency(sale.totalCents)}</span></p><p class="line"><span>Valor pago</span><span>${formatCurrency(sale.paidCents ?? sale.totalCents)}</span></p><p class="line"><span>Troco</span><span>${formatCurrency(sale.changeCents)}</span></p></section><div class="warning footer"><strong>${documentHeading}</strong><span>${warningText}</span></div></main></body></html>`;
   }
 }
 
