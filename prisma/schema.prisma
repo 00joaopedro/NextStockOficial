@@ -1215,6 +1215,12 @@ model Product {
   cest               String?
   origin             String?
   unit               String?
+  taxableUnit        String?              @map("taxable_unit")
+  icmsCst            String?              @map("icms_cst")
+  icmsCsosn          String?              @map("icms_csosn")
+  ipiCode            String?              @map("ipi_code")
+  pisCode            String?              @map("pis_code")
+  cofinsCode         String?              @map("cofins_code")
   icmsRate           Decimal?             @map("icms_rate") @db.Decimal(7, 4)
   ipiRate            Decimal?             @map("ipi_rate") @db.Decimal(7, 4)
   pisRate            Decimal?             @map("pis_rate") @db.Decimal(7, 4)
@@ -1437,6 +1443,12 @@ model SaleItem {
   cfopSnapshot           String?  @map("cfop_snapshot")
   unitSnapshot           String?  @map("unit_snapshot")
   originSnapshot         String?  @map("origin_snapshot")
+  taxableUnitSnapshot    String?  @map("taxable_unit_snapshot")
+  icmsCstSnapshot        String?  @map("icms_cst_snapshot")
+  icmsCsosnSnapshot      String?  @map("icms_csosn_snapshot")
+  ipiCodeSnapshot        String?  @map("ipi_code_snapshot")
+  pisCodeSnapshot        String?  @map("pis_code_snapshot")
+  cofinsCodeSnapshot     String?  @map("cofins_code_snapshot")
   cestSnapshot           String?  @map("cest_snapshot")
   quantity               Int
   quantityDecimal        Decimal? @map("quantity_decimal") @db.Decimal(12, 6)
@@ -1615,11 +1627,18 @@ model FiscalDocumentItem {
   cest              String?
   origin            String
   unit              String
+  taxableUnit       String?  @map("taxable_unit")
   quantity          Int
+  quantityDecimal   Decimal? @map("quantity_decimal") @db.Decimal(12, 6)
   unitPriceCents    Int      @map("unit_price_cents")
   totalPriceCents   Int      @map("total_price_cents")
   discountCents     Int      @default(0) @map("discount_cents")
   icmsCode          String?  @map("icms_code")
+  icmsCst           String?  @map("icms_cst")
+  icmsCsosn         String?  @map("icms_csosn")
+  ipiCode           String?  @map("ipi_code")
+  pisCode           String?  @map("pis_code")
+  cofinsCode        String?  @map("cofins_code")
   icmsRate          Decimal? @map("icms_rate") @db.Decimal(7, 4)
   icmsAmountCents   Int?     @map("icms_amount_cents")
   ipiCode           String?  @map("ipi_code")
