@@ -805,6 +805,27 @@ export class ProductsService {
     dto: UpdateProductDto,
   ) {
     const data: Prisma.ProductUncheckedUpdateInput = {};
+    const currentStock = await this.prisma.product.findUniqueOrThrow({
+      where: { id, tenantId, branchId },
+      select: { quantity: true, quantityDecimal: true, isWeighable: true, unit: true },
+    });
+    const finalWeighable = dto.isWeighable ?? currentStock.isWeighable;
+    const finalUnit =
+      dto.unit !== undefined
+        ? clean(dto.unit)?.toUpperCase() ?? null
+        : currentStock.unit;
+    const finalQuantity =
+      dto.quantidade !== undefined
+        ? normalizeQuantity(dto.quantidade)
+        : finalWeighable
+          ? decimalStockValue(currentStock.quantityDecimal)
+          : currentStock.quantity;
+    if (finalWeighable && !finalUnit) {
+      throw new BadRequestException('Produto pesável deve informar a unidade de venda.');
+    }
+    if (!finalWeighable && !Number.isInteger(finalQuantity)) {
+      throw new BadRequestException('Produtos vendidos por unidade aceitam apenas quantidade inteira.');
+    }
 
     if (dto.nome !== undefined) data.name = dto.nome.trim();
     if (dto.quantidade !== undefined) {
