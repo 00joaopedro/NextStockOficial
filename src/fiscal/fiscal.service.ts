@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  FiscalActivationStatus,
   FiscalEnvironment,
   FiscalSendAttemptState,
   OrderStatus,
@@ -832,7 +833,12 @@ export class FiscalService {
       state: dto.state.trim().toUpperCase(),
       zipCode: this.validation.digits(dto.zipCode),
       country: clean(dto.country) || 'Brasil',
-      ...(dto.environment ? { environment: dto.environment } : {}),
+      ...(dto.environment
+        ? {
+            environment: dto.environment,
+            activationStatus: FiscalActivationStatus.homologacao,
+          }
+        : {}),
       nfeSeries: dto.nfeSeries.trim(),
       nfceSeries: dto.nfceSeries.trim(),
       ...(dto.receiptPaperWidthMm
@@ -1186,6 +1192,7 @@ export class FiscalService {
       zipCode: config.zipCode,
       country: config.country,
       environment: config.environment,
+      activationStatus: config.activationStatus || FiscalActivationStatus.pendente,
       nfeSeries: config.nfeSeries,
       nfceSeries: config.nfceSeries,
       receiptPaperWidthMm: config.receiptPaperWidthMm,
@@ -1199,6 +1206,7 @@ export class FiscalService {
         ? {
             present: true,
             status: config.certificateValidationStatus || 'pending',
+            activationStatus: config.activationStatus || FiscalActivationStatus.pendente,
             originalName: config.certificateOriginalName,
             mimeType: config.certificateMimeType,
             size: config.certificateSize,
@@ -1213,7 +1221,7 @@ export class FiscalService {
             validatedAt: config.certificateValidatedAt,
             validationErrorCode: config.certificateValidationErrorCode,
           }
-        : { present: false, status: 'absent' },
+        : { present: false, status: 'absent', activationStatus: config.activationStatus || FiscalActivationStatus.pendente },
       productionEnabledAt: config.productionEnabledAt,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
