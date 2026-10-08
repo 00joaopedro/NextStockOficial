@@ -1552,6 +1552,7 @@ model CompanyFiscalConfig {
   zipCode                        String                       @map("zip_code")
   country                        String                       @default("Brasil")
   environment                    FiscalEnvironment            @default(homologacao)
+  activationStatus               FiscalActivationStatus       @default(pendente) @map("activation_status")
   certificatePath                String?                      @map("certificate_path")
   certificateSecretRef           String?                      @map("certificate_secret_ref")
   certificateOriginalName        String?                      @map("certificate_original_name")
@@ -2333,6 +2334,13 @@ enum CertificateValidationStatus {
   expired
   cnpj_mismatch
   decrypt_error
+}
+
+enum FiscalActivationStatus {
+  pendente
+  homologacao
+  ativo
+  suspenso
 }
 
 enum EmployeeStatus {
