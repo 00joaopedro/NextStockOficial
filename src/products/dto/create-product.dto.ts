@@ -124,6 +124,36 @@ export class CreateProductDto {
   origin?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  taxableUnit?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  icmsCst?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  icmsCsosn?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  ipiCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  pisCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3)
+  cofinsCode?: string;
+
+  @IsOptional()
   @IsBoolean()
   isWeighable?: boolean;
 

@@ -156,6 +156,12 @@ export class FiscalService {
           barcodeSnapshot: item.barcodeSnapshot,
           quantity: item.quantity,
           quantityDecimal: item.quantityDecimal,
+          taxableUnitSnapshot: item.product?.taxableUnit,
+          icmsCstSnapshot: item.product?.icmsCst,
+          icmsCsosnSnapshot: item.product?.icmsCsosn,
+          ipiCodeSnapshot: item.product?.ipiCode,
+          pisCodeSnapshot: item.product?.pisCode,
+          cofinsCodeSnapshot: item.product?.cofinsCode,
           unitPriceCents: item.unitPriceCents,
           totalPriceCents: item.totalPriceCents,
           product: item.product,
@@ -238,7 +244,7 @@ export class FiscalService {
     this.validation.assertSaleEligible(sale);
     this.validation.assertConfig(config);
     this.validation.assertRecipient(dto.recipient);
-    this.validation.assertItems(sale.items);
+    this.validation.assertItems(sale.items, config);
 
     const active = await this.prisma.saleDocument.findFirst({
       where: {
@@ -363,7 +369,8 @@ export class FiscalService {
     const config = await this.loadConfig(context.tenantId, context.branchId!);
     this.validation.assertSaleEligible(document.sale);
     this.validation.assertConfig(config, true);
-    this.validation.assertItems(document.sale.items);
+    this.validation.assertItems(document.sale.items, config);
+    this.validation.assertStoredPayload(document.normalizedPayload, config);
     const provider = this.getProvider(config!.provider);
     if (
       config!.environment === FiscalEnvironment.producao &&
@@ -990,6 +997,12 @@ export class FiscalService {
     ncmSnapshot?: string | null;
     cfopSnapshot?: string | null;
     unitSnapshot?: string | null;
+    taxableUnitSnapshot?: string | null;
+    icmsCstSnapshot?: string | null;
+    icmsCsosnSnapshot?: string | null;
+    ipiCodeSnapshot?: string | null;
+    pisCodeSnapshot?: string | null;
+    cofinsCodeSnapshot?: string | null;
     originSnapshot?: string | null;
     cestSnapshot?: string | null;
     quantity: number;
@@ -1009,6 +1022,12 @@ export class FiscalService {
       cest: item.cestSnapshot || item.product?.cest || '',
       origin: item.originSnapshot || item.product?.origin || '',
       unit: item.unitSnapshot || item.product?.unit || '',
+      taxableUnit: item.taxableUnitSnapshot || item.product?.taxableUnit || item.unitSnapshot || item.product?.unit || '',
+      icmsCst: item.icmsCstSnapshot || item.product?.icmsCst || '',
+      icmsCsosn: item.icmsCsosnSnapshot || item.product?.icmsCsosn || '',
+      ipiCode: item.ipiCodeSnapshot || item.product?.ipiCode || '',
+      pisCode: item.pisCodeSnapshot || item.product?.pisCode || '',
+      cofinsCode: item.cofinsCodeSnapshot || item.product?.cofinsCode || '',
       quantity: Number(item.quantityDecimal ?? item.quantity),
       unitPriceCents: item.unitPriceCents,
       totalPriceCents: item.totalPriceCents,
@@ -1086,7 +1105,14 @@ export class FiscalService {
       cest: clean(draft.cest),
       origin: draft.origin,
       unit: draft.unit,
-      quantity: draft.quantity,
+      taxableUnit: draft.taxableUnit,
+      quantity: Number.isInteger(draft.quantity) ? draft.quantity : 1,
+      quantityDecimal: Number.isInteger(draft.quantity) ? null : new Prisma.Decimal(draft.quantity),
+      icmsCst: draft.icmsCst,
+      icmsCsosn: draft.icmsCsosn,
+      ipiCode: draft.ipiCode,
+      pisCode: draft.pisCode,
+      cofinsCode: draft.cofinsCode,
       unitPriceCents: item.unitPriceCents,
       totalPriceCents: item.totalPriceCents,
       discountCents: 0,

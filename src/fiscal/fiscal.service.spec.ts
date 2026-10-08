@@ -51,6 +51,7 @@ describe('FiscalService', () => {
       assertConfig: jest.fn(),
       assertRecipient: jest.fn(),
       assertItems: jest.fn(),
+      assertStoredPayload: jest.fn(),
       sanitizeProviderPayload: jest.fn((value) => value || {}),
       digits: jest.fn((value) => String(value || '').replace(/\D/g, '')),
     } as any;

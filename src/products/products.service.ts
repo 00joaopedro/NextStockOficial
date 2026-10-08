@@ -790,8 +790,14 @@ export class ProductsService {
       ncm: fiscalDigits(dto.ncm),
       cfopDefault: fiscalDigits(dto.cfopDefault),
       cest: fiscalDigits(dto.cest),
-      origin: clean(dto.origin),
+      origin: fiscalDigits(dto.origin),
       unit,
+      taxableUnit: clean(dto.taxableUnit)?.toUpperCase() ?? unit,
+      icmsCst: fiscalDigits(dto.icmsCst),
+      icmsCsosn: fiscalDigits(dto.icmsCsosn),
+      ipiCode: fiscalDigits(dto.ipiCode),
+      pisCode: fiscalDigits(dto.pisCode),
+      cofinsCode: fiscalDigits(dto.cofinsCode),
       icmsRate:
         dto.icmsRate === undefined ? null : new Prisma.Decimal(dto.icmsRate),
       ipiRate:
@@ -862,9 +868,16 @@ export class ProductsService {
     if (dto.cfopDefault !== undefined)
       data.cfopDefault = fiscalDigits(dto.cfopDefault);
     if (dto.cest !== undefined) data.cest = fiscalDigits(dto.cest);
-    if (dto.origin !== undefined) data.origin = clean(dto.origin);
+    if (dto.origin !== undefined) data.origin = fiscalDigits(dto.origin);
     if (dto.unit !== undefined)
       data.unit = clean(dto.unit)?.toUpperCase() ?? null;
+    if (dto.taxableUnit !== undefined)
+      data.taxableUnit = clean(dto.taxableUnit)?.toUpperCase() ?? null;
+    if (dto.icmsCst !== undefined) data.icmsCst = fiscalDigits(dto.icmsCst);
+    if (dto.icmsCsosn !== undefined) data.icmsCsosn = fiscalDigits(dto.icmsCsosn);
+    if (dto.ipiCode !== undefined) data.ipiCode = fiscalDigits(dto.ipiCode);
+    if (dto.pisCode !== undefined) data.pisCode = fiscalDigits(dto.pisCode);
+    if (dto.cofinsCode !== undefined) data.cofinsCode = fiscalDigits(dto.cofinsCode);
     if (dto.icmsRate !== undefined)
       data.icmsRate = new Prisma.Decimal(dto.icmsRate);
     if (dto.ipiRate !== undefined)
@@ -965,6 +978,12 @@ export class ProductsService {
       cest: product.cest ?? '',
       origin: product.origin ?? '',
       unit: product.unit ?? '',
+      taxableUnit: product.taxableUnit ?? product.unit ?? '',
+      icmsCst: product.icmsCst ?? '',
+      icmsCsosn: product.icmsCsosn ?? '',
+      ipiCode: product.ipiCode ?? '',
+      pisCode: product.pisCode ?? '',
+      cofinsCode: product.cofinsCode ?? '',
       unidadeVenda: product.unit ?? 'UN',
       isWeighable: product.isWeighable,
       icmsRate: product.icmsRate === null ? null : Number(product.icmsRate),

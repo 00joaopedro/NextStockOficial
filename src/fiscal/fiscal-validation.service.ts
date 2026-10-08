@@ -11,6 +11,7 @@ type FiscalConfigInput = {
   cnpj: string;
   stateRegistration: string | null;
   crt: number;
+  taxRegime?: string | null;
   street: string;
   number: string;
   district: string;
@@ -34,15 +35,28 @@ type FiscalSaleInput = {
   items: Array<{
     productNameSnapshot: string;
     isMiscellaneous?: boolean;
+    isWeighableSnapshot?: boolean;
     ncmSnapshot?: string | null;
     cfopSnapshot?: string | null;
     unitSnapshot?: string | null;
+    taxableUnitSnapshot?: string | null;
+    icmsCstSnapshot?: string | null;
+    icmsCsosnSnapshot?: string | null;
+    ipiCodeSnapshot?: string | null;
+    pisCodeSnapshot?: string | null;
+    cofinsCodeSnapshot?: string | null;
     originSnapshot?: string | null;
     product?: {
       ncm?: string | null;
       cfopDefault?: string | null;
       unit?: string | null;
       origin?: string | null;
+      taxableUnit?: string | null;
+      icmsCst?: string | null;
+      icmsCsosn?: string | null;
+      ipiCode?: string | null;
+      pisCode?: string | null;
+      cofinsCode?: string | null;
     } | null;
   }>;
 };
@@ -156,11 +170,11 @@ export class FiscalValidationService {
     }
   }
 
-  assertItems(items: FiscalSaleInput['items']) {
+  assertItems(items: FiscalSaleInput['items'], config?: FiscalConfigInput | null) {
     const miscellaneous = items.find((item) => item.isMiscellaneous);
     if (miscellaneous) {
       throw new BadRequestException(
-        'Produto diverso por valor nao pode emitir NF-e sem dados fiscais proprios. Cadastre o produto com NCM, CFOP, unidade e origem antes da emissao fiscal.',
+        'Produto diverso por valor nao pode emitir NF-e sem dados fiscais proprios. Cadastre um produto com classificacao fiscal completa antes da emissao.',
       );
     }
 
@@ -168,18 +182,75 @@ export class FiscalValidationService {
       const ncm = item.ncmSnapshot || item.product?.ncm;
       const cfop = item.cfopSnapshot || item.product?.cfopDefault;
       const unit = item.unitSnapshot || item.product?.unit;
+      const taxableUnit = item.taxableUnitSnapshot || item.product?.taxableUnit || (item.isWeighableSnapshot ? null : unit);
       const origin = item.originSnapshot || item.product?.origin;
+      const cst = item.icmsCstSnapshot || item.product?.icmsCst;
+      const csosn = item.icmsCsosnSnapshot || item.product?.icmsCsosn;
+      const ipiCode = item.ipiCodeSnapshot || item.product?.ipiCode;
+      const pisCode = item.pisCodeSnapshot || item.product?.pisCode;
+      const cofinsCode = item.cofinsCodeSnapshot || item.product?.cofinsCode;
+      const crt = config?.crt;
+      const icmsOk = crt === undefined || (crt === 1 || crt === 2 || crt === 4
+        ? /^\d{3}$/.test(this.digits(csosn))
+        : /^\d{2}$/.test(this.digits(cst)));
+      const taxCodesOk = /^\d{2}$/.test(this.digits(ipiCode)) &&
+        /^\d{2}$/.test(this.digits(pisCode)) &&
+        /^\d{2}$/.test(this.digits(cofinsCode));
       return (
         !/^\d{8}$/.test(this.digits(ncm)) ||
         !/^\d{4}$/.test(this.digits(cfop)) ||
         !unit?.trim() ||
-        !origin?.trim()
+        !taxableUnit?.trim() ||
+        !/^[0-8]$/.test(this.digits(origin)) ||
+        !icmsOk ||
+        !taxCodesOk
       );
     });
 
     if (invalid) {
+      const crtMessage = config?.crt === 3 ? ' CST do ICMS' : ' CSOSN do ICMS';
       throw new BadRequestException(
-        `Produto "${invalid.productNameSnapshot}" sem NCM, CFOP, unidade ou origem fiscal valida.`,
+        'Produto "' + invalid.productNameSnapshot + '" sem NCM, CFOP, unidade tributável, origem ou' + (config ? crtMessage : ' classificação tributária') + ', IPI, PIS ou COFINS inválido.',
+      );
+    }
+  }
+  assertStoredPayload(payload: unknown, config?: FiscalConfigInput | null) {
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new BadRequestException(
+        'Rascunho fiscal antigo ou incompleto. Recrie o documento antes da transmissão.',
+      );
+    }
+    const items = (payload as { items?: unknown }).items;
+    if (!Array.isArray(items) || !items.length) {
+      throw new BadRequestException(
+        'Rascunho fiscal sem itens fiscais completos. Recrie o documento antes da transmissão.',
+      );
+    }
+    const invalid = items.find((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return true;
+      const value = item as Record<string, unknown>;
+      const ncm = this.digits(String(value.ncm ?? ''));
+      const cfop = this.digits(String(value.cfop ?? ''));
+      const unit = String(value.unit ?? '').trim();
+      const taxableUnit = String(value.taxableUnit ?? '').trim();
+      const origin = this.digits(String(value.origin ?? ''));
+      const cst = this.digits(String(value.icmsCst ?? ''));
+      const csosn = this.digits(String(value.icmsCsosn ?? ''));
+      const ipiCode = this.digits(String(value.ipiCode ?? ''));
+      const pisCode = this.digits(String(value.pisCode ?? ''));
+      const cofinsCode = this.digits(String(value.cofinsCode ?? ''));
+      const icmsOk = config?.crt === undefined ||
+        (config.crt === 1 || config.crt === 2 || config.crt === 4
+          ? /^\d{3}$/.test(csosn)
+          : /^\d{2}$/.test(cst));
+      return !/^\d{8}$/.test(ncm) || !/^\d{4}$/.test(cfop) ||
+        !unit || !taxableUnit || !/^[0-8]$/.test(origin) || !icmsOk ||
+        !/^\d{2}$/.test(ipiCode) || !/^\d{2}$/.test(pisCode) ||
+        !/^\d{2}$/.test(cofinsCode);
+    });
+    if (invalid) {
+      throw new BadRequestException(
+        'Rascunho fiscal antigo ou incompleto: faltam dados fiscais obrigatórios. Recrie o documento antes da transmissão.',
       );
     }
   }
