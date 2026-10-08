@@ -273,21 +273,28 @@ export class ProductsService {
       where: {
         tenantId: context.tenantId,
         branchId: context.branchId!,
-        quantity: { gt: 0 },
-        ...(scanCode
-          ? {
-              OR: [
-                { barcode: { in: scanCandidates } },
-                { sku: { in: scanCandidates } },
-              ],
-            }
-          : {
-              OR: [
-                { name: { contains: search!, mode: 'insensitive' } },
-                { sku: { contains: search!, mode: 'insensitive' } },
-                { barcode: { contains: search!, mode: 'insensitive' } },
-              ],
-            }),
+        AND: [
+          {
+            OR: [
+              { isWeighable: false, quantity: { gt: 0 } },
+              { isWeighable: true, quantityDecimal: { gt: 0 } },
+            ],
+          },
+          scanCode
+            ? {
+                OR: [
+                  { barcode: { in: scanCandidates } },
+                  { sku: { in: scanCandidates } },
+                ],
+              }
+            : {
+                OR: [
+                  { name: { contains: search!, mode: 'insensitive' } },
+                  { sku: { contains: search!, mode: 'insensitive' } },
+                  { barcode: { contains: search!, mode: 'insensitive' } },
+                ],
+              },
+        ],
       },
       select: {
         id: true,
