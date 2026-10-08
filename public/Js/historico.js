@@ -373,7 +373,7 @@
       const row = document.createElement("div");
       row.className = "product-row";
       appendText(row, "div", item.productNameSnapshot || item.name || "-");
-      appendText(row, "div", item.quantity);
+      appendText(row, "div", `${item.quantity} ${item.quantityUnit || item.unitSnapshot || "UN"}`);
       appendText(row, "div", formatMoneyCents(item.unitPriceCents));
       appendText(row, "div", formatMoneyCents(item.totalPriceCents));
       els.productsList.appendChild(row);

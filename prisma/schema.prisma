@@ -1190,6 +1190,8 @@ model Product {
   profitPercent      Decimal              @map("profit_percent") @db.Decimal(7, 2)
   salePriceCents     Int                  @map("sale_price_cents")
   quantity           Int
+  quantityDecimal    Decimal?             @map("quantity_decimal") @db.Decimal(12, 6)
+  isWeighable        Boolean              @default(false) @map("is_weighable")
   brand              String?
   category           String?
   supplier           String?
@@ -1357,6 +1359,7 @@ model OrderItem {
   skuSnapshot         String?  @map("sku_snapshot")
   barcodeSnapshot     String?  @map("barcode_snapshot")
   quantity            Int
+  quantityDecimal     Decimal? @map("quantity_decimal") @db.Decimal(12, 6)
   unitPriceCents      Int      @map("unit_price_cents")
   totalPriceCents     Int      @map("total_price_cents")
   createdAt           DateTime @default(now()) @map("created_at")
@@ -1436,6 +1439,8 @@ model SaleItem {
   originSnapshot         String?  @map("origin_snapshot")
   cestSnapshot           String?  @map("cest_snapshot")
   quantity               Int
+  quantityDecimal        Decimal? @map("quantity_decimal") @db.Decimal(12, 6)
+  isWeighableSnapshot    Boolean  @default(false) @map("is_weighable_snapshot")
   unitPriceCents         Int      @map("unit_price_cents")
   totalPriceCents        Int      @map("total_price_cents")
   unitCostCentsSnapshot  Int?     @map("unit_cost_cents_snapshot")

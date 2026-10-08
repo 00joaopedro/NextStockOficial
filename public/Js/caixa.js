@@ -93,6 +93,10 @@
     });
   }
 
+  function roundQuantity(value) {
+    return Math.round(Number(value) * 1e6) / 1e6;
+  }
+
   function toast(message, tone) {
     const item = document.createElement("div");
     item.className = `toast ${tone || "info"}`;
@@ -157,7 +161,7 @@
 
   function subtotalCents() {
     return state.cart.reduce(
-      (sum, item) => sum + item.salePriceCents * item.quantity,
+      (sum, item) => sum + Math.round(item.salePriceCents * item.quantity),
       0,
     );
   }
@@ -248,10 +252,16 @@
   function changeQuantity(productId, nextQuantity) {
     const item = state.cart.find((entry) => entry.id === productId);
     if (!item) return;
-    const quantity = Math.max(
-      0,
-      Math.min(Math.floor(Number(nextQuantity) || 0), item.availableQuantity),
-    );
+    const parsed = Number(String(nextQuantity).replace(',', '.'));
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > item.availableQuantity) {
+      toast(`Informe uma quantidade válida entre 0 e ${item.availableQuantity}.`, "warning");
+      return;
+    }
+    if (item.saleMode !== "weighed" && !Number.isInteger(parsed)) {
+      toast("Produtos por unidade aceitam apenas quantidade inteira.", "warning");
+      return;
+    }
+    const quantity = roundQuantity(parsed);
     if (quantity === 0) {
       state.cart = state.cart.filter((entry) => entry.id !== productId);
     } else {
@@ -289,7 +299,9 @@
       type.className = "produto-tipo";
       type.textContent = isMiscellaneous
         ? "Produto diverso — valor informado"
-        : "Venda por unidade";
+        : product.saleMode === "weighed"
+          ? `Venda por peso — informe em ${product.unitLabel || "UN"}`
+          : "Venda por unidade";
       info.append(name, code, type);
 
       const price = document.createElement("div");
@@ -310,7 +322,7 @@
         input.className = "qtdInput";
         input.min = "1";
         input.max = String(product.availableQuantity);
-        input.step = "1";
+        input.step = product.saleMode === "weighed" ? "0.001" : "1";
         input.value = String(product.quantity);
         input.addEventListener("change", () =>
           changeQuantity(product.id, input.value),
@@ -332,7 +344,7 @@
       const lineTotal = document.createElement("input");
       lineTotal.className = "totalLinha";
       lineTotal.readOnly = true;
-      lineTotal.value = money(product.salePriceCents * product.quantity);
+      lineTotal.value = money(Math.round(product.salePriceCents * product.quantity));
 
       row.append(info, price, controls, lineTotal);
       fragment.appendChild(row);
@@ -342,29 +354,40 @@
   }
 
   function addProduct(product) {
-    if (product.saleMode === "weighed") {
-      toast(
-        "Venda por granel esta bloqueada ate o estoque usar quantidade fracionada no backend.",
-        "warning",
-      );
-      return;
-    }
     if (product.quantity <= 0) {
       toast("Produto sem estoque disponivel.", "warning");
       return;
     }
+    let requestedQuantity = 1;
+    if (product.saleMode === "weighed") {
+      const entered = window.prompt(
+        `Informe a quantidade em ${product.unitLabel || "UN"} para ${product.name}:`,
+        "1",
+      );
+      if (entered === null) return;
+      requestedQuantity = roundQuantity(Number(String(entered).replace(",", ".")));
+      if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || requestedQuantity > product.quantity) {
+        toast("Quantidade inválida ou maior que o estoque disponível.", "warning");
+        return;
+      }
+      if (String(entered).replace(",", ".").split(".")[1]?.length > 6) {
+        toast("Informe no máximo 6 casas decimais.", "warning");
+        return;
+      }
+    }
     const existing = state.cart.find((item) => item.id === product.id);
     if (existing) {
-      if (existing.quantity >= existing.availableQuantity) {
+      const combinedQuantity = roundQuantity(existing.quantity + requestedQuantity);
+      if (combinedQuantity > existing.availableQuantity) {
         toast("Quantidade maxima disponivel atingida.", "warning");
         return;
       }
-      existing.quantity += 1;
+      existing.quantity = combinedQuantity;
     } else {
       state.cart.push({
         ...product,
         availableQuantity: product.quantity,
-        quantity: 1,
+        quantity: requestedQuantity,
       });
     }
     resetCheckoutIntent();

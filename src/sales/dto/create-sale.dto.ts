@@ -19,9 +19,9 @@ export class CreateSaleItemDto {
   productId!: string;
 
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(9999)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(9999999.999999)
   quantity!: number;
 }
 

@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { Transform } from 'class-transformer';
 import {
-  IsInt,
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -39,7 +39,7 @@ export class UpdateProductDto {
 
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
+  @IsNumber({ maxDecimalPlaces: 6 })
   @Min(0)
   quantidade?: number;
 
@@ -126,6 +126,10 @@ export class UpdateProductDto {
   @IsString()
   @MaxLength(2)
   origin?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isWeighable?: boolean;
 
   @IsOptional()
   @IsString()

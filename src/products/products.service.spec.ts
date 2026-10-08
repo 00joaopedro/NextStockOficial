@@ -225,10 +225,19 @@ describe('ProductsService', () => {
         where: expect.objectContaining({
           tenantId: 'tenant-id',
           branchId: 'branch-id',
-          quantity: { gt: 0 },
-          OR: expect.arrayContaining([
-            { barcode: { in: ['7891234567890'] } },
-            { sku: { in: ['7891234567890'] } },
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { isWeighable: false, quantity: { gt: 0 } },
+                { isWeighable: true, quantityDecimal: { gt: 0 } },
+              ]),
+            }),
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { barcode: { in: ['7891234567890'] } },
+                { sku: { in: ['7891234567890'] } },
+              ]),
+            }),
           ]),
         }),
       }),
@@ -252,8 +261,12 @@ describe('ProductsService', () => {
         where: expect.objectContaining({
           tenantId: 'tenant-id',
           branchId: 'branch-id',
-          OR: expect.arrayContaining([
-            { barcode: { in: ['7891234567890', raw] } },
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([
+                { barcode: { in: ['7891234567890', raw] } },
+              ]),
+            }),
           ]),
         }),
       }),
@@ -272,7 +285,11 @@ describe('ProductsService', () => {
     expect(prisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          OR: expect.arrayContaining([{ sku: { in: ['SKU-20', raw] } }]),
+          AND: expect.arrayContaining([
+            expect.objectContaining({
+              OR: expect.arrayContaining([{ sku: { in: ['SKU-20', raw] } }]),
+            }),
+          ]),
         }),
       }),
     );

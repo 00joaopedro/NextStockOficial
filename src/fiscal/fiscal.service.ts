@@ -155,6 +155,7 @@ export class FiscalService {
           skuSnapshot: item.skuSnapshot,
           barcodeSnapshot: item.barcodeSnapshot,
           quantity: item.quantity,
+          quantityDecimal: item.quantityDecimal,
           unitPriceCents: item.unitPriceCents,
           totalPriceCents: item.totalPriceCents,
           product: item.product,
@@ -992,6 +993,7 @@ export class FiscalService {
     originSnapshot?: string | null;
     cestSnapshot?: string | null;
     quantity: number;
+    quantityDecimal?: unknown;
     unitPriceCents: number;
     totalPriceCents: number;
     product?: FiscalSale['items'][number]['product'];
@@ -1007,7 +1009,7 @@ export class FiscalService {
       cest: item.cestSnapshot || item.product?.cest || '',
       origin: item.originSnapshot || item.product?.origin || '',
       unit: item.unitSnapshot || item.product?.unit || '',
-      quantity: item.quantity,
+      quantity: Number(item.quantityDecimal ?? item.quantity),
       unitPriceCents: item.unitPriceCents,
       totalPriceCents: item.totalPriceCents,
       icmsRate: decimalNumber(item.product?.icmsRate),
@@ -1084,7 +1086,7 @@ export class FiscalService {
       cest: clean(draft.cest),
       origin: draft.origin,
       unit: draft.unit,
-      quantity: item.quantity,
+      quantity: draft.quantity,
       unitPriceCents: item.unitPriceCents,
       totalPriceCents: item.totalPriceCents,
       discountCents: 0,
