@@ -93,6 +93,10 @@
     });
   }
 
+  function roundQuantity(value) {
+    return Math.round(Number(value) * 1e6) / 1e6;
+  }
+
   function toast(message, tone) {
     const item = document.createElement("div");
     item.className = `toast ${tone || "info"}`;
@@ -257,7 +261,7 @@
       toast("Produtos por unidade aceitam apenas quantidade inteira.", "warning");
       return;
     }
-    const quantity = parsed;
+    const quantity = roundQuantity(parsed);
     if (quantity === 0) {
       state.cart = state.cart.filter((entry) => entry.id !== productId);
     } else {
@@ -361,7 +365,7 @@
         "1",
       );
       if (entered === null) return;
-      requestedQuantity = Number(String(entered).replace(",", "."));
+      requestedQuantity = roundQuantity(Number(String(entered).replace(",", ".")));
       if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || requestedQuantity > product.quantity) {
         toast("Quantidade inválida ou maior que o estoque disponível.", "warning");
         return;
@@ -373,11 +377,12 @@
     }
     const existing = state.cart.find((item) => item.id === product.id);
     if (existing) {
-      if (existing.quantity + requestedQuantity > existing.availableQuantity) {
+      const combinedQuantity = roundQuantity(existing.quantity + requestedQuantity);
+      if (combinedQuantity > existing.availableQuantity) {
         toast("Quantidade maxima disponivel atingida.", "warning");
         return;
       }
-      existing.quantity += requestedQuantity;
+      existing.quantity = combinedQuantity;
     } else {
       state.cart.push({
         ...product,
