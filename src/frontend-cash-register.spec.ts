@@ -107,6 +107,7 @@ describe('caixa.html production PDV integration', () => {
     expect(script).toContain('textContent');
     expect(script).toContain('replaceChildren');
     expect(script).not.toContain('.innerHTML');
-    expect(script).toContain('Venda por granel esta bloqueada');
+    expect(script).toContain('Informe a quantidade em');
+    expect(script).toContain('saleMode === "weighed"');
   });
 });
