@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CertificateValidationStatus,
+  FiscalActivationStatus,
   FiscalEnvironment,
   SaleStatus,
 } from '@prisma/client';
@@ -24,6 +25,7 @@ type FiscalConfigInput = {
   certificateValidationStatus?: CertificateValidationStatus | null;
   certificateExpiresAt?: Date | null;
   environment: FiscalEnvironment;
+  activationStatus?: FiscalActivationStatus | null;
 };
 
 type FiscalSaleInput = {
@@ -96,6 +98,15 @@ export class FiscalValidationService {
     ) {
       throw new BadRequestException(
         'Provider fiscal real exige referencia segura do certificado.',
+      );
+    }
+    if (
+      forSending &&
+      config.environment === FiscalEnvironment.producao &&
+      config.activationStatus !== FiscalActivationStatus.ativo
+    ) {
+      throw new BadRequestException(
+        'A configuração fiscal da filial não está ativa para produção.',
       );
     }
     if (
