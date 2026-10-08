@@ -995,6 +995,11 @@
                   >
                   <span class="hint" id="certificateMetadataSummary"></span>
                 </div>
+                <div class="field span-12">
+                  <label>Status fiscal da filial</label>
+                  <span id="fiscalActivationStatus" class="environment-badge">PENDENTE</span>
+                  <span class="hint">A produção só fica ativa após certificado válido e confirmação administrativa.</span>
+                </div>
                 <div class="field span-12 certificate-actions">
                   <button type="button" id="btnCertificateUpload">
                     Enviar e validar
@@ -1015,6 +1020,12 @@
                     class="production"
                   >
                     Ativar produção
+                  </button>
+                  <button type="button" id="btnFiscalCommunicationTest">
+                    Testar comunicação
+                  </button>
+                  <button type="button" id="btnFiscalSuspend" class="danger">
+                    Suspender ativação
                   </button>
                 </div>
               </div>
