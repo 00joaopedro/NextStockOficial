@@ -829,6 +829,20 @@ export class SalesService {
       );
     }
 
+    const fiscalConfig = await this.prisma.companyFiscalConfig.findUnique({
+      where: {
+        tenantId_branchId: {
+          tenantId: context.tenantId,
+          branchId: context.branchId!,
+        },
+      },
+    });
+    if (!fiscalConfig) {
+      throw new BadRequestException(
+        'Configure os dados fiscais da filial antes de criar a NFC-e.',
+      );
+    }
+
     const document = await this.prisma.saleDocument.create({
       data: {
         saleId: sale.id,
@@ -840,11 +854,59 @@ export class SalesService {
         provider: 'mock',
         idempotencyKey: dto.idempotencyKey,
         normalizedPayload: {
+          version: 1,
+          model: '65',
+          environment: fiscalConfig.environment,
+          saleId: sale.id,
+          orderId: sale.orderId,
+          operationNature: clean(dto.operationNature) || 'Venda de mercadoria',
+          buyerPresence: dto.buyerPresence || '1',
+          finalConsumer: dto.finalConsumer || '1',
+          issuer: {
+            legalName: fiscalConfig.legalName,
+            tradeName: fiscalConfig.tradeName,
+            cnpj: fiscalConfig.cnpj,
+            stateRegistration: fiscalConfig.stateRegistration,
+            crt: fiscalConfig.crt,
+            street: fiscalConfig.street,
+            number: fiscalConfig.number,
+            district: fiscalConfig.district,
+            city: fiscalConfig.city,
+            cityCodeIbge: fiscalConfig.cityCodeIbge,
+            state: fiscalConfig.state,
+            zipCode: fiscalConfig.zipCode,
+          },
           recipient: dto.recipient,
-          operationNature: clean(dto.operationNature),
-          buyerPresence: dto.buyerPresence,
-          finalConsumer: dto.finalConsumer,
-          freightCents: dto.freightCents ?? 0,
+          items: sale.items.map((item) => ({
+            saleItemId: item.id,
+            productId: item.productId,
+            description: item.productNameSnapshot,
+            sku: item.skuSnapshot,
+            barcode: item.barcodeSnapshot,
+            ncm: item.product?.ncm || '',
+            cfop: item.product?.cfop || '',
+            origin: item.product?.origin || '0',
+            unit: item.product?.unit || 'UN',
+            taxableUnit: item.product?.taxableUnit || item.product?.unit || 'UN',
+            quantity: Number(item.quantityDecimal || item.quantity || 0),
+            icmsCst: item.product?.icmsCst,
+            icmsCsosn: item.product?.icmsCsosn,
+            ipiCode: item.product?.ipiCode,
+            pisCode: item.product?.pisCode,
+            cofinsCode: item.product?.cofinsCode,
+            unitPriceCents: item.unitPriceCents,
+            totalPriceCents: item.totalPriceCents,
+          })),
+          totals: {
+            productsCents: sale.subtotalCents,
+            discountCents: sale.discountCents,
+            freightCents: dto.freightCents ?? 0,
+            totalCents: sale.subtotalCents - sale.discountCents + (dto.freightCents ?? 0),
+          },
+          payment: {
+            method: sale.paymentMethod,
+            totalCents: sale.totalCents,
+          },
           additionalInformation: clean(dto.additionalInformation),
         } as unknown as Prisma.InputJsonValue,
         createdById: context.userId,
