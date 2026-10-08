@@ -288,7 +288,7 @@ export class SefazFiscalProvider implements FiscalProvider {
 
   private resultFromResponse(response: string, accessKey: string) {
     const statusBlock =
-      response.match(/<(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)\\b[\\s\\S]*?<\\/(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)>/)?.[0] || '';
+      response.match(/<(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)\b[\s\S]*?<\/(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)>/)?.[0] || '';
     const cStat = Number(textTag(statusBlock, 'cStat') || textTag(response, 'cStat') || '0');
     const xMotivo =
       textTag(statusBlock, 'xMotivo') ||
