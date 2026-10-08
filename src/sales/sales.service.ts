@@ -23,7 +23,11 @@ import { TenantContextService } from '../tenancy/tenant-context.service';
 import { CancelSaleDto } from './dto/cancel-sale.dto';
 import { CreateSaleDocumentDto } from './dto/create-sale-document.dto';
 import { CreateSaleFromOrderDto } from './dto/create-sale-from-order.dto';
-import { CreateSaleDto, CreateSaleItemDto } from './dto/create-sale.dto';
+import {
+  CreateMiscellaneousSaleItemDto,
+  CreateSaleDto,
+  CreateSaleItemDto,
+} from './dto/create-sale.dto';
 import { SaleQueryDto } from './dto/sale-query.dto';
 import { InternalReceiptService } from './internal-receipt.service';
 import { sourcesFor } from '../orders/order-status-transitions';
@@ -135,7 +139,15 @@ export class SalesService {
       devContextMode,
       true,
     );
-    const normalizedItems = this.normalizeItems(dto.items);
+    const normalizedItems = this.normalizeItems(dto.items ?? []);
+    const miscellaneousItems = this.normalizeMiscellaneousItems(
+      dto.miscellaneousItems ?? [],
+    );
+    if (!normalizedItems.length && !miscellaneousItems.length) {
+      throw new BadRequestException(
+        'A venda deve conter pelo menos um produto ou produto diverso.',
+      );
+    }
     const existing = await this.findByIdempotencyKey(
       context.tenantId,
       context.branchId!,
@@ -153,12 +165,34 @@ export class SalesService {
     try {
       const sale = await this.prisma.$transaction(async (tx) => {
         const sellerName = await this.loadSellerName(tx, context.userId, user);
-        const pricedItems = await this.loadPricedItems(
-          tx,
-          context.tenantId,
-          context.branchId!,
-          normalizedItems,
-        );
+        const pricedProductItems = normalizedItems.length
+          ? await this.loadPricedItems(
+              tx,
+              context.tenantId,
+              context.branchId!,
+              normalizedItems,
+            )
+          : [];
+        const pricedItems = [
+          ...pricedProductItems,
+          ...miscellaneousItems.map((item) => ({
+            productId: null,
+            isMiscellaneous: true,
+            productNameSnapshot: 'Produto diverso',
+            skuSnapshot: null,
+            barcodeSnapshot: null,
+            ncmSnapshot: null,
+            cfopSnapshot: null,
+            unitSnapshot: 'UN',
+            originSnapshot: null,
+            cestSnapshot: null,
+            quantity: 1,
+            unitPriceCents: item.amountCents,
+            totalPriceCents: item.amountCents,
+            unitCostCentsSnapshot: null,
+            totalCostCentsSnapshot: null,
+          })),
+        ];
         const paymentMachine = await this.loadPaymentMachine(
           tx,
           context.tenantId,
@@ -188,7 +222,11 @@ export class SalesService {
           tx,
           context.tenantId,
           context.branchId!,
-          pricedItems,
+          pricedItems.flatMap((item) =>
+            item.productId
+              ? [{ productId: item.productId, quantity: item.quantity }]
+              : [],
+          ),
         );
 
         return tx.sale.create({
@@ -214,6 +252,7 @@ export class SalesService {
             items: {
               create: pricedItems.map((item) => ({
                 productId: item.productId,
+                isMiscellaneous: item.isMiscellaneous,
                 productNameSnapshot: item.productNameSnapshot,
                 skuSnapshot: item.skuSnapshot,
                 barcodeSnapshot: item.barcodeSnapshot,
@@ -873,6 +912,12 @@ export class SalesService {
     }));
   }
 
+  private normalizeMiscellaneousItems(
+    items: CreateMiscellaneousSaleItemDto[],
+  ) {
+    return items.map((item) => ({ amountCents: item.amountCents }));
+  }
+
   private async loadPricedItems(
     tx: PrismaTx,
     tenantId: string,
@@ -916,6 +961,7 @@ export class SalesService {
       }
       return {
         productId: product.id,
+        isMiscellaneous: false,
         productNameSnapshot: product.name,
         skuSnapshot: product.sku,
         barcodeSnapshot: product.barcode,
@@ -1162,6 +1208,7 @@ export class SalesService {
       items: sale.items.map((item) => ({
         id: item.id,
         productId: item.productId,
+        isMiscellaneous: item.isMiscellaneous,
         productNameSnapshot: item.productNameSnapshot,
         name: item.productNameSnapshot,
         skuSnapshot: item.skuSnapshot,

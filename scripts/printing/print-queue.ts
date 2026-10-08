@@ -217,6 +217,18 @@ export class PrintQueue {
     return this.jobs.find((job) => job.id === id);
   }
 
+  /**
+   * Waits until asynchronous sending/monitoring and persistence are finished.
+   * This is useful for graceful shutdowns and deterministic integration tests.
+   */
+  async waitForIdle() {
+    await this.load();
+    while (this.active.size > 0 || this.monitoring.size > 0) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await this.persistTail;
+  }
+
   async resolve(id: string, resolution: PrintResolution) {
     await this.load();
     const job = this.jobs.find((item) => item.id === id);

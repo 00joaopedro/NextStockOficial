@@ -323,9 +323,17 @@
       opacity: 0.92;
     }
 
+    .btnLista.btn-remover {
+      background: var(--danger);
+      font-size: 26px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
     .qtdInput,
     .totalLinha,
     .barcode-input,
+    .misc-product-input,
     .search-product-input,
     .pay-input,
     .pay-select,
@@ -359,10 +367,41 @@
     }
 
     .barcode-box,
-    .search-product-box {
+    .search-product-box,
+    .misc-product-box {
       display: flex;
       flex-direction: column;
       gap: 6px;
+    }
+
+    .misc-product-entry {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .misc-product-input {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .btn-diverso {
+      width: 100%;
+      min-height: 48px;
+      background: var(--info);
+      color: var(--white);
+      font-weight: 800;
+    }
+
+    .misc-product-ok {
+      min-width: 68px;
+      min-height: 48px;
+    }
+
+    .misc-product-box label {
+      color: var(--text-dark);
+      font-size: 0.96rem;
+      font-weight: 700;
     }
 
     .search-product-box {
@@ -887,6 +926,26 @@
             aria-expanded="false"
           >
           <div class="search-results" id="searchResults" role="listbox"></div>
+        </div>
+
+        <div class="misc-product-box">
+          <label for="openMiscProductBtn">Produto diverso por valor</label>
+          <button class="btn btn-diverso" id="openMiscProductBtn" type="button">
+            ADICIONAR PRODUTO DIVERSO
+          </button>
+          <div class="misc-product-entry" id="miscProductEntry" hidden>
+            <input
+              type="number"
+              id="miscProductValue"
+              class="misc-product-input"
+              min="0.01"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="Informe o valor (R$)"
+              aria-label="Valor do produto diverso"
+            >
+            <button class="btn btn-finalizar misc-product-ok" id="addMiscProductBtn" type="button">OK</button>
+          </div>
         </div>
       </div>
     </section>

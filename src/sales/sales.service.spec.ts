@@ -288,6 +288,41 @@ describe('SalesService', () => {
     });
   });
 
+  it('cria produto diverso sem consultar ou baixar estoque', async () => {
+    const { service, tx } = makeService();
+
+    await expect(
+      service.create(user, {
+        idempotencyKey: '12121212-1212-4121-8121-121212121212',
+        paymentMethod: OrderPaymentMethod.pix,
+        miscellaneousItems: [{ amountCents: 4250 }],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+
+    expect(tx.product.findMany).not.toHaveBeenCalled();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
+    expect(tx.sale.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subtotalCents: 4250,
+          totalCents: 4250,
+          items: {
+            create: [
+              expect.objectContaining({
+                productId: null,
+                isMiscellaneous: true,
+                productNameSnapshot: 'Produto diverso',
+                quantity: 1,
+                unitPriceCents: 4250,
+                totalPriceCents: 4250,
+              }),
+            ],
+          },
+        }),
+      }),
+    );
+  });
+
   it('converte pedido em Sale sem baixar estoque novamente', async () => {
     const { service, tx } = makeService();
     tx.order.findFirst.mockResolvedValueOnce({

@@ -1426,6 +1426,7 @@ model SaleItem {
   id                     String   @id @default(uuid()) @db.Uuid
   saleId                 String   @map("sale_id") @db.Uuid
   productId              String?  @map("product_id") @db.Uuid
+  isMiscellaneous        Boolean  @default(false) @map("is_miscellaneous")
   productNameSnapshot    String   @map("product_name_snapshot")
   skuSnapshot            String?  @map("sku_snapshot")
   barcodeSnapshot        String?  @map("barcode_snapshot")
