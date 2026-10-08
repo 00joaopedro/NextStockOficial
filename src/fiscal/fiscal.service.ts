@@ -33,6 +33,7 @@ import { FiscalSequenceService } from './fiscal-sequence.service';
 import { FiscalStorageService } from './fiscal-storage.service';
 import { FiscalValidationService } from './fiscal-validation.service';
 import { MockFiscalProvider } from './providers/mock-fiscal-provider';
+import { SefazFiscalProvider } from './providers/sefaz-fiscal-provider';
 
 const DOCUMENT_INCLUDE = {
   items: { orderBy: { createdAt: 'asc' as const } },
@@ -82,6 +83,7 @@ export class FiscalService {
     private readonly sequence: FiscalSequenceService,
     private readonly storage: FiscalStorageService,
     private readonly mockProvider: MockFiscalProvider,
+    private readonly sefazProvider?: SefazFiscalProvider,
   ) {}
 
   async getNfe55Draft(
@@ -487,6 +489,7 @@ export class FiscalService {
     const providerDocument = this.toProviderDocument(
       { ...document, series: numbered.series },
       numbered.number,
+      config,
     );
     let result;
     try {
@@ -653,9 +656,10 @@ export class FiscalService {
         document: this.formatDocument(document),
       };
     }
-    const provider = this.getProvider(document.provider || 'mock');
+    const config = await this.loadConfig(context.tenantId, context.branchId!);
+    const provider = this.getProvider(document.provider || config?.provider || 'mock');
     const result = await provider.queryStatus(
-      this.toProviderDocument(document, document.number),
+      this.toProviderDocument(document, document.number, config),
     );
     const safeStatus =
       result.status === SaleDocumentStatus.authorized &&
@@ -714,14 +718,15 @@ export class FiscalService {
         'Somente documento autorizado pode ser cancelado no provider fiscal.',
       );
     }
-    const provider = this.getProvider(document.provider || 'mock');
+    const config = await this.loadConfig(context.tenantId, context.branchId!);
+    const provider = this.getProvider(document.provider || config?.provider || 'mock');
     if (!provider.isRealProvider) {
       throw new ServiceUnavailableException(
         'Cancelamento fiscal exige provider real e confirmacao da SEFAZ.',
       );
     }
     const result = await provider.cancel(
-      this.toProviderDocument(document, document.number!),
+      this.toProviderDocument(document, document.number!, config),
       dto.cancellationReason,
     );
     if (result.status !== SaleDocumentStatus.canceled) {
@@ -1135,6 +1140,7 @@ export class FiscalService {
   private toProviderDocument(
     document: FiscalDocumentWithRelations,
     number: string,
+    config?: Awaited<ReturnType<FiscalService['loadConfig']>>,
   ): FiscalProviderDocument {
     return {
       documentId: document.id,
@@ -1147,6 +1153,19 @@ export class FiscalService {
           : 2,
       series: document.series || '1',
       number,
+      providerConfig:
+        config?.providerConfig && typeof config.providerConfig === 'object' && !Array.isArray(config.providerConfig)
+          ? (config.providerConfig as Record<string, unknown>)
+          : {},
+      credentials:
+        config?.certificatePath && config.certificatePasswordEncrypted
+          ? {
+              tenantId: config.tenantId,
+              branchId: config.branchId,
+              certificatePath: config.certificatePath,
+              certificatePasswordEncrypted: config.certificatePasswordEncrypted,
+            }
+          : undefined,
       payload:
         document.normalizedPayload &&
         typeof document.normalizedPayload === 'object' &&
