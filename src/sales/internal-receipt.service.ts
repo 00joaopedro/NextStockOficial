@@ -26,6 +26,7 @@ export type InternalReceiptSale = {
     productNameSnapshot: string;
     quantity: number;
     quantityUnit?: string;
+    unitSnapshot?: string | null;
     isWeighable?: boolean;
     unitPriceCents: number;
     totalPriceCents: number;
@@ -203,7 +204,7 @@ export class InternalReceiptService {
     const rows = sale.items
       .map(
         (item) =>
-          `<tr><td>${escapeHtml(item.productNameSnapshot)}</td><td>${item.quantity} ${escapeHtml(item.quantityUnit || 'UN')}</td><td>${formatCurrency(item.unitPriceCents)} / ${escapeHtml(item.quantityUnit || 'UN')}</td><td>${formatCurrency(item.totalPriceCents)}</td></tr>`,
+          `<tr><td>${escapeHtml(item.productNameSnapshot)}</td><td>${item.quantity} ${escapeHtml(item.quantityUnit || item.unitSnapshot || 'UN')}</td><td>${formatCurrency(item.unitPriceCents)} / ${escapeHtml(item.quantityUnit || item.unitSnapshot || 'UN')}</td><td>${formatCurrency(item.totalPriceCents)}</td></tr>`,
       )
       .join('');
     const companyName =
