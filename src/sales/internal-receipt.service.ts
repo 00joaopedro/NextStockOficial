@@ -91,19 +91,28 @@ export class InternalReceiptService {
           };
         }
       }
-      const allocated = await tx.saleDocument.update({
-        where: {
-          id: document.id,
-          saleId: sale.id,
-          tenantId: context.tenantId,
-          branchId: context.branchId,
-          type: SaleDocumentType.receipt,
-          deletedAt: null,
-        },
-        data: { printCounter: { increment: 1 } },
-        select: { printCounter: true },
-      });
-      const printNumber = allocated.printCounter;
+      const documentWhere = {
+        id: document.id,
+        saleId: sale.id,
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        type: SaleDocumentType.receipt,
+        deletedAt: null,
+      };
+      const allocated = isFiscalPreview
+        ? await tx.saleDocument.update({
+            where: documentWhere,
+            data: { fiscalPreviewPrintCounter: { increment: 1 } },
+            select: { fiscalPreviewPrintCounter: true },
+          })
+        : await tx.saleDocument.update({
+            where: documentWhere,
+            data: { printCounter: { increment: 1 } },
+            select: { printCounter: true },
+          });
+      const printNumber = isFiscalPreview
+        ? allocated.fiscalPreviewPrintCounter
+        : allocated.printCounter;
       const attemptId = randomUUID();
       const eventType = printNumber === 1 ? eventTypes[0] : eventTypes[1];
       await tx.fiscalDocumentEvent.create({
