@@ -5,9 +5,13 @@ import {
   Logger,
   NotFoundException,
   ServiceUnavailableException,
+  Optional,
 } from '@nestjs/common';
 import {
+  AuditOutcome,
+  AuditSeverity,
   CertificateValidationStatus,
+  FiscalActivationStatus,
   FiscalEnvironment,
   Role,
 } from '@prisma/client';
@@ -20,6 +24,7 @@ import {
   ParsedCertificate,
 } from './certificate-parser.service';
 import { CertificateStorageService } from './certificate-storage.service';
+import { AuditService } from '../audit/audit.service';
 
 type UploadFile = {
   originalname?: string;
@@ -85,8 +90,17 @@ export class CertificateService {
       certificatePath: newPath,
     });
     const oldPath = config.certificatePath;
+    const secretContext = {
+      tenantId: context.tenantId,
+      branchId: context.branchId!,
+      certificatePath: newPath,
+    };
+    const encryptedCertificate = this.crypto.encryptCertificate(
+      file.buffer!,
+      secretContext,
+    );
 
-    await this.storage.upload(newPath, file.buffer!);
+    await this.storage.upload(newPath, encryptedCertificate);
     let updated;
     try {
       updated = await this.prisma.companyFiscalConfig.update({
@@ -108,6 +122,10 @@ export class CertificateService {
           certificateValidatedAt: new Date(),
           certificateValidationStatus: CertificateValidationStatus.valid,
           certificateValidationErrorCode: null,
+          environment: FiscalEnvironment.homologacao,
+          activationStatus: FiscalActivationStatus.homologacao,
+          productionEnabledAt: null,
+          productionEnabledById: null,
         },
       });
     } catch (error) {
@@ -121,6 +139,10 @@ export class CertificateService {
     this.logger.log(
       `Fiscal credential updated for tenant ${context.tenantId}, branch ${context.branchId}. Sensitive fields redacted.`,
     );
+    this.recordAudit(context, 'fiscal.certificate.uploaded', AuditOutcome.SUCCESS, {
+      certificateStatus: 'valid',
+      certificateFingerprint: parsed.fingerprintSha256,
+    });
     return { ok: true, certificate: this.safeStatus(updated) };
   }
 
@@ -148,7 +170,12 @@ export class CertificateService {
           certificatePath: config.certificatePath,
         },
       );
-      const buffer = await this.storage.download(config.certificatePath);
+      const encryptedBuffer = await this.storage.download(config.certificatePath);
+      const buffer = this.crypto.decryptCertificate(encryptedBuffer, {
+        tenantId: context.tenantId,
+        branchId: context.branchId!,
+        certificatePath: config.certificatePath,
+      });
       const parsed = this.parser.parse(buffer, password);
       this.assertCertificateCnpj(parsed, config.cnpj);
       const updated = await this.prisma.companyFiscalConfig.update({
@@ -158,7 +185,14 @@ export class CertificateService {
           certificateValidatedAt: new Date(),
           certificateValidationStatus: CertificateValidationStatus.valid,
           certificateValidationErrorCode: null,
+          activationStatus:
+            config.environment === FiscalEnvironment.producao
+              ? FiscalActivationStatus.ativo
+              : FiscalActivationStatus.homologacao,
         },
+      });
+      this.recordAudit(context, 'fiscal.certificate.validated', AuditOutcome.SUCCESS, {
+        certificateStatus: 'valid',
       });
       return { ok: true, certificate: this.safeStatus(updated) };
     } catch (error) {
@@ -177,7 +211,11 @@ export class CertificateService {
           certificateValidatedAt: new Date(),
           certificateValidationStatus: status,
           certificateValidationErrorCode: code,
+          activationStatus: FiscalActivationStatus.pendente,
         },
+      });
+      this.recordAudit(context, 'fiscal.certificate.validation_failed', AuditOutcome.FAILURE, {
+        reasonCode: code,
       });
       throw error;
     }
@@ -218,9 +256,11 @@ export class CertificateService {
         environment: FiscalEnvironment.homologacao,
         productionEnabledAt: null,
         productionEnabledById: null,
+        activationStatus: FiscalActivationStatus.pendente,
       },
     });
     if (oldPath) await this.storage.cleanup(oldPath, 'removed');
+    this.recordAudit(context, 'fiscal.certificate.removed', AuditOutcome.SUCCESS, {});
     this.logger.log(
       `Fiscal credential removed for tenant ${context.tenantId}, branch ${context.branchId}. Sensitive fields redacted.`,
     );
@@ -290,7 +330,11 @@ export class CertificateService {
         environment: FiscalEnvironment.producao,
         productionEnabledAt: new Date(),
         productionEnabledById: context.userId,
+        activationStatus: FiscalActivationStatus.ativo,
       },
+    });
+    this.recordAudit(context, 'fiscal.production.activated', AuditOutcome.SUCCESS, {
+      environment: FiscalEnvironment.producao,
     });
     this.logger.warn(
       `Fiscal production enabled for tenant ${context.tenantId}, branch ${context.branchId}, actor ${context.userId}.`,
@@ -302,13 +346,58 @@ export class CertificateService {
     };
   }
 
+  async testCommunication(
+    user: AuthenticatedUser | undefined,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    const context = await this.resolveAdmin(user, selectedBranchId, devContextMode);
+    const config = await this.findConfig(context.tenantId, context.branchId!);
+    if (!config.certificatePath || !config.certificatePasswordEncrypted) {
+      throw new BadRequestException('Configure e valide o certificado A1 antes do teste.');
+    }
+    await this.validate(user, selectedBranchId, devContextMode);
+    const localOnly = config.provider === 'mock';
+    const result = {
+      ok: true,
+      environment: config.environment,
+      provider: config.provider,
+      certificateValidated: true,
+      communication: localOnly ? 'local_only' : 'provider_configured',
+      message: localOnly
+        ? 'Certificado validado localmente. O provider mock não testa comunicação real com a SEFAZ.'
+        : 'Certificado validado e provider fiscal configurado para comunicação.',
+    };
+    this.recordAudit(context, 'fiscal.communication.tested', AuditOutcome.SUCCESS, {
+      communication: result.communication,
+      provider: config.provider,
+    });
+    return result;
+  }
+
+  async suspend(
+    user: AuthenticatedUser | undefined,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    const context = await this.resolveAdmin(user, selectedBranchId, devContextMode);
+    const config = await this.findConfig(context.tenantId, context.branchId!);
+    const updated = await this.prisma.companyFiscalConfig.update({
+      where: { id: config.id },
+      data: { activationStatus: FiscalActivationStatus.suspenso },
+    });
+    this.recordAudit(context, 'fiscal.activation.suspended', AuditOutcome.SUCCESS, {});
+    return { ok: true, status: updated.activationStatus };
+  }
+
   safeStatus(config: Record<string, any> | null) {
     if (!config?.certificatePath) {
-      return { present: false, status: 'absent' };
+      return { present: false, status: 'absent', activationStatus: config?.activationStatus || 'pendente' };
     }
     return {
       present: true,
       status: config.certificateValidationStatus || 'pending',
+      activationStatus: config.activationStatus || 'pendente',
       originalName: config.certificateOriginalName,
       mimeType: config.certificateMimeType,
       size: config.certificateSize,
@@ -323,6 +412,26 @@ export class CertificateService {
       validatedAt: config.certificateValidatedAt,
       validationErrorCode: config.certificateValidationErrorCode,
     };
+  }
+
+  private recordAudit(
+    context: { userId: string; tenantId: string; branchId?: string | null; role?: string },
+    eventType: string,
+    outcome: AuditOutcome,
+    metadata: Record<string, unknown>,
+  ) {
+    void this.audit?.record({
+      eventType,
+      severity: outcome === AuditOutcome.SUCCESS ? AuditSeverity.MEDIUM : AuditSeverity.HIGH,
+      actorProfileId: context.userId,
+      actorRole: context.role,
+      tenantId: context.tenantId,
+      branchId: context.branchId,
+      targetType: 'company_fiscal_config',
+      action: eventType,
+      outcome,
+      metadata,
+    });
   }
 
   private metadata(parsed: ParsedCertificate) {
@@ -363,7 +472,13 @@ export class CertificateService {
   }
 
   private assertCertificateCnpj(parsed: ParsedCertificate, configCnpj: string) {
-    if (parsed.cnpj && digits(parsed.cnpj) !== digits(configCnpj)) {
+    if (!parsed.cnpj) {
+      throw new BadRequestException({
+        code: 'CERTIFICATE_CNPJ_MISSING',
+        message: 'Não foi possível identificar o CNPJ no certificado A1.',
+      });
+    }
+    if (digits(parsed.cnpj) !== digits(configCnpj)) {
       throw new BadRequestException({
         code: 'CERTIFICATE_CNPJ_MISMATCH',
         message: 'O CNPJ do certificado difere do CNPJ emitente.',
