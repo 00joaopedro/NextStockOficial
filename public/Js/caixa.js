@@ -45,6 +45,7 @@
     cancelSale: document.getElementById("cancelarVendaBtn"),
     fiscal: document.getElementById("notaFiscalBtn"),
     receipt: document.getElementById("reciboBtn"),
+    fiscalPreview: document.getElementById("fiscalPreviewBtn"),
     closeCash: document.getElementById("fecharCaixaBtn"),
     toggleSidebar: document.getElementById("toggleSidebarBtn"),
     paymentOverlay: document.getElementById("paymentOverlay"),
@@ -191,6 +192,7 @@
       els.openMiscProduct,
       els.addMiscProduct,
       els.miscProductValue,
+      els.fiscalPreview,
     ].forEach((element) => {
       element.disabled =
         busy ||
@@ -205,6 +207,7 @@
     els.paid.textContent = money(sale?.paidCents || 0);
     els.change.textContent = money(sale?.changeCents || 0);
     els.receipt.disabled = !sale;
+    els.fiscalPreview.disabled = !sale;
     els.fiscal.disabled = !sale;
 
     if (sale) {
@@ -824,6 +827,100 @@
     }
   }
 
+  async function printFiscalPreview() {
+    if (!state.lastSale?.id) {
+      toast("Conclua uma venda antes de imprimir a prévia fiscal.", "warning");
+      return;
+    }
+    if (state.printing) return;
+    state.printing = true;
+    state.previewPrintRequestKey =
+      state.previewPrintRequestKey || crypto.randomUUID();
+    let completed = false;
+    els.fiscalPreview.disabled = true;
+    try {
+      const result = await api(
+        `/api/sales/${encodeURIComponent(state.lastSale.id)}/fiscal-preview/print`,
+        {
+          method: "POST",
+          headers: {
+            "x-nextstock-print-idempotency-key": state.previewPrintRequestKey,
+          },
+        },
+      );
+      if (result.mode !== "fiscal_preview" || !result.html) {
+        throw new Error("A prévia fiscal não está disponível.");
+      }
+      if (els.receiptPrintMode?.value === "direct") {
+        const token = els.printAgentToken?.value?.trim() || state.printAgentToken;
+        if (!token) throw new Error("Informe o token do agente local de impressão.");
+        state.printAgentToken = token;
+        sessionStorage.setItem(PRINT_AGENT_SESSION_KEY, token);
+        const response = await fetch(`${PRINT_AGENT_URL}/v1/print`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            idempotencyKey:
+              result.printAttemptId ||
+              `${result.documentId}:fiscal-preview:${result.printNumber}`,
+            paperWidthMm: result.paperWidthMm === 58 ? 58 : 80,
+            html: result.html,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Agente local recusou a prévia fiscal.");
+        }
+        const jobId = data.job?.id;
+        if (!jobId) {
+          throw new Error("O agente não retornou o identificador da impressão.");
+        }
+        let job = await waitForPrintJob(jobId, token);
+        if (job?.status === "unknown") {
+          const retry = window.confirm(
+            "A conexão caiu depois do envio. Reenviar pode duplicar a prévia impressa. Deseja confirmar que não imprimiu e reenviar?",
+          );
+          if (!retry) {
+            toast("Prévia em estado desconhecido. Não reenviamos automaticamente.", "warning");
+            return;
+          }
+          await resolveUnknownPrintJob(jobId, token);
+          job = await waitForPrintJob(jobId, token);
+        }
+        if (job?.status !== "printed") {
+          throw new Error(
+            job?.error || "A prévia não foi confirmada pelo agente local.",
+          );
+        }
+        toast("Prévia fiscal sem valor fiscal impressa.", "warning");
+        completed = true;
+        return;
+      }
+      const frame = document.createElement("iframe");
+      frame.hidden = true;
+      document.body.appendChild(frame);
+      frame.contentDocument.open();
+      frame.contentDocument.write(result.html);
+      frame.contentDocument.close();
+      window.setTimeout(() => {
+        frame.contentWindow.focus();
+        frame.contentWindow.print();
+        window.setTimeout(() => frame.remove(), 1000);
+      }, 50);
+      toast("Prévia fiscal impressa — sem valor fiscal.", "warning");
+      completed = true;
+    } catch (error) {
+      toast(error.message, "error");
+    } finally {
+      state.printing = false;
+      if (completed) state.previewPrintRequestKey = null;
+      els.fiscalPreview.disabled = !state.lastSale;
+    }
+  }
+
   function renderModel65Mode(config) {
     state.fiscalConfig = config;
     const certificate = config?.certificate;
@@ -1025,6 +1122,7 @@
   });
   els.cancelSale.addEventListener("click", clearSale);
   els.receipt.addEventListener("click", printReceipt);
+  els.fiscalPreview.addEventListener("click", printFiscalPreview);
   els.fiscal.addEventListener("click", openFiscal);
   els.closeCash.addEventListener("click", () =>
     toast("Fechamento de caixa ainda nao esta configurado no backend.", "info"),
