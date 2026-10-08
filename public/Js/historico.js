@@ -28,6 +28,7 @@
     productsList: document.getElementById("productsList"),
     documentsList: document.getElementById("documentsList"),
     printBtn: document.getElementById("printBtn"),
+    fiscalPreviewBtn: document.getElementById("fiscalPreviewBtn"),
     printMode: document.getElementById("historyPrintMode"),
     printAgentToken: document.getElementById("historyPrintAgentToken"),
   };
@@ -421,6 +422,9 @@
     els.printBtn.classList.add("show");
     els.printBtn.textContent = "Reimprimir recibo interno";
     els.printBtn.onclick = () => printReceipt(sale.id);
+    els.fiscalPreviewBtn.classList.add("show");
+    els.fiscalPreviewBtn.textContent = "Imprimir prévia fiscal";
+    els.fiscalPreviewBtn.onclick = () => printFiscalPreview(sale.id);
     els.overlay.classList.add("active");
   }
 
@@ -431,6 +435,7 @@
     els.productsList.textContent = "";
     els.documentsList.textContent = "";
     els.printBtn.classList.remove("show");
+    els.fiscalPreviewBtn.classList.remove("show");
     try {
       const result = await apiFetch(`/api/sales/${encodeURIComponent(id)}`);
       renderDetails(result.sale);
@@ -509,6 +514,77 @@
       window.alert(error.message);
     }
   }
+  async function printFiscalPreview(id) {
+    try {
+      const result = await apiFetch(
+        "/api/sales/" + encodeURIComponent(id) + "/fiscal-preview/print",
+        {
+          headers: {
+            "x-nextstock-print-idempotency-key": crypto.randomUUID(),
+          },
+        },
+      );
+      if (result.mode !== "fiscal_preview" || !result.html) {
+        throw new Error("A prévia fiscal não está disponível.");
+      }
+      if (els.printMode && els.printMode.value === "direct") {
+        const token = els.printAgentToken && els.printAgentToken.value.trim();
+        if (token) sessionStorage.setItem(PRINT_AGENT_SESSION_KEY, token);
+        if (!token) throw new Error("Informe o token do agente local de impressao.");
+        const response = await fetch(PRINT_AGENT_URL + "/v1/print", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + token,
+          },
+          body: JSON.stringify({
+            idempotencyKey:
+              result.printAttemptId ||
+              result.documentId + ":fiscal-preview:" + result.printNumber,
+            paperWidthMm: result.paperWidthMm === 58 ? 58 : 80,
+            html: result.html,
+          }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || "Agente local recusou a prévia fiscal.");
+        }
+        const jobId = data.job && data.job.id;
+        if (!jobId) {
+          throw new Error("O agente nao retornou o identificador da impressao.");
+        }
+        let job = await waitForPrintJob(jobId, token);
+        if (job && job.status === "unknown") {
+          const retry = window.confirm(
+            "A conexao caiu depois do envio. Reenviar pode duplicar a previa impressa. Deseja confirmar que nao imprimiu e reenviar?",
+          );
+          if (!retry) {
+            window.alert("Previa em estado desconhecido. Nao reenviamos automaticamente.");
+            return;
+          }
+          await resolveUnknownPrintJob(jobId, token);
+          job = await waitForPrintJob(jobId, token);
+        }
+        if (!job || job.status !== "printed") {
+          throw new Error(
+            (job && job.error) || "A previa nao foi confirmada pelo agente local.",
+          );
+        }
+        window.alert("Previa fiscal sem valor fiscal impressa.");
+        return;
+      }
+      const popup = window.open("", "_blank");
+      if (!popup) throw new Error("Permita pop-ups para imprimir a previa fiscal.");
+      popup.opener = null;
+      popup.document.open();
+      popup.document.write(sanitizePrintableReceipt(result.html));
+      popup.document.close();
+      popup.addEventListener("load", () => popup.print());
+    } catch (error) {
+      window.alert(error.message);
+    }
+  }
+
   function sanitizePrintableReceipt(value) {
     const parser = new DOMParser();
     const parsed = parser.parseFromString(
