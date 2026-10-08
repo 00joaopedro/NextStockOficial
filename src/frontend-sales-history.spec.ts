@@ -48,6 +48,13 @@ describe('historico.html production sales integration', () => {
     expect(html).toContain('Recibo interno — sem validade fiscal');
   });
 
+  it('oferece reimpressão da prévia fiscal sem valor fiscal', () => {
+    expect(html).toContain('Imprimir prévia fiscal');
+    expect(script).toContain('fiscalPreviewBtn');
+    expect(script).toContain('/fiscal-preview/print');
+    expect(script).toContain('mode !== "fiscal_preview"');
+  });
+
   it('renderiza dados de API com textContent', () => {
     expect(script).toContain('element.textContent');
     expect(script).not.toContain('card.innerHTML');
