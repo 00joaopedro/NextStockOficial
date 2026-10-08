@@ -150,6 +150,7 @@ describe('InternalReceiptService RC-012', () => {
       data: expect.objectContaining({
         eventType: 'fiscal_preview_printed',
         status: SaleDocumentStatus.draft,
+        requestPayload: expect.objectContaining({ origin: 'history' }),
       }),
     });
     expect(result).toMatchObject({
