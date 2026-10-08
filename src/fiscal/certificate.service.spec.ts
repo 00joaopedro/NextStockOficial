@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import {
   CertificateValidationStatus,
+  FiscalActivationStatus,
   FiscalEnvironment,
   Role,
   SystemMode,
@@ -246,4 +247,50 @@ describe('CertificateService', () => {
       service.activateProduction({ id: 'user-a' } as any, 'sim'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+  it('reencoda certificado legado em texto puro durante a validação', async () => {
+    const { service, storage, crypto } = setup({
+      certificatePath: 'tenant-a/branch-a/legacy.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+      certificateValidationStatus: CertificateValidationStatus.valid,
+    });
+    await expect(
+      service.validate({ id: 'user-a' } as any),
+    ).resolves.toMatchObject({ ok: true });
+    expect(crypto.decryptCertificate).not.toHaveBeenCalled();
+    expect(storage.upload).toHaveBeenCalledWith(
+      'tenant-a/branch-a/legacy.pfx',
+      expect.any(Buffer),
+      true,
+    );
+  });
+
+  it('preserva uma filial suspensa ao revalidar o certificado', async () => {
+    const { service, prisma } = setup({
+      certificatePath: 'tenant-a/branch-a/cert.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+      certificateValidationStatus: CertificateValidationStatus.valid,
+      environment: FiscalEnvironment.producao,
+      activationStatus: FiscalActivationStatus.suspenso,
+    });
+    await service.validate({ id: 'user-a' } as any);
+    expect(prisma.companyFiscalConfig.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          activationStatus: FiscalActivationStatus.suspenso,
+        }),
+      }),
+    );
+  });
+
+  it('recusa teste de comunicação sem provider fiscal suportado', async () => {
+    const { service } = setup({
+      provider: 'real-provider',
+      certificatePath: 'tenant-a/branch-a/cert.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+    });
+    await expect(
+      service.testCommunication({ id: 'user-a' } as any),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
 });
