@@ -1439,6 +1439,8 @@ model SaleItem {
   originSnapshot         String?  @map("origin_snapshot")
   cestSnapshot           String?  @map("cest_snapshot")
   quantity               Int
+  quantityDecimal        Decimal? @map("quantity_decimal") @db.Decimal(12, 6)
+  isWeighableSnapshot    Boolean  @default(false) @map("is_weighable_snapshot")
   unitPriceCents         Int      @map("unit_price_cents")
   totalPriceCents        Int      @map("total_price_cents")
   unitCostCentsSnapshot  Int?     @map("unit_cost_cents_snapshot")
