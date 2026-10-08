@@ -41,6 +41,12 @@ type PreparedCertificate = {
 
 const SOAP_NS = 'http://www.w3.org/2003/05/soap-envelope';
 const DSIG_NS = 'http://www.w3.org/2000/09/xmldsig#';
+const UF_CODES: Record<string, number> = {
+  AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32,
+  GO: 52, MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41,
+  PE: 26, PI: 22, RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42,
+  SP: 35, SE: 28, TO: 17,
+};
 
 @Injectable()
 export class SefazFiscalProvider implements FiscalProvider {
@@ -385,6 +391,11 @@ function textTag(xml: string, tag: string) {
 
 function sha1Base64(value: string) {
   return createHash('sha1').update(value, 'utf8').digest('base64');
+}
+
+function ufCode(value: string) {
+  const normalized = value.toUpperCase().trim();
+  return UF_CODES[normalized] || Number(digits(normalized)) || 0;
 }
 
 function digits(value: string) {
