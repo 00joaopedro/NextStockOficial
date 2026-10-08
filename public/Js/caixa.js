@@ -32,6 +32,10 @@
     barcodeInput: document.getElementById("barcodeInput"),
     searchInput: document.getElementById("searchProductInput"),
     searchResults: document.getElementById("searchResults"),
+    openMiscProduct: document.getElementById("openMiscProductBtn"),
+    miscProductEntry: document.getElementById("miscProductEntry"),
+    miscProductValue: document.getElementById("miscProductValue"),
+    addMiscProduct: document.getElementById("addMiscProductBtn"),
     total: document.getElementById("totalVenda"),
     paid: document.getElementById("totalPago"),
     change: document.getElementById("trocoVenda"),
@@ -184,6 +188,9 @@
       els.discount,
       els.barcodeInput,
       els.searchInput,
+      els.openMiscProduct,
+      els.addMiscProduct,
+      els.miscProductValue,
     ].forEach((element) => {
       element.disabled =
         busy ||
@@ -221,8 +228,18 @@
     button.className = "btnLista";
     button.textContent = label;
     button.disabled = Boolean(disabled);
+    if (label === "×") button.classList.add("btn-remover");
+    button.setAttribute("aria-label", label === "×" ? "Remover item" : label);
     button.addEventListener("click", action);
     return button;
+  }
+
+  function removeCartItem(itemId) {
+    const item = state.cart.find((entry) => entry.id === itemId);
+    if (!item) return;
+    state.cart = state.cart.filter((entry) => entry.id !== itemId);
+    resetCheckoutIntent();
+    renderCart();
   }
 
   function changeQuantity(productId, nextQuantity) {
@@ -259,41 +276,55 @@
       const name = document.createElement("div");
       name.className = "produto-nome";
       name.textContent = product.name;
+      const isMiscellaneous = product.kind === "miscellaneous";
       const code = document.createElement("div");
       code.className = "produto-codigo";
-      code.textContent = `Codigo: ${product.barcode || product.sku || product.id}`;
+      code.textContent = isMiscellaneous
+        ? "Sem estoque — item lançado manualmente"
+        : `Codigo: ${product.barcode || product.sku || product.id}`;
       const type = document.createElement("div");
       type.className = "produto-tipo";
-      type.textContent = "Venda por unidade";
+      type.textContent = isMiscellaneous
+        ? "Produto diverso — valor informado"
+        : "Venda por unidade";
       info.append(name, code, type);
 
       const price = document.createElement("div");
       price.className = "precoUnidade";
-      price.textContent = `${money(product.salePriceCents)} / un.`;
+      price.textContent = isMiscellaneous
+        ? `${money(product.salePriceCents)}`
+        : `${money(product.salePriceCents)} / un.`;
 
       const controls = document.createElement("div");
       controls.className = "controle-qtd";
-      const input = document.createElement("input");
-      input.type = "number";
-      input.className = "qtdInput";
-      input.min = "1";
-      input.max = String(product.availableQuantity);
-      input.step = "1";
-      input.value = String(product.quantity);
-      input.addEventListener("change", () =>
-        changeQuantity(product.id, input.value),
-      );
-      controls.append(
-        createButton("-", () =>
-          changeQuantity(product.id, product.quantity - 1),
-        ),
-        input,
-        createButton(
-          "+",
-          () => changeQuantity(product.id, product.quantity + 1),
-          product.quantity >= product.availableQuantity,
-        ),
-      );
+      if (isMiscellaneous) {
+        controls.append(
+          createButton("×", () => removeCartItem(product.id)),
+        );
+      } else {
+        const input = document.createElement("input");
+        input.type = "number";
+        input.className = "qtdInput";
+        input.min = "1";
+        input.max = String(product.availableQuantity);
+        input.step = "1";
+        input.value = String(product.quantity);
+        input.addEventListener("change", () =>
+          changeQuantity(product.id, input.value),
+        );
+        controls.append(
+          createButton("-", () =>
+            changeQuantity(product.id, product.quantity - 1),
+          ),
+          input,
+          createButton(
+            "+",
+            () => changeQuantity(product.id, product.quantity + 1),
+            product.quantity >= product.availableQuantity,
+          ),
+          createButton("×", () => removeCartItem(product.id)),
+        );
+      }
 
       const lineTotal = document.createElement("input");
       lineTotal.className = "totalLinha";
@@ -336,6 +367,30 @@
     resetCheckoutIntent();
     closeSearchResults();
     renderCart();
+  }
+
+  function addMiscellaneousItem() {
+    const entered = Number(els.miscProductValue.value);
+    if (!Number.isFinite(entered) || entered <= 0) {
+      toast("Informe um valor maior que zero.", "warning");
+      els.miscProductValue.focus();
+      return;
+    }
+    const amountCents = Math.round(entered * 100);
+    state.cart.push({
+      id: `misc-${uuid()}`,
+      kind: "miscellaneous",
+      name: "Produto diverso",
+      salePriceCents: amountCents,
+      quantity: 1,
+      availableQuantity: 1,
+    });
+    els.miscProductValue.value = "";
+    els.miscProductEntry.hidden = true;
+    els.openMiscProduct.textContent = "ADICIONAR OUTRO PRODUTO DIVERSO";
+    resetCheckoutIntent();
+    renderCart();
+    els.searchInput.focus();
   }
 
   function closeSearchResults() {
@@ -591,10 +646,15 @@
     state.checkoutKey ||= uuid();
     const body = {
       idempotencyKey: state.checkoutKey,
-      items: state.cart.map((item) => ({
-        productId: item.id,
-        quantity: item.quantity,
-      })),
+      items: state.cart
+        .filter((item) => item.kind !== "miscellaneous")
+        .map((item) => ({
+          productId: item.id,
+          quantity: item.quantity,
+        })),
+      miscellaneousItems: state.cart
+        .filter((item) => item.kind === "miscellaneous")
+        .map((item) => ({ amountCents: item.salePriceCents })),
       paymentMethod: method,
       paidCents: totals.paid,
     };
@@ -902,6 +962,19 @@
     lookupProduct(scannedValue);
   });
   els.searchInput.addEventListener("input", scheduleAutocomplete);
+  els.openMiscProduct.addEventListener("click", () => {
+    els.miscProductEntry.hidden = !els.miscProductEntry.hidden;
+    els.openMiscProduct.textContent = els.miscProductEntry.hidden
+      ? "ADICIONAR PRODUTO DIVERSO"
+      : "FECHAR PRODUTO DIVERSO";
+    if (!els.miscProductEntry.hidden) els.miscProductValue.focus();
+  });
+  els.addMiscProduct.addEventListener("click", addMiscellaneousItem);
+  els.miscProductValue.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addMiscellaneousItem();
+  });
   els.searchInput.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
