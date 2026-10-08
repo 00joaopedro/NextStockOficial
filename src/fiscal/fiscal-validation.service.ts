@@ -11,6 +11,7 @@ type FiscalConfigInput = {
   cnpj: string;
   stateRegistration: string | null;
   crt: number;
+  taxRegime?: string | null;
   street: string;
   number: string;
   district: string;
@@ -37,6 +38,12 @@ type FiscalSaleInput = {
     ncmSnapshot?: string | null;
     cfopSnapshot?: string | null;
     unitSnapshot?: string | null;
+    taxableUnitSnapshot?: string | null;
+    icmsCstSnapshot?: string | null;
+    icmsCsosnSnapshot?: string | null;
+    ipiCodeSnapshot?: string | null;
+    pisCodeSnapshot?: string | null;
+    cofinsCodeSnapshot?: string | null;
     originSnapshot?: string | null;
     product?: {
       ncm?: string | null;
@@ -156,11 +163,11 @@ export class FiscalValidationService {
     }
   }
 
-  assertItems(items: FiscalSaleInput['items']) {
+  assertItems(items: FiscalSaleInput['items'], config?: FiscalConfigInput | null) {
     const miscellaneous = items.find((item) => item.isMiscellaneous);
     if (miscellaneous) {
       throw new BadRequestException(
-        'Produto diverso por valor nao pode emitir NF-e sem dados fiscais proprios. Cadastre o produto com NCM, CFOP, unidade e origem antes da emissao fiscal.',
+        'Produto diverso por valor nao pode emitir NF-e sem dados fiscais proprios. Cadastre um produto com classificacao fiscal completa antes da emissao.',
       );
     }
 
@@ -168,22 +175,31 @@ export class FiscalValidationService {
       const ncm = item.ncmSnapshot || item.product?.ncm;
       const cfop = item.cfopSnapshot || item.product?.cfopDefault;
       const unit = item.unitSnapshot || item.product?.unit;
+      const taxableUnit = item.taxableUnitSnapshot || item.product?.taxableUnit || (item.isWeighableSnapshot ? null : unit);
       const origin = item.originSnapshot || item.product?.origin;
+      const cst = item.icmsCstSnapshot || item.product?.icmsCst;
+      const csosn = item.icmsCsosnSnapshot || item.product?.icmsCsosn;
+      const crt = config?.crt;
+      const icmsOk = crt === undefined || (crt === 1 || crt === 2 || crt === 4
+        ? /^\d{3}$/.test(this.digits(csosn))
+        : /^\d{2}$/.test(this.digits(cst)));
       return (
         !/^\d{8}$/.test(this.digits(ncm)) ||
         !/^\d{4}$/.test(this.digits(cfop)) ||
         !unit?.trim() ||
-        !origin?.trim()
+        !taxableUnit?.trim() ||
+        !/^[0-8]$/.test(this.digits(origin)) ||
+        !icmsOk
       );
     });
 
     if (invalid) {
+      const crtMessage = config?.crt === 3 ? ' CST do ICMS' : ' CSOSN do ICMS';
       throw new BadRequestException(
-        `Produto "${invalid.productNameSnapshot}" sem NCM, CFOP, unidade ou origem fiscal valida.`,
+        'Produto "' + invalid.productNameSnapshot + '" sem NCM, CFOP, unidade tributável, origem ou' + (config ? crtMessage : ' classificação tributária') + ' válida.',
       );
     }
   }
-
   sanitizeProviderPayload(value: unknown): Record<string, unknown> {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {};
