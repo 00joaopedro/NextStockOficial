@@ -517,8 +517,9 @@
   async function printFiscalPreview(id) {
     try {
       const result = await apiFetch(
-        "/api/sales/" + encodeURIComponent(id) + "/fiscal-preview/print",
+        "/api/sales/" + encodeURIComponent(id) + "/fiscal-preview/history-print",
         {
+          method: "POST",
           headers: {
             "x-nextstock-print-idempotency-key": crypto.randomUUID(),
           },
