@@ -829,7 +829,7 @@ export class SalesService {
       );
     }
 
-    const fiscalConfig = await this.prisma.companyFiscalConfig.findUnique({
+    const fiscalConfig = await this.prisma.companyFiscalConfig?.findUnique({
       where: {
         tenantId_branchId: {
           tenantId: context.tenantId,
