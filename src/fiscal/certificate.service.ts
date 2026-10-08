@@ -51,6 +51,7 @@ export class CertificateService {
     private readonly crypto: CertificateCryptoService,
     private readonly parser: CertificateParserService,
     private readonly storage: CertificateStorageService,
+    @Optional() private readonly audit?: AuditService,
   ) {
     if (
       !Number.isFinite(this.maxSizeBytes) ||
