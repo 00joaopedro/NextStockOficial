@@ -33,6 +33,7 @@ type SummaryRaw = {
   gross_revenue_cents: bigint | number | null;
   sales_count: bigint | number | null;
   total_cost_cents: bigint | number | null;
+  incomplete_cost_sales_count: bigint | number | null;
 };
 
 type CentsRaw = {
@@ -162,7 +163,11 @@ export class DashboardService {
         COALESCE(MAX(si.product_name_snapshot), ${product.name}) AS product_name,
         COALESCE(SUM(si.quantity), 0) AS quantity_sold,
         COALESCE(SUM(si.total_price_cents), 0) AS revenue_cents,
-        COALESCE(SUM(si.total_price_cents), 0) - COALESCE(SUM(si.total_cost_cents_snapshot), 0) AS gross_profit_cents
+        CASE
+          WHEN BOOL_AND(si.total_cost_cents_snapshot IS NOT NULL)
+            THEN COALESCE(SUM(si.total_price_cents), 0) - SUM(si.total_cost_cents_snapshot)
+          ELSE NULL
+        END AS gross_profit_cents
       FROM sale_items si
       JOIN sales s ON s.id = si.sale_id
       WHERE s.tenant_id = ${context.tenantId}::uuid
@@ -239,16 +244,36 @@ export class DashboardService {
           AND sold_at < ${period.to}
       ),
       filtered_costs AS (
-        SELECT si.sale_id, SUM(si.total_cost_cents_snapshot) AS total_cost_cents
+        SELECT
+          si.sale_id,
+          SUM(si.total_cost_cents_snapshot) AS total_cost_cents,
+          BOOL_AND(si.total_cost_cents_snapshot IS NOT NULL) AS costs_complete
         FROM sale_items si
         INNER JOIN filtered_sales fs ON fs.id = si.sale_id
-        WHERE si.total_cost_cents_snapshot IS NOT NULL
         GROUP BY si.sale_id
       )
       SELECT
         COALESCE(SUM(fs.total_cents), 0) AS gross_revenue_cents,
         COUNT(*) AS sales_count,
-        COALESCE(SUM(fc.total_cost_cents), 0) AS total_cost_cents
+        COALESCE(
+          SUM(
+            CASE
+              WHEN fc.sale_id IS NOT NULL AND fc.costs_complete
+                THEN fc.total_cost_cents
+              ELSE 0
+            END
+          ),
+          0
+        ) AS total_cost_cents,
+        COALESCE(
+          SUM(
+            CASE
+              WHEN fc.sale_id IS NULL OR NOT fc.costs_complete THEN 1
+              ELSE 0
+            END
+          ),
+          0
+        ) AS incomplete_cost_sales_count
       FROM filtered_sales fs
       LEFT JOIN filtered_costs fc ON fc.sale_id = fs.id
     `;
@@ -263,8 +288,17 @@ export class DashboardService {
     const grossRevenueCents = toNumber(salesSummary?.gross_revenue_cents);
     const salesCount = toNumber(salesSummary?.sales_count);
     const totalCostCents = toNumber(salesSummary?.total_cost_cents);
-    const grossProfitCents = totalCostCents > 0 ? grossRevenueCents - totalCostCents : grossRevenueCents;
-    const netProfitCents = grossProfitCents - totalExpensesCents;
+    const incompleteCostSalesCount = toNumber(
+      salesSummary?.incomplete_cost_sales_count,
+    );
+    const hasCompleteCostCoverage = incompleteCostSalesCount === 0;
+    const grossProfitCents = hasCompleteCostCoverage
+      ? totalCostCents > 0
+        ? grossRevenueCents - totalCostCents
+        : grossRevenueCents
+      : null;
+    const netProfitCents =
+      grossProfitCents === null ? null : grossProfitCents - totalExpensesCents;
 
     return {
       grossRevenueCents,
@@ -275,11 +309,14 @@ export class DashboardService {
       salesCount,
       totalCostCents: canSeeFinancial ? totalCostCents : null,
       costSnapshotCoverage: {
-        hasCostSnapshot: totalCostCents > 0,
+        hasCostSnapshot: hasCompleteCostCoverage && totalCostCents > 0,
+        incompleteSalesCount: incompleteCostSalesCount,
         rule:
-          totalCostCents > 0
-            ? 'Lucro bruto = receita - snapshots de custo gravados em SaleItem.'
-            : 'Sem snapshot de custo confiavel no periodo; lucro bruto usa fallback receita bruta.',
+          !hasCompleteCostCoverage
+            ? 'Lucro bruto indisponivel: existem vendas sem snapshot de custo completo, incluindo produtos diversos.'
+            : totalCostCents > 0
+              ? 'Lucro bruto = receita - snapshots de custo gravados em SaleItem.'
+              : 'Sem snapshot de custo confiavel no periodo; lucro bruto usa fallback receita bruta.',
       },
       permissions: {
         canSeeFinancial,
