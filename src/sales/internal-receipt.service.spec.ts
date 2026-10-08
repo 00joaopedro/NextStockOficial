@@ -109,6 +109,33 @@ describe('InternalReceiptService RC-012', () => {
     },
   );
 
+  it('numera recibo interno e previa fiscal de forma independente', async () => {
+    const { service } = setup([1, 1, 2]);
+    const internal = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+    });
+    const firstPreview = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-1',
+    });
+    const secondPreview = await service.issueAndRender({
+      sale,
+      context,
+      origin: 'cash_register',
+      mode: 'fiscal_preview',
+      idempotencyKey: 'preview-2',
+    });
+
+    expect(internal.printNumber).toBe(1);
+    expect(firstPreview.printNumber).toBe(1);
+    expect(secondPreview.printNumber).toBe(2);
+  });
+
   it('renderiza previa fiscal separada do recibo interno', async () => {
     const { service, tx } = setup([1]);
     const result = await service.issueAndRender({
