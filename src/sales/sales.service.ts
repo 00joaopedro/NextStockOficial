@@ -663,6 +663,11 @@ export class SalesService {
       context.branchId!,
       id,
     );
+    if (sale.status !== SaleStatus.paid) {
+      throw new BadRequestException(
+        'Somente uma venda paga pode gerar uma previa fiscal.',
+      );
+    }
     const printed = await this.internalReceipt.issueAndRender({
       sale,
       context: {
