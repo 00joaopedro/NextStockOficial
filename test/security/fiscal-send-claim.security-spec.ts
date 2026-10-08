@@ -104,6 +104,7 @@ function service(
       assertSaleEligible: jest.fn(),
       assertConfig: jest.fn(),
       assertItems: jest.fn(),
+      assertStoredPayload: jest.fn(),
       sanitizeProviderPayload: jest.fn((value) => value || {}),
     } as any,
     new FiscalSequenceService(prisma as any),
