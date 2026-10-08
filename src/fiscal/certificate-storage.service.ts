@@ -20,12 +20,12 @@ export class CertificateStorageService {
     return `${tenantId}/${branchId}/${randomUUID()}.pfx`;
   }
 
-  async upload(path: string, buffer: Buffer) {
+  async upload(path: string, buffer: Buffer, upsert = false) {
     const { error } = await this.supabase.admin.storage
       .from(this.bucket)
       .upload(path, buffer, {
         contentType: 'application/x-pkcs12',
-        upsert: false,
+        upsert,
       });
     if (error) {
       if (/bucket.*not found|not found.*bucket/i.test(error.message || '')) {
