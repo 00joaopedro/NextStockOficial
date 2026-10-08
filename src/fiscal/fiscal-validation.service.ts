@@ -35,6 +35,7 @@ type FiscalSaleInput = {
   items: Array<{
     productNameSnapshot: string;
     isMiscellaneous?: boolean;
+    isWeighableSnapshot?: boolean;
     ncmSnapshot?: string | null;
     cfopSnapshot?: string | null;
     unitSnapshot?: string | null;
@@ -50,6 +51,9 @@ type FiscalSaleInput = {
       cfopDefault?: string | null;
       unit?: string | null;
       origin?: string | null;
+      taxableUnit?: string | null;
+      icmsCst?: string | null;
+      icmsCsosn?: string | null;
     } | null;
   }>;
 };
