@@ -52,6 +52,8 @@ describe('CertificateService', () => {
       keyVersion: 'v1',
       encryptPassword: jest.fn().mockReturnValue('encrypted'),
       decryptPassword: jest.fn().mockReturnValue('password'),
+      encryptCertificate: jest.fn().mockImplementation((buffer: Buffer) => Buffer.concat([Buffer.from('encrypted:'), buffer])),
+      decryptCertificate: jest.fn().mockImplementation((buffer: Buffer) => buffer.subarray(Buffer.from('encrypted:').length)),
     };
     const parser: any = {
       parse: jest.fn().mockReturnValue({
