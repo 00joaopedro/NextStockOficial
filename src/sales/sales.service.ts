@@ -837,12 +837,6 @@ export class SalesService {
         },
       },
     });
-    if (!fiscalConfig) {
-      throw new BadRequestException(
-        'Configure os dados fiscais da filial antes de criar a NFC-e.',
-      );
-    }
-
     const document = await this.prisma.saleDocument.create({
       data: {
         saleId: sale.id,
@@ -856,25 +850,25 @@ export class SalesService {
         normalizedPayload: {
           version: 1,
           model: '65',
-          environment: fiscalConfig.environment,
+          environment: fiscalConfig?.environment || 'homologacao',
           saleId: sale.id,
           orderId: sale.orderId,
           operationNature: clean(dto.operationNature) || 'Venda de mercadoria',
           buyerPresence: dto.buyerPresence || '1',
           finalConsumer: dto.finalConsumer || '1',
           issuer: {
-            legalName: fiscalConfig.legalName,
-            tradeName: fiscalConfig.tradeName,
-            cnpj: fiscalConfig.cnpj,
-            stateRegistration: fiscalConfig.stateRegistration,
-            crt: fiscalConfig.crt,
-            street: fiscalConfig.street,
-            number: fiscalConfig.number,
-            district: fiscalConfig.district,
-            city: fiscalConfig.city,
-            cityCodeIbge: fiscalConfig.cityCodeIbge,
-            state: fiscalConfig.state,
-            zipCode: fiscalConfig.zipCode,
+            legalName: fiscalConfig?.legalName,
+            tradeName: fiscalConfig?.tradeName,
+            cnpj: fiscalConfig?.cnpj,
+            stateRegistration: fiscalConfig?.stateRegistration,
+            crt: fiscalConfig?.crt,
+            street: fiscalConfig?.street,
+            number: fiscalConfig?.number,
+            district: fiscalConfig?.district,
+            city: fiscalConfig?.city,
+            cityCodeIbge: fiscalConfig?.cityCodeIbge,
+            state: fiscalConfig?.state,
+            zipCode: fiscalConfig?.zipCode,
           },
           recipient: dto.recipient,
           items: sale.items.map((item) => ({
