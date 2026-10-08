@@ -31,6 +31,7 @@ type FiscalSaleInput = {
   order?: { status: string } | null;
   items: Array<{
     productNameSnapshot: string;
+    isMiscellaneous?: boolean;
     ncmSnapshot?: string | null;
     cfopSnapshot?: string | null;
     unitSnapshot?: string | null;
@@ -145,6 +146,13 @@ export class FiscalValidationService {
   }
 
   assertItems(items: FiscalSaleInput['items']) {
+    const miscellaneous = items.find((item) => item.isMiscellaneous);
+    if (miscellaneous) {
+      throw new BadRequestException(
+        'Produto diverso por valor nao pode emitir NF-e sem dados fiscais proprios. Cadastre o produto com NCM, CFOP, unidade e origem antes da emissao fiscal.',
+      );
+    }
+
     const invalid = items.find((item) => {
       const ncm = item.ncmSnapshot || item.product?.ncm;
       const cfop = item.cfopSnapshot || item.product?.cfopDefault;
