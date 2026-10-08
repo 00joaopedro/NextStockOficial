@@ -241,7 +241,13 @@ export class SefazFiscalProvider implements FiscalProvider {
     certificate: PreparedCertificate,
   ) {
     const parsed = new URL(url);
-    const envelope = `<soap:Envelope xmlns:soap="${SOAP_NS}"><soap:Header/><soap:Body>${body}</soap:Body></soap:Envelope>`;
+    const operation = body.includes('<enviNFe')
+      ? 'nfeAutorizacaoLote4'
+      : body.includes('<consSitNFe')
+        ? 'nfeConsultaNF4'
+        : 'nfeRecepcaoEvento4';
+    const operationBody = `<${operation} xmlns="http://www.portalfiscal.inf.br/nfe">${body}</${operation}>`;
+    const envelope = `<soap:Envelope xmlns:soap="${SOAP_NS}"><soap:Header/><soap:Body>${operationBody}</soap:Body></soap:Envelope>`;
     return new Promise<string>((resolve, reject) => {
       const req = httpsRequest(
         {
@@ -281,8 +287,13 @@ export class SefazFiscalProvider implements FiscalProvider {
   }
 
   private resultFromResponse(response: string, accessKey: string) {
-    const cStat = Number(textTag(response, 'cStat') || '0');
-    const xMotivo = textTag(response, 'xMotivo') || 'Resposta SEFAZ sem motivo.';
+    const statusBlock =
+      response.match(/<(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)\\b[\\s\\S]*?<\\/(?:[A-Za-z0-9_]+:)?(?:infProt|retEvento)>/)?.[0] || '';
+    const cStat = Number(textTag(statusBlock, 'cStat') || textTag(response, 'cStat') || '0');
+    const xMotivo =
+      textTag(statusBlock, 'xMotivo') ||
+      textTag(response, 'xMotivo') ||
+      'Resposta SEFAZ sem motivo.';
     const providerRef = textTag(response, 'nProt') || textTag(response, 'nRec');
     const responseKey = digits(textTag(response, 'chNFe') || accessKey);
     const authorized = [100, 150].includes(cStat);
@@ -317,7 +328,7 @@ function buildNfeXml(document: FiscalProviderDocument, model = Number(document.m
   const det = items.map((item: any, index: number) => {
     const quantity = Number(item.quantity || 0);
     const total = Number(item.totalPriceCents || 0) / 100;
-    return `<det nItem="${index + 1}"><prod><cProd>${escapeXml(String(item.sku || item.saleItemId || index + 1))}</cProd><xProd>${escapeXml(String(item.description || ''))}</xProd><NCM>${digits(String(item.ncm || ''))}</NCM><CFOP>${digits(String(item.cfop || ''))}</CFOP><uCom>${escapeXml(String(item.unit || 'UN'))}</uCom><qCom>${decimal(quantity)}</qCom><vUnCom>${money(Number(item.unitPriceCents || 0) / 100)}</vUnCom><vProd>${money(total)}</vProd><uTrib>${escapeXml(String(item.taxableUnit || item.unit || 'UN'))}</uTrib><qTrib>${decimal(quantity)}</qTrib><vUnTrib>${money(Number(item.unitPriceCents || 0) / 100 / Math.max(quantity, 1))}</vUnTrib></prod><imposto><ICMS><ICMSSN102><orig>${digits(String(item.origin || '0'))}</orig><CSOSN>${digits(String(item.icmsCsosn || '102'))}</CSOSN></ICMSSN102></ICMS><IPI><cEnq>999</cEnq><IPITrib><CST>${digits(String(item.ipiCode || '99'))}</CST><vBC>0.00</vBC><pIPI>0.00</pIPI><vIPI>0.00</vIPI></IPITrib></IPI><PIS><PISOutr><CST>${digits(String(item.pisCode || '99'))}</CST><vBC>0.00</vBC><pPIS>0.00</pPIS><vPIS>0.00</vPIS></PISOutr></PIS><COFINS><COFINSOutr><CST>${digits(String(item.cofinsCode || '99'))}</CST><vBC>0.00</vBC><pCOFINS>0.00</pCOFINS><vCOFINS>0.00</vCOFINS></COFINSOutr></COFINS></imposto></det>`;
+    return `<det nItem="${index + 1}"><prod><cProd>${escapeXml(String(item.sku || item.saleItemId || index + 1))}</cProd><xProd>${escapeXml(String(item.description || ''))}</xProd><NCM>${digits(String(item.ncm || ''))}</NCM><CFOP>${digits(String(item.cfop || ''))}</CFOP><uCom>${escapeXml(String(item.unit || 'UN'))}</uCom><qCom>${decimal(quantity)}</qCom><vUnCom>${money(Number(item.unitPriceCents || 0) / 100)}</vUnCom><vProd>${money(products / 100)}</vProd><uTrib>${escapeXml(String(item.taxableUnit || item.unit || 'UN'))}</uTrib><qTrib>${decimal(quantity)}</qTrib><vUnTrib>${money(Number(item.unitPriceCents || 0) / 100 / Math.max(quantity, 1))}</vUnTrib></prod><imposto><ICMS><ICMSSN102><orig>${digits(String(item.origin || '0'))}</orig><CSOSN>${digits(String(item.icmsCsosn || '102'))}</CSOSN></ICMSSN102></ICMS><IPI><cEnq>999</cEnq><IPITrib><CST>${digits(String(item.ipiCode || '99'))}</CST><vBC>0.00</vBC><pIPI>0.00</pIPI><vIPI>0.00</vIPI></IPITrib></IPI><PIS><PISOutr><CST>${digits(String(item.pisCode || '99'))}</CST><vBC>0.00</vBC><pPIS>0.00</pPIS><vPIS>0.00</vPIS></PISOutr></PIS><COFINS><COFINSOutr><CST>${digits(String(item.cofinsCode || '99'))}</CST><vBC>0.00</vBC><pCOFINS>0.00</pCOFINS><vCOFINS>0.00</vCOFINS></COFINSOutr></COFINS></imposto></det>`;
   }).join('');
   const dest = recipient.document ? `<dest><${recipient.documentType === 'cnpj' ? 'CNPJ' : 'CPF'}>${digits(String(recipient.document))}</${recipient.documentType === 'cnpj' ? 'CNPJ' : 'CPF'}><xNome>${escapeXml(String(recipient.name || ''))}</xNome><enderDest><xLgr>${escapeXml(String(recipient.street || ''))}</xLgr><nro>${escapeXml(String(recipient.number || ''))}</nro><xBairro>${escapeXml(String(recipient.district || ''))}</xBairro><cMun>${digits(String(recipient.cityCodeIbge || ''))}</cMun><xMun>${escapeXml(String(recipient.city || ''))}</xMun><UF>${escapeXml(String(recipient.state || ''))}</UF><CEP>${digits(String(recipient.zipCode || ''))}</CEP></enderDest><indIEDest>${digits(String(recipient.ieIndicator || '9'))}</indIEDest></dest>` : '';
   const ide = `<ide><cUF>${String(ufCode(String(document.providerConfig?.uf || issuer.state || '0'))).padStart(2, '0')}</cUF><cNF>${access.slice(35, 43)}</cNF><natOp>${escapeXml(String(payload.operationNature || 'Venda de mercadoria'))}</natOp><mod>${model}</mod><serie>${escapeXml(document.series)}</serie><nNF>${escapeXml(document.number)}</nNF><dhEmi>${new Date().toISOString()}</dhEmi><tpNF>1</tpNF><idDest>1</idDest><tpImp>${model === 65 ? 4 : 1}</tpImp><tpEmis>1</tpEmis><cDV>${access.slice(-1)}</cDV><tpAmb>${document.tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>NextStock</verProc></ide>`;
