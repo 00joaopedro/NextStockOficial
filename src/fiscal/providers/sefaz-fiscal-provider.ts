@@ -161,7 +161,7 @@ export class SefazFiscalProvider implements FiscalProvider {
         return {
           ...result,
           xml: Buffer.from(response.includes('<nfeProc') ? response : signed, 'utf8'),
-          pdf: await this.generateDanfe(document),
+          pdf: await this.generateDanfe({ ...document, payload: { ...document.payload, accessKey: result.accessKey } }),
         };
       }
       return result;
@@ -218,18 +218,19 @@ export class SefazFiscalProvider implements FiscalProvider {
   }
 
   private signNfeXml(xml: string, certificate: PreparedCertificate) {
-    const match = xml.match(/<infNFe\b[^>]*\bId="([^"]+)"[^>]*>/);
+    const match = xml.match(/<(infNFe|infEvento)\\b[^>]*\\bId="([^"]+)"[^>]*>/);
     if (!match) return xml;
-    const inf = xml.match(/<infNFe\b[\s\S]*?<\/infNFe>/)?.[0];
+    const rootTag = match[1];
+    const inf = xml.match(new RegExp(`<${rootTag}\\b[\\s\\S]*?<\\/${rootTag}>`))?.[0];
     if (!inf) return xml;
     const digest = sha1Base64(inf);
-    const signedInfo = `<SignedInfo xmlns="${DSIG_NS}"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${match[1]}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digest}</DigestValue></Reference></SignedInfo>`;
+    const signedInfo = `<SignedInfo xmlns="${DSIG_NS}"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${match[2]}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digest}</DigestValue></Reference></SignedInfo>`;
     const key = parsePkcs12PrivateKey(certificate.pfx, certificate.password);
     const md = forge.md.sha1.create();
     md.update(signedInfo, 'utf8');
     const signature = forge.util.encode64(key.sign(md));
     const signatureXml = `<Signature xmlns="${DSIG_NS}">${signedInfo}<SignatureValue>${signature}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certificate.certificateBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
-    return xml.replace('</infNFe>', `</infNFe>${signatureXml}`);
+    return xml.replace(`</${rootTag}>`, `</${rootTag}>${signatureXml}`);
   }
 
   private async soap(
@@ -318,7 +319,7 @@ function buildNfeXml(document: FiscalProviderDocument, model = Number(document.m
     return `<det nItem="${index + 1}"><prod><cProd>${escapeXml(String(item.sku || item.saleItemId || index + 1))}</cProd><xProd>${escapeXml(String(item.description || ''))}</xProd><NCM>${digits(String(item.ncm || ''))}</NCM><CFOP>${digits(String(item.cfop || ''))}</CFOP><uCom>${escapeXml(String(item.unit || 'UN'))}</uCom><qCom>${decimal(quantity)}</qCom><vUnCom>${money(Number(item.unitPriceCents || 0) / 100 / Math.max(quantity, 1))}</vUnCom><vProd>${money(total)}</vProd><uTrib>${escapeXml(String(item.taxableUnit || item.unit || 'UN'))}</uTrib><qTrib>${decimal(quantity)}</qTrib><vUnTrib>${money(Number(item.unitPriceCents || 0) / 100 / Math.max(quantity, 1))}</vUnTrib></prod><imposto><ICMS><ICMSSN102><orig>${digits(String(item.origin || '0'))}</orig><CSOSN>${digits(String(item.icmsCsosn || '102'))}</CSOSN></ICMSSN102></ICMS><IPI><cEnq>999</cEnq><IPITrib><CST>${digits(String(item.ipiCode || '99'))}</CST><vBC>0.00</vBC><pIPI>0.00</pIPI><vIPI>0.00</vIPI></IPITrib></IPI><PIS><PISOutr><CST>${digits(String(item.pisCode || '99'))}</CST><vBC>0.00</vBC><pPIS>0.00</pPIS><vPIS>0.00</vPIS></PISOutr></PIS><COFINS><COFINSOutr><CST>${digits(String(item.cofinsCode || '99'))}</CST><vBC>0.00</vBC><pCOFINS>0.00</pCOFINS><vCOFINS>0.00</vCOFINS></COFINSOutr></COFINS></imposto></det>`;
   }).join('');
   const dest = recipient.document ? `<dest><${recipient.documentType === 'cnpj' ? 'CNPJ' : 'CPF'}>${digits(String(recipient.document))}</${recipient.documentType === 'cnpj' ? 'CNPJ' : 'CPF'}><xNome>${escapeXml(String(recipient.name || ''))}</xNome><enderDest><xLgr>${escapeXml(String(recipient.street || ''))}</xLgr><nro>${escapeXml(String(recipient.number || ''))}</nro><xBairro>${escapeXml(String(recipient.district || ''))}</xBairro><cMun>${digits(String(recipient.cityCodeIbge || ''))}</cMun><xMun>${escapeXml(String(recipient.city || ''))}</xMun><UF>${escapeXml(String(recipient.state || ''))}</UF><CEP>${digits(String(recipient.zipCode || ''))}</CEP></enderDest><indIEDest>${digits(String(recipient.ieIndicator || '9'))}</indIEDest></dest>` : '';
-  const ide = `<ide><cUF>${digits(String(document.providerConfig?.uf || issuer.state || '0'))}</cUF><cNF>${access.slice(-8)}</cNF><natOp>${escapeXml(String(payload.operationNature || 'Venda de mercadoria'))}</natOp><mod>${model}</mod><serie>${escapeXml(document.series)}</serie><nNF>${escapeXml(document.number)}</nNF><dhEmi>${new Date().toISOString()}</dhEmi><tpNF>1</tpNF><idDest>1</idDest><tpImp>${model === 65 ? 4 : 1}</tpImp><tpEmis>1</tpEmis><cDV>${access.slice(-1)}</cDV><tpAmb>${document.tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>NextStock</verProc></ide>`;
+  const ide = `<ide><cUF>${String(ufCode(String(document.providerConfig?.uf || issuer.state || '0'))).padStart(2, '0')}</cUF><cNF>${access.slice(-8)}</cNF><natOp>${escapeXml(String(payload.operationNature || 'Venda de mercadoria'))}</natOp><mod>${model}</mod><serie>${escapeXml(document.series)}</serie><nNF>${escapeXml(document.number)}</nNF><dhEmi>${new Date().toISOString()}</dhEmi><tpNF>1</tpNF><idDest>1</idDest><tpImp>${model === 65 ? 4 : 1}</tpImp><tpEmis>1</tpEmis><cDV>${access.slice(-1)}</cDV><tpAmb>${document.tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>NextStock</verProc></ide>`;
   const total = items.reduce((sum: number, item: any) => sum + Number(item.totalPriceCents || 0), 0) / 100;
   const issuerXml = `<emit><CNPJ>${digits(String(issuer.cnpj || ''))}</CNPJ><xNome>${escapeXml(String(issuer.legalName || ''))}</xNome><xFant>${escapeXml(String(issuer.tradeName || issuer.legalName || ''))}</xFant><enderEmit><xLgr>${escapeXml(String(issuer.street || ''))}</xLgr><nro>${escapeXml(String(issuer.number || ''))}</nro><xBairro>${escapeXml(String(issuer.district || ''))}</xBairro><cMun>${digits(String(issuer.cityCodeIbge || ''))}</cMun><xMun>${escapeXml(String(issuer.city || ''))}</xMun><UF>${escapeXml(String(issuer.state || ''))}</UF><CEP>${digits(String(issuer.zipCode || ''))}</CEP><cPais>1058</cPais><xPais>Brasil</xPais></enderEmit><IE>${digits(String(issuer.stateRegistration || ''))}</IE><CRT>${Number(issuer.crt || 1)}</CRT></emit>`;
   const totalXml = `<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${money(total)}</vProd><vFrete>0.00</vFrete><vSeg>0.00</vSeg><vDesc>${money(Number(payload.totals?.discountCents || 0) / 100)}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${money(total)}</vNF></ICMSTot></total>`;
@@ -361,7 +362,7 @@ function makeAccessKey(document: FiscalProviderDocument, model: number) {
   const payload = document.payload as any;
   const issuer = payload.issuer || {};
   const cnpj = digits(String(issuer.cnpj || ''));
-  const uf = Number(String(document.providerConfig?.uf || '0').replace(/\D/g, '')) || 35;
+  const uf = ufCode(String(document.providerConfig?.uf || issuer.state || ''));
   const aamm = new Date().toISOString().slice(2, 7).replace('-', '');
   const series = String(document.series).padStart(3, '0').slice(-3);
   const number = String(document.number).padStart(9, '0').slice(-9);
