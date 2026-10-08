@@ -92,8 +92,42 @@ describe('FiscalValidationService', () => {
       taxableUnitSnapshot: 'KG',
       originSnapshot: '0',
       icmsCsosnSnapshot: '102',
+      ipiCodeSnapshot: '99',
+      pisCodeSnapshot: '01',
+      cofinsCodeSnapshot: '01',
       product: null,
     }], { crt: 1 } as any)).not.toThrow();
+  });
+
+  it('rejeita produto sem codigos de IPI, PIS e COFINS', () => {
+    expect(() => service.assertItems([{
+      productNameSnapshot: 'Cafe sem codigos',
+      ncmSnapshot: '09012100',
+      cfopSnapshot: '5102',
+      unitSnapshot: 'KG',
+      taxableUnitSnapshot: 'KG',
+      originSnapshot: '0',
+      icmsCsosnSnapshot: '102',
+      ipiCodeSnapshot: null,
+      pisCodeSnapshot: null,
+      cofinsCodeSnapshot: null,
+    }], { crt: 1 } as any)).toThrow(/IPI, PIS ou COFINS/);
+  });
+
+  it('bloqueia payload fiscal legado sem classificacao completa', () => {
+    expect(() => service.assertStoredPayload({
+      items: [{
+        ncm: '09012100',
+        cfop: '5102',
+        unit: 'KG',
+        taxableUnit: 'KG',
+        origin: '0',
+        icmsCsosn: '102',
+        ipiCode: '',
+        pisCode: '',
+        cofinsCode: '',
+      }],
+    }, { crt: 1 } as any)).toThrow(/Rascunho fiscal antigo/);
   });
 
 });
