@@ -15,7 +15,7 @@ describe('scale-barcode.util', () => {
   });
 
   it('interpreta etiqueta configurada por valor total', () => {
-    const result = parseScaleBarcode('9901234567890', {
+    const result = parseScaleBarcode('9901234567899', {
       formats: [
         {
           ...DEFAULT_SCALE_BARCODE_FORMAT,
@@ -30,8 +30,8 @@ describe('scale-barcode.util', () => {
 
     expect(result.kind).toBe('label');
     if (result.kind !== 'label') return;
-    expect(result.label.productCode).toBe('012345');
-    expect(result.label.payloadCents).toBe(6789);
+    expect(result.label.productCode).toBe('901234');
+    expect(result.label.payloadCents).toBe(56789);
   });
 
   it('rejeita dígito verificador inválido', () => {
