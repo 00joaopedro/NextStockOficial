@@ -52,4 +52,12 @@ describe('scale-barcode.util', () => {
       parseScaleBarcode('2001234500012', { enabled: false }).kind,
     ).toBe('not-label');
   });
+  it('descarta formatos configurados inválidos sem quebrar o lookup', () => {
+    const result = parseScaleBarcode('2001234500012', {
+      formats: [null as never, { prefix: null as never }],
+    });
+
+    expect(result.kind).toBe('label');
+  });
+
 });
