@@ -307,6 +307,26 @@ export class CertificateService {
         'Producao exige um provider fiscal real. O provider mock nunca autoriza notas.',
       );
     }
+    if (['sefaz', 'real', 'sefaz-br'].includes((config.provider || '').toLowerCase())) {
+      const providerConfig =
+        config.providerConfig &&
+        typeof config.providerConfig === 'object' &&
+        !Array.isArray(config.providerConfig)
+          ? (config.providerConfig as Record<string, unknown>)
+          : {};
+      const validUrl = (value: unknown) =>
+        typeof value === 'string' && /^https:\/\//i.test(value);
+      if (
+        !/^[A-Z]{2}$/.test(String(providerConfig.uf || '').toUpperCase()) ||
+        !validUrl(providerConfig.authorizationUrl) ||
+        !validUrl(providerConfig.statusUrl) ||
+        !validUrl(providerConfig.cancellationUrl)
+      ) {
+        throw new BadRequestException(
+          'Ative a produção somente após configurar UF e endpoints HTTPS de autorização, consulta e cancelamento do provider SEFAZ.',
+        );
+      }
+    }
     if (
       !config.certificatePath ||
       config.certificateValidationStatus !== CertificateValidationStatus.valid

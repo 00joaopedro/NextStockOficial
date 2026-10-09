@@ -15,6 +15,7 @@ import { CertificateParserService } from './certificate-parser.service';
 import { CertificateService } from './certificate.service';
 import { CertificateStorageService } from './certificate-storage.service';
 import { SupabaseModule } from '../supabase/supabase.module';
+import { SefazFiscalProvider } from './providers/sefaz-fiscal-provider';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { SupabaseModule } from '../supabase/supabase.module';
     FiscalSequenceService,
     FiscalStorageService,
     MockFiscalProvider,
+    SefazFiscalProvider,
     CertificateCryptoService,
     CertificateParserService,
     CertificateStorageService,

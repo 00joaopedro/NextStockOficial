@@ -8,6 +8,15 @@ export type FiscalProviderDocument = {
   series: string;
   number: string;
   payload: Record<string, unknown>;
+  accessKey?: string;
+  protocol?: string;
+  providerConfig?: Record<string, unknown>;
+  credentials?: {
+    tenantId: string;
+    branchId: string;
+    certificatePath: string;
+    certificatePasswordEncrypted: string;
+  };
 };
 
 export type FiscalProviderResult = {
