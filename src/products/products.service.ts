@@ -338,6 +338,13 @@ export class ProductsService {
       take: scanCode ? Math.max(lookupCandidates.length * 2, 10) : 50,
     });
 
+    const exactRawProduct = scaleLabel
+      ? products.find(
+          (product) =>
+            product.barcode === scanCode || product.sku === scanCode,
+        )
+      : null;
+    const activeScaleLabel = exactRawProduct ? null : scaleLabel;
     const rankedProducts = products
       .sort((left, right) =>
         scanCode
@@ -368,10 +375,10 @@ export class ProductsService {
           const availableQuantity = weighed
             ? decimalStockValue(product.quantityDecimal)
             : product.quantity;
-          const labelQuantity = scaleLabel
-            ? resolveLabelQuantity(scaleLabel, product.salePriceCents)
+          const labelQuantity = activeScaleLabel
+            ? resolveLabelQuantity(activeScaleLabel, product.salePriceCents)
             : null;
-          if (scaleLabel && (!weighed || !labelQuantity || labelQuantity <= 0)) {
+          if (activeScaleLabel && (!weighed || !labelQuantity || labelQuantity <= 0)) {
             throw new BadRequestException(
               'Etiqueta inválida: produto não pesável ou valor sem preço unitário.',
             );
@@ -386,12 +393,12 @@ export class ProductsService {
             suggestedQuantity: labelQuantity,
             saleMode: weighed ? 'weighed' : 'unit',
             unitLabel: unit,
-            labelData: scaleLabel
+            labelData: activeScaleLabel
               ? {
-                  code: scaleLabel.raw,
-                  productCode: scaleLabel.productCode,
-                  payloadType: scaleLabel.format.payloadType,
-                  payload: scaleLabel.payload,
+                  code: activeScaleLabel.raw,
+                  productCode: activeScaleLabel.productCode,
+                  payloadType: activeScaleLabel.format.payloadType,
+                  payload: activeScaleLabel.payload,
                   quantity: labelQuantity,
                 }
               : null,
