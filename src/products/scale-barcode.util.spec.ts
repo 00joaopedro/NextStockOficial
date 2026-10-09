@@ -54,7 +54,7 @@ describe('scale-barcode.util', () => {
   });
   it('descarta formatos configurados inválidos sem quebrar o lookup', () => {
     const result = parseScaleBarcode('2001234500012', {
-      formats: [null as never, { prefix: null as never }],
+      formats: [null as never, ({ prefix: null as never } as never)],
     });
 
     expect(result.kind).toBe('label');
