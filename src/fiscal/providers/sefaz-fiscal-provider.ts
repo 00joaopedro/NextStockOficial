@@ -222,7 +222,7 @@ export class SefazFiscalProvider implements FiscalProvider {
     const match = xml.match(/<(infNFe|infEvento)\\b[^>]*\\bId="([^"]+)"[^>]*>/);
     if (!match) return xml;
     const rootTag = match[1];
-    const inf = xml.match(new RegExp(`<${rootTag}\\b[\\s\\S]*?<\\/${rootTag}>`))?.[0];
+    const inf = xml.match(new RegExp(`<${rootTag}\\b[\s\\S]*?<\/${rootTag}>`))?.[0];
     if (!inf) return xml;
     const digest = sha1Base64(canonicalizeXml(inf));
     const signedInfo = `<SignedInfo xmlns="${DSIG_NS}"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${match[2]}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digest}</DigestValue></Reference></SignedInfo>`;
@@ -411,10 +411,10 @@ function sha1Base64(value: string) {
 
 function canonicalizeXml(value: string) {
   let normalized = value
-    .replace(/<([A-Za-z_][\\w:.-]*)([^>]*)\\/>/g, '<$1$2></$1>')
-    .replace(/\\r\\n?/g, '\\n');
-  const root = normalized.match(/^<(infNFe|infEvento)(\\s|>)/);
-  if (root && !/\\sxmlns=/.test(normalized.slice(0, normalized.indexOf('>') + 1))) {
+    .replace(/<([A-Za-z_][\w:.-]*)([^>]*)\/>/g, '<$1$2></$1>')
+    .replace(/\r\n?/g, '\n');
+  const root = normalized.match(/^<(infNFe|infEvento)(\s|>)/);
+  if (root && !/\sxmlns=/.test(normalized.slice(0, normalized.indexOf('>') + 1))) {
     normalized = normalized.replace(
       /^<(infNFe|infEvento)/,
       '<$1 xmlns="http://www.portalfiscal.inf.br/nfe"',
@@ -460,7 +460,7 @@ function renderMinimalPdf(document: FiscalProviderDocument) {
     `Chave: ${payload.accessKey || 'consultar retorno SEFAZ'}`,
     'Representacao simplificada para conferencia e impressao.',
   ];
-  const stream = `BT /F1 10 Tf 40 780 Td ${pdfText(lines.join('\\n'))} ET`;
+  const stream = `BT /F1 10 Tf 40 780 Td ${pdfText(lines.join('\n'))} ET`;
   const objects = [
     '<< /Type /Catalog /Pages 2 0 R >>',
     '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
