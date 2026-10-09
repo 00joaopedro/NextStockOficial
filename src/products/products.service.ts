@@ -24,6 +24,11 @@ import { ProductQueryDto } from './dto/product-query.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { extractScanCodeCandidates, normalizeScanCode } from './scan-code.util';
+import {
+  parseScaleBarcode,
+  type ScaleBarcodeConfig,
+  type ParsedScaleLabel,
+} from './scale-barcode.util';
 import { decimalStockValue, normalizeQuantity } from './quantity.util';
 
 const PREVIEW_BLOCKED_MESSAGE = 'Modo visualizacao: alteracao bloqueada.';
@@ -269,6 +274,24 @@ export class ProductsService {
       allowedRoles: [Role.Admin, Role.Vendedor],
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
+    const scaleLabelResult = scanCode
+      ? parseScaleBarcode(scanCode, await this.loadScaleBarcodeConfig(
+          context.tenantId,
+          context.branchId!,
+        ))
+      : { kind: 'not-label' as const };
+    if (scaleLabelResult.kind === 'invalid') {
+      throw new BadRequestException(scaleLabelResult.message);
+    }
+    const scaleLabel =
+      scaleLabelResult.kind === 'label' ? scaleLabelResult.label : null;
+    const lookupCandidates = scaleLabel
+      ? uniqueScanCandidates([
+          ...scanCandidates,
+          scaleLabel.productCode,
+          scaleLabel.productCode.replace(/^0+/, '') || '0',
+        ])
+      : scanCandidates;
     const products = await this.prisma.product.findMany({
       where: {
         tenantId: context.tenantId,
@@ -283,8 +306,8 @@ export class ProductsService {
           scanCode
             ? {
                 OR: [
-                  { barcode: { in: scanCandidates } },
-                  { sku: { in: scanCandidates } },
+                  { barcode: { in: lookupCandidates } },
+                  { sku: { in: lookupCandidates } },
                 ],
               }
             : {
@@ -312,14 +335,21 @@ export class ProductsService {
         },
       },
       orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
-      take: scanCode ? Math.max(scanCandidates.length * 2, 10) : 50,
+      take: scanCode ? Math.max(lookupCandidates.length * 2, 10) : 50,
     });
 
+    const exactRawProduct = scaleLabel
+      ? products.find(
+          (product) =>
+            product.barcode === scanCode || product.sku === scanCode,
+        )
+      : null;
+    const activeScaleLabel = exactRawProduct ? null : scaleLabel;
     const rankedProducts = products
       .sort((left, right) =>
         scanCode
-          ? rankScanProduct(left, scanCandidates) -
-            rankScanProduct(right, scanCandidates)
+          ? rankScanProduct(left, lookupCandidates) -
+            rankScanProduct(right, lookupCandidates)
           : compareSearchProducts(left, right, search!),
       )
       .slice(0, scanCode ? 1 : limit);
@@ -342,15 +372,36 @@ export class ProductsService {
                 : null)
             : null;
 
+          const availableQuantity = weighed
+            ? decimalStockValue(product.quantityDecimal)
+            : product.quantity;
+          const labelQuantity = activeScaleLabel
+            ? resolveLabelQuantity(activeScaleLabel, product.salePriceCents)
+            : null;
+          if (activeScaleLabel && (!weighed || !labelQuantity || labelQuantity <= 0)) {
+            throw new BadRequestException(
+              'Etiqueta inválida: produto não pesável ou valor sem preço unitário.',
+            );
+          }
           return {
             id: product.id,
             name: product.name,
             barcode: product.barcode,
             sku: product.sku,
             salePriceCents: product.salePriceCents,
-            quantity: weighed ? decimalStockValue(product.quantityDecimal) : product.quantity,
+            quantity: availableQuantity,
+            suggestedQuantity: labelQuantity,
             saleMode: weighed ? 'weighed' : 'unit',
             unitLabel: unit,
+            labelData: activeScaleLabel
+              ? {
+                  code: activeScaleLabel.raw,
+                  productCode: activeScaleLabel.productCode,
+                  payloadType: activeScaleLabel.format.payloadType,
+                  payload: activeScaleLabel.payload,
+                  quantity: labelQuantity,
+                }
+              : null,
             imageUrl,
           };
         }),
@@ -679,6 +730,27 @@ export class ProductsService {
     );
 
     return { ok: true };
+  }
+
+  private async loadScaleBarcodeConfig(
+    tenantId: string,
+    branchId: string,
+  ): Promise<ScaleBarcodeConfig | null> {
+    const config = await this.prisma.companyFiscalConfig?.findUnique({
+      where: { tenantId_branchId: { tenantId, branchId } },
+      select: { providerConfig: true },
+    });
+    const providerConfig =
+      config?.providerConfig &&
+      typeof config.providerConfig === 'object' &&
+      !Array.isArray(config.providerConfig)
+        ? (config.providerConfig as Record<string, unknown>)
+        : null;
+    const configured =
+      providerConfig?.scaleBarcode ?? providerConfig?.scaleLabel;
+    return configured && typeof configured === 'object' && !Array.isArray(configured)
+      ? (configured as ScaleBarcodeConfig)
+      : null;
   }
 
   private async getReadableTenant(
@@ -1056,6 +1128,16 @@ export class ProductsService {
 
     throw error;
   }
+}
+
+function resolveLabelQuantity(label: ParsedScaleLabel, salePriceCents: number) {
+  if (label.format.payloadType === 'weight') return label.quantity ?? 0;
+  if (salePriceCents <= 0 || !label.payloadCents) return 0;
+  return Math.round((label.payloadCents / salePriceCents) * 1_000_000) / 1_000_000;
+}
+
+function uniqueScanCandidates(values: string[]) {
+  return [...new Set(values.filter(Boolean))];
 }
 
 function clean(value?: string) {

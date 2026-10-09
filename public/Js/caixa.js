@@ -360,19 +360,32 @@
     }
     let requestedQuantity = 1;
     if (product.saleMode === "weighed") {
-      const entered = window.prompt(
-        `Informe a quantidade em ${product.unitLabel || "UN"} para ${product.name}:`,
-        "1",
-      );
-      if (entered === null) return;
-      requestedQuantity = roundQuantity(Number(String(entered).replace(",", ".")));
-      if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || requestedQuantity > product.quantity) {
-        toast("Quantidade inválida ou maior que o estoque disponível.", "warning");
-        return;
-      }
-      if (String(entered).replace(",", ".").split(".")[1]?.length > 6) {
-        toast("Informe no máximo 6 casas decimais.", "warning");
-        return;
+      const labelQuantity = Number(product.suggestedQuantity);
+      if (product.labelData && Number.isFinite(labelQuantity) && labelQuantity > 0) {
+        requestedQuantity = roundQuantity(labelQuantity);
+        if (requestedQuantity > product.quantity) {
+          toast("Etiqueta inválida: peso maior que o estoque disponível.", "warning");
+          return;
+        }
+        toast(
+          `Etiqueta lida: ${requestedQuantity} ${product.unitLabel || "UN"} de ${product.name}.`,
+          "success",
+        );
+      } else {
+        const entered = window.prompt(
+          `Informe a quantidade em ${product.unitLabel || "UN"} para ${product.name}:`,
+          "1",
+        );
+        if (entered === null) return;
+        requestedQuantity = roundQuantity(Number(String(entered).replace(",", ".")));
+        if (!Number.isFinite(requestedQuantity) || requestedQuantity <= 0 || requestedQuantity > product.quantity) {
+          toast("Quantidade inválida ou maior que o estoque disponível.", "warning");
+          return;
+        }
+        if (String(entered).replace(",", ".").split(".")[1]?.length > 6) {
+          toast("Informe no máximo 6 casas decimais.", "warning");
+          return;
+        }
       }
     }
     const existing = state.cart.find((item) => item.id === product.id);
