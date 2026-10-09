@@ -151,7 +151,7 @@ function isResolvedFormat(
   format: ScaleBarcodeFormat,
 ): format is ScaleBarcodeFormat {
   return (
-    /^\\d+$/.test(format.prefix) &&
+    /^\d+$/.test(format.prefix) &&
     format.prefix.length <= format.length &&
     Number.isInteger(format.length) &&
     format.length >= 2 &&
