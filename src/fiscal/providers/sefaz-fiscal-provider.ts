@@ -224,11 +224,11 @@ export class SefazFiscalProvider implements FiscalProvider {
     const rootTag = match[1];
     const inf = xml.match(new RegExp(`<${rootTag}\\b[\\s\\S]*?<\\/${rootTag}>`))?.[0];
     if (!inf) return xml;
-    const digest = sha1Base64(inf);
+    const digest = sha1Base64(canonicalizeXml(inf));
     const signedInfo = `<SignedInfo xmlns="${DSIG_NS}"><CanonicalizationMethod Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/><SignatureMethod Algorithm="http://www.w3.org/2000/09/xmldsig#rsa-sha1"/><Reference URI="#${match[2]}"><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/><Transform Algorithm="http://www.w3.org/TR/2001/REC-xml-c14n-20010315"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha1"/><DigestValue>${digest}</DigestValue></Reference></SignedInfo>`;
     const key = parsePkcs12PrivateKey(certificate.pfx, certificate.password);
     const md = forge.md.sha1.create();
-    md.update(signedInfo, 'utf8');
+    md.update(canonicalizeXml(signedInfo), 'utf8');
     const signature = forge.util.encode64(key.sign(md));
     const signatureXml = `<Signature xmlns="${DSIG_NS}">${signedInfo}<SignatureValue>${signature}</SignatureValue><KeyInfo><X509Data><X509Certificate>${certificate.certificateBase64}</X509Certificate></X509Data></KeyInfo></Signature>`;
     return xml.replace(`</${rootTag}>`, `</${rootTag}>${signatureXml}`);
@@ -407,6 +407,20 @@ function textTag(xml: string, tag: string) {
 
 function sha1Base64(value: string) {
   return createHash('sha1').update(value, 'utf8').digest('base64');
+}
+
+function canonicalizeXml(value: string) {
+  let normalized = value
+    .replace(/<([A-Za-z_][\\w:.-]*)([^>]*)\\/>/g, '<$1$2></$1>')
+    .replace(/\\r\\n?/g, '\\n');
+  const root = normalized.match(/^<(infNFe|infEvento)(\\s|>)/);
+  if (root && !/\\sxmlns=/.test(normalized.slice(0, normalized.indexOf('>') + 1))) {
+    normalized = normalized.replace(
+      /^<(infNFe|infEvento)/,
+      '<$1 xmlns="http://www.portalfiscal.inf.br/nfe"',
+    );
+  }
+  return normalized;
 }
 
 function ufCode(value: string) {
