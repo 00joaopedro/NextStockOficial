@@ -108,31 +108,66 @@ export function resolveScaleBarcodeFormats(
   config?: ScaleBarcodeConfig | null,
 ): ScaleBarcodeFormat[] {
   if (config?.enabled === false) return [];
-  const configured = Array.isArray(config?.formats) ? config.formats : [];
-  return (configured.length ? configured : [DEFAULT_SCALE_BARCODE_FORMAT]).map(
-    (format) => ({
-      ...DEFAULT_SCALE_BARCODE_FORMAT,
-      ...format,
-      prefix: String(format.prefix || DEFAULT_SCALE_BARCODE_FORMAT.prefix),
-      length: Number(format.length || DEFAULT_SCALE_BARCODE_FORMAT.length),
-      productStart: Number(
-        format.productStart ?? DEFAULT_SCALE_BARCODE_FORMAT.productStart,
-      ),
-      productLength: Number(
-        format.productLength ?? DEFAULT_SCALE_BARCODE_FORMAT.productLength,
-      ),
-      payloadStart: Number(
-        format.payloadStart ?? DEFAULT_SCALE_BARCODE_FORMAT.payloadStart,
-      ),
-      payloadLength: Number(
-        format.payloadLength ?? DEFAULT_SCALE_BARCODE_FORMAT.payloadLength,
-      ),
-      decimals: Number(
-        format.decimals ?? DEFAULT_SCALE_BARCODE_FORMAT.decimals,
-      ),
-      checkDigit: format.checkDigit === 'none' ? 'none' : 'mod10',
-      payloadType: format.payloadType === 'value' ? 'value' : 'weight',
-    }),
+  const configured = Array.isArray(config?.formats)
+    ? config.formats.filter(isRecord)
+    : [];
+  const candidates = configured.length
+    ? configured
+    : [DEFAULT_SCALE_BARCODE_FORMAT];
+  const resolved = candidates
+    .map((format) => {
+      const raw = format as Partial<ScaleBarcodeFormat>;
+      return {
+        ...DEFAULT_SCALE_BARCODE_FORMAT,
+        ...raw,
+        prefix: String(raw.prefix || DEFAULT_SCALE_BARCODE_FORMAT.prefix),
+        length: Number(raw.length || DEFAULT_SCALE_BARCODE_FORMAT.length),
+        productStart: Number(
+          raw.productStart ?? DEFAULT_SCALE_BARCODE_FORMAT.productStart,
+        ),
+        productLength: Number(
+          raw.productLength ?? DEFAULT_SCALE_BARCODE_FORMAT.productLength,
+        ),
+        payloadStart: Number(
+          raw.payloadStart ?? DEFAULT_SCALE_BARCODE_FORMAT.payloadStart,
+        ),
+        payloadLength: Number(
+          raw.payloadLength ?? DEFAULT_SCALE_BARCODE_FORMAT.payloadLength,
+        ),
+        decimals: Number(raw.decimals ?? DEFAULT_SCALE_BARCODE_FORMAT.decimals),
+        checkDigit: raw.checkDigit === 'none' ? 'none' : 'mod10',
+        payloadType: raw.payloadType === 'value' ? 'value' : 'weight',
+      };
+    })
+    .filter(isResolvedFormat);
+  return resolved.length ? resolved : [DEFAULT_SCALE_BARCODE_FORMAT];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isResolvedFormat(
+  format: ScaleBarcodeFormat,
+): format is ScaleBarcodeFormat {
+  return (
+    /^\\d+$/.test(format.prefix) &&
+    format.prefix.length <= format.length &&
+    Number.isInteger(format.length) &&
+    format.length >= 2 &&
+    Number.isInteger(format.productStart) &&
+    format.productStart >= 0 &&
+    Number.isInteger(format.productLength) &&
+    format.productLength > 0 &&
+    Number.isInteger(format.payloadStart) &&
+    format.payloadStart >= 0 &&
+    Number.isInteger(format.payloadLength) &&
+    format.payloadLength > 0 &&
+    format.productStart + format.productLength <= format.length - 1 &&
+    format.payloadStart + format.payloadLength <= format.length - 1 &&
+    Number.isInteger(format.decimals) &&
+    format.decimals >= 0 &&
+    format.decimals <= 6
   );
 }
 
