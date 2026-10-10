@@ -75,3 +75,25 @@ CREATE INDEX "promotion_reservations_tenant_status_idx"
 
 CREATE INDEX "promotion_reservations_expiry_idx"
   ON "promotion_reservations"("status", "expires_at");
+
+INSERT INTO "promotion_campaigns" (
+  "id",
+  "slug",
+  "name",
+  "status",
+  "max_conversions",
+  "trial_days",
+  "created_at",
+  "updated_at"
+)
+VALUES (
+  gen_random_uuid(),
+  'lancamento-2026',
+  'Promoção de lançamento NextStock',
+  'DRAFT',
+  30,
+  1,
+  CURRENT_TIMESTAMP,
+  CURRENT_TIMESTAMP
+)
+ON CONFLICT ("slug") DO NOTHING;
