@@ -94,6 +94,7 @@ describe('PartnersService', () => {
     expect(JSON.stringify(result)).not.toContain('secret-hash');
     expect(result.partner?.sellerLink).toContain('/index.html?ref=');
     expect(result.partner?.standardLink).toContain('/index.html?ref=');
+    expect(result.partner?.standardLink).toContain('promo=none');
     expect(result.partner?.promotionLink).toContain('/promocao.html?ref=');
   });
 
