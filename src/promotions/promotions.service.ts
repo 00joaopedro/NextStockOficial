@@ -472,15 +472,51 @@ export class PromotionsService {
   }
 
   getProductionConfiguration() {
-    const required = [
-      'BILLING_DEFAULT_PROVIDER',
-      'BILLING_MODE',
-      'BILLING_CHECKOUT_ENABLED',
-      'BILLING_WEBHOOK_ENABLED',
-      'BILLING_EXTERNAL_REFERENCE_SECRET',
-      'MERCADO_PAGO_ACCESS_TOKEN',
-      'MERCADO_PAGO_WEBHOOK_SECRET',
-      'MERCADO_PAGO_COLLECTOR_ID',
+    const required: Array<{ env: string; configured: boolean }> = [
+      {
+        env: 'BILLING_DEFAULT_PROVIDER',
+        configured: process.env.BILLING_DEFAULT_PROVIDER?.trim().toUpperCase() === 'MERCADO_PAGO',
+      },
+      {
+        env: 'BILLING_MODE',
+        configured: process.env.BILLING_MODE?.trim().toLowerCase() === 'production',
+      },
+      {
+        env: 'BILLING_CHECKOUT_ENABLED',
+        configured: process.env.BILLING_CHECKOUT_ENABLED?.trim().toLowerCase() === 'true',
+      },
+      {
+        env: 'BILLING_WEBHOOK_ENABLED',
+        configured: process.env.BILLING_WEBHOOK_ENABLED?.trim().toLowerCase() === 'true',
+      },
+      {
+        env: 'BILLING_ENFORCEMENT_ENABLED',
+        configured: process.env.BILLING_ENFORCEMENT_ENABLED?.trim().toLowerCase() === 'true',
+      },
+      {
+        env: 'PUBLIC_APP_URL',
+        configured: Boolean(process.env.PUBLIC_APP_URL?.trim()),
+      },
+      {
+        env: 'BILLING_EXTERNAL_REFERENCE_SECRET',
+        configured: Boolean(process.env.BILLING_EXTERNAL_REFERENCE_SECRET?.trim()),
+      },
+      {
+        env: 'MERCADO_PAGO_ACCESS_TOKEN',
+        configured: Boolean(process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim()),
+      },
+      {
+        env: 'MERCADO_PAGO_WEBHOOK_SECRET',
+        configured: Boolean(process.env.MERCADO_PAGO_WEBHOOK_SECRET?.trim()),
+      },
+      {
+        env: 'MERCADO_PAGO_COLLECTOR_ID',
+        configured: Boolean(process.env.MERCADO_PAGO_COLLECTOR_ID?.trim()),
+      },
+      {
+        env: 'MERCADO_PAGO_MODE',
+        configured: process.env.MERCADO_PAGO_MODE?.trim().toLowerCase() === 'production',
+      },
     ];
     const normalPlans = Object.entries(NORMAL_PLAN_ID_ENVS).map(([planSlug, env]) => ({
       planSlug,
@@ -497,10 +533,7 @@ export class PromotionsService {
       configured: Boolean(process.env[offer.gatewayPlanEnv]?.trim()),
     }));
     return {
-      required: required.map((env) => ({
-        env,
-        configured: Boolean(process.env[env]?.trim()),
-      })),
+      required,
       normalPlans,
       promotionalPlans,
       webhookPath: '/api/billing/webhooks/mercado-pago',
