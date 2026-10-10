@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { BillingEventType, Prisma, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingEntitlementService } from './billing-entitlement.service';
@@ -71,11 +71,11 @@ export class SubscriptionsService {
       where: { tenantId },
       orderBy: { createdAt: 'desc' },
     });
-    if (!subscription) throw new Error('Subscription não encontrada.');
+    if (!subscription) throw new NotFoundException('Subscription não encontrada.');
 
     if (subscription.gatewaySubscriptionId) {
       if (!this.gateways || !subscription.gatewayProvider) {
-        throw new Error('Gateway da assinatura não está disponível.');
+        throw new ConflictException('Gateway da assinatura não está disponível.');
       }
       await this.gateways
         .get(subscription.gatewayProvider)
@@ -95,7 +95,7 @@ export class SubscriptionsService {
       },
     });
     if (updated.count !== 1) {
-      throw new Error('A assinatura foi alterada por outra operação.');
+      throw new ConflictException('A assinatura foi alterada por outra operação.');
     }
 
     const current = await this.prisma.subscription.findUniqueOrThrow({
