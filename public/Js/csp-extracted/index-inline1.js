@@ -25,7 +25,7 @@
         if (
           value?.campaignSlug === 'lancamento-2026' &&
           /^[a-z0-9-]+$/.test(value.planSlug || '') &&
-          [8, 12, 24].includes(Number(value.periodMonths))
+          [1, 3, 6].includes(Number(value.periodMonths))
         ) {
           return value;
         }
@@ -38,7 +38,7 @@
       if (params.get('promo') !== 'lancamento-2026') return;
       const planSlug = params.get('plan') || '';
       const periodMonths = Number(params.get('period'));
-      if (!/^[a-z0-9-]+$/.test(planSlug) || ![8, 12, 24].includes(periodMonths)) return;
+      if (!/^[a-z0-9-]+$/.test(planSlug) || ![1, 3, 6].includes(periodMonths)) return;
       sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify({
         campaignSlug: 'lancamento-2026',
         planSlug,
