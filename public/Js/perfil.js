@@ -81,6 +81,18 @@
     } catch {}
     return null;
   }
+  function promotionReservation() {
+    try {
+      const value = JSON.parse(
+        sessionStorage.getItem("nextstockPromotionReservation") || "null",
+      );
+      if (
+        value?.reservationId &&
+        ["RESERVED", "CONVERTED"].includes(value.status)
+      ) return value;
+    } catch {}
+    return null;
+  }
   function renderPromotionHandoff() {
     const selection = promotionSelection();
     if (!el.promotion) return;
@@ -96,9 +108,13 @@
     }
     el.promotion.hidden = false;
     const planName = selection.planSlug.charAt(0).toUpperCase() + selection.planSlug.slice(1);
+    const reservation = promotionReservation();
     const attribution = selection.referralCode ? " A atribuição do afiliado foi preservada." : "";
+    const reservationMessage = reservation
+      ? " A vaga está reservada com segurança."
+      : " A reserva da vaga ainda não está disponível; o checkout ficará bloqueado.";
     el.promotion.textContent =
-      `Oferta promocional selecionada: Plano ${planName}, período de ${selection.periodMonths} meses.${attribution} Escolha o plano correspondente abaixo para continuar pelo checkout seguro.`;
+      `Oferta promocional selecionada: Plano ${planName}, período de ${selection.periodMonths} meses.${attribution}${reservationMessage}`;
   }
   function busy(value) { state.busy = value; permissions(); }
   function permissions() {
@@ -158,28 +174,45 @@
       const price = document.createElement("span"); price.className = "price"; price.textContent = money(plan.priceCents, plan.currency);
       const action = document.createElement("button");
       const selected = promotionSelection();
+      const reservation = promotionReservation();
       const isPromotionPlan = selected?.planSlug === plan.slug;
+      const promotionReady = !selected ||
+        (isPromotionPlan && Boolean(reservation?.reservationId));
       action.textContent = isPromotionPlan
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
-      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable;
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady;
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
+      if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
       action.addEventListener("click", () => startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
   }
   async function startCheckout(planSlug) {
+    const selected = promotionSelection();
+    const reservation = promotionReservation();
+    if (selected && (selected.planSlug !== planSlug || !reservation?.reservationId)) {
+      message("A oferta promocional selecionada ainda não está pronta para o checkout.", "error");
+      return;
+    }
     busy(true); message("Criando checkout...");
     try {
-      const storageKey = `nextstockBillingIntent:${planSlug}`;
+      const storageKey = `nextstockBillingIntent:${planSlug}:${reservation?.reservationId || "normal"}`;
       let idempotencyKey = sessionStorage.getItem(storageKey);
       if (!idempotencyKey) {
         idempotencyKey = crypto.randomUUID();
         sessionStorage.setItem(storageKey, idempotencyKey);
       }
       const checkout = await api("/api/billing/checkout", {
-        method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ planSlug }),
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+        body: JSON.stringify({
+          planSlug,
+          ...(reservation?.reservationId
+            ? { promotionReservationId: reservation.reservationId }
+            : {}),
+        }),
       });
       if (!checkout.checkoutUrl) { message("Checkout em processamento. Tente novamente com segurança."); return; }
       sessionStorage.setItem("nextstockBillingCheckoutId", checkout.checkoutId);
