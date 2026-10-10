@@ -14,6 +14,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from '../common/http-types';
+import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
 import { CsrfOriginGuard } from '../security/csrf-origin.guard';
@@ -21,6 +22,7 @@ import { TenantContextService } from '../tenancy/tenant-context.service';
 import { BillingExempt } from './billing-exempt.decorator';
 import { CheckoutService } from './checkout.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { SyncBillingDto } from './dto/sync-billing.dto';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -63,6 +65,26 @@ export class BillingController {
     return {
       ok: true,
       ...(await this.subscriptions.getForTenant(context.tenantId)),
+    };
+  }
+
+  @Post('subscription/cancel')
+  @UseGuards(CsrfOriginGuard)
+  async cancelSubscription(
+    @Req() req: Request,
+    @Body() _body: CancelSubscriptionDto,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return {
+      ok: true,
+      subscription: await this.subscriptions.cancelForTenant(context.tenantId),
     };
   }
 
