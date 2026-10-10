@@ -66,7 +66,7 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
   },
   {
     label: 'Promoção',
-    href: 'promocao.html',
+    href: 'promocao-admin.html',
     key: 'promocao',
     module: 'dev',
   },
