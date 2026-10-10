@@ -64,6 +64,25 @@ export class PromotionsService {
       current = await this.prisma.promotionCampaign.findUniqueOrThrow({
         where: { id: current.id },
       });
+    } else if (
+      current.status === PromotionCampaignStatus.ACTIVE &&
+      current.endsAt &&
+      current.endsAt <= now
+    ) {
+      await this.prisma.promotionCampaign.updateMany({
+        where: {
+          id: current.id,
+          status: PromotionCampaignStatus.ACTIVE,
+        },
+        data: {
+          status: PromotionCampaignStatus.CLOSED,
+          closedAt: now,
+          closeReason: 'TIME_WINDOW_ENDED',
+        },
+      });
+      current = await this.prisma.promotionCampaign.findUniqueOrThrow({
+        where: { id: current.id },
+      });
     }
 
     const open = this.isOpen(current, now);
@@ -115,7 +134,14 @@ export class PromotionsService {
         },
       },
     });
-    if (existing) return this.formatReservation(existing, campaign);
+    if (
+      existing &&
+      (existing.status === PromotionReservationStatus.CONVERTED ||
+        (existing.status === PromotionReservationStatus.RESERVED &&
+          existing.expiresAt > new Date()))
+    ) {
+      return this.formatReservation(existing, campaign);
+    }
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: input.tenantId },
@@ -167,6 +193,26 @@ export class PromotionsService {
           throw new GoneException(
             'A campanha promocional está encerrada ou sem vagas.',
           );
+        }
+
+        if (existing) {
+          return tx.promotionReservation.update({
+            where: { id: existing.id },
+            data: {
+              partnerId: input.partnerId ?? existing.partnerId,
+              idempotencyKey,
+              status: PromotionReservationStatus.RESERVED,
+              reservedAt: new Date(),
+              expiresAt,
+              convertedAt: null,
+              releasedAt: null,
+              releaseReason: null,
+              metadata: {
+                source: 'promotion',
+                trialDays: campaign.trialDays,
+              },
+            },
+          });
         }
 
         return tx.promotionReservation.create({
