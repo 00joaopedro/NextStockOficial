@@ -79,9 +79,9 @@ export class BillingController {
       req.user,
       body.planSlug,
       idempotencyKey,
-      body.promotionReservationId,
       branchId,
       devContext,
+      body.promotionReservationId,
     );
   }
 
