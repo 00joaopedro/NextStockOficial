@@ -294,6 +294,16 @@ export class CheckoutService {
             createdById: context.userId,
           },
         });
+        if (promotionReservation) {
+          await tx.promotionReservation.updateMany({
+            where: {
+              id: promotionReservation.id,
+              tenantId: context.tenantId,
+              status: 'RESERVED',
+            },
+            data: { checkoutSessionId: created.id },
+          });
+        }
         await tx.subscription.update({
           where: { id: subscription.id },
           data: {
