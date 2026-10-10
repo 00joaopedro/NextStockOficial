@@ -76,7 +76,7 @@
       if (
         value?.campaignSlug === "lancamento-2026" &&
         /^[a-z0-9-]+$/.test(value.planSlug || "") &&
-        [8, 12, 24].includes(Number(value.periodMonths))
+        [1, 3, 6].includes(Number(value.periodMonths))
       ) return value;
     } catch {}
     return null;
