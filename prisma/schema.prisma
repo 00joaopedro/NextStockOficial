@@ -783,6 +783,7 @@ model CheckoutSession {
   lastReconciledAt    DateTime?              @map("last_reconciled_at")
   lastProviderEventAt DateTime?              @map("last_provider_event_at")
   lastPaymentState    BillingPaymentStatus?  @map("last_payment_state")
+  promotionReservation PromotionReservation?
   createdAt           DateTime               @default(now()) @map("created_at")
   updatedAt           DateTime               @updatedAt @map("updated_at")
 
@@ -2583,8 +2584,10 @@ model PromotionReservation {
   convertedAt    DateTime?                 @map("converted_at")
   releasedAt     DateTime?                 @map("released_at")
   releaseReason  String?                   @map("release_reason")
+  checkoutSessionId String?                @unique @map("checkout_session_id") @db.Uuid
   metadata       Json?
   campaign       PromotionCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  checkoutSession CheckoutSession?         @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
 
   @@unique([campaignId, tenantId])
   @@unique([campaignId, idempotencyKey])
