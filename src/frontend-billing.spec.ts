@@ -31,7 +31,8 @@ describe('billing frontend', () => {
     expect(script).toContain('/api/billing/plans');
     expect(script).toContain('/api/billing/subscription');
     expect(script).toContain('/api/billing/checkout');
-    expect(script).toContain('body: JSON.stringify({ planSlug })');
+    expect(script).toContain('planSlug,');
+    expect(script).toContain('promotionReservationId: reservation.reservationId');
   });
 
   it('mantem uma chave por intencao/plano ate receber URL valida', () => {
