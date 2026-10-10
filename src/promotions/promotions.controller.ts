@@ -1,5 +1,6 @@
 import {
   Body,
+  Body,
   Controller,
   Get,
   Headers,
@@ -19,6 +20,7 @@ import {
 } from '../security/public-rate-limit.guard';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { PromotionsService } from './promotions.service';
+import { ReservePromotionDto } from './dto/reserve-promotion.dto';
 import { ReservePromotionDto } from './dto/reserve-promotion.dto';
 
 @Controller('promotions')
