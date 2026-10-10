@@ -26,6 +26,7 @@ import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { SyncBillingDto } from './dto/sync-billing.dto';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
+import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from './subscriptions.service';
 
 @Controller('billing')
@@ -44,6 +45,7 @@ export class BillingController {
     private readonly subscriptions: SubscriptionsService,
     private readonly checkouts: CheckoutService,
     private readonly reconciliation: ReconciliationService,
+    private readonly payments: PaymentsService,
     private readonly tenantContext: TenantContextService,
   ) {}
 
@@ -115,6 +117,26 @@ export class BillingController {
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
     return this.checkouts.status(req.user, id, branchId, devContext);
+  }
+
+  @Post('payments/:id/refund')
+  @UseGuards(CsrfOriginGuard)
+  async refundPayment(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) paymentId: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return {
+      ok: true,
+      result: await this.payments.refundForTenant(context.tenantId, paymentId),
+    };
   }
 
   @Post('sync')
