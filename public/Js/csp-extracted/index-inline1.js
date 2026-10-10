@@ -15,6 +15,42 @@
     let referralReady = !referralCode;
     let referralSystemType = null;
 
+    const PROMOTION_SELECTION_KEY = 'nextstockPromotionSelection';
+    const PROMOTION_RESERVATION_KEY = 'nextstockPromotionReservation';
+    const PROMOTION_RESERVATION_IDEMPOTENCY_KEY = 'nextstockPromotionReservationIdempotency';
+
+    function readPromotionSelection() {
+      try {
+        const value = JSON.parse(sessionStorage.getItem(PROMOTION_SELECTION_KEY) || 'null');
+        if (
+          value?.campaignSlug === 'lancamento-2026' &&
+          /^[a-z0-9-]+$/.test(value.planSlug || '') &&
+          [8, 12, 24].includes(Number(value.periodMonths))
+        ) {
+          return value;
+        }
+      } catch {}
+      return null;
+    }
+
+    function savePromotionSelectionFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('promo') !== 'lancamento-2026') return;
+      const planSlug = params.get('plan') || '';
+      const periodMonths = Number(params.get('period'));
+      if (!/^[a-z0-9-]+$/.test(planSlug) || ![8, 12, 24].includes(periodMonths)) return;
+      sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify({
+        campaignSlug: 'lancamento-2026',
+        planSlug,
+        periodMonths,
+        referralCode: referralCode || null,
+        selectedAt: new Date().toISOString(),
+      }));
+    }
+
+    savePromotionSelectionFromUrl();
+
+
     const googleLoginLink = document.getElementById('googleLoginLink');
     const googleLoginStatus = document.getElementById('googleLoginStatus');
     if (googleLoginLink) {
@@ -220,6 +256,36 @@
       persistPreviewContext('petshop');
     });
 
+    async function reservePromotionSelection(selection) {
+      const idempotencyKey =
+        sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY) ||
+        crypto.randomUUID();
+      sessionStorage.setItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY, idempotencyKey);
+
+      try {
+        const { data } = await apiRequest(
+          '/promotions/' + encodeURIComponent(selection.campaignSlug) + '/reservation',
+          {
+            method: 'POST',
+            headers: { 'Idempotency-Key': idempotencyKey },
+            body: JSON.stringify({
+              planSlug: selection.planSlug,
+              periodMonths: selection.periodMonths,
+            }),
+          },
+        );
+        sessionStorage.setItem(PROMOTION_RESERVATION_KEY, JSON.stringify(data));
+        sessionStorage.removeItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
+        return true;
+      } catch (error) {
+        sessionStorage.setItem(
+          PROMOTION_RESERVATION_KEY,
+          JSON.stringify({ status: 'FAILED', message: error.message }),
+        );
+        return false;
+      }
+    }
+
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -253,7 +319,26 @@
           })
         });
 
+        const promotionSelection = readPromotionSelection();
         persistAuthContext(data);
+        if (promotionSelection) {
+          sessionStorage.setItem(
+            PROMOTION_SELECTION_KEY,
+            JSON.stringify(promotionSelection),
+          );
+          const reserved = await reservePromotionSelection(promotionSelection);
+          if (!reserved) {
+            setStatus(
+              'Cadastro concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter encerrado; verifique o perfil.',
+              true,
+            );
+            window.location.href = 'perfil.html?promotion=reservation-failed';
+            return;
+          }
+          setStatus('Cadastro concluído e vaga promocional reservada.');
+          window.location.href = 'perfil.html?promotionCheckout=1';
+          return;
+        }
         setStatus('Cadastro realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
