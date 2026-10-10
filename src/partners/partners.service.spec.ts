@@ -92,6 +92,9 @@ describe('PartnersService', () => {
     expect(data.referralCodeHash).toMatch(/^[a-f0-9]{64}$/);
     expect(JSON.stringify(result)).not.toContain('referralCodeHash');
     expect(JSON.stringify(result)).not.toContain('secret-hash');
+    expect(result.partner?.sellerLink).toContain('/index.html?ref=');
+    expect(result.partner?.standardLink).toContain('/index.html?ref=');
+    expect(result.partner?.promotionLink).toContain('/promocao.html?ref=');
   });
 
   it('delete faz soft delete, revoga link e registra evento', async () => {
