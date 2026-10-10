@@ -66,4 +66,6 @@ export interface PaymentGateway {
   getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult>;
   syncPayment(resourceId: string): Promise<GatewayPaymentResult>;
   findPayments(externalReference: string): Promise<GatewayPaymentResult[]>;
+  cancelSubscription(gatewaySubscriptionId: string): Promise<void>;
+  refundPayment(gatewayPaymentId: string): Promise<void>;
 }
