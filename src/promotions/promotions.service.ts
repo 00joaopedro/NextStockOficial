@@ -11,6 +11,7 @@ import {
   PromotionReservationStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { getPromotionOffer } from './promotion-offers';
 
 const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
 
@@ -126,6 +127,10 @@ export class PromotionsService {
     }
 
     const campaign = await this.findCampaign(input.slug);
+    const offer = getPromotionOffer(input.planSlug, input.periodMonths);
+    if (!offer || offer.campaignSlug !== campaign.slug) {
+      throw new ConflictException('Oferta promocional inválida para esta campanha.');
+    }
     await this.expireReservations(campaign.id);
 
     const existing = await this.prisma.promotionReservation.findUnique({
@@ -205,9 +210,11 @@ export class PromotionsService {
               releaseReason: null,
               metadata: {
                 source: 'promotion',
-                trialDays: campaign.trialDays,
-                ...(input.planSlug ? { planSlug: input.planSlug } : {}),
-                ...(input.periodMonths ? { periodMonths: input.periodMonths } : {}),
+                trialDays: offer.trialDays,
+                planSlug: offer.planSlug,
+                periodMonths: offer.periodMonths,
+                totalPriceCents: offer.totalPriceCents,
+                monthlyPriceCents: offer.monthlyPriceCents,
               },
             },
           });
@@ -249,12 +256,13 @@ export class PromotionsService {
         }
 
         if (existing) {
+          await this.setPromotionalTrial(tx, input.tenantId, offer.trialDays);
           return tx.promotionReservation.findUniqueOrThrow({
             where: { id: existing.id },
           });
         }
 
-        return tx.promotionReservation.create({
+        const created = await tx.promotionReservation.create({
           data: {
             campaignId: campaign.id,
             tenantId: input.tenantId,
@@ -263,12 +271,16 @@ export class PromotionsService {
             expiresAt,
             metadata: {
               source: 'promotion',
-              trialDays: campaign.trialDays,
-              ...(input.planSlug ? { planSlug: input.planSlug } : {}),
-              ...(input.periodMonths ? { periodMonths: input.periodMonths } : {}),
+              trialDays: offer.trialDays,
+              planSlug: offer.planSlug,
+              periodMonths: offer.periodMonths,
+              totalPriceCents: offer.totalPriceCents,
+              monthlyPriceCents: offer.monthlyPriceCents,
             },
           },
         });
+        await this.setPromotionalTrial(tx, input.tenantId, offer.trialDays);
+        return created;
       });
 
       return this.formatReservation(reservation, campaign);
@@ -409,6 +421,22 @@ export class PromotionsService {
         status: PromotionCampaignStatus.CLOSED,
         closedAt: new Date(),
         closeReason: reason.slice(0, 120),
+      },
+    });
+  }
+
+  private async setPromotionalTrial(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    trialDays: number,
+  ) {
+    const startedAt = new Date();
+    await tx.subscription.updateMany({
+      where: { tenantId, status: 'trialing' },
+      data: {
+        trialStartedAt: startedAt,
+        trialEndsAt: new Date(startedAt.getTime() + trialDays * 86_400_000),
+        version: { increment: 1 },
       },
     });
   }

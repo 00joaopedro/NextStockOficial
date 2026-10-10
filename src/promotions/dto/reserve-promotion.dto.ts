@@ -1,13 +1,16 @@
-import { IsIn, IsInt, IsOptional, IsString, Matches } from 'class-validator';
+import { IsDefined, IsIn, IsInt, IsString } from 'class-validator';
+
+export const PROMOTION_PLAN_SLUGS = ['ouro', 'esmeralda', 'diamante'] as const;
+export const PROMOTION_PERIODS = [8, 12, 24] as const;
 
 export class ReservePromotionDto {
-  @IsOptional()
+  @IsDefined()
   @IsString()
-  @Matches(/^[a-z0-9-]{1,80}$/)
-  planSlug?: string;
+  @IsIn([...PROMOTION_PLAN_SLUGS])
+  planSlug!: (typeof PROMOTION_PLAN_SLUGS)[number];
 
-  @IsOptional()
+  @IsDefined()
   @IsInt()
-  @IsIn([8, 12, 24])
-  periodMonths?: number;
+  @IsIn([...PROMOTION_PERIODS])
+  periodMonths!: (typeof PROMOTION_PERIODS)[number];
 }

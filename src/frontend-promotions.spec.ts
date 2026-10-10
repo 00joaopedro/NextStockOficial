@@ -39,5 +39,7 @@ describe('promotion campaign frontend', () => {
     expect(profileScript).toContain('Oferta promocional selecionada');
     expect(profileScript).toContain('startCheckout(plan.slug)');
     expect(profileScript).toContain('selected.periodMonths');
+    expect(profileScript).toContain('promotionReservationId');
+    expect(profileScript).toContain('A oferta promocional ainda não possui uma reserva válida.');
   });
 });

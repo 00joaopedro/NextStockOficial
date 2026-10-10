@@ -48,11 +48,26 @@ Variáveis protegidas necessárias:
 - `MERCADO_PAGO_PLAN_ID_OURO`
 - `MERCADO_PAGO_PLAN_ID_ESMERALDA`
 - `MERCADO_PAGO_PLAN_ID_DIAMANTE`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_8`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_12`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_24`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_8`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_12`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_24`
+- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_8`
+- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_12`
+- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_24`
 
 Configure o webhook do Mercado Pago para
 `https://SEU_HOST/api/billing/webhooks/mercado-pago` e habilite notificações de
 pagamento. O retorno visual é
 `https://SEU_HOST/api/billing/checkout/return`.
+
+## Campanha promocional
+
+A campanha `lancamento-2026` usa um catálogo server-side de nove ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 15 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e existe o respectivo plano recorrente Mercado Pago configurado. Nunca confie no preço enviado pelo navegador.
+
+O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamentos pendentes ou rejeitados não convertem a vaga. Reembolso e chargeback suspendem a assinatura e permanecem registrados no ledger e na auditoria.
 
 ## Ordem de ativação
 

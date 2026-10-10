@@ -14,6 +14,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import type { Request } from '../common/http-types';
+import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PublicRateLimitGuard } from '../security/public-rate-limit.guard';
 import { CsrfOriginGuard } from '../security/csrf-origin.guard';
@@ -21,9 +22,11 @@ import { TenantContextService } from '../tenancy/tenant-context.service';
 import { BillingExempt } from './billing-exempt.decorator';
 import { CheckoutService } from './checkout.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
+import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
 import { SyncBillingDto } from './dto/sync-billing.dto';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
+import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from './subscriptions.service';
 
 @Controller('billing')
@@ -42,6 +45,7 @@ export class BillingController {
     private readonly subscriptions: SubscriptionsService,
     private readonly checkouts: CheckoutService,
     private readonly reconciliation: ReconciliationService,
+    private readonly payments: PaymentsService,
     private readonly tenantContext: TenantContextService,
   ) {}
 
@@ -66,6 +70,26 @@ export class BillingController {
     };
   }
 
+  @Post('subscription/cancel')
+  @UseGuards(CsrfOriginGuard)
+  async cancelSubscription(
+    @Req() req: Request,
+    @Body() _body: CancelSubscriptionDto,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return {
+      ok: true,
+      subscription: await this.subscriptions.cancelForTenant(context.tenantId),
+    };
+  }
+
   @Post('checkout')
   @UseGuards(CsrfOriginGuard)
   createCheckout(
@@ -81,6 +105,7 @@ export class BillingController {
       idempotencyKey,
       branchId,
       devContext,
+      body.promotionReservationId,
     );
   }
 
@@ -92,6 +117,26 @@ export class BillingController {
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
     return this.checkouts.status(req.user, id, branchId, devContext);
+  }
+
+  @Post('payments/:id/refund')
+  @UseGuards(CsrfOriginGuard)
+  async refundPayment(
+    @Req() req: Request,
+    @Param('id', ParseUUIDPipe) paymentId: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return {
+      ok: true,
+      result: await this.payments.refundForTenant(context.tenantId, paymentId),
+    };
   }
 
   @Post('sync')

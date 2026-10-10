@@ -56,6 +56,23 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     return this.signatures.validate(input);
   }
 
+  async cancelSubscription(gatewaySubscriptionId: string) {
+    await this.request(
+      `/preapproval/${encodeURIComponent(gatewaySubscriptionId)}`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'cancelled' }),
+      },
+    );
+  }
+
+  async refundPayment(gatewayPaymentId: string) {
+    await this.request(
+      `/v1/payments/${encodeURIComponent(gatewayPaymentId)}/refunds`,
+      { method: 'POST', body: JSON.stringify({}) },
+    );
+  }
+
   async getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult> {
     const body = await this.request(
       `/v1/payments/${encodeURIComponent(resourceId)}`,

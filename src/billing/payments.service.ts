@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BillingEventType,
   BillingInvoiceStatus,
@@ -7,6 +7,7 @@ import {
   PaymentGatewayProvider,
   PlanInterval,
   Prisma,
+  PromotionReservationStatus,
   SubscriptionStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -14,6 +15,7 @@ import { BillingEventsService } from './billing-events.service';
 import { decideBillingState } from './billing-state-order';
 import { isValidBillingExternalReference } from './external-reference.util';
 import { GatewayPaymentResult } from './gateways/payment-gateway.interface';
+import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 
 class BillingCasLostError extends Error {}
 
@@ -22,7 +24,29 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: BillingEventsService,
+    private readonly gateways?: PaymentGatewayRegistry,
   ) {}
+
+  async refundForTenant(tenantId: string, paymentId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        id: paymentId,
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+      },
+    });
+    if (!payment) {
+      throw new NotFoundException('Pagamento aprovado não encontrado.');
+    }
+    if (!payment.gatewayPaymentId || !this.gateways) {
+      throw new ConflictException('Pagamento sem operação Mercado Pago disponível.');
+    }
+
+    const gateway = this.gateways.get(payment.provider);
+    await gateway.refundPayment(payment.gatewayPaymentId);
+    const verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
+    return this.processVerifiedPayment(payment.provider, verified, 'refund_api');
+  }
 
   async processVerifiedPayment(
     provider: PaymentGatewayProvider,
@@ -235,6 +259,10 @@ export class PaymentsService {
         });
       }
 
+      if (status === BillingPaymentStatus.APPROVED) {
+        await this.convertPromotionReservation(tx, checkout.tenantId);
+      }
+
       const checkoutStatus = this.checkoutStatus(status, checkout.status);
       await tx.checkoutSession.updateMany({
         where: { id: checkout.id, tenantId: checkout.tenantId },
@@ -283,6 +311,55 @@ export class PaymentsService {
       return { processed: true, applied: true, paymentId: payment.id, status };
     };
     return transaction ? apply(transaction) : this.prisma.$transaction(apply);
+  }
+
+  private async convertPromotionReservation(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+  ) {
+    const reservation = await tx.promotionReservation.findFirst({
+      where: {
+        tenantId,
+        status: PromotionReservationStatus.RESERVED,
+      },
+      orderBy: { reservedAt: 'desc' },
+    });
+    if (!reservation) return;
+
+    const changed = await tx.promotionReservation.updateMany({
+      where: {
+        id: reservation.id,
+        status: PromotionReservationStatus.RESERVED,
+      },
+      data: {
+        status: PromotionReservationStatus.CONVERTED,
+        convertedAt: new Date(),
+      },
+    });
+    if (changed.count !== 1) return;
+
+    await tx.$executeRaw(
+      Prisma.sql`UPDATE "promotion_campaigns"
+        SET "reserved_count" = GREATEST("reserved_count" - 1, 0),
+            "converted_count" = "converted_count" + 1,
+            "status" = CASE
+              WHEN "converted_count" + 1 >= "max_conversions"
+              THEN CAST('EXHAUSTED' AS "PromotionCampaignStatus")
+              ELSE "status"
+            END,
+            "closed_at" = CASE
+              WHEN "converted_count" + 1 >= "max_conversions"
+              THEN COALESCE("closed_at", NOW())
+              ELSE "closed_at"
+            END,
+            "close_reason" = CASE
+              WHEN "converted_count" + 1 >= "max_conversions"
+              THEN COALESCE("close_reason", 'LIMIT_REACHED')
+              ELSE "close_reason"
+            END,
+            "updated_at" = NOW()
+        WHERE "id" = ${reservation.campaignId}`,
+    );
   }
 
   private subscriptionState(

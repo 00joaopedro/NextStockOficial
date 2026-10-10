@@ -18,6 +18,7 @@ import { BillingEventsService } from './billing-events.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 import { createBillingExternalReference } from './external-reference.util';
+import { getPromotionOffer, promotionOfferMatches } from '../promotions/promotion-offers';
 
 @Injectable()
 export class CheckoutService {
@@ -34,6 +35,7 @@ export class CheckoutService {
     idempotencyKey: string | undefined,
     selectedBranchId?: string,
     devContextMode?: string,
+    promotionReservationId?: string,
   ) {
     if (
       !idempotencyKey ||
@@ -57,6 +59,45 @@ export class CheckoutService {
       process.env.BILLING_MODE?.trim() ||
       process.env.MERCADO_PAGO_MODE?.trim() ||
       'production';
+    const promotionReservation = promotionReservationId
+      ? await this.prisma.promotionReservation.findFirst({
+          where: {
+            id: promotionReservationId,
+            tenantId: context.tenantId,
+            status: 'RESERVED',
+            expiresAt: { gt: new Date() },
+          },
+        })
+      : null;
+    let promotionOffer: ReturnType<typeof getPromotionOffer> = null;
+    if (promotionReservationId) {
+      if (!promotionReservation) {
+        throw new ConflictException(
+          'A reserva promocional não está válida ou expirou.',
+        );
+      }
+      const metadata =
+        promotionReservation.metadata &&
+        typeof promotionReservation.metadata === 'object'
+          ? (promotionReservation.metadata as Record<string, unknown>)
+          : {};
+      promotionOffer = getPromotionOffer(
+        typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
+        typeof metadata.periodMonths === 'number' ? metadata.periodMonths : undefined,
+      );
+      if (
+        !promotionOffer ||
+        !promotionOfferMatches(
+          promotionOffer,
+          typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
+          typeof metadata.periodMonths === 'number' ? metadata.periodMonths : undefined,
+        ) ||
+        promotionOffer.planSlug !== planSlug
+      ) {
+        throw new ConflictException('Oferta promocional divergente da reserva.');
+      }
+    }
+
     const plan = await this.prisma.plan.findFirst({
       where: { slug: planSlug, isActive: true, deletedAt: null },
       include: {
@@ -72,8 +113,15 @@ export class CheckoutService {
     });
     if (!plan) throw new NotFoundException('Plano nao encontrado.');
     const mapping = plan.gatewayMappings[0];
-    if (!mapping)
-      throw new ConflictException('Plano sem checkout configurado.');
+    const gatewayPlanId = promotionOffer
+      ? process.env[promotionOffer.gatewayPlanEnv]?.trim()
+      : mapping?.gatewayPlanId;
+    if (!gatewayPlanId)
+      throw new ConflictException(
+        promotionOffer
+          ? 'Plano promocional sem checkout Mercado Pago configurado.'
+          : 'Plano sem checkout configurado.',
+      );
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -85,7 +133,7 @@ export class CheckoutService {
       );
     }
     const payloadHash = createHash('sha256')
-      .update(JSON.stringify({ operation: 'CREATE_CHECKOUT', planSlug }))
+      .update(JSON.stringify({ operation: 'CREATE_CHECKOUT', planSlug, promotionReservationId }))
       .digest('hex');
     const profile = await this.prisma.userProfile.findUnique({
       where: { id: context.userId },
@@ -96,9 +144,9 @@ export class CheckoutService {
     const publicAppUrl = process.env.PUBLIC_APP_URL?.trim();
     if (!publicAppUrl)
       throw new ConflictException('PUBLIC_APP_URL nao configurada.');
-    const gateway = this.gateways.get(mapping.provider);
+    const gateway = this.gateways.get(provider);
     const gatewayIdempotencyKey = createHash('sha256')
-      .update(`${context.tenantId}:CREATE_CHECKOUT:${idempotencyKey}`)
+      .update(`${context.tenantId}:CREATE_CHECKOUT:${idempotencyKey}:${promotionReservationId || 'normal'}`)
       .digest('hex');
     const claimToken = randomUUID();
     let intent: any;
@@ -109,7 +157,7 @@ export class CheckoutService {
           tenantId: context.tenantId,
           subscriptionId: subscription.id,
           planId: plan.id,
-          provider: mapping.provider,
+          provider,
           idempotencyKey,
           payloadHash,
           externalReference: createBillingExternalReference(),
@@ -190,11 +238,13 @@ export class CheckoutService {
       gatewayCheckout = await gateway.createCheckout({
         idempotencyKey: gatewayIdempotencyKey,
         externalReference: intent.externalReference,
-        amountCents: plan.priceCents,
+        amountCents: promotionOffer?.monthlyPriceCents ?? plan.priceCents,
         currency: plan.currency,
-        title: plan.name,
-        paymentLinkUrl: mapping.paymentLinkUrl,
-        gatewayPlanId: mapping.gatewayPlanId,
+        title: promotionOffer
+          ? `${plan.name} — promoção ${promotionOffer.periodMonths} meses`
+          : plan.name,
+        paymentLinkUrl: mapping?.paymentLinkUrl,
+        gatewayPlanId,
         payerEmail: profile.email,
         backUrl: new URL(
           '/api/billing/checkout/return',
@@ -232,7 +282,7 @@ export class CheckoutService {
             checkoutUrl: gatewayCheckout.checkoutUrl,
             externalReference: intent.externalReference,
             status: CheckoutSessionStatus.OPEN,
-            expectedAmountCents: plan.priceCents,
+            expectedAmountCents: promotionOffer?.monthlyPriceCents ?? plan.priceCents,
             currency: plan.currency,
             createdById: context.userId,
           },
@@ -254,9 +304,12 @@ export class CheckoutService {
             actorProfileId: context.userId,
             source: 'api',
             metadata: {
-              provider: mapping.provider,
+              provider,
               supportsExternalReference:
                 gatewayCheckout.supportsExternalReference,
+              promotional: Boolean(promotionOffer),
+              promotionPeriodMonths: promotionOffer?.periodMonths ?? null,
+              promotionTotalPriceCents: promotionOffer?.totalPriceCents ?? null,
             },
           },
           tx,

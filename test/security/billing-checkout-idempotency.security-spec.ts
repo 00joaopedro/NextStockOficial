@@ -10,6 +10,7 @@ import { BillingEventsService } from '../../src/billing/billing-events.service';
 import { PlansService } from '../../src/billing/plans.service';
 import { SubscriptionsService } from '../../src/billing/subscriptions.service';
 import { ReconciliationService } from '../../src/billing/reconciliation.service';
+import { PaymentsService } from '../../src/billing/payments.service';
 import { TenantContextService } from '../../src/tenancy/tenant-context.service';
 import { GatewayCheckoutError } from '../../src/billing/gateways/payment-gateway.interface';
 import { JwtAuthGuard } from '../../src/auth/jwt-auth.guard';
@@ -431,6 +432,7 @@ databaseSuite('RC-005 billing checkout idempotency on PostgreSQL 16', () => {
         { provide: 'unused', useValue: {} },
         { provide: PlansService, useValue: {} },
         { provide: SubscriptionsService, useValue: {} },
+        { provide: PaymentsService, useValue: {} },
         { provide: ReconciliationService, useValue: {} },
         { provide: TenantContextService, useValue: {} },
       ],
