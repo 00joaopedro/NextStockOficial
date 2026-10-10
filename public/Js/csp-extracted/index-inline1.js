@@ -268,7 +268,10 @@
           {
             method: 'POST',
             headers: { 'Idempotency-Key': idempotencyKey },
-            body: JSON.stringify({}),
+            body: JSON.stringify({
+              planSlug: selection.planSlug,
+              periodMonths: selection.periodMonths,
+            }),
           },
         );
         sessionStorage.setItem(PROMOTION_RESERVATION_KEY, JSON.stringify(data));
