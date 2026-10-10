@@ -3,6 +3,7 @@ import { BillingEventType, Prisma, SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
+import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 
 export const TRIAL_DAYS = 15;
 
@@ -12,6 +13,7 @@ export class SubscriptionsService {
     private readonly prisma: PrismaService,
     private readonly entitlement: BillingEntitlementService,
     private readonly events: BillingEventsService,
+    private readonly gateways?: PaymentGatewayRegistry,
   ) {}
 
   async getForTenant(tenantId: string) {
@@ -62,6 +64,52 @@ export class SubscriptionsService {
       tx,
     );
     return subscription;
+  }
+
+  async cancelForTenant(tenantId: string) {
+    const subscription = await this.prisma.subscription.findFirst({
+      where: { tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!subscription) throw new Error('Subscription não encontrada.');
+
+    if (subscription.gatewaySubscriptionId) {
+      if (!this.gateways || !subscription.gatewayProvider) {
+        throw new Error('Gateway da assinatura não está disponível.');
+      }
+      await this.gateways
+        .get(subscription.gatewayProvider)
+        .cancelSubscription(subscription.gatewaySubscriptionId);
+    }
+
+    const updated = await this.prisma.subscription.updateMany({
+      where: {
+        id: subscription.id,
+        tenantId,
+        version: subscription.version,
+      },
+      data: {
+        status: SubscriptionStatus.canceled,
+        cancelAtPeriodEnd: false,
+        version: { increment: 1 },
+      },
+    });
+    if (updated.count !== 1) {
+      throw new Error('A assinatura foi alterada por outra operação.');
+    }
+
+    const current = await this.prisma.subscription.findUniqueOrThrow({
+      where: { id: subscription.id },
+    });
+    await this.events.create({
+      tenantId,
+      subscriptionId: current.id,
+      type: BillingEventType.SUBSCRIPTION_CANCELED,
+      source: 'api',
+      previousState: { status: subscription.status },
+      nextState: { status: current.status },
+    });
+    return this.format(current);
   }
 
   format(subscription: any | null) {
