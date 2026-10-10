@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NextStock — Campanha promocional</title>
+<style>
+:root{font-family:Inter,system-ui,sans-serif;color:#102033;background:#f3f7fb}*{box-sizing:border-box}body{margin:0}.wrap{max-width:1180px;margin:auto;padding:24px}.toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.toolbar h1{margin:0;color:#123f68}.actions{display:flex;gap:8px;flex-wrap:wrap}button{border:0;border-radius:8px;padding:10px 14px;background:#174b7d;color:#fff;font-weight:800;cursor:pointer}button.danger{background:#a52d2d}button:disabled{opacity:.5;cursor:not-allowed}.status{margin:18px 0;padding:14px;border-radius:8px;background:#fff;border:1px solid #dbe5ef}.status.error{background:#fff0f0;color:#8b1e1e}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.card{background:#fff;border:1px solid #dbe5ef;border-radius:10px;padding:16px;box-shadow:0 8px 20px #1020330d}.metric strong{display:block;color:#1a456f;font-size:13px}.metric span{display:block;font-size:25px;font-weight:900;margin-top:8px}.table-wrap{overflow:auto;margin-top:12px}table{width:100%;border-collapse:collapse;min-width:700px}th,td{padding:10px;border-bottom:1px solid #e8eef5;text-align:left;font-size:13px}th{color:#1a456f;background:#f7fbff}.ok{color:#08733e;font-weight:800}.missing{color:#a52d2d;font-weight:800}.muted{color:#637083;font-size:13px}@media(max-width:650px){.wrap{padding:16px}.toolbar{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="toolbar">
+    <div><h1>Campanha promocional</h1><p class="muted">Painel restrito ao Dev SuperAdmin · lançamento-2026</p></div>
+    <div class="actions">
+      <button id="openBtn" type="button">Abrir campanha</button>
+      <button id="activateBtn" type="button">Ativar em produção</button>
+      <button id="closeBtn" class="danger" type="button">Encerrar</button>
+      <button id="refreshBtn" type="button">Atualizar</button>
+    </div>
+  </div>
+  <div id="status" class="status">Carregando...</div>
+  <section id="metrics" class="grid"></section>
+  <section class="card"><h2>Configuração de produção</h2><p class="muted">Links são referências públicas. IDs, token e segredo continuam protegidos no Railway.</p><div id="configuration"></div></section>
+  <section class="card"><h2>Reservas e conversões</h2><div class="table-wrap"><table><thead><tr><th>Tenant</th><th>Oferta</th><th>Status</th><th>Reservada em</th><th>Convertida em</th></tr></thead><tbody id="reservations"></tbody></table></div></section>
+  <section class="card"><h2>Pagamentos auditados</h2><div class="table-wrap"><table><thead><tr><th>Tenant</th><th>Status</th><th>Valor</th><th>Gateway</th><th>Data</th></tr></thead><tbody id="payments"></tbody></table></div></section>
+</main>
+<script src="./Js/promocao-admin.js" defer></script>
+</body>
+</html>
