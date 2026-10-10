@@ -443,17 +443,20 @@ export class PromotionsService {
 
   async listAdminPayments(campaignId: string) {
     const reservations = await this.prisma.promotionReservation.findMany({
-      where: { campaignId },
-      select: { tenantId: true },
+      where: { campaignId, checkoutSessionId: { not: null } },
+      select: { checkoutSessionId: true },
     });
-    const tenantIds = reservations.map((row) => row.tenantId);
-    if (!tenantIds.length) return [];
+    const checkoutSessionIds = reservations
+      .map((row) => row.checkoutSessionId)
+      .filter((id): id is string => Boolean(id));
+    if (!checkoutSessionIds.length) return [];
     return this.prisma.billingPayment.findMany({
-      where: { tenantId: { in: tenantIds } },
+      where: { checkoutSessionId: { in: checkoutSessionIds } },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
         tenantId: true,
+        checkoutSessionId: true,
         provider: true,
         gatewayPaymentId: true,
         status: true,
