@@ -327,7 +327,9 @@ export class PartnersService {
       process.env.PUBLIC_APP_URL ||
       ''
     ).replace(/\/+$/, '');
-    const path = `/${page}?ref=${encodeURIComponent(code)}`;
+    const params = new URLSearchParams({ ref: code });
+    if (page === 'index.html') params.set('promo', 'none');
+    const path = `/${page}?${params.toString()}`;
     return base ? `${base}${path}` : path;
   }
 
