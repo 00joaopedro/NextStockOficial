@@ -6,37 +6,26 @@ import { PromotionsService } from './promotions.service';
 
 describe('PromotionsService', () => {
   it('reports an active campaign with remaining slots', async () => {
+    const campaign = {
+      id: 'campaign-1',
+      slug: 'lancamento-2026',
+      name: 'Lançamento NextStock',
+      status: PromotionCampaignStatus.ACTIVE,
+      maxConversions: 30,
+      reservedCount: 2,
+      convertedCount: 3,
+      trialDays: 1,
+      startsAt: null,
+      endsAt: null,
+      closedAt: null,
+      closeReason: null,
+    };
     const prisma = {
       promotionCampaign: {
         findUnique: jest.fn()
-          .mockResolvedValueOnce({
-            id: 'campaign-1',
-            slug: 'lancamento-2026',
-            name: 'Lançamento NextStock',
-            status: PromotionCampaignStatus.ACTIVE,
-            maxConversions: 30,
-            reservedCount: 2,
-            convertedCount: 3,
-            trialDays: 1,
-            startsAt: null,
-            endsAt: null,
-            closedAt: null,
-            closeReason: null,
-          })
-          .mockResolvedValueOnce({
-            id: 'campaign-1',
-            slug: 'lancamento-2026',
-            name: 'Lançamento NextStock',
-            status: PromotionCampaignStatus.ACTIVE,
-            maxConversions: 30,
-            reservedCount: 2,
-            convertedCount: 3,
-            trialDays: 1,
-            startsAt: null,
-            endsAt: null,
-            closedAt: null,
-            closeReason: null,
-          }),
+          .mockResolvedValueOnce(campaign)
+          .mockResolvedValueOnce(campaign),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(campaign),
       },
       promotionReservation: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -64,22 +53,24 @@ describe('PromotionsService', () => {
   });
 
   it('does not reopen an exhausted campaign', async () => {
+    const campaign = {
+      id: 'campaign-1',
+      slug: 'lancamento-2026',
+      name: 'Lançamento NextStock',
+      status: PromotionCampaignStatus.EXHAUSTED,
+      maxConversions: 30,
+      reservedCount: 0,
+      convertedCount: 30,
+      trialDays: 1,
+      startsAt: null,
+      endsAt: null,
+      closedAt: new Date(),
+      closeReason: 'LIMIT_REACHED',
+    };
     const prisma = {
       promotionCampaign: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'campaign-1',
-          slug: 'lancamento-2026',
-          name: 'Lançamento NextStock',
-          status: PromotionCampaignStatus.EXHAUSTED,
-          maxConversions: 30,
-          reservedCount: 0,
-          convertedCount: 30,
-          trialDays: 1,
-          startsAt: null,
-          endsAt: null,
-          closedAt: new Date(),
-          closeReason: 'LIMIT_REACHED',
-        }),
+        findUnique: jest.fn().mockResolvedValue(campaign),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(campaign),
       },
       promotionReservation: {
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
