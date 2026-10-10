@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BillingEventType,
   BillingInvoiceStatus,
@@ -15,6 +15,7 @@ import { BillingEventsService } from './billing-events.service';
 import { decideBillingState } from './billing-state-order';
 import { isValidBillingExternalReference } from './external-reference.util';
 import { GatewayPaymentResult } from './gateways/payment-gateway.interface';
+import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 
 class BillingCasLostError extends Error {}
 
@@ -23,7 +24,29 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: BillingEventsService,
+    private readonly gateways?: PaymentGatewayRegistry,
   ) {}
+
+  async refundForTenant(tenantId: string, paymentId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        id: paymentId,
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+      },
+    });
+    if (!payment) {
+      throw new NotFoundException('Pagamento aprovado não encontrado.');
+    }
+    if (!payment.gatewayPaymentId || !this.gateways) {
+      throw new ConflictException('Pagamento sem operação Mercado Pago disponível.');
+    }
+
+    const gateway = this.gateways.get(payment.provider);
+    await gateway.refundPayment(payment.gatewayPaymentId);
+    const verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
+    return this.processVerifiedPayment(payment.provider, verified, 'refund_api');
+  }
 
   async processVerifiedPayment(
     provider: PaymentGatewayProvider,
