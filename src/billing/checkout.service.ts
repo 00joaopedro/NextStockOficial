@@ -69,7 +69,7 @@ export class CheckoutService {
           },
         })
       : null;
-    let promotionOffer = null;
+    let promotionOffer: ReturnType<typeof getPromotionOffer> = null;
     if (promotionReservationId) {
       if (!promotionReservation) {
         throw new ConflictException(
