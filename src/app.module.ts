@@ -27,6 +27,7 @@ import { SalesModule } from './sales/sales.module';
 import { FiscalModule } from './fiscal/fiscal.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PartnersModule } from './partners/partners.module';
+import { PromotionsModule } from './promotions/promotions.module';
 import { BillingModule } from './billing/billing.module';
 import { BillingAccessInterceptor } from './billing/billing-access.interceptor';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
@@ -79,6 +80,7 @@ import { processRole, startsApi } from './config/process-role';
     ExpensesModule,
     DashboardModule,
     PartnersModule,
+    PromotionsModule,
     BillingModule,
     StorefrontModule,
   ] : [],
