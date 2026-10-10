@@ -15,7 +15,7 @@
     company: $("empresa"), cnpj: $("cnpj"), email: $("email"), contact: $("contato"),
     saveProfile: $("saveProfileBtn"), saveCompany: $("saveCompanyBtn"),
     currentPlan: $("currentPlanTitle"), currentBadge: $("currentPlanBadge"),
-    details: $("subscriptionDetails"), plans: $("plansGrid"), promotion: $("promotionHandoff"),
+    details: $("subscriptionDetails"), plans: $("plansGrid"),
     machineList: $("machineList"), addMachine: $("addMachineBtn"),
     saveMachine: $("saveMachineBtn"), deleteMachine: $("deleteMachineBtn"),
     machineName: $("machineName"), machineProvider: $("machineProvider"),
@@ -69,37 +69,6 @@
     return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(Number(cents || 0) / 100);
   }
   function date(value) { return value ? new Date(value).toLocaleString("pt-BR") : "—"; }
-
-  function promotionSelection() {
-    try {
-      const value = JSON.parse(sessionStorage.getItem("nextstockPromotionSelection") || "null");
-      if (
-        value?.campaignSlug === "lancamento-2026" &&
-        /^[a-z0-9-]+$/.test(value.planSlug || "") &&
-        [8, 12, 24].includes(Number(value.periodMonths))
-      ) return value;
-    } catch {}
-    return null;
-  }
-  function renderPromotionHandoff() {
-    const selection = promotionSelection();
-    if (!el.promotion) return;
-    const failed = new URLSearchParams(location.search).get("promotion") === "reservation-failed";
-    if (failed) {
-      el.promotion.hidden = false;
-      el.promotion.textContent = "O cadastro foi concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter atingido o limite ou sido encerrada.";
-      return;
-    }
-    if (!selection) {
-      el.promotion.hidden = true;
-      return;
-    }
-    el.promotion.hidden = false;
-    const planName = selection.planSlug.charAt(0).toUpperCase() + selection.planSlug.slice(1);
-    const attribution = selection.referralCode ? " A atribuição do afiliado foi preservada." : "";
-    el.promotion.textContent =
-      `Oferta promocional selecionada: Plano ${planName}, período de ${selection.periodMonths} meses.${attribution} Escolha o plano correspondente abaixo para continuar pelo checkout seguro.`;
-  }
   function busy(value) { state.busy = value; permissions(); }
   function permissions() {
     const blocked = state.busy || state.preview;
@@ -156,15 +125,9 @@
       const title = document.createElement("strong"); title.textContent = plan.name;
       const description = document.createElement("span"); description.textContent = plan.description || "";
       const price = document.createElement("span"); price.className = "price"; price.textContent = money(plan.priceCents, plan.currency);
-      const action = document.createElement("button");
-      const selected = promotionSelection();
-      const isPromotionPlan = selected?.planSlug === plan.slug;
-      action.textContent = isPromotionPlan
-        ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
-        : "Escolher plano";
+      const action = document.createElement("button"); action.textContent = "Escolher plano";
       action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable;
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
-      if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       action.addEventListener("click", () => startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
@@ -296,7 +259,6 @@
     }
     try {
       await bootstrap();
-      renderPromotionHandoff();
       await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines(), loadPaymentConfiguration()]);
       permissions();
       const returned = new URLSearchParams(location.search).has("billingReturn");
