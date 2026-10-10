@@ -33,9 +33,9 @@ export class CheckoutService {
     user: AuthenticatedUser | undefined,
     planSlug: string,
     idempotencyKey: string | undefined,
-    promotionReservationId?: string,
     selectedBranchId?: string,
     devContextMode?: string,
+    promotionReservationId?: string,
   ) {
     if (
       !idempotencyKey ||
