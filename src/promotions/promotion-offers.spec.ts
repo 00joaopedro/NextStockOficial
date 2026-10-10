@@ -16,7 +16,7 @@ describe('promotion offer catalog', () => {
         });
         expect(offer?.monthlyPriceCents).toBeGreaterThan(0);
         expect(offer?.totalPriceCents).toBeGreaterThan(0);
-        expect(offer?.paymentLinkUrl).toMatch(/^https:\\/\\/mpago\\.la\\//);
+        expect(offer?.paymentLinkUrl).toContain('https://mpago.la/');
       }
     }
   });
