@@ -43,7 +43,9 @@ describe('PromotionsService', () => {
       },
       $transaction: jest.fn(async (callback: any) =>
         callback({
-          promotionReservation: { updateMany: jest.fn() },
+          promotionReservation: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
           promotionCampaign: { updateMany: jest.fn() },
         }),
       ),
@@ -79,6 +81,17 @@ describe('PromotionsService', () => {
           closeReason: 'LIMIT_REACHED',
         }),
       },
+      promotionReservation: {
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+      $transaction: jest.fn(async (callback: any) =>
+        callback({
+          promotionReservation: {
+            updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+          },
+          promotionCampaign: { updateMany: jest.fn() },
+        }),
+      ),
     } as any;
 
     const result = await new PromotionsService(prisma).getPublicContext(
