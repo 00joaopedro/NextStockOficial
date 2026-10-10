@@ -5,7 +5,7 @@ import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 
-export const TRIAL_DAYS = 15;
+export const TRIAL_DAYS = 7;
 
 @Injectable()
 export class SubscriptionsService {
