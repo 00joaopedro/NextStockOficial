@@ -109,6 +109,10 @@
       }
 
       const slots = Number(context.remainingSlots || 0);
+      if (slots <= 0) {
+        setStatus('A promoção está sem vagas disponíveis no momento. Os botões foram bloqueados.', 'error');
+        return;
+      }
       setStatus(
         `Promoção ativa: ${slots} vaga(s) disponível(is). Escolha uma oferta para continuar o cadastro.`,
         'success',
