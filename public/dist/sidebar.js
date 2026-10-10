@@ -23,7 +23,7 @@ const SIDEBAR_ITEMS = [
     },
     {
         label: 'Promoção',
-        href: 'promocao.html',
+        href: 'promocao-admin.html',
         key: 'promocao',
         module: 'dev',
     },
