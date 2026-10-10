@@ -177,6 +177,55 @@ export class PromotionsService {
 
     try {
       const reservation = await this.prisma.$transaction(async (tx) => {
+        const reservedAt = new Date();
+
+        if (existing) {
+          const recycled = await tx.promotionReservation.updateMany({
+            where: {
+              id: existing.id,
+              OR: [
+                { status: PromotionReservationStatus.RELEASED },
+                { status: PromotionReservationStatus.EXPIRED },
+                {
+                  status: PromotionReservationStatus.RESERVED,
+                  expiresAt: { lte: reservedAt },
+                },
+              ],
+            },
+            data: {
+              partnerId: input.partnerId ?? existing.partnerId,
+              idempotencyKey,
+              status: PromotionReservationStatus.RESERVED,
+              reservedAt,
+              expiresAt,
+              convertedAt: null,
+              releasedAt: null,
+              releaseReason: null,
+              metadata: {
+                source: 'promotion',
+                trialDays: campaign.trialDays,
+              },
+            },
+          });
+
+          if (recycled.count !== 1) {
+            const current = await tx.promotionReservation.findUnique({
+              where: { id: existing.id },
+            });
+            if (
+              current &&
+              (current.status === PromotionReservationStatus.CONVERTED ||
+                (current.status === PromotionReservationStatus.RESERVED &&
+                  current.expiresAt > reservedAt))
+            ) {
+              return current;
+            }
+            throw new ConflictException(
+              'A reserva promocional já está sendo processada.',
+            );
+          }
+        }
+
         const claimed = await tx.$queryRaw<Array<{ id: string }>>(
           Prisma.sql`UPDATE "promotion_campaigns"
             SET "reserved_count" = "reserved_count" + 1,
@@ -196,22 +245,8 @@ export class PromotionsService {
         }
 
         if (existing) {
-          return tx.promotionReservation.update({
+          return tx.promotionReservation.findUniqueOrThrow({
             where: { id: existing.id },
-            data: {
-              partnerId: input.partnerId ?? existing.partnerId,
-              idempotencyKey,
-              status: PromotionReservationStatus.RESERVED,
-              reservedAt: new Date(),
-              expiresAt,
-              convertedAt: null,
-              releasedAt: null,
-              releaseReason: null,
-              metadata: {
-                source: 'promotion',
-                trialDays: campaign.trialDays,
-              },
-            },
           });
         }
 
