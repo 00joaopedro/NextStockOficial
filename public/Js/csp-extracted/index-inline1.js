@@ -33,8 +33,18 @@
       return null;
     }
 
+    function clearPromotionSession() {
+      sessionStorage.removeItem(PROMOTION_SELECTION_KEY);
+      sessionStorage.removeItem(PROMOTION_RESERVATION_KEY);
+      sessionStorage.removeItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
+    }
+
     function savePromotionSelectionFromUrl() {
       const params = new URLSearchParams(window.location.search);
+      if (params.get('promo') === 'none') {
+        clearPromotionSession();
+        return;
+      }
       if (params.get('promo') !== 'lancamento-2026') return;
       const planSlug = params.get('plan') || '';
       const periodMonths = Number(params.get('period'));

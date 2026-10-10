@@ -9,7 +9,8 @@ const els = {
     phone: byId('partnerPhone'),
     bankNumber: byId('partnerBankNumber'),
     systemType: byId('partnerSystemType'),
-    link: byId('partnerLink'),
+    promotionLink: byId('promotionLink'),
+    standardLink: byId('standardLink'),
     partnerList: byId('partnerList'),
     partnerEmpty: byId('partnerEmpty'),
     partnerSearch: byId('partnerSearchInput'),
@@ -158,7 +159,10 @@ function renderPartners() {
       </div>
       <div>${escapeHtml(partner.phone)} · ${escapeHtml(partner.bankNumber)}</div>
       <small>${partner.referralCount} indicação(ões) · ${partner.paidReferralCount ?? 0} pagante(s)</small>
-      <div class="linkbox"><input readonly value="${escapeHtml(resolveLink(partner.sellerLink))}"><button type="button" class="secondary" data-copy="${escapeHtml(partner.sellerLink)}">Copiar</button></div>
+      <small class="link-label">Link da promoção</small>
+      <div class="linkbox"><input readonly value="${escapeHtml(resolveLink(partner.promotionLink || partner.sellerLink))}"><button type="button" class="secondary" data-copy-promotion="${escapeHtml(partner.promotionLink || partner.sellerLink)}">Copiar</button></div>
+      <small class="link-label">Link sem promoção</small>
+      <div class="linkbox"><input readonly value="${escapeHtml(resolveLink(partner.standardLink || partner.sellerLink))}"><button type="button" class="secondary" data-copy-standard="${escapeHtml(partner.standardLink || partner.sellerLink)}">Copiar</button></div>
     `;
         els.partnerList.appendChild(card);
     }
@@ -182,7 +186,8 @@ function fillForm(partner) {
     els.bankNumber.value = partner.bankNumber;
     els.systemType.value = partner.systemType;
     els.systemType.disabled = true;
-    els.link.value = resolveLink(partner.sellerLink);
+    els.promotionLink.value = resolveLink(partner.promotionLink || partner.sellerLink);
+    els.standardLink.value = resolveLink(partner.standardLink || partner.sellerLink);
     byId('toggleLinkBtn').textContent =
         partner.linkStatus === 'ACTIVE' ? 'Desativar link' : 'Ativar link';
 }
@@ -190,7 +195,8 @@ function resetForm() {
     state.selected = null;
     els.form.reset();
     els.id.value = '';
-    els.link.value = '';
+    els.promotionLink.value = '';
+    els.standardLink.value = '';
     els.systemType.disabled = false;
     els.formTitle.textContent = 'Novo parceiro';
     els.selectedName.textContent = 'Indicações';
@@ -414,15 +420,20 @@ byId('newPartnerBtn').addEventListener('click', resetForm);
 byId('deletePartnerBtn').addEventListener('click', deletePartner);
 byId('rotateLinkBtn').addEventListener('click', rotateLink);
 byId('toggleLinkBtn').addEventListener('click', toggleLink);
-byId('copyLinkBtn').addEventListener('click', () => {
-    if (els.link.value)
-        void navigator.clipboard.writeText(els.link.value);
+byId('copyPromotionLinkBtn').addEventListener('click', () => {
+    if (els.promotionLink.value)
+        void navigator.clipboard.writeText(els.promotionLink.value);
+});
+byId('copyStandardLinkBtn').addEventListener('click', () => {
+    if (els.standardLink.value)
+        void navigator.clipboard.writeText(els.standardLink.value);
 });
 els.partnerList.addEventListener('click', (event) => {
     const target = event.target;
-    const copy = target.closest('[data-copy]');
+    const copy = target.closest('[data-copy-promotion],[data-copy-standard]');
     if (copy) {
-        void navigator.clipboard.writeText(resolveLink(copy.dataset.copy || ''));
+        const link = copy.dataset.copyPromotion || copy.dataset.copyStandard || '';
+        void navigator.clipboard.writeText(resolveLink(link));
         return;
     }
     const card = target.closest('[data-partner-id]');

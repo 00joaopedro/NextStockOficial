@@ -304,6 +304,8 @@ export class PartnersService {
       phone: partner.phone,
       bankNumber: partner.bankNumber,
       sellerLink: this.buildSellerLink(partner.referralCode),
+      standardLink: this.buildReferralLink(partner.referralCode, 'index.html'),
+      promotionLink: this.buildReferralLink(partner.referralCode, 'promocao.html'),
       linkStatus: partner.linkStatus,
       systemType: partner.systemType,
       expiresAt: partner.expiresAt,
@@ -316,12 +318,18 @@ export class PartnersService {
   }
 
   private buildSellerLink(code: string) {
+    return this.buildReferralLink(code, 'index.html');
+  }
+
+  private buildReferralLink(code: string, page: 'index.html' | 'promocao.html') {
     const base = (
       process.env.NEXTSTOCK_PUBLIC_URL ||
       process.env.PUBLIC_APP_URL ||
       ''
     ).replace(/\/+$/, '');
-    const path = `/index.html?ref=${encodeURIComponent(code)}`;
+    const params = new URLSearchParams({ ref: code });
+    if (page === 'index.html') params.set('promo', 'none');
+    const path = `/${page}?${params.toString()}`;
     return base ? `${base}${path}` : path;
   }
 
