@@ -18,7 +18,11 @@ import { BillingEventsService } from './billing-events.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 import { createBillingExternalReference } from './external-reference.util';
-import { getPromotionOffer, promotionOfferMatches } from '../promotions/promotion-offers';
+import {
+  getPromotionOffer,
+  NORMAL_PAYMENT_LINKS,
+  promotionOfferMatches,
+} from '../promotions/promotion-offers';
 
 @Injectable()
 export class CheckoutService {
@@ -243,7 +247,10 @@ export class CheckoutService {
         title: promotionOffer
           ? `${plan.name} — promoção ${promotionOffer.periodMonths} meses`
           : plan.name,
-        paymentLinkUrl: mapping?.paymentLinkUrl,
+        paymentLinkUrl:
+          promotionOffer?.paymentLinkUrl ??
+          NORMAL_PAYMENT_LINKS[planSlug as keyof typeof NORMAL_PAYMENT_LINKS] ??
+          mapping?.paymentLinkUrl,
         gatewayPlanId,
         payerEmail: profile.email,
         backUrl: new URL(
