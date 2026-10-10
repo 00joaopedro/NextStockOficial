@@ -19,6 +19,8 @@ type ReserveInput = {
   tenantId: string;
   idempotencyKey?: string;
   partnerId?: string | null;
+  planSlug?: string;
+  periodMonths?: number;
 };
 
 type CampaignSnapshot = {
@@ -204,6 +206,8 @@ export class PromotionsService {
               metadata: {
                 source: 'promotion',
                 trialDays: campaign.trialDays,
+                ...(input.planSlug ? { planSlug: input.planSlug } : {}),
+                ...(input.periodMonths ? { periodMonths: input.periodMonths } : {}),
               },
             },
           });
@@ -260,6 +264,8 @@ export class PromotionsService {
             metadata: {
               source: 'promotion',
               trialDays: campaign.trialDays,
+              ...(input.planSlug ? { planSlug: input.planSlug } : {}),
+              ...(input.periodMonths ? { periodMonths: input.periodMonths } : {}),
             },
           },
         });
