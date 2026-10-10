@@ -1,7 +1,7 @@
 import { IsDefined, IsIn, IsInt, IsString } from 'class-validator';
 
-export const PROMOTION_PLAN_SLUGS = ['ouro', 'esmeralda', 'diamante'] as const;
-export const PROMOTION_PERIODS = [8, 12, 24] as const;
+export const PROMOTION_PLAN_SLUGS = ['ouro', 'esmeralda'] as const;
+export const PROMOTION_PERIODS = [1, 3, 6] as const;
 
 export class ReservePromotionDto {
   @IsDefined()
