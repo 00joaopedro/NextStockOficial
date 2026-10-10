@@ -64,6 +64,12 @@ const SIDEBAR_ITEMS: SidebarItem[] = [
     key: 'parceiros',
     module: 'dev',
   },
+  {
+    label: 'Promoção',
+    href: 'promocao.html',
+    key: 'promocao',
+    module: 'dev',
+  },
   { label: 'Caixa', href: 'caixa.html', key: 'caixa', module: 'core' },
   { label: 'Perfil', href: 'perfil.html', key: 'perfil', module: 'core' },
   {
