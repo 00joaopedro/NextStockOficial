@@ -8,7 +8,7 @@ assinaturas.
 
 ## Regra de acesso
 
-- Todo tenant recebe exatamente 15 dias de trial.
+- Todo tenant recebe exatamente 7 dias de trial.
 - Após `trialEndsAt`, somente uma cobrança `APPROVED`, confirmada na API do
   gateway, deixa a subscription `active` e libera acesso.
 - Retorno do navegador, criação da assinatura externa, status informado pelo
@@ -48,15 +48,12 @@ Variáveis protegidas necessárias:
 - `MERCADO_PAGO_PLAN_ID_OURO`
 - `MERCADO_PAGO_PLAN_ID_ESMERALDA`
 - `MERCADO_PAGO_PLAN_ID_DIAMANTE`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_8`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_12`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_24`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_8`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_12`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_24`
-- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_8`
-- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_12`
-- `MERCADO_PAGO_PROMO_PLAN_ID_DIAMANTE_24`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_1`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_3`
+- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_6`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_1`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_3`
+- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_6`
 
 Configure o webhook do Mercado Pago para
 `https://SEU_HOST/api/billing/webhooks/mercado-pago` e habilite notificações de
@@ -65,7 +62,7 @@ pagamento. O retorno visual é
 
 ## Campanha promocional
 
-A campanha `lancamento-2026` usa um catálogo server-side de nove ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 15 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e existe o respectivo plano recorrente Mercado Pago configurado. Nunca confie no preço enviado pelo navegador.
+A campanha `lancamento-2026` usa um catálogo server-side de seis ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 7 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e existe o respectivo plano recorrente Mercado Pago configurado. Nunca confie no preço enviado pelo navegador.
 
 O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamentos pendentes ou rejeitados não convertem a vaga. Reembolso e chargeback suspendem a assinatura e permanecem registrados no ledger e na auditoria.
 
@@ -76,7 +73,7 @@ O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamento
    enforcement desabilitados.
 3. Aplicar a migration com `npm run railway:migrate` em job controlado.
 4. Executar o seed controlado para gravar os IDs em `gateway_plan_mappings`.
-5. Habilitar webhook e checkout em staging/sandbox e validar pagamento,
+5. Usar o painel `/promocao-admin.html` para conferir as seis ofertas, abrir a campanha e validar a configuração; depois habilitar webhook e checkout em staging/sandbox e validar pagamento,
    reenvio de webhook, reconciliação, reembolso e chargeback.
 6. Agendar `npm run billing:reconcile`.
 7. Auditar subscriptions, invoices, payments e events.

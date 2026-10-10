@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentGatewayProvider } from '@prisma/client';
+import { NORMAL_PAYMENT_LINKS } from '../promotions/promotion-offers';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -41,6 +42,8 @@ export class PlansService {
       intervalCount: plan.intervalCount,
       features: plan.features,
       sortOrder: plan.sortOrder,
+      paymentLinkUrl:
+        NORMAL_PAYMENT_LINKS[plan.slug as keyof typeof NORMAL_PAYMENT_LINKS] ?? null,
       checkoutAvailable:
         process.env.BILLING_CHECKOUT_ENABLED?.toLowerCase() !== 'false' &&
         Boolean(plan.gatewayMappings[0]?.gatewayPlanId),

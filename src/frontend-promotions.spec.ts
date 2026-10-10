@@ -7,8 +7,8 @@ describe('promotion campaign frontend', () => {
   const signupScript = readFileSync(join(process.cwd(), 'public', 'Js', 'csp-extracted', 'index-inline1.js'), 'utf8');
   const profileScript = readFileSync(join(process.cwd(), 'public', 'Js', 'perfil.js'), 'utf8');
 
-  it('oferece as nove combinações de plano e período', () => {
-    expect(html.match(/data-promotion-choice/g)).toHaveLength(9);
+  it('oferece as seis combinações de plano e período', () => {
+    expect(html.match(/data-promotion-choice/g)).toHaveLength(6);
     expect(html).toContain('id="campaignStatus"');
     expect(html).not.toContain('href="#comprar"');
     expect(html).toContain('Js/promocao.js');
