@@ -431,6 +431,7 @@ databaseSuite('RC-005 billing checkout idempotency on PostgreSQL 16', () => {
         { provide: 'unused', useValue: {} },
         { provide: PlansService, useValue: {} },
         { provide: SubscriptionsService, useValue: {} },
+        { provide: 'PaymentsService', useValue: {} },
         { provide: ReconciliationService, useValue: {} },
         { provide: TenantContextService, useValue: {} },
       ],
