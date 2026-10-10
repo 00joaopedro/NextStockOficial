@@ -45,6 +45,7 @@
     .badge.REVOKED,.badge.REFUNDED,.badge.CANCELED { background:#fee4e2; color:#8a1c14; }
     .linkbox { display:flex; gap:7px; margin-top:9px; }
     .linkbox input { font-family:monospace; min-width:0; }
+    .link-label { display:block; margin-top:9px; color:var(--muted); font-weight:700; }
     table { width:100%; border-collapse:collapse; margin-top:12px; }
     th,td { text-align:left; padding:10px 8px; border-bottom:1px solid #e5e7eb; vertical-align:middle; }
     th { color:var(--muted); }
@@ -90,8 +91,11 @@
             <label>Tipo de sistema
               <select id="partnerSystemType"><option value="padrao">Padrão</option><option value="petshop">Pet Shop</option></select>
             </label>
-            <label>Link de indicação
-              <span class="linkbox"><input id="partnerLink" readonly><button id="copyLinkBtn" class="secondary" type="button">Copiar</button></span>
+            <label>Link da promoção
+              <span class="linkbox"><input id="promotionLink" readonly aria-label="Link promocional do afiliado"><button id="copyPromotionLinkBtn" class="secondary" type="button">Copiar</button></span>
+            </label>
+            <label>Link sem promoção
+              <span class="linkbox"><input id="standardLink" readonly aria-label="Link normal do afiliado"><button id="copyStandardLinkBtn" class="secondary" type="button">Copiar</button></span>
             </label>
             <div class="actions">
               <button id="savePartnerBtn" type="submit">Salvar</button>
