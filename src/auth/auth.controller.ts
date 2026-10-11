@@ -19,6 +19,7 @@ import {
 } from '@nestjs/common';
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { DevSuperAdminGuard } from './dev-super-admin.guard';
 import { AuthService } from './auth.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -100,6 +101,13 @@ export class AuthController {
     return {
       googleOAuthEnabled: process.env.GOOGLE_OAUTH_ENABLED === 'true',
     };
+  }
+
+  @Get('access-context')
+  @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
+  @CsrfExempt()
+  accessContext() {
+    return { isDevSuperAdmin: true };
   }
 
   @Get('google/link/start')
