@@ -56,7 +56,11 @@ function operationalHeaders() {
     }
 }
 async function api(path, options = {}) {
-    const response = await fetch(`/api${path}`, {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+    let response;
+    try {
+      response = await fetch(`/api${path}`, {
         credentials: 'include',
         ...options,
         headers: {
@@ -65,6 +69,7 @@ async function api(path, options = {}) {
             ...operationalHeaders(),
             ...(options.headers || {}),
         },
+        signal: options.signal || controller.signal,
     });
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) {
@@ -89,6 +94,9 @@ async function api(path, options = {}) {
         throw new Error(message);
     }
     return body;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
 }
 function isDevSuperAdmin(user) {
     return (user?.isDevSuperAdmin === true &&
@@ -114,6 +122,8 @@ async function bootstrap() {
         await loadPartners();
     }
     catch (error) {
+        document.body.dataset.locked = 'true';
+        els.gate.innerHTML = '<h2>Não foi possível validar o acesso</h2><p>Atualize a página ou tente novamente em instantes.</p>';
         showError(error);
     }
 }
