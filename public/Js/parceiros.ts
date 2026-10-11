@@ -100,8 +100,12 @@ function operationalHeaders(): Record<string, string> {
 }
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+  const method = (options.method || 'GET').toUpperCase();
+  const shouldTimeout = method === 'GET';
+  const controller = shouldTimeout ? new AbortController() : null;
+  const timeoutId = shouldTimeout
+    ? window.setTimeout(() => controller?.abort(), 12000)
+    : null;
   try {
     const response = await fetch(`/api${path}`, {
       credentials: 'include',
@@ -112,7 +116,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
         ...operationalHeaders(),
         ...(options.headers || {}),
       },
-      signal: options.signal || controller.signal,
+      ...(options.signal || controller ? { signal: options.signal || controller?.signal } : {}),
     });
     const body = await response.json().catch(() => ({}));
 
@@ -142,7 +146,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
     }
     throw error;
   } finally {
-    window.clearTimeout(timeoutId);
+    if (timeoutId !== null) window.clearTimeout(timeoutId);
   }
 }
 
