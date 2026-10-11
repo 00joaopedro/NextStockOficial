@@ -8,20 +8,32 @@
   async function api(path, options = {}) {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 12000);
-    let response;
     try {
-      response = await fetch(`/api/promotions/admin/${encodeURIComponent(slug)}/${path}`, { credentials: 'same-origin', headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) }, ...options });
-        credentials: 'same-origin',
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        `/api/promotions/admin/${encodeURIComponent(slug)}/${path}`,
+        {
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(options.headers || {}),
+          },
+          ...options,
+          signal: options.signal || controller.signal,
+        },
+      );
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const detail = Array.isArray(body.message) ? body.message.join(' ') : body.message;
+        const detail = Array.isArray(body.message)
+          ? body.message.join(' ')
+          : body.message;
         throw new Error(detail || `Falha no painel (HTTP ${response.status}).`);
       }
       return body;
     } catch (error) {
-      if (error?.name === 'AbortError') throw new Error('O painel demorou para responder. Tente atualizar.');
+      if (error?.name === 'AbortError') {
+        throw new Error('O painel demorou para responder. Tente atualizar.');
+      }
       throw error;
     } finally {
       window.clearTimeout(timeoutId);
