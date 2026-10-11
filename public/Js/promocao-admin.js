@@ -7,7 +7,7 @@
   function setStatus(message, error = false) { status.textContent = message; status.className = `status${error ? ' error' : ''}`; }
   async function api(path, options = {}) {
     const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+    const timeoutId = window.setTimeout(() => controller.abort(), 60000);
     try {
       const response = await fetch(
         `/api/promotions/admin/${encodeURIComponent(slug)}/${path}`,

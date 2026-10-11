@@ -44,7 +44,7 @@ const PAGE_VIEW_ENDPOINT = '/api/usage/page-view';
 const SIDEBAR_CACHE_KEY = 'nextstock.sidebar.snapshot';
 const SIDEBAR_CACHE_SCHEMA = 1;
 const SIDEBAR_CACHE_TTL_MS = 3 * 60 * 1000;
-const SIDEBAR_CONTEXT_TIMEOUT_MS = 8 * 1000;
+const SIDEBAR_CONTEXT_TIMEOUT_MS = 30 * 1000;
 
 const FALLBACK_CONTEXT: SystemContextResponse = {
   systemMode: 'PREVIEW',
@@ -180,6 +180,26 @@ function injectSidebarStyles(): void {
   const style = document.createElement('style');
   style.id = 'nextstock-sidebar-runtime-styles';
   style.textContent = `
+    .sidebar {
+      min-height: 100vh;
+      padding: 18px 12px;
+      background: var(--navy, #071b31);
+      color: #fff;
+    }
+
+    .sidebar .menu {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sidebar .menu-item {
+      margin: 2px 0;
+      padding: 7px 10px;
+      border-radius: 4px;
+      line-height: 1.25;
+    }
+
     .sidebar-brand {
       display: flex;
       flex-direction: column;

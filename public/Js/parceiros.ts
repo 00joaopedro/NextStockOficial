@@ -104,7 +104,7 @@ async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const shouldTimeout = method === 'GET';
   const controller = shouldTimeout ? new AbortController() : null;
   const timeoutId = shouldTimeout
-    ? window.setTimeout(() => controller?.abort(), 12000)
+    ? window.setTimeout(() => controller?.abort(), 60000)
     : null;
   try {
     const response = await fetch(`/api${path}`, {

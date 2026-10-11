@@ -60,7 +60,7 @@ async function api(path, options = {}) {
     const shouldTimeout = method === 'GET';
     const controller = shouldTimeout ? new AbortController() : null;
     const timeoutId = shouldTimeout
-        ? window.setTimeout(() => controller?.abort(), 12000)
+        ? window.setTimeout(() => controller?.abort(), 60000)
         : null;
     let response;
     try {
