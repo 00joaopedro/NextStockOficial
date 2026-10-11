@@ -162,22 +162,30 @@ function isDevSuperAdmin(user: any) {
 
 async function bootstrap() {
   try {
-    const context = await api<{
-      systemMode: string;
-      systemType?: string;
-      tenantType?: string;
-      isDevSuperAdmin?: boolean;
-    }>('/system/context');
-    if (context.isDevSuperAdmin !== true) {
+    const access = await api<{ isDevSuperAdmin?: boolean }>('/auth/access-context');
+    if (access.isDevSuperAdmin !== true) {
       document.body.dataset.locked = 'true';
       els.gate.innerHTML =
         '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
       return;
     }
-    state.preview = context.systemMode === 'PREVIEW';
-    (window as any).setNextStockBackendContext?.(context);
-    els.gate.remove();
+
+    // O contexto operacional pode depender do pool do banco; ele não deve
+    // impedir a abertura da tela nem a consulta dos parceiros.
     document.body.dataset.locked = 'false';
+    els.gate.remove();
+    void api<{
+      systemMode?: string;
+      systemType?: string;
+      tenantType?: string;
+      isDevSuperAdmin?: boolean;
+    }>('/system/context')
+      .then((context) => {
+        state.preview = context.systemMode === 'PREVIEW';
+        (window as any).setNextStockBackendContext?.(context);
+      })
+      .catch(() => undefined);
+
     await loadPartners();
   } catch (error) {
     document.body.dataset.locked = 'true';
