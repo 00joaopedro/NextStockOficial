@@ -48,13 +48,34 @@
   }
   function renderSeller(config) {
     const seller = config.seller || {};
-    $('sellerConfiguration').innerHTML = `
-      <div class="grid">
-        <label class="card"><strong>Nome do vendedor</strong><input readonly value="${seller.name || 'Não configurado (opcional)'}"></label>
-        <label class="card"><strong>Conta Mercado Pago</strong><input readonly value="${seller.accountConfigured ? 'Configurada no backend' : 'Token/collector ID ausentes'}"></label>
-        <label class="card"><strong>Chaves sensíveis</strong><input readonly value="Protegidas no Railway"></label>
-      </div>
-      <p class="muted">Para habilitar a cobrança automática, configure as variáveis indicadas abaixo no Railway. Não cole tokens ou segredos nesta página.</p>`;
+    const container = $('sellerConfiguration');
+    container.replaceChildren();
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    const fields = [
+      ['Nome do vendedor', seller.name || 'Não configurado (opcional)'],
+      ['Conta Mercado Pago', seller.accountConfigured ? 'Configurada no backend' : 'Token/collector ID ausentes'],
+      ['Chaves sensíveis', 'Protegidas no Railway'],
+    ];
+
+    for (const [label, value] of fields) {
+      const card = document.createElement('label');
+      card.className = 'card';
+      const title = document.createElement('strong');
+      title.textContent = label;
+      const input = document.createElement('input');
+      input.readOnly = true;
+      input.value = value;
+      card.append(title, input);
+      grid.appendChild(card);
+    }
+
+    container.appendChild(grid);
+    const note = document.createElement('p');
+    note.className = 'muted';
+    note.textContent = 'Para habilitar a cobrança automática, configure as variáveis indicadas abaixo no Railway. Não cole tokens ou segredos nesta página.';
+    container.appendChild(note);
   }
   function renderConfig(config) {
     renderSeller(config);
