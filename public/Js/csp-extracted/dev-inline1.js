@@ -10,6 +10,8 @@
       { label: 'Fornecedores', file: 'fornecedor.html', href: 'fornecedor.html' },
       { label: 'Despesas', file: 'despesas.html', href: 'despesas.html' },
       { label: 'Caixa', file: 'caixa.html', href: 'caixa.html' },
+      { label: 'Parceiros', file: 'parceiros.html', href: 'parceiros.html' },
+      { label: 'Promoção', file: 'promocao-admin.html', href: 'promocao-admin.html' },
       { label: 'Perfil', file: 'perfil.html', href: 'perfil.html' }
     ];
 
