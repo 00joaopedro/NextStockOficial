@@ -46,7 +46,18 @@
       ['Trial promocional', `${c.trialDays} dia`]
     ].map(([label,value]) => `<article class="card metric"><strong>${label}</strong><span>${value}</span></article>`).join('');
   }
+  function renderSeller(config) {
+    const seller = config.seller || {};
+    $('sellerConfiguration').innerHTML = `
+      <div class="grid">
+        <label class="card"><strong>Nome do vendedor</strong><input readonly value="${seller.name || 'Não configurado (opcional)'}"></label>
+        <label class="card"><strong>Conta Mercado Pago</strong><input readonly value="${seller.accountConfigured ? 'Configurada no backend' : 'Token/collector ID ausentes'}"></label>
+        <label class="card"><strong>Chaves sensíveis</strong><input readonly value="Protegidas no Railway"></label>
+      </div>
+      <p class="muted">Para habilitar a cobrança automática, configure as variáveis indicadas abaixo no Railway. Não cole tokens ou segredos nesta página.</p>`;
+  }
   function renderConfig(config) {
+    renderSeller(config);
     const general = config.required.map(item => `<div>${item.env}: <span class="${item.configured ? 'ok' : 'missing'}">${item.configured ? 'configurado' : 'ausente'}</span></div>`).join('');
     const normal = config.normalPlans.map(item => `<div>Normal ${item.planSlug}: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">${item.paymentLinkUrl}</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
     const promo = config.promotionalPlans.map(item => `<div>Promo ${item.planSlug}/${item.periodMonths}m: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">link</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
