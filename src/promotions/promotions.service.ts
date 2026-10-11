@@ -417,13 +417,37 @@ export class PromotionsService {
           payments: [],
           warning: 'Pagamentos temporariamente indisponíveis no painel.',
         })),
-      this.getPublicContext(slug),
+      this.getPublicContext(slug)
+        .then((context) => ({ context, warning: null as string | null }))
+        .catch(() => ({
+          context: {
+            slug: campaign.slug,
+            name: campaign.name,
+            status: campaign.status,
+            isOpen: this.isOpen(campaign, new Date()) && campaign.reservedCount + campaign.convertedCount < campaign.maxConversions,
+            trialDays: campaign.trialDays,
+            maxConversions: campaign.maxConversions,
+            reservedConversions: campaign.reservedCount,
+            convertedConversions: campaign.convertedCount,
+            remainingSlots: Math.max(
+              0,
+              campaign.maxConversions - campaign.reservedCount - campaign.convertedCount,
+            ),
+            startsAt: campaign.startsAt,
+            endsAt: campaign.endsAt,
+            closedAt: null,
+            closeReason: null,
+          },
+          warning: 'Status da campanha temporariamente indisponível; exibindo o último estado conhecido.',
+        })),
     ]);
-    const warnings = [reservationsResult.warning, paymentsResult.warning].filter(
-      (warning): warning is string => Boolean(warning),
-    );
+    const warnings = [
+      reservationsResult.warning,
+      paymentsResult.warning,
+      context.warning,
+    ].filter((warning): warning is string => Boolean(warning));
     return {
-      campaign: context,
+      campaign: context.context,
       configuration: this.getProductionConfiguration(),
       reservations: reservationsResult.reservations,
       payments: paymentsResult.payments,
