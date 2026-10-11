@@ -429,10 +429,14 @@ export class PromotionsService {
             maxConversions: campaign.maxConversions,
             reservedConversions: campaign.reservedCount,
             convertedConversions: campaign.convertedCount,
-            remainingSlots: Math.max(
-              0,
-              campaign.maxConversions - campaign.reservedCount - campaign.convertedCount,
-            ),
+            remainingSlots: this.isOpen(campaign, new Date())
+              ? Math.max(
+                  0,
+                  campaign.maxConversions -
+                    campaign.reservedCount -
+                    campaign.convertedCount,
+                )
+              : 0,
             startsAt: campaign.startsAt,
             endsAt: campaign.endsAt,
             closedAt: null,
