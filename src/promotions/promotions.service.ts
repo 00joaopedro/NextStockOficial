@@ -403,7 +403,9 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    const campaign = await this.findCampaign(slug);
+    let campaign = await this.findCampaign(slug);
+    await this.expireReservations(campaign.id);
+    campaign = await this.findCampaign(slug);
     const [reservationsResult, paymentsResult] = await Promise.all([
       this.listAdminReservations(campaign.id)
         .then((reservations) => ({
