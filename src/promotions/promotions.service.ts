@@ -421,6 +421,11 @@ export class PromotionsService {
     };
   }
 
+  async getAdminPayments(slug: string) {
+    const campaign = await this.findCampaign(slug);
+    return this.listAdminPayments(campaign.id);
+  }
+
   async listAdminReservations(campaignId: string) {
     const rows = await this.prisma.promotionReservation.findMany({
       where: { campaignId },
