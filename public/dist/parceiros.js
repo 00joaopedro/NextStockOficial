@@ -111,14 +111,13 @@ function isDevSuperAdmin(user) {
 }
 async function bootstrap() {
     try {
-        const profile = await api('/auth/profile');
-        if (!isDevSuperAdmin(profile.user)) {
+        const context = await api('/system/context');
+        if (context.isDevSuperAdmin !== true) {
             document.body.dataset.locked = 'true';
             els.gate.innerHTML =
                 '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
             return;
         }
-        const context = await api('/system/context');
         state.preview = context.systemMode === 'PREVIEW';
         window.setNextStockBackendContext?.(context);
         els.gate.remove();
