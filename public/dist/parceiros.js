@@ -56,8 +56,12 @@ function operationalHeaders() {
     }
 }
 async function api(path, options = {}) {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+    const method = (options.method || 'GET').toUpperCase();
+    const shouldTimeout = method === 'GET';
+    const controller = shouldTimeout ? new AbortController() : null;
+    const timeoutId = shouldTimeout
+        ? window.setTimeout(() => controller?.abort(), 12000)
+        : null;
     let response;
     try {
       response = await fetch(`/api${path}`, {
@@ -69,7 +73,7 @@ async function api(path, options = {}) {
             ...operationalHeaders(),
             ...(options.headers || {}),
         },
-        signal: options.signal || controller.signal,
+        ...(options.signal || controller ? { signal: options.signal || controller?.signal } : {}),
     });
     const body = await response.json().catch(() => ({}));
     if (response.status === 401) {
