@@ -123,8 +123,13 @@ async function bootstrap() {
             .then((context) => {
             state.preview = context.systemMode === 'PREVIEW';
             window.setNextStockBackendContext?.(context);
+            setBusy(state.busy);
         })
-            .catch(() => undefined);
+            .catch(() => {
+            // Falha de contexto deve bloquear mutações até a permissão operacional ser confirmada.
+            state.preview = true;
+            setBusy(state.busy);
+        });
         await loadPartners();
     }
     catch (error) {
