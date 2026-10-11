@@ -180,7 +180,8 @@ async function bootstrap() {
     els.gate.innerHTML =
       '<h2>Não foi possível validar o acesso</h2><p>Atualize a página ou tente novamente em instantes.</p>';
     showError(error);
-  }}
+  }
+}
 
 async function loadPartners() {
   setBusy(true);
