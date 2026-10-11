@@ -111,17 +111,20 @@ function isDevSuperAdmin(user) {
 }
 async function bootstrap() {
     try {
-        const context = await api('/system/context');
-        if (context.isDevSuperAdmin !== true) {
+        const access = await api('/auth/access-context');
+        if (access.isDevSuperAdmin !== true) {
             document.body.dataset.locked = 'true';
-            els.gate.innerHTML =
-                '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
+            els.gate.innerHTML = '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
             return;
         }
-        state.preview = context.systemMode === 'PREVIEW';
-        window.setNextStockBackendContext?.(context);
-        els.gate.remove();
         document.body.dataset.locked = 'false';
+        els.gate.remove();
+        void api('/system/context')
+            .then((context) => {
+            state.preview = context.systemMode === 'PREVIEW';
+            window.setNextStockBackendContext?.(context);
+        })
+            .catch(() => undefined);
         await loadPartners();
     }
     catch (error) {
