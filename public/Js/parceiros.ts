@@ -162,18 +162,18 @@ function isDevSuperAdmin(user: any) {
 
 async function bootstrap() {
   try {
-    const profile = await api<{ user: unknown }>('/auth/profile');
-    if (!isDevSuperAdmin(profile.user)) {
+    const context = await api<{
+      systemMode: string;
+      systemType?: string;
+      tenantType?: string;
+      isDevSuperAdmin?: boolean;
+    }>('/system/context');
+    if (context.isDevSuperAdmin !== true) {
       document.body.dataset.locked = 'true';
       els.gate.innerHTML =
         '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
       return;
     }
-    const context = await api<{
-      systemMode: string;
-      systemType?: string;
-      tenantType?: string;
-    }>('/system/context');
     state.preview = context.systemMode === 'PREVIEW';
     (window as any).setNextStockBackendContext?.(context);
     els.gate.remove();
