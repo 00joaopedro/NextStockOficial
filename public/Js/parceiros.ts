@@ -100,40 +100,50 @@ function operationalHeaders(): Record<string, string> {
 }
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    credentials: 'include',
-    ...options,
-    headers: {
-      Accept: 'application/json',
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...operationalHeaders(),
-      ...(options.headers || {}),
-    },
-  });
-  const body = await response.json().catch(() => ({}));
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+  try {
+    const response = await fetch(`/api${path}`, {
+      credentials: 'include',
+      ...options,
+      headers: {
+        Accept: 'application/json',
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...operationalHeaders(),
+        ...(options.headers || {}),
+      },
+      signal: options.signal || controller.signal,
+    });
+    const body = await response.json().catch(() => ({}));
 
-  if (response.status === 401) {
-    (window as any).clearNextStockSessionState?.();
-    window.location.href = 'index.html';
-    throw new Error('Sessão expirada.');
+    if (response.status === 401) {
+      (window as any).clearNextStockSessionState?.();
+      window.location.href = 'index.html';
+      throw new Error('Sessão expirada.');
+    }
+    if (!response.ok) {
+      const fallback: Record<number, string> = {
+        403: 'Acesso restrito ao Dev SuperAdmin.',
+        404: 'Registro não encontrado.',
+        409: 'Conflito ao salvar. Atualize a página.',
+        422: 'Dados inválidos.',
+        429: 'Muitas tentativas. Aguarde e tente novamente.',
+        500: 'Erro interno. Tente novamente.',
+      };
+      const message = Array.isArray(body.message)
+        ? body.message.join(' ')
+        : body.message || fallback[response.status] || 'Não foi possível concluir.';
+      throw new Error(message);
+    }
+    return body as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('O servidor demorou para responder. Atualize a página e tente novamente.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-  if (!response.ok) {
-    const fallback: Record<number, string> = {
-      403: 'Acesso restrito ao Dev SuperAdmin.',
-      404: 'Registro não encontrado.',
-      409: 'Conflito ao salvar. Atualize a página.',
-      422: 'Dados inválidos.',
-      429: 'Muitas tentativas. Aguarde e tente novamente.',
-      500: 'Erro interno. Tente novamente.',
-    };
-    const message = Array.isArray(body.message)
-      ? body.message.join(' ')
-      : body.message ||
-        fallback[response.status] ||
-        'Não foi possível concluir.';
-    throw new Error(message);
-  }
-  return body as T;
 }
 
 function isDevSuperAdmin(user: any) {
@@ -166,9 +176,11 @@ async function bootstrap() {
     document.body.dataset.locked = 'false';
     await loadPartners();
   } catch (error) {
+    document.body.dataset.locked = 'true';
+    els.gate.innerHTML =
+      '<h2>Não foi possível validar o acesso</h2><p>Atualize a página ou tente novamente em instantes.</p>';
     showError(error);
-  }
-}
+  }}
 
 async function loadPartners() {
   setBusy(true);
