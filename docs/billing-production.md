@@ -44,6 +44,7 @@ Variáveis protegidas necessárias:
 - `MERCADO_PAGO_ACCESS_TOKEN`
 - `MERCADO_PAGO_WEBHOOK_SECRET`
 - `MERCADO_PAGO_COLLECTOR_ID`
+- `MERCADO_PAGO_SELLER_NAME` (opcional; nome exibido somente no painel SuperAdmin, nunca usado como credencial)
 - `MERCADO_PAGO_MODE=production`
 - `MERCADO_PAGO_PLAN_ID_OURO`
 - `MERCADO_PAGO_PLAN_ID_ESMERALDA`
