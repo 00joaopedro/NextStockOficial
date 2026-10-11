@@ -431,6 +431,11 @@ export class PromotionsService {
     };
   }
 
+  async getAdminReservations(slug: string) {
+    const campaign = await this.findCampaign(slug);
+    return this.listAdminReservations(campaign.id);
+  }
+
   async getAdminPayments(slug: string) {
     const campaign = await this.findCampaign(slug);
     return this.listAdminPayments(campaign.id);
