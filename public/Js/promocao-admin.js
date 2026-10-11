@@ -50,7 +50,11 @@
     const general = config.required.map(item => `<div>${item.env}: <span class="${item.configured ? 'ok' : 'missing'}">${item.configured ? 'configurado' : 'ausente'}</span></div>`).join('');
     const normal = config.normalPlans.map(item => `<div>Normal ${item.planSlug}: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">${item.paymentLinkUrl}</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
     const promo = config.promotionalPlans.map(item => `<div>Promo ${item.planSlug}/${item.periodMonths}m: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">link</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
+    const ready = [...config.required, ...config.normalPlans, ...config.promotionalPlans].every(item => item.configured);
+    $('openBtn').disabled = !ready;
+    $('activateBtn').disabled = !ready;
     $('configuration').innerHTML = `<div class="muted">${general}</div><hr><div>${normal}</div><hr><div>${promo}</div><p class="muted">Webhook: ${config.webhookPath}</p>`;
+    return ready;
   }
   function renderRows(d) {
     $('reservations').innerHTML = d.reservations.map(row => {
@@ -60,7 +64,7 @@
     $('payments').innerHTML = d.payments.map(row => `<tr><td>${row.tenantId}</td><td>${row.status}</td><td>${money(row.amountCents)}</td><td>${row.provider}</td><td>${date(row.createdAt)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhum pagamento.</td></tr>';
   }
   async function load() {
-    try { const dashboard = await api('dashboard'); renderMetrics(dashboard.campaign); renderConfig(dashboard.configuration); renderRows(dashboard); const warnings = Array.isArray(dashboard.warnings) ? dashboard.warnings : []; setStatus(warnings.length ? `Campanha carregada com alerta: ${warnings.join(' ')}` : `Campanha carregada: ${dashboard.campaign.status}.`, warnings.length > 0); }
+    try { const dashboard = await api('dashboard'); renderMetrics(dashboard.campaign); const productionReady = renderConfig(dashboard.configuration); renderRows(dashboard); const warnings = Array.isArray(dashboard.warnings) ? dashboard.warnings : []; if (!productionReady) warnings.push('Configuração de produção incompleta; abertura e ativação estão bloqueadas.'); setStatus(warnings.length ? `Campanha carregada com alerta: ${warnings.join(' ')}` : `Campanha carregada: ${dashboard.campaign.status}.`, warnings.length > 0); }
     catch (error) { setStatus(error.message, true); }
   }
   $('refreshBtn').onclick = load;

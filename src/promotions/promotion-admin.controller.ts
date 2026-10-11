@@ -37,9 +37,8 @@ export class PromotionAdminController {
   }
 
   @Get(':slug/reservations')
-  async reservations(@Param('slug') slug: string) {
-    const dashboard = await this.promotions.getAdminDashboard(slug);
-    return dashboard.reservations;
+  reservations(@Param('slug') slug: string) {
+    return this.promotions.getAdminReservations(slug);
   }
 
   @Get(':slug/payments')
