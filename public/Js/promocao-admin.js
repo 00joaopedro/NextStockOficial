@@ -6,10 +6,38 @@
   const date = (value) => value ? new Date(value).toLocaleString('pt-BR') : '-';
   function setStatus(message, error = false) { status.textContent = message; status.className = `status${error ? ' error' : ''}`; }
   async function api(path, options = {}) {
-    const response = await fetch(`/api/promotions/admin/${encodeURIComponent(slug)}/${path}`, { credentials: 'same-origin', headers: { Accept: 'application/json', ...(options.body ? { 'Content-Type': 'application/json' } : {}) }, ...options });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.message || 'Operação não autorizada.');
-    return body;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 12000);
+    try {
+      const response = await fetch(
+        `/api/promotions/admin/${encodeURIComponent(slug)}/${path}`,
+        {
+          credentials: 'same-origin',
+          headers: {
+            Accept: 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(options.headers || {}),
+          },
+          ...options,
+          signal: options.signal || controller.signal,
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = Array.isArray(body.message)
+          ? body.message.join(' ')
+          : body.message;
+        throw new Error(detail || `Falha no painel (HTTP ${response.status}).`);
+      }
+      return body;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('O painel demorou para responder. Tente atualizar.');
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   }
   function renderMetrics(c) {
     $('metrics').innerHTML = [
@@ -32,7 +60,7 @@
     $('payments').innerHTML = d.payments.map(row => `<tr><td>${row.tenantId}</td><td>${row.status}</td><td>${money(row.amountCents)}</td><td>${row.provider}</td><td>${date(row.createdAt)}</td></tr>`).join('') || '<tr><td colspan="5">Nenhum pagamento.</td></tr>';
   }
   async function load() {
-    try { const dashboard = await api('dashboard'); renderMetrics(dashboard.campaign); renderConfig(dashboard.configuration); renderRows(dashboard); setStatus(`Campanha carregada: ${dashboard.campaign.status}.`); }
+    try { const dashboard = await api('dashboard'); renderMetrics(dashboard.campaign); renderConfig(dashboard.configuration); renderRows(dashboard); const warnings = Array.isArray(dashboard.warnings) ? dashboard.warnings : []; setStatus(warnings.length ? `Campanha carregada com alerta: ${warnings.join(' ')}` : `Campanha carregada: ${dashboard.campaign.status}.`, warnings.length > 0); }
     catch (error) { setStatus(error.message, true); }
   }
   $('refreshBtn').onclick = load;

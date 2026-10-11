@@ -43,9 +43,8 @@ export class PromotionAdminController {
   }
 
   @Get(':slug/payments')
-  async payments(@Param('slug') slug: string) {
-    const dashboard = await this.promotions.getAdminDashboard(slug);
-    return dashboard.payments;
+  payments(@Param('slug') slug: string) {
+    return this.promotions.getAdminPayments(slug);
   }
 
   @Post(':slug/open')
