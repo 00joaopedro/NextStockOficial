@@ -404,20 +404,30 @@ export class PromotionsService {
 
   async getAdminDashboard(slug: string) {
     const campaign = await this.findCampaign(slug);
-    const [reservations, paymentsResult, context] = await Promise.all([
-      this.listAdminReservations(campaign.id),
-      this.listAdminPayments(campaign.id).then((payments) => ({ payments, warning: null as string | null })).catch((error: unknown) => ({
-        payments: [],
-        warning: 'Pagamentos temporariamente indisponíveis no painel.',
-      })),
+    const [reservationsResult, paymentsResult, context] = await Promise.all([
+      this.listAdminReservations(campaign.id)
+        .then((reservations) => ({ reservations, warning: null as string | null }))
+        .catch((error: unknown) => ({
+          reservations: [],
+          warning: 'Reservas temporariamente indisponíveis no painel.',
+        })),
+      this.listAdminPayments(campaign.id)
+        .then((payments) => ({ payments, warning: null as string | null }))
+        .catch((error: unknown) => ({
+          payments: [],
+          warning: 'Pagamentos temporariamente indisponíveis no painel.',
+        })),
       this.getPublicContext(slug),
     ]);
+    const warnings = [reservationsResult.warning, paymentsResult.warning].filter(
+      (warning): warning is string => Boolean(warning),
+    );
     return {
       campaign: context,
       configuration: this.getProductionConfiguration(),
-      reservations,
+      reservations: reservationsResult.reservations,
       payments: paymentsResult.payments,
-      warnings: paymentsResult.warning ? [paymentsResult.warning] : [],
+      warnings,
     };
   }
 
