@@ -15,10 +15,12 @@ import type { Request } from '../common/http-types';
 import { DevSuperAdminGuard } from '../auth/dev-super-admin.guard';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CsrfOriginGuard } from '../security/csrf-origin.guard';
+import { BillingExempt } from '../billing/billing-exempt.decorator';
 import { AuditService } from '../audit/audit.service';
 import { PromotionsService } from './promotions.service';
 
 @Controller('promotions/admin')
+@BillingExempt()
 @UseGuards(JwtAuthGuard, DevSuperAdminGuard)
 export class PromotionAdminController {
   constructor(
