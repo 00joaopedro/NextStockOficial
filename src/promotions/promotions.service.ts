@@ -482,7 +482,7 @@ export class PromotionsService {
 
   async listAdminReservations(campaignId: string) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe('SET LOCAL statement_timeout = 5000');
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
       const rows = await tx.promotionReservation.findMany({
         where: { campaignId },
         orderBy: { reservedAt: 'desc' },
@@ -509,7 +509,7 @@ export class PromotionsService {
 
   async listAdminPayments(campaignId: string) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe('SET LOCAL statement_timeout = 5000');
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
       const reservations = await tx.promotionReservation.findMany({
         where: { campaignId, checkoutSessionId: { not: null } },
         select: { checkoutSessionId: true },
