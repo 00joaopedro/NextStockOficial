@@ -19,7 +19,6 @@ import {
 } from './promotion-offers';
 
 const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
-const ADMIN_QUERY_TIMEOUT_MS = 5_000;
 
 type ReserveInput = {
   slug: string;
@@ -412,7 +411,7 @@ export class PromotionsService {
     void this.expireReservations(campaign.id).catch(() => undefined);
 
     const [reservationsResult, paymentsResult] = await Promise.all([
-      this.withTimeout(this.listAdminReservations(campaign.id))
+      this.listAdminReservations(campaign.id)
         .then((reservations) => ({
           reservations,
           warning: null as string | null,
@@ -421,7 +420,7 @@ export class PromotionsService {
           reservations: [],
           warning: 'Reservas temporariamente indisponíveis no painel.',
         })),
-      this.withTimeout(this.listAdminPayments(campaign.id))
+      this.listAdminPayments(campaign.id)
         .then((payments) => ({
           payments,
           warning: null as string | null,
@@ -482,57 +481,63 @@ export class PromotionsService {
   }
 
   async listAdminReservations(campaignId: string) {
-    const rows = await this.prisma.promotionReservation.findMany({
-      where: { campaignId },
-      orderBy: { reservedAt: 'desc' },
-    });
-    const tenantIds = rows.map((row) => row.tenantId);
-    const tenants = await this.prisma.tenant.findMany({
-      where: { id: { in: tenantIds } },
-      select: { id: true, name: true, createdAt: true },
-    });
-    const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
-    return rows.map((row) => ({
-      id: row.id,
-      tenantId: row.tenantId,
-      tenant: tenantById.get(row.tenantId) ?? null,
-      partnerId: row.partnerId,
-      status: row.status,
-      reservedAt: row.reservedAt,
-      expiresAt: row.expiresAt,
-      convertedAt: row.convertedAt,
-      metadata: row.metadata,
-    }));
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL statement_timeout = 5000');
+      const rows = await tx.promotionReservation.findMany({
+        where: { campaignId },
+        orderBy: { reservedAt: 'desc' },
+      });
+      const tenantIds = rows.map((row) => row.tenantId);
+      const tenants = await tx.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true, name: true, createdAt: true },
+      });
+      const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
+      return rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        tenant: tenantById.get(row.tenantId) ?? null,
+        partnerId: row.partnerId,
+        status: row.status,
+        reservedAt: row.reservedAt,
+        expiresAt: row.expiresAt,
+        convertedAt: row.convertedAt,
+        metadata: row.metadata,
+      }));
+    }, { timeout: 7000 });
   }
 
   async listAdminPayments(campaignId: string) {
-    const reservations = await this.prisma.promotionReservation.findMany({
-      where: { campaignId, checkoutSessionId: { not: null } },
-      select: { checkoutSessionId: true },
-    });
-    const checkoutSessionIds = reservations
-      .map((row) => row.checkoutSessionId)
-      .filter((id): id is string => Boolean(id));
-    if (!checkoutSessionIds.length) return [];
-    return this.prisma.billingPayment.findMany({
-      where: { checkoutSessionId: { in: checkoutSessionIds } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        tenantId: true,
-        checkoutSessionId: true,
-        provider: true,
-        gatewayPaymentId: true,
-        status: true,
-        amountCents: true,
-        currency: true,
-        paidAt: true,
-        refundedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        metadata: true,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('SET LOCAL statement_timeout = 5000');
+      const reservations = await tx.promotionReservation.findMany({
+        where: { campaignId, checkoutSessionId: { not: null } },
+        select: { checkoutSessionId: true },
+      });
+      const checkoutSessionIds = reservations
+        .map((row) => row.checkoutSessionId)
+        .filter((id): id is string => Boolean(id));
+      if (!checkoutSessionIds.length) return [];
+      return tx.billingPayment.findMany({
+        where: { checkoutSessionId: { in: checkoutSessionIds } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          tenantId: true,
+          checkoutSessionId: true,
+          provider: true,
+          gatewayPaymentId: true,
+          status: true,
+          amountCents: true,
+          currency: true,
+          paidAt: true,
+          refundedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          metadata: true,
+        },
+      });
+    }, { timeout: 7000 });
   }
 
   getProductionConfiguration() {
@@ -656,26 +661,6 @@ export class PromotionsService {
         closeReason: reason.slice(0, 120),
       },
     });
-  }
-
-  private async withTimeout<T>(
-    promise: Promise<T>,
-    timeoutMs = ADMIN_QUERY_TIMEOUT_MS,
-  ): Promise<T> {
-    let timeout: NodeJS.Timeout | undefined;
-    try {
-      return await Promise.race([
-        promise,
-        new Promise<T>((_, reject) => {
-          timeout = setTimeout(
-            () => reject(new Error('Admin query timeout')),
-            timeoutMs,
-          );
-        }),
-      ]);
-    } finally {
-      if (timeout) clearTimeout(timeout);
-    }
   }
 
   private async setPromotionalTrial(
