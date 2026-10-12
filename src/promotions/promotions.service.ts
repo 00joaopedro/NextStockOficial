@@ -40,6 +40,8 @@ type CampaignSnapshot = {
   trialDays: number;
   startsAt: Date | null;
   endsAt: Date | null;
+  closedAt: Date | null;
+  closeReason: string | null;
 };
 
 @Injectable()
@@ -403,9 +405,11 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    let campaign = await this.findCampaign(slug);
-    await this.expireReservations(campaign.id);
-    campaign = await this.findCampaign(slug);
+    // A atualização de expirações é eventual: o painel não deve ficar bloqueado
+    // por uma transação de manutenção que não é necessária para renderizar a tela.
+    const campaign = await this.findCampaign(slug);
+    void this.expireReservations(campaign.id).catch(() => undefined);
+
     const [reservationsResult, paymentsResult] = await Promise.all([
       this.listAdminReservations(campaign.id)
         .then((reservations) => ({
@@ -448,8 +452,8 @@ export class PromotionsService {
         : 0,
       startsAt: campaign.startsAt,
       endsAt: campaign.endsAt,
-      closedAt: null,
-      closeReason: null,
+      closedAt: campaign.closedAt,
+      closeReason: campaign.closeReason,
     };
 
     const warnings = [
@@ -477,57 +481,63 @@ export class PromotionsService {
   }
 
   async listAdminReservations(campaignId: string) {
-    const rows = await this.prisma.promotionReservation.findMany({
-      where: { campaignId },
-      orderBy: { reservedAt: 'desc' },
-    });
-    const tenantIds = rows.map((row) => row.tenantId);
-    const tenants = await this.prisma.tenant.findMany({
-      where: { id: { in: tenantIds } },
-      select: { id: true, name: true, createdAt: true },
-    });
-    const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
-    return rows.map((row) => ({
-      id: row.id,
-      tenantId: row.tenantId,
-      tenant: tenantById.get(row.tenantId) ?? null,
-      partnerId: row.partnerId,
-      status: row.status,
-      reservedAt: row.reservedAt,
-      expiresAt: row.expiresAt,
-      convertedAt: row.convertedAt,
-      metadata: row.metadata,
-    }));
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+      const rows = await tx.promotionReservation.findMany({
+        where: { campaignId },
+        orderBy: { reservedAt: 'desc' },
+      });
+      const tenantIds = rows.map((row) => row.tenantId);
+      const tenants = await tx.tenant.findMany({
+        where: { id: { in: tenantIds } },
+        select: { id: true, name: true, createdAt: true },
+      });
+      const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
+      return rows.map((row) => ({
+        id: row.id,
+        tenantId: row.tenantId,
+        tenant: tenantById.get(row.tenantId) ?? null,
+        partnerId: row.partnerId,
+        status: row.status,
+        reservedAt: row.reservedAt,
+        expiresAt: row.expiresAt,
+        convertedAt: row.convertedAt,
+        metadata: row.metadata,
+      }));
+    }, { timeout: 7000 });
   }
 
   async listAdminPayments(campaignId: string) {
-    const reservations = await this.prisma.promotionReservation.findMany({
-      where: { campaignId, checkoutSessionId: { not: null } },
-      select: { checkoutSessionId: true },
-    });
-    const checkoutSessionIds = reservations
-      .map((row) => row.checkoutSessionId)
-      .filter((id): id is string => Boolean(id));
-    if (!checkoutSessionIds.length) return [];
-    return this.prisma.billingPayment.findMany({
-      where: { checkoutSessionId: { in: checkoutSessionIds } },
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        tenantId: true,
-        checkoutSessionId: true,
-        provider: true,
-        gatewayPaymentId: true,
-        status: true,
-        amountCents: true,
-        currency: true,
-        paidAt: true,
-        refundedAt: true,
-        createdAt: true,
-        updatedAt: true,
-        metadata: true,
-      },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+      const reservations = await tx.promotionReservation.findMany({
+        where: { campaignId, checkoutSessionId: { not: null } },
+        select: { checkoutSessionId: true },
+      });
+      const checkoutSessionIds = reservations
+        .map((row) => row.checkoutSessionId)
+        .filter((id): id is string => Boolean(id));
+      if (!checkoutSessionIds.length) return [];
+      return tx.billingPayment.findMany({
+        where: { checkoutSessionId: { in: checkoutSessionIds } },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          tenantId: true,
+          checkoutSessionId: true,
+          provider: true,
+          gatewayPaymentId: true,
+          status: true,
+          amountCents: true,
+          currency: true,
+          paidAt: true,
+          refundedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          metadata: true,
+        },
+      });
+    }, { timeout: 7000 });
   }
 
   getProductionConfiguration() {
