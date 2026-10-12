@@ -205,6 +205,10 @@
   $('openBtn').onclick = () => void runAction('open', 'Campanha aberta com sucesso.');
   $('activateBtn').onclick = () => void runAction('activate', 'Campanha ativada em produção.');
   $('closeBtn').onclick = () => void runAction('close', 'Campanha encerrada com sucesso.', { reason: 'MANUAL_SUPERADMIN' });
+  // Nenhuma ação de mutação pode ocorrer antes do primeiro status confiável.
+  $('openBtn').disabled = true;
+  $('activateBtn').disabled = true;
+  $('closeBtn').disabled = true;
   // Aguarda a inicialização da sessão/sidebar e repete falhas transitórias do primeiro GET.
   window.setTimeout(() => void load({ initial: true }), 250);
 })();
