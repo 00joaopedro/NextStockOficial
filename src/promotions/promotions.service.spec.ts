@@ -32,6 +32,7 @@ describe('PromotionsService', () => {
       },
       $transaction: jest.fn(async (callback: any) =>
         callback({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           promotionReservation: {
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
           },
@@ -77,6 +78,7 @@ describe('PromotionsService', () => {
       },
       $transaction: jest.fn(async (callback: any) =>
         callback({
+          $executeRaw: jest.fn().mockResolvedValue(0),
           promotionReservation: {
             updateMany: jest.fn().mockResolvedValue({ count: 0 }),
           },
