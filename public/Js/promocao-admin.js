@@ -33,7 +33,9 @@
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         const detail = Array.isArray(body.message) ? body.message.join(' ') : body.message;
-        throw new Error(detail || `Falha no painel (HTTP ${response.status}).`);
+        const error = new Error(detail || `Falha no painel (HTTP ${response.status}).`);
+        error.status = response.status;
+        throw error;
       }
       return body;
     } catch (error) {
@@ -142,24 +144,35 @@
     setStatus(message);
   }
 
-  async function load({ preserveStatus = false } = {}) {
+  async function load({ preserveStatus = false, initial = false } = {}) {
     if (loading) return false;
     loading = true;
     updateActionState();
-    if (!preserveStatus) setStatus('Atualizando painel...');
+    if (!preserveStatus) setStatus(initial ? 'Validando acesso e carregando painel...' : 'Atualizando painel...');
+    const maxAttempts = initial ? 3 : 1;
     try {
-      const dashboard = await api('dashboard');
-      lastDashboard = dashboard;
-      renderMetrics(dashboard.campaign);
-      const productionReady = renderConfig(dashboard.configuration || {});
-      renderRows(dashboard);
-      const warnings = Array.isArray(dashboard.warnings) ? [...dashboard.warnings] : [];
-      if (!productionReady) warnings.push('Configuração de produção incompleta; abertura e ativação estão bloqueadas.');
-      updateActionState(dashboard.campaign, productionReady);
-      if (!preserveStatus || warnings.length) {
-        setStatus(warnings.length ? `Campanha carregada com alerta: ${warnings.join(' ')}` : `Campanha carregada: ${dashboard.campaign.status}.`, warnings.length > 0);
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const dashboard = await api('dashboard');
+          lastDashboard = dashboard;
+          renderMetrics(dashboard.campaign);
+          const productionReady = renderConfig(dashboard.configuration || {});
+          renderRows(dashboard);
+          const warnings = Array.isArray(dashboard.warnings) ? [...dashboard.warnings] : [];
+          if (!productionReady) warnings.push('Configuração de produção incompleta; abertura e ativação estão bloqueadas.');
+          updateActionState(dashboard.campaign, productionReady);
+          if (!preserveStatus || warnings.length) {
+            setStatus(warnings.length ? `Campanha carregada com alerta: ${warnings.join(' ')}` : `Campanha carregada: ${dashboard.campaign.status}.`, warnings.length > 0);
+          }
+          return true;
+        } catch (error) {
+          const retryable = [499, 500, 502, 503, 504].includes(error?.status);
+          if (!initial || !retryable || attempt === maxAttempts) throw error;
+          setStatus(`Servidor ocupado; tentando carregar novamente (${attempt + 1}/${maxAttempts})...`);
+          await new Promise((resolve) => window.setTimeout(resolve, 350 * attempt));
+        }
       }
-      return true;
+      return false;
     } catch (error) {
       if (!preserveStatus) setStatus(error.message, true);
       return false;
@@ -192,5 +205,10 @@
   $('openBtn').onclick = () => void runAction('open', 'Campanha aberta com sucesso.');
   $('activateBtn').onclick = () => void runAction('activate', 'Campanha ativada em produção.');
   $('closeBtn').onclick = () => void runAction('close', 'Campanha encerrada com sucesso.', { reason: 'MANUAL_SUPERADMIN' });
-  void load();
+  // Nenhuma ação de mutação pode ocorrer antes do primeiro status confiável.
+  $('openBtn').disabled = true;
+  $('activateBtn').disabled = true;
+  $('closeBtn').disabled = true;
+  // Aguarda a inicialização da sessão/sidebar e repete falhas transitórias do primeiro GET.
+  window.setTimeout(() => void load({ initial: true }), 250);
 })();
