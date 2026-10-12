@@ -705,7 +705,7 @@ export class PromotionsService {
         });
       }
       return updated.count;
-    });
+    }, { timeout: 7000 });
     return expired;
   }
 
