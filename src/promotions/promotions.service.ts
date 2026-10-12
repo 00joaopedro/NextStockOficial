@@ -405,10 +405,10 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    // A expiração é executada nos fluxos de reserva/contexto público.
-    // O dashboard administrativo deve ser somente leitura para não concorrer
-    // com a própria consulta inicial e gerar alertas transitórios.
+    // Expirações são concluídas antes das leituras para que o snapshot
+    // não conte reservas vencidas, sem concorrer com as consultas do painel.
     const campaign = await this.findCampaign(slug);
+    await this.expireReservations(campaign.id).catch(() => undefined);
 
     const [reservationsResult, paymentsResult] = await Promise.all([
       this.listAdminReservations(campaign.id)
@@ -508,19 +508,17 @@ export class PromotionsService {
   }
 
   async listAdminPayments(campaignId: string) {
-    // A maioria das campanhas começa sem checkout; nesse caso não abrimos
-    // uma transação adicional nem consultamos a tabela de pagamentos.
-    const reservations = await this.prisma.promotionReservation.findMany({
-      where: { campaignId, checkoutSessionId: { not: null } },
-      select: { checkoutSessionId: true },
-    });
-    const checkoutSessionIds = reservations
-      .map((row) => row.checkoutSessionId)
-      .filter((id): id is string => Boolean(id));
-    if (!checkoutSessionIds.length) return [];
-
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+      const reservations = await tx.promotionReservation.findMany({
+        where: { campaignId, checkoutSessionId: { not: null } },
+        select: { checkoutSessionId: true },
+      });
+      const checkoutSessionIds = reservations
+        .map((row) => row.checkoutSessionId)
+        .filter((id): id is string => Boolean(id));
+      if (!checkoutSessionIds.length) return [];
+
       return tx.billingPayment.findMany({
         where: { checkoutSessionId: { in: checkoutSessionIds } },
         orderBy: { createdAt: 'desc' },
@@ -684,6 +682,7 @@ export class PromotionsService {
 
   private async expireReservations(campaignId: string, now = new Date()) {
     const expired = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
       const updated = await tx.promotionReservation.updateMany({
         where: {
           campaignId,
