@@ -403,55 +403,62 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    const campaign = await this.findCampaign(slug);
-    const [reservationsResult, paymentsResult, context] = await Promise.all([
+    let campaign = await this.findCampaign(slug);
+    await this.expireReservations(campaign.id);
+    campaign = await this.findCampaign(slug);
+    const [reservationsResult, paymentsResult] = await Promise.all([
       this.listAdminReservations(campaign.id)
-        .then((reservations) => ({ reservations, warning: null as string | null }))
-        .catch((error: unknown) => ({
+        .then((reservations) => ({
+          reservations,
+          warning: null as string | null,
+        }))
+        .catch(() => ({
           reservations: [],
           warning: 'Reservas temporariamente indisponíveis no painel.',
         })),
       this.listAdminPayments(campaign.id)
-        .then((payments) => ({ payments, warning: null as string | null }))
-        .catch((error: unknown) => ({
+        .then((payments) => ({
+          payments,
+          warning: null as string | null,
+        }))
+        .catch(() => ({
           payments: [],
           warning: 'Pagamentos temporariamente indisponíveis no painel.',
         })),
-      this.getPublicContext(slug)
-        .then((context) => ({ context, warning: null as string | null }))
-        .catch(() => ({
-          context: {
-            slug: campaign.slug,
-            name: campaign.name,
-            status: campaign.status,
-            isOpen: this.isOpen(campaign, new Date()) && campaign.reservedCount + campaign.convertedCount < campaign.maxConversions,
-            trialDays: campaign.trialDays,
-            maxConversions: campaign.maxConversions,
-            reservedConversions: campaign.reservedCount,
-            convertedConversions: campaign.convertedCount,
-            remainingSlots: this.isOpen(campaign, new Date())
-              ? Math.max(
-                  0,
-                  campaign.maxConversions -
-                    campaign.reservedCount -
-                    campaign.convertedCount,
-                )
-              : 0,
-            startsAt: campaign.startsAt,
-            endsAt: campaign.endsAt,
-            closedAt: null,
-            closeReason: null,
-          },
-          warning: 'Status da campanha temporariamente indisponível; exibindo o último estado conhecido.',
-        })),
     ]);
+
+    const now = new Date();
+    const isOpen = this.isOpen(campaign, now);
+    const campaignContext = {
+      slug: campaign.slug,
+      name: campaign.name,
+      status: campaign.status,
+      isOpen,
+      trialDays: campaign.trialDays,
+      maxConversions: campaign.maxConversions,
+      reservedConversions: campaign.reservedCount,
+      convertedConversions: campaign.convertedCount,
+      remainingSlots: isOpen
+        ? Math.max(
+            0,
+            campaign.maxConversions -
+              campaign.reservedCount -
+              campaign.convertedCount,
+          )
+        : 0,
+      startsAt: campaign.startsAt,
+      endsAt: campaign.endsAt,
+      closedAt: null,
+      closeReason: null,
+    };
+
     const warnings = [
       reservationsResult.warning,
       paymentsResult.warning,
-      context.warning,
     ].filter((warning): warning is string => Boolean(warning));
+
     return {
-      campaign: context.context,
+      campaign: campaignContext,
       configuration: this.getProductionConfiguration(),
       reservations: reservationsResult.reservations,
       payments: paymentsResult.payments,
@@ -585,6 +592,14 @@ export class PromotionsService {
       configured: Boolean(process.env[offer.gatewayPlanEnv]?.trim()),
     }));
     return {
+      seller: {
+        name: process.env.MERCADO_PAGO_SELLER_NAME?.trim() || null,
+        accountConfigured: Boolean(
+          process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim() &&
+            process.env.MERCADO_PAGO_COLLECTOR_ID?.trim(),
+        ),
+        credentialsRemainInRailway: true,
+      },
       required,
       normalPlans,
       promotionalPlans,

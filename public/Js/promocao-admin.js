@@ -46,7 +46,39 @@
       ['Trial promocional', `${c.trialDays} dia`]
     ].map(([label,value]) => `<article class="card metric"><strong>${label}</strong><span>${value}</span></article>`).join('');
   }
+  function renderSeller(config) {
+    const seller = config.seller || {};
+    const container = $('sellerConfiguration');
+    container.replaceChildren();
+
+    const grid = document.createElement('div');
+    grid.className = 'grid';
+    const fields = [
+      ['Nome do vendedor', seller.name || 'Não configurado (opcional)'],
+      ['Conta Mercado Pago', seller.accountConfigured ? 'Configurada no backend' : 'Token/collector ID ausentes'],
+      ['Chaves sensíveis', 'Protegidas no Railway'],
+    ];
+
+    for (const [label, value] of fields) {
+      const card = document.createElement('label');
+      card.className = 'card';
+      const title = document.createElement('strong');
+      title.textContent = label;
+      const input = document.createElement('input');
+      input.readOnly = true;
+      input.value = value;
+      card.append(title, input);
+      grid.appendChild(card);
+    }
+
+    container.appendChild(grid);
+    const note = document.createElement('p');
+    note.className = 'muted';
+    note.textContent = 'Para habilitar a cobrança automática, configure as variáveis indicadas abaixo no Railway. Não cole tokens ou segredos nesta página.';
+    container.appendChild(note);
+  }
   function renderConfig(config) {
+    renderSeller(config);
     const general = config.required.map(item => `<div>${item.env}: <span class="${item.configured ? 'ok' : 'missing'}">${item.configured ? 'configurado' : 'ausente'}</span></div>`).join('');
     const normal = config.normalPlans.map(item => `<div>Normal ${item.planSlug}: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">${item.paymentLinkUrl}</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
     const promo = config.promotionalPlans.map(item => `<div>Promo ${item.planSlug}/${item.periodMonths}m: <a href="${item.paymentLinkUrl}" target="_blank" rel="noopener">link</a> · <span class="${item.configured ? 'ok' : 'missing'}">ID ${item.configured ? 'OK' : 'ausente'}</span></div>`).join('');
