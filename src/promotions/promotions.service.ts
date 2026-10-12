@@ -41,6 +41,8 @@ type CampaignSnapshot = {
   trialDays: number;
   startsAt: Date | null;
   endsAt: Date | null;
+  closedAt: Date | null;
+  closeReason: string | null;
 };
 
 @Injectable()
