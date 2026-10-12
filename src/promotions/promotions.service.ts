@@ -405,10 +405,10 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    // A atualização de expirações é eventual: o painel não deve ficar bloqueado
-    // por uma transação de manutenção que não é necessária para renderizar a tela.
+    // Expirações são concluídas antes das leituras para que o snapshot
+    // não conte reservas vencidas, sem concorrer com as consultas do painel.
     const campaign = await this.findCampaign(slug);
-    void this.expireReservations(campaign.id).catch(() => undefined);
+    await this.expireReservations(campaign.id).catch(() => undefined);
 
     const [reservationsResult, paymentsResult] = await Promise.all([
       this.listAdminReservations(campaign.id)
@@ -518,6 +518,7 @@ export class PromotionsService {
         .map((row) => row.checkoutSessionId)
         .filter((id): id is string => Boolean(id));
       if (!checkoutSessionIds.length) return [];
+
       return tx.billingPayment.findMany({
         where: { checkoutSessionId: { in: checkoutSessionIds } },
         orderBy: { createdAt: 'desc' },
@@ -681,6 +682,7 @@ export class PromotionsService {
 
   private async expireReservations(campaignId: string, now = new Date()) {
     const expired = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
       const updated = await tx.promotionReservation.updateMany({
         where: {
           campaignId,
@@ -703,7 +705,7 @@ export class PromotionsService {
         });
       }
       return updated.count;
-    });
+    }, { timeout: 7000 });
     return expired;
   }
 
