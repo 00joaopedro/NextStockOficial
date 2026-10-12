@@ -132,7 +132,10 @@
       maxConversions: campaign.maxConversions ?? previous.maxConversions ?? 0,
       trialDays: campaign.trialDays ?? previous.trialDays ?? 0,
     };
-    next.remainingSlots = Math.max(0, Number(next.maxConversions) - Number(next.reservedConversions) - Number(next.convertedConversions));
+    const campaignIsOpen = next.status === 'ACTIVE' && next.isOpen !== false;
+    next.remainingSlots = campaignIsOpen
+      ? Math.max(0, Number(next.maxConversions) - Number(next.reservedConversions) - Number(next.convertedConversions))
+      : 0;
     if (lastDashboard) lastDashboard = { ...lastDashboard, campaign: next };
     renderMetrics(next);
     updateActionState(next);
@@ -167,13 +170,21 @@
   }
 
   async function runAction(path, successMessage, body) {
+    if (loading) return;
+    loading = true;
+    updateActionState();
+    setStatus('Salvando alteração...');
     try {
       const campaign = await api(path, { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) });
       applyCampaignResult(campaign, successMessage);
+      loading = false;
       const refreshed = await load({ preserveStatus: true });
       if (!refreshed) setStatus(`${successMessage} O status foi aplicado localmente; use Atualizar para consultar os dados completos.`);
     } catch (error) {
       setStatus(error.message, true);
+    } finally {
+      loading = false;
+      updateActionState();
     }
   }
 
