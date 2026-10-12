@@ -19,6 +19,7 @@ import {
 } from './promotion-offers';
 
 const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
+const ADMIN_QUERY_TIMEOUT_MS = 5_000;
 
 type ReserveInput = {
   slug: string;
@@ -403,11 +404,13 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    let campaign = await this.findCampaign(slug);
-    await this.expireReservations(campaign.id);
-    campaign = await this.findCampaign(slug);
+    // A atualização de expirações é eventual: o painel não deve ficar bloqueado
+    // por uma transação de manutenção que não é necessária para renderizar a tela.
+    const campaign = await this.findCampaign(slug);
+    void this.expireReservations(campaign.id).catch(() => undefined);
+
     const [reservationsResult, paymentsResult] = await Promise.all([
-      this.listAdminReservations(campaign.id)
+      this.withTimeout(this.listAdminReservations(campaign.id))
         .then((reservations) => ({
           reservations,
           warning: null as string | null,
@@ -416,7 +419,7 @@ export class PromotionsService {
           reservations: [],
           warning: 'Reservas temporariamente indisponíveis no painel.',
         })),
-      this.listAdminPayments(campaign.id)
+      this.withTimeout(this.listAdminPayments(campaign.id))
         .then((payments) => ({
           payments,
           warning: null as string | null,
@@ -448,8 +451,8 @@ export class PromotionsService {
         : 0,
       startsAt: campaign.startsAt,
       endsAt: campaign.endsAt,
-      closedAt: null,
-      closeReason: null,
+      closedAt: campaign.closedAt,
+      closeReason: campaign.closeReason,
     };
 
     const warnings = [
@@ -651,6 +654,26 @@ export class PromotionsService {
         closeReason: reason.slice(0, 120),
       },
     });
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs = ADMIN_QUERY_TIMEOUT_MS,
+  ): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('Admin query timeout')),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   private async setPromotionalTrial(
