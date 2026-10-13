@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS "billing_subscription_operations" (
   "provider" "PaymentGatewayProvider" NOT NULL,
   "operation" TEXT NOT NULL DEFAULT 'CANCEL',
   "state" "BillingSubscriptionOperationState" NOT NULL DEFAULT 'CLAIMED',
-  "claim_token" UUID NOT NULL,
+  "claim_token" UUID,
   "lease_expires_at" TIMESTAMP(3) NOT NULL,
   "failure_code" TEXT,
   "completed_at" TIMESTAMP(3),
