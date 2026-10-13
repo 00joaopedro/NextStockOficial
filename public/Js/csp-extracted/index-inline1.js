@@ -14,6 +14,7 @@
     const referralCode = new URLSearchParams(window.location.search).get('ref');
     let referralReady = !referralCode;
     let referralSystemType = null;
+    let referralIsUniversal = false;
 
     const PROMOTION_SELECTION_KEY = 'nextstockPromotionSelection';
     const PROMOTION_RESERVATION_KEY = 'nextstockPromotionReservation';
@@ -238,6 +239,12 @@
       return { res, data };
     }
 
+    document.getElementById('registerSystemType').addEventListener('change', () => {
+      if (!referralCode || !referralIsUniversal) return;
+      referralSystemType = document.getElementById('registerSystemType').value || null;
+      referralReady = ['padrao', 'petshop'].includes(referralSystemType);
+    });
+
     async function validateReferralLink() {
       if (!referralCode) return;
 
@@ -246,12 +253,27 @@
           '/referrals/' + encodeURIComponent(referralCode) + '/context',
           { method: 'GET' }
         );
-        referralSystemType = data.systemType;
-        referralReady = true;
+        referralIsUniversal = data.isUniversal === true;
+        const allowedSystemTypes = Array.isArray(data.allowedSystemTypes)
+          ? data.allowedSystemTypes
+          : (data.systemType ? [data.systemType] : []);
+        const requestedSystemType = new URLSearchParams(window.location.search).get('systemType');
         const systemTypeInput = document.getElementById('registerSystemType');
-        systemTypeInput.value = referralSystemType;
-        systemTypeInput.disabled = true;
-        setStatus('Link de indicação validado. Faça seu cadastro.');
+        if (referralIsUniversal) {
+          if (requestedSystemType && allowedSystemTypes.includes(requestedSystemType)) {
+            systemTypeInput.value = requestedSystemType;
+          }
+          referralSystemType = systemTypeInput.value || null;
+          systemTypeInput.disabled = false;
+          referralReady = allowedSystemTypes.includes(systemTypeInput.value);
+          setStatus('Link universal validado. Escolha o tipo de sistema e faça seu cadastro.');
+        } else {
+          referralSystemType = data.systemType;
+          systemTypeInput.value = referralSystemType;
+          systemTypeInput.disabled = true;
+          referralReady = allowedSystemTypes.includes(referralSystemType);
+          setStatus('Link de indicação validado. Faça seu cadastro.');
+        }
       } catch {
         referralReady = false;
         setStatus('Link de indicação inválido ou indisponível.', true);
@@ -308,7 +330,11 @@
       const name = document.getElementById('registerName').value.trim();
       const companyName = document.getElementById('registerCompanyName').value.trim();
       const password = document.getElementById('registerPassword').value;
-      const systemType = referralSystemType || document.getElementById('registerSystemType').value;
+      const systemType = document.getElementById('registerSystemType').value;
+      if (!systemType || (referralCode && referralIsUniversal && !['padrao', 'petshop'].includes(systemType))) {
+        setStatus('Escolha um tipo de sistema válido para este link.', true);
+        return;
+      }
 
       if (!/^[A-Za-z0-9]{6,128}$/.test(password)) {
         setStatus('Erro no cadastro:\n\nA senha deve ter entre 6 e 128 caracteres e aceitar apenas letras e numeros.', true);

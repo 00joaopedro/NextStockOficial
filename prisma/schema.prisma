@@ -1959,6 +1959,7 @@ model Partner {
   referralCodePrefix String            @map("referral_code_prefix")
   linkStatus         PartnerLinkStatus @default(ACTIVE) @map("link_status")
   systemType         SystemType        @map("system_type")
+  isUniversal        Boolean           @default(false) @map("is_universal")
   expiresAt          DateTime?         @map("expires_at")
   lastUsedAt         DateTime?         @map("last_used_at")
   createdById        String            @map("created_by_id") @db.Uuid

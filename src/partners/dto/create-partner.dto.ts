@@ -1,5 +1,6 @@
 import { SystemType } from '@prisma/client';
 import {
+  IsBoolean,
   IsEnum,
   IsISO8601,
   IsOptional,
@@ -26,6 +27,10 @@ export class CreatePartnerDto {
 
   @IsEnum(SystemType)
   systemType!: SystemType;
+
+  @IsOptional()
+  @IsBoolean()
+  isUniversal?: boolean;
 
   @IsOptional()
   @IsISO8601()

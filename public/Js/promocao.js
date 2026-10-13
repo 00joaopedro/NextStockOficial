@@ -71,6 +71,7 @@
       planSlug: button.dataset.plan,
       periodMonths: Number(button.dataset.period),
       referralCode: ref,
+      systemType: new URLSearchParams(window.location.search).get('systemType') || null,
       selectedAt: new Date().toISOString(),
     };
     sessionStorage.setItem(SELECTION_KEY, JSON.stringify(selection));
@@ -85,6 +86,9 @@
     });
     if (selection.referralCode) {
       params.set('ref', selection.referralCode);
+    }
+    if (selection.systemType) {
+      params.set('systemType', selection.systemType);
     }
     return `/index.html?${params.toString()}#cadastro`;
   }

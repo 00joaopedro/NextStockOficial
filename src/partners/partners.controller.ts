@@ -145,7 +145,7 @@ export class PublicReferralsController {
     @Param('code') code: string,
     @Headers('cache-control') _cacheControl?: string,
   ) {
-    const referral = await this.referrals.resolveActive(code);
+    const referral = await this.referrals.resolveContext(code);
     if (!referral) {
       await this.referrals.recordRejected(code);
       throw new NotFoundException(
@@ -155,7 +155,9 @@ export class PublicReferralsController {
 
     return {
       valid: true,
-      systemType: referral.systemType,
+      systemType: referral.isUniversal ? null : referral.systemType,
+      isUniversal: referral.isUniversal,
+      allowedSystemTypes: referral.allowedSystemTypes,
     };
   }
 }

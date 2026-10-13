@@ -150,7 +150,10 @@ export class AuthService {
     let referral: ValidReferral | null = null;
     if (input.referralCode) {
       referral =
-        (await this.referrals?.resolveActive(input.referralCode)) ?? null;
+        (await this.referrals?.resolveActive(
+          input.referralCode,
+          input.systemType,
+        )) ?? null;
       if (!referral) {
         await this.referrals?.recordRejected(input.referralCode);
         throw new BadRequestException(

@@ -10,6 +10,7 @@ describe('ReferralRegistrationService', () => {
         findFirst: jest.fn().mockResolvedValue({
           id: 'partner',
           systemType: SystemType.petshop,
+          isUniversal: false,
         }),
       },
     } as any;
@@ -23,7 +24,7 @@ describe('ReferralRegistrationService', () => {
         linkStatus: PartnerLinkStatus.ACTIVE,
         deletedAt: null,
       }),
-      select: { id: true, systemType: true },
+      select: { id: true, systemType: true, isUniversal: true },
     });
   });
 
@@ -33,5 +34,41 @@ describe('ReferralRegistrationService', () => {
     } as any;
     const service = new ReferralRegistrationService(prisma);
     await expect(service.resolveActive(code)).resolves.toBeNull();
+  });
+});
+
+
+describe('ReferralRegistrationService universal links', () => {
+  const code = 'B'.repeat(43);
+
+  it('exige e registra o modo escolhido para link universal', async () => {
+    const prisma = {
+      partner: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'partner',
+          systemType: SystemType.padrao,
+          isUniversal: true,
+        }),
+      },
+    } as any;
+    const service = new ReferralRegistrationService(prisma);
+    await expect(service.resolveActive(code, SystemType.petshop)).resolves.toEqual({
+      partnerId: 'partner',
+      systemType: SystemType.petshop,
+    });
+  });
+
+  it('rejeita modo não permitido no link universal', async () => {
+    const prisma = {
+      partner: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'partner',
+          systemType: SystemType.padrao,
+          isUniversal: true,
+        }),
+      },
+    } as any;
+    const service = new ReferralRegistrationService(prisma);
+    await expect(service.resolveActive(code, 'invalido')).resolves.toBeNull();
   });
 });

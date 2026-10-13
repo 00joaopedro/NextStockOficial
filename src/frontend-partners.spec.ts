@@ -40,6 +40,9 @@ describe('parceiros frontend production integration', () => {
     expect(script).toContain('/system/context');
     expect(script).toMatch(/['"]\/partners['"]/);
     expect(script).toContain('/referral-link/status');
+    expect(script).toContain('universalLink');
+    expect(html).toContain('value="universal"');
+    expect(readFileSync(join(process.cwd(), 'public', 'venda.html'), 'utf8')).toContain('venda.js');
     expect(script).toContain('/payment-status');
   });
 

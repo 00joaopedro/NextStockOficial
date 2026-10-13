@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Escolha seu sistema | NextStock</title>
+  <style>
+    :root{font-family:Inter,Arial,sans-serif;color:#172033;background:#f3f7fb}
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box}
+    main{width:min(760px,100%);background:#fff;border:1px solid #dce4ef;border-radius:18px;padding:28px;box-shadow:0 12px 40px rgba(7,27,49,.1)}
+    h1{margin:0 0 8px;color:#123b62}.muted{color:#64748b}.status{padding:12px;border-radius:9px;background:#fee4e2;color:#8a1c14}
+    .modes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:22px}
+    .mode{border:1px solid #dce4ef;border-radius:14px;padding:18px}.mode h2{margin:0 0 5px}
+    button{width:100%;min-height:42px;border:0;border-radius:8px;background:#1455a0;color:#fff;font-weight:700;cursor:pointer;margin-top:10px}
+    button.secondary{background:#e8eef7;color:#16345b}.hidden{display:none}
+    @media(max-width:600px){.modes{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Como você quer usar o NextStock?</h1>
+    <p class="muted">Escolha o sistema e depois continue pelo cadastro normal ou pela promoção disponível.</p>
+    <div id="status" class="status hidden" role="alert"></div>
+    <section id="modes" class="modes" aria-live="polite"></section>
+  </main>
+  <script src="./Js/venda.js"></script>
+</body>
+</html>
