@@ -626,9 +626,6 @@ function registerPageHandlers() {
     state.referralPage += 1;
     void loadReferrals();
   });
-  
-  void bootstrap();
-  
 }
 
 function failPageStartup(error: unknown) {
@@ -650,4 +647,3 @@ try {
   failPageStartup(error);
 }
 
-export {};

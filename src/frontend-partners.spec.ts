@@ -20,6 +20,10 @@ describe('parceiros frontend production integration', () => {
     join(process.cwd(), 'public', 'Js', 'parceiros.ts'),
     'utf8',
   );
+  const compiledScript = readFileSync(
+    join(process.cwd(), 'public', 'dist', 'parceiros.js'),
+    'utf8',
+  );
 
   it('nao contem mock, senha ou persistencia comercial local', () => {
     expect(html).not.toMatch(/senha|mock|localStorage/i);
@@ -31,6 +35,8 @@ describe('parceiros frontend production integration', () => {
     expect(script).not.toContain('/auth/profile');
     expect(script).not.toContain('/auth/access-context');
     expect(html).toContain('parceiros-gate.js');
+    expect(html).toContain('<script src="./dist/parceiros.js');
+    expect(compiledScript).not.toContain('export {};');
     expect(script).toContain('/system/context');
     expect(script).toMatch(/['"]\/partners['"]/);
     expect(script).toContain('/referral-link/status');

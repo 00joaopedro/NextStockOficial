@@ -538,7 +538,6 @@ function registerPageHandlers() {
       state.referralPage += 1;
       void loadReferrals();
   });
-  void bootstrap();
 }
 function failPageStartup(error) {
     document.body.dataset.locked = 'true';
@@ -559,4 +558,3 @@ catch (error) {
     failPageStartup(error);
 }
 
-export {};
