@@ -361,10 +361,23 @@ export class PaymentsService {
       const existing = await tx.billingPayment.findFirst({
         where: {
           tenantId: checkout.tenantId,
-          provider,
-          gatewayPaymentId: result.gatewayPaymentId,
+          OR: [
+            {
+              provider,
+              gatewayPaymentId: result.gatewayPaymentId,
+            },
+            { externalReference: result.externalReference! },
+          ],
         },
       });
+      if (
+        existing?.gatewayPaymentId &&
+        existing.gatewayPaymentId !== result.gatewayPaymentId
+      ) {
+        throw new ConflictException(
+          'A referência externa já está vinculada a outro pagamento do gateway.',
+        );
+      }
       const currentState =
         existing?.status ?? checkout.subscription.lastPaymentState;
       const currentAt =
@@ -377,40 +390,9 @@ export class PaymentsService {
         result.providerOccurredAt,
       );
       if (!decision.apply) {
-        if (
-          currentState === BillingPaymentStatus.APPROVED ||
-          currentState === BillingPaymentStatus.REFUNDED ||
-          currentState === BillingPaymentStatus.CHARGEBACK ||
-          currentState === BillingPaymentStatus.CANCELED
-        ) {
-          await this.syncPartnerReferral(
-            tx,
-            checkout.tenantId,
-            currentState,
-            checkout.subscription.id,
-            `${provider}:${result.gatewayPaymentId}:${currentState}`,
-          );
-        }
-
-        await this.events.create(          {
-            tenantId: checkout.tenantId,
-            subscriptionId: checkout.subscription.id,
-            paymentId: existing?.id,
-            checkoutSessionId: checkout.id,
-            type: this.eventType(status),
-            source,
-            previousState: {
-              status: currentState,
-              providerOccurredAt: currentAt,
-            },
-            nextState: {
-              status,
-              providerOccurredAt: result.providerOccurredAt,
-            },
-            metadata: { applied: false, reason: decision.reason },
-          },
-          tx,
-        );
+        // Replays and stale provider events are intentionally side-effect free.
+        // The webhook inbox and the aggregate CAS remain the audit boundary;
+        // creating a new billing event here would duplicate the ledger on replay.
         return {
           processed: true,
           applied: false,
