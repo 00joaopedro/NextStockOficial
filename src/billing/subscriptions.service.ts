@@ -200,15 +200,36 @@ export class SubscriptionsService {
       if (
         currentOperation.state === BillingSubscriptionOperationState.SUCCEEDED
       ) {
+        const reconciled = await this.prisma.subscription.updateMany({
+          where: {
+            id: subscription.id,
+            tenantId,
+            version: subscription.version,
+            status: { not: SubscriptionStatus.canceled },
+          },
+          data: {
+            status: SubscriptionStatus.canceled,
+            cancelAtPeriodEnd: false,
+            canceledAt: new Date(),
+            version: { increment: 1 },
+          },
+        });
         const current = await this.prisma.subscription.findUniqueOrThrow({
           where: { id: subscription.id },
         });
+        if (reconciled.count === 1) {
+          await this.events.create({
+            tenantId,
+            subscriptionId: current.id,
+            type: BillingEventType.SUBSCRIPTION_CANCELED,
+            source: 'reconciliation',
+            previousState: { status: subscription.status },
+            nextState: { status: current.status },
+          });
+        }
         return this.format(current);
       }
-      if (
-        currentOperation.leaseExpiresAt > new Date() &&
-        currentOperation.state !== BillingSubscriptionOperationState.UNKNOWN
-      ) {
+      if (currentOperation.leaseExpiresAt > new Date()) {
         throw new ConflictException(
           'Cancelamento já está em processamento; não será feita uma segunda chamada ao gateway.',
         );
