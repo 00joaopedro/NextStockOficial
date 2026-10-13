@@ -175,6 +175,7 @@ function isDevSuperAdmin(user: any) {
 async function bootstrap() {
   if ((bootstrap as any).inFlight) return;
   (bootstrap as any).inFlight = true;
+  (window as any).__nextStockPartnersBootStarted = true;
   document.body.dataset.locked = 'true';
   els.gate.innerHTML =
     '<h2>Validando acesso...</h2><p>Painel restrito ao Dev SuperAdmin.</p>';
@@ -207,6 +208,7 @@ async function bootstrap() {
     // O contexto operacional pode depender do pool do banco; ele não deve
     // impedir a abertura da tela nem a consulta dos parceiros.
     document.body.dataset.locked = 'false';
+    window.dispatchEvent(new Event('nextstock:partners-ready'));
     els.gate.remove();
     void api<{
       systemMode?: string;
@@ -565,88 +567,110 @@ function paymentLabel(value: PaymentStatus) {
   }[value];
 }
 
-els.form.addEventListener('submit', savePartner);
-byId('newPartnerBtn').addEventListener('click', resetForm);
-byId('deletePartnerBtn').addEventListener('click', deletePartner);
-byId('rotateLinkBtn').addEventListener('click', rotateLink);
-byId('toggleLinkBtn').addEventListener('click', toggleLink);
-byId('copyPromotionLinkBtn').addEventListener('click', () => {
-  if (els.promotionLink.value)
-    void navigator.clipboard.writeText(els.promotionLink.value);
-});
-byId('copyStandardLinkBtn').addEventListener('click', () => {
-  if (els.standardLink.value)
-    void navigator.clipboard.writeText(els.standardLink.value);
-});
-els.partnerList.addEventListener('click', (event) => {
-  const target = event.target as HTMLElement;
-  const copy = target.closest<HTMLButtonElement>(
-    '[data-copy-promotion],[data-copy-standard]',
-  );
-  if (copy) {
-    const link = copy.dataset.copyPromotion || copy.dataset.copyStandard || '';
-    void navigator.clipboard.writeText(resolveLink(link));
-    return;
-  }
-  const card = target.closest<HTMLElement>('[data-partner-id]');
-  const partner = state.partners.find(
-    (item) => item.id === card?.dataset.partnerId,
-  );
-  if (partner) void selectPartner(partner);
-});
-els.referralsBody.addEventListener('change', (event) => {
-  const input = (event.target as HTMLElement).closest<HTMLInputElement>(
-    '[data-seen]',
-  );
-  if (input) void updateSeen(input);
-});
-els.referralsBody.addEventListener('click', (event) => {
-  const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
-    '[data-payment]',
-  );
-  if (button) void updatePayment(button);
-});
-for (const element of [els.partnerSearch, els.referralSearch]) {
-  element.addEventListener('input', () => {
-    window.clearTimeout(state.searchTimer);
-    state.searchTimer = window.setTimeout(() => {
-      if (element === els.partnerSearch) {
-        state.partnerPage = 1;
-        void loadPartners();
-      } else {
-        state.referralPage = 1;
-        void loadReferrals();
-      }
-    }, 350);
+function registerPageHandlers() {
+  els.form.addEventListener('submit', savePartner);
+  byId('newPartnerBtn').addEventListener('click', resetForm);
+  byId('deletePartnerBtn').addEventListener('click', deletePartner);
+  byId('rotateLinkBtn').addEventListener('click', rotateLink);
+  byId('toggleLinkBtn').addEventListener('click', toggleLink);
+  byId('copyPromotionLinkBtn').addEventListener('click', () => {
+    if (els.promotionLink.value)
+      void navigator.clipboard.writeText(els.promotionLink.value);
   });
-}
-els.linkStatus.addEventListener('change', () => {
-  state.partnerPage = 1;
-  void loadPartners();
-});
-for (const element of [els.paymentFilter, els.seenFilter]) {
-  element.addEventListener('change', () => {
-    state.referralPage = 1;
+  byId('copyStandardLinkBtn').addEventListener('click', () => {
+    if (els.standardLink.value)
+      void navigator.clipboard.writeText(els.standardLink.value);
+  });
+  els.partnerList.addEventListener('click', (event) => {
+    const target = event.target as HTMLElement;
+    const copy = target.closest<HTMLButtonElement>(
+      '[data-copy-promotion],[data-copy-standard]',
+    );
+    if (copy) {
+      const link = copy.dataset.copyPromotion || copy.dataset.copyStandard || '';
+      void navigator.clipboard.writeText(resolveLink(link));
+      return;
+    }
+    const card = target.closest<HTMLElement>('[data-partner-id]');
+    const partner = state.partners.find(
+      (item) => item.id === card?.dataset.partnerId,
+    );
+    if (partner) void selectPartner(partner);
+  });
+  els.referralsBody.addEventListener('change', (event) => {
+    const input = (event.target as HTMLElement).closest<HTMLInputElement>(
+      '[data-seen]',
+    );
+    if (input) void updateSeen(input);
+  });
+  els.referralsBody.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+      '[data-payment]',
+    );
+    if (button) void updatePayment(button);
+  });
+  for (const element of [els.partnerSearch, els.referralSearch]) {
+    element.addEventListener('input', () => {
+      window.clearTimeout(state.searchTimer);
+      state.searchTimer = window.setTimeout(() => {
+        if (element === els.partnerSearch) {
+          state.partnerPage = 1;
+          void loadPartners();
+        } else {
+          state.referralPage = 1;
+          void loadReferrals();
+        }
+      }, 350);
+    });
+  }
+  els.linkStatus.addEventListener('change', () => {
+    state.partnerPage = 1;
+    void loadPartners();
+  });
+  for (const element of [els.paymentFilter, els.seenFilter]) {
+    element.addEventListener('change', () => {
+      state.referralPage = 1;
+      void loadReferrals();
+    });
+  }
+  byId('partnersPrev').addEventListener('click', () => {
+    state.partnerPage -= 1;
+    void loadPartners();
+  });
+  byId('partnersNext').addEventListener('click', () => {
+    state.partnerPage += 1;
+    void loadPartners();
+  });
+  byId('referralsPrev').addEventListener('click', () => {
+    state.referralPage -= 1;
     void loadReferrals();
   });
+  byId('referralsNext').addEventListener('click', () => {
+    state.referralPage += 1;
+    void loadReferrals();
+  });
+  
+  void bootstrap();
+  
 }
-byId('partnersPrev').addEventListener('click', () => {
-  state.partnerPage -= 1;
-  void loadPartners();
-});
-byId('partnersNext').addEventListener('click', () => {
-  state.partnerPage += 1;
-  void loadPartners();
-});
-byId('referralsPrev').addEventListener('click', () => {
-  state.referralPage -= 1;
-  void loadReferrals();
-});
-byId('referralsNext').addEventListener('click', () => {
-  state.referralPage += 1;
-  void loadReferrals();
-});
 
-void bootstrap();
+function failPageStartup(error: unknown) {
+  document.body.dataset.locked = 'true';
+  els.gate.innerHTML =
+    '<h2>Não foi possível abrir Parceiros</h2>' +
+    '<p>O carregamento foi interrompido com segurança. Tente novamente.</p>' +
+    '<button type="button" id="partnersStartupRetry">Tentar novamente</button>';
+  byId<HTMLButtonElement>('partnersStartupRetry').onclick = () => {
+    window.location.reload();
+  };
+  console.error('Partners page initialization failed.', error);
+}
+
+try {
+  registerPageHandlers();
+  void bootstrap();
+} catch (error) {
+  failPageStartup(error);
+}
 
 export {};
