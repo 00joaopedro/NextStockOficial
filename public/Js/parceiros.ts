@@ -235,6 +235,7 @@ async function bootstrap() {
     byId<HTMLButtonElement>('accessRetryBtn').onclick = () => void bootstrap();
     showError(error);
   } finally {
+    window.dispatchEvent(new Event('nextstock:partners-terminal'));
     (bootstrap as any).inFlight = false;
   }
 }
