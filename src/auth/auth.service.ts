@@ -17,6 +17,7 @@ import {
   Role,
   SystemMode,
   SystemType,
+  UserProvisioningState,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -454,7 +455,13 @@ export class AuthService {
         return { tenant, branch, profile };
       });
     } catch (error) {
-      await this.rollbackAuthenticationUser(authUser.id);
+      if (authIdentityOwned) {
+        await this.rollbackAuthenticationUser(authUser.id);
+      }
+      await this.markRegistrationIntentRetryable(
+        intent.id,
+        error instanceof Error ? error.message.slice(0, 120) : 'REGISTER_TRANSACTION_FAILED',
+      );
       this.handleKnownPrismaAuthError(error, 'register.transaction');
       throw new InternalServerErrorException(
         'Nao foi possivel concluir o cadastro.',
@@ -509,6 +516,162 @@ export class AuthService {
         redirectTo: 'produtos.html',
       },
     };
+  }
+
+  private registrationIdempotencyKey(email: string, provided?: string) {
+    const normalized = provided?.trim();
+    if (normalized) {
+      if (normalized.length > 255) {
+        throw new BadRequestException('idempotency key is too long');
+      }
+      return normalized;
+    }
+
+    return `email:${createHash('sha256').update(email).digest('hex')}`;
+  }
+
+  private registrationPayloadHash(input: Record<string, unknown>) {
+    return createHash('sha256')
+      .update(JSON.stringify(input))
+      .digest('hex');
+  }
+
+  private async claimRegistrationIntent(input: {
+    email: string;
+    idempotencyKey: string;
+    payloadHash: string;
+    name: string;
+    companyName: string;
+    systemType: SystemType;
+    referralPartnerId: string | null;
+  }) {
+    const leaseExpiresAt = new Date(Date.now() + 60_000);
+
+    try {
+      return await this.prisma.registrationIntent.create({
+        data: {
+          canonicalEmail: input.email,
+          idempotencyKey: input.idempotencyKey,
+          payloadHash: input.payloadHash,
+          state: UserProvisioningState.CLAIMED,
+          claimToken: randomUUID(),
+          leaseExpiresAt,
+          requestedName: input.name,
+          companyName: input.companyName,
+          systemType: input.systemType,
+          referralPartnerId: input.referralPartnerId,
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+    }
+
+    const existing = await this.prisma.registrationIntent.findFirst({
+      where: {
+        OR: [
+          { idempotencyKey: input.idempotencyKey },
+          { canonicalEmail: input.email },
+        ],
+      },
+    });
+
+    if (!existing) {
+      throw new ServiceUnavailableException(
+        'Registration intent could not be claimed.',
+      );
+    }
+    if (
+      existing.canonicalEmail !== input.email ||
+      existing.payloadHash !== input.payloadHash
+    ) {
+      throw new ConflictException(
+        'Idempotency key was reused with a different payload.',
+      );
+    }
+    if (existing.state === UserProvisioningState.COMPLETED) {
+      return existing;
+    }
+    if (existing.state === UserProvisioningState.FAILED_FINAL) {
+      throw new ConflictException('Registration cannot be retried safely.');
+    }
+
+    const leaseActive =
+      existing.leaseExpiresAt && existing.leaseExpiresAt.getTime() > Date.now();
+    if (leaseActive) {
+      throw new ConflictException(
+        'Registration is already in progress; retry shortly.',
+      );
+    }
+
+    const claim = await this.prisma.registrationIntent.updateMany({
+      where: {
+        id: existing.id,
+        state: {
+          in: [
+            UserProvisioningState.CLAIMED,
+            UserProvisioningState.AUTH_CREATED,
+            UserProvisioningState.UNKNOWN,
+            UserProvisioningState.COMPENSATION_REQUIRED,
+            UserProvisioningState.FAILED_RETRYABLE,
+          ],
+        },
+        OR: [
+          { leaseExpiresAt: null },
+          { leaseExpiresAt: { lte: new Date() } },
+        ],
+      },
+      data: {
+        state: UserProvisioningState.CLAIMED,
+        claimToken: randomUUID(),
+        leaseExpiresAt,
+        attempts: { increment: 1 },
+        lastErrorCode: null,
+      },
+    });
+
+    if (claim.count !== 1) {
+      throw new ConflictException(
+        'Registration is already in progress; retry shortly.',
+      );
+    }
+
+    return this.prisma.registrationIntent.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+  }
+
+  private async markRegistrationIntentRetryable(
+    id: string,
+    errorCode: string,
+  ) {
+    await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        state: {
+          not: UserProvisioningState.COMPLETED,
+        },
+      },
+      data: {
+        state: UserProvisioningState.FAILED_RETRYABLE,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+  }
+
+  private async markRegistrationIntentFinal(id: string, errorCode: string) {
+    await this.prisma.registrationIntent.updateMany({
+      where: { id, state: { not: UserProvisioningState.COMPLETED } },
+      data: {
+        state: UserProvisioningState.FAILED_FINAL,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
   }
 
   async login(input: LoginInput) {
