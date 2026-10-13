@@ -170,6 +170,7 @@ async function bootstrap() {
         showError(error);
     }
     finally {
+        window.dispatchEvent(new Event('nextstock:partners-terminal'));
         bootstrap.inFlight = false;
     }
 }
