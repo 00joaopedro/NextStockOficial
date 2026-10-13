@@ -51,6 +51,12 @@ export async function registerPublicStatic(app: FastifyInstance) {
         setHeader('Cache-Control', 'public, max-age=31536000, immutable');
         return;
       }
+      if (
+        /[/\\](?:parceiros|parceiros-gate|session-state)\.js$/i.test(filePath)
+      ) {
+        setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return;
+      }
       if (/[/\\]sidebar\.js$/i.test(filePath)) {
         setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
         return;
