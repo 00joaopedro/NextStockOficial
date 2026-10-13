@@ -34,7 +34,11 @@ ALTER TABLE "billing_refund_intents"
   FOREIGN KEY ("tenant_id") REFERENCES "tenants"("id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
 
+CREATE UNIQUE INDEX "billing_payments_id_tenant_id_key"
+  ON "billing_payments" ("id", "tenant_id");
+
 ALTER TABLE "billing_refund_intents"
-  ADD CONSTRAINT "billing_refund_intents_payment_id_fkey"
-  FOREIGN KEY ("payment_id") REFERENCES "billing_payments"("id")
+  ADD CONSTRAINT "billing_refund_intents_payment_id_tenant_id_fkey"
+  FOREIGN KEY ("payment_id", "tenant_id")
+  REFERENCES "billing_payments"("id", "tenant_id")
   ON DELETE RESTRICT ON UPDATE CASCADE;
