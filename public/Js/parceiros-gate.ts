@@ -14,7 +14,7 @@
     });
   }, GATE_TIMEOUT_MS);
 
-  window.addEventListener('nextstock:partners-ready', () => {
-    window.clearTimeout(timer);
-  }, { once: true });
+  const cancel = () => window.clearTimeout(timer);
+  window.addEventListener('nextstock:partners-ready', cancel, { once: true });
+  window.addEventListener('nextstock:partners-terminal', cancel, { once: true });
 })();
