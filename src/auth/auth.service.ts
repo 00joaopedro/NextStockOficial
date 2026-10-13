@@ -209,9 +209,18 @@ export class AuthService {
     }
 
     let authUser;
+    let authIdentityOwned = false;
     try {
-      authUser = await this.authProvider.findByEmail(email);
-      if (!authUser) {
+      const existingAuth = await this.authProvider.findByEmail(email);
+      if (existingAuth) {
+        if (
+          existingAuth.metadata?.registration_intent_id !== intent.id
+        ) {
+          throw new AuthProviderError('email_already_exists');
+        }
+        authUser = existingAuth;
+        authIdentityOwned = true;
+      } else {
         authUser = await this.authProvider.createUser({
           email,
           password,
@@ -220,6 +229,7 @@ export class AuthService {
             full_name: name,
             companyName,
             systemType,
+            registration_intent_id: intent.id,
             role: Role.Admin,
             access_name_normalized: accessNameNormalized,
             allowed_system_types: [systemType],
@@ -227,6 +237,7 @@ export class AuthService {
             isSuperAdmin: false,
           },
         });
+        authIdentityOwned = true;
       }
       await this.prisma.registrationIntent.update({
         where: { id: intent.id },
@@ -243,8 +254,11 @@ export class AuthService {
         error.code === 'email_already_exists'
       ) {
         const existingAuth = await this.authProvider.findByEmail(email);
-        if (existingAuth) {
+        if (
+          existingAuth?.metadata?.registration_intent_id === intent.id
+        ) {
           authUser = existingAuth;
+          authIdentityOwned = true;
           await this.prisma.registrationIntent.update({
             where: { id: intent.id },
             data: {
@@ -255,13 +269,18 @@ export class AuthService {
             },
           });
         } else {
-          await this.markRegistrationIntentRetryable(intent.id, 'AUTH_EMAIL_EXISTS');
+          await this.markRegistrationIntentFinal(
+            intent.id,
+            'AUTH_EMAIL_EXISTS',
+          );
           throw new ConflictException('E-mail ja cadastrado.');
         }
       } else {
         await this.markRegistrationIntentRetryable(
           intent.id,
-          error instanceof AuthProviderError ? error.code : 'AUTH_CREATE_FAILED',
+          error instanceof AuthProviderError
+            ? error.code
+            : 'AUTH_CREATE_FAILED',
         );
         throw this.buildSupabaseAuthException(error as SupabaseAuthError);
       }
