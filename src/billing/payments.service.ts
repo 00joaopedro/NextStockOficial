@@ -119,8 +119,22 @@ export class PaymentsService {
         result.providerOccurredAt,
       );
       if (!decision.apply) {
-        await this.events.create(
-          {
+        if (
+          currentState === BillingPaymentStatus.APPROVED ||
+          currentState === BillingPaymentStatus.REFUNDED ||
+          currentState === BillingPaymentStatus.CHARGEBACK ||
+          currentState === BillingPaymentStatus.CANCELED
+        ) {
+          await this.syncPartnerReferral(
+            tx,
+            checkout.tenantId,
+            currentState,
+            checkout.subscription.id,
+            `${provider}:${result.gatewayPaymentId}:${currentState}`,
+          );
+        }
+
+        await this.events.create(          {
             tenantId: checkout.tenantId,
             subscriptionId: checkout.subscription.id,
             paymentId: existing?.id,
