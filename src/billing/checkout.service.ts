@@ -233,10 +233,13 @@ export class CheckoutService {
         };
     }
 
-    await this.prisma.billingCheckoutIntent.updateMany({
+    const processingClaim = await this.prisma.billingCheckoutIntent.updateMany({
       where: { id: intent.id, claimToken, state: 'CLAIMED' },
       data: { state: 'PROCESSING' },
     });
+    if (processingClaim.count !== 1) {
+      throw new ConflictException('Claim de checkout expirou ou foi substituído.');
+    }
     let gatewayCheckout;
     try {
       gatewayCheckout = await gateway.createCheckout({
