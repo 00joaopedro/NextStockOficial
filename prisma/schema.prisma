@@ -715,6 +715,7 @@ model Subscription {
   billingOperations     BillingSubscriptionOperation[]
 
   @@index([tenantId, status])
+  @@unique([tenantId, id], map: "subscriptions_tenant_id_id_key")
   @@index([tenantId, updatedAt])
   @@index([planId])
   @@index([gatewayProvider, gatewaySubscriptionId])
@@ -842,7 +843,6 @@ model BillingPayment {
   @@index([provider, gatewayPaymentId])
   @@unique([id, tenantId], map: "billing_payments_id_tenant_id_key")
   @@unique([provider, gatewayPaymentId], map: "billing_payments_provider_gateway_payment_id_key")
-  @@unique([externalReference], map: "billing_payments_external_reference_key")
   @@map("billing_payments")
 }
 
@@ -883,7 +883,7 @@ model BillingSubscriptionOperation {
   updatedAt      DateTime                         @updatedAt @map("updated_at")
 
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [tenantId, subscriptionId], references: [tenantId, id], onDelete: Restrict)
 
   @@unique([tenantId, subscriptionId, operation])
   @@index([tenantId, state, leaseExpiresAt])
