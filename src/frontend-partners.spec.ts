@@ -29,7 +29,8 @@ describe('parceiros frontend production integration', () => {
   it('usa sessao httpOnly e endpoints reais', () => {
     expect(script).toMatch(/credentials: ['"]include['"]/);
     expect(script).not.toContain('/auth/profile');
-    expect(script).toContain('/auth/access-context');
+    expect(script).not.toContain('/auth/access-context');
+    expect(html).toContain('parceiros-gate.js');
     expect(script).toContain('access.isDevSuperAdmin !== true');
     expect(script).toContain('/system/context');
     expect(script).toMatch(/['"]\/partners['"]/);
