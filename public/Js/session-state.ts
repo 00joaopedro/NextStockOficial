@@ -272,11 +272,7 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
     !pathname.startsWith('/api/auth/login') &&
     !pathname.startsWith('/api/auth/register')
   ) {
-    const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    }).catch(() => null);
+    const refresh = await refreshNextStockSession();
     if (refresh?.ok) return originalNextStockFetch(...args);
   }
 
