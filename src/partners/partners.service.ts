@@ -320,6 +320,7 @@ export class PartnersService {
       promotionLink: this.buildReferralLink(partner.referralCode, 'promocao.html'),
       linkStatus: partner.linkStatus,
       systemType: partner.systemType,
+      isUniversal: partner.isUniversal,
       expiresAt: partner.expiresAt,
       lastUsedAt: partner.lastUsedAt,
       referralCount,
