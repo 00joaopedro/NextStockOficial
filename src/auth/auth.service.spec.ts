@@ -66,6 +66,12 @@ describe('AuthService', () => {
       tenantMember: {
         upsert: jest.fn().mockResolvedValue({ id: 'member-1' }),
       },
+      registrationIntent: {
+        update: jest.fn().mockResolvedValue({
+          id: 'intent-1',
+          state: 'COMPLETED',
+        }),
+      },
     };
     const prisma = {
       tx,
@@ -82,6 +88,21 @@ describe('AuthService', () => {
           name: 'NextStock Dev',
           slug: 'nextstock-dev',
         }),
+      },
+      registrationIntent: {
+        create: jest.fn().mockResolvedValue({
+          id: 'intent-1',
+          canonicalEmail: profile.email,
+          payloadHash: 'payload-hash',
+          state: 'CLAIMED',
+          authUserId: null,
+          leaseExpiresAt: new Date(Date.now() + 60_000),
+        }),
+        findFirst: jest.fn(),
+        findUnique: jest.fn(),
+        findUniqueOrThrow: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn(),
       },
       $transaction: jest.fn((callback) => callback(tx)),
     };
@@ -116,6 +137,8 @@ describe('AuthService', () => {
         },
       },
     } as any;
+    client.findByEmail = jest.fn().mockResolvedValue(null);
+    client.findById = jest.fn().mockResolvedValue(null);
     client.createUser = async (input: any) => {
       const { data, error } = await client.admin.auth.admin.createUser({
         email: input.email,
@@ -243,6 +266,7 @@ describe('AuthService', () => {
         full_name: profile.name,
         companyName: tenant.name,
         systemType: SystemType.padrao,
+        registration_intent_id: 'intent-1',
         role: Role.Admin,
         access_name_normalized: profile.accessNameNormalized,
         allowed_system_types: [SystemType.padrao],
