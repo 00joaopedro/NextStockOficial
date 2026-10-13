@@ -31,7 +31,6 @@ describe('SubscriptionsService', () => {
       tx,
     );
   });
-});
 
 
   it('usa uma intenção durável e uma chave estável no cancelamento', async () => {
@@ -143,3 +142,5 @@ describe('SubscriptionsService', () => {
 
     expect(gateway.cancelSubscription).not.toHaveBeenCalled();
   });
+
+});
