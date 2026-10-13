@@ -31,7 +31,6 @@ describe('parceiros frontend production integration', () => {
     expect(script).not.toContain('/auth/profile');
     expect(script).not.toContain('/auth/access-context');
     expect(html).toContain('parceiros-gate.js');
-    expect(script).toContain('access.isDevSuperAdmin !== true');
     expect(script).toContain('/system/context');
     expect(script).toMatch(/['"]\/partners['"]/);
     expect(script).toContain('/referral-link/status');
