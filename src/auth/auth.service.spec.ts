@@ -278,6 +278,26 @@ describe('AuthService', () => {
       where: { email: profile.email },
       select: { id: true },
     });
+    expect(prisma.registrationIntent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          canonicalEmail: profile.email,
+          state: 'CLAIMED',
+          requestedName: profile.name,
+          companyName: tenant.name,
+        }),
+      }),
+    );
+    expect(prisma.tx.registrationIntent.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'intent-1' },
+        data: expect.objectContaining({
+          state: 'COMPLETED',
+          tenantId: tenant.id,
+          branchId: branch.id,
+        }),
+      }),
+    );
     expect(prisma.tx.tenant.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
