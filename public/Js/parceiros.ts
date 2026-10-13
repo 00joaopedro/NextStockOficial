@@ -198,7 +198,7 @@ async function bootstrap() {
       }
     }
 
-    if (access?.isDevSuperAdmin !== true) {
+    if (access === null || access.isDevSuperAdmin !== true) {
       els.gate.innerHTML =
         '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
       return;
