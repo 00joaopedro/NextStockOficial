@@ -442,6 +442,7 @@ model Tenant {
   billingInvoices              BillingInvoice[]
   billingEvents                BillingEvent[]
   refundIntents                BillingRefundIntent[]
+  billingSubscriptionOperations BillingSubscriptionOperation[]
   userSessions                 UserSession[]
   storedFiles                  StoredFile[]
   uploadQuotaCounters          UploadQuotaCounter[]
@@ -711,6 +712,7 @@ model Subscription {
   billingPayments      BillingPayment[]
   billingInvoices      BillingInvoice[]
   billingEvents        BillingEvent[]
+  billingOperations     BillingSubscriptionOperation[]
 
   @@index([tenantId, status])
   @@index([tenantId, updatedAt])
@@ -839,6 +841,8 @@ model BillingPayment {
   @@index([externalReference])
   @@index([provider, gatewayPaymentId])
   @@unique([id, tenantId], map: "billing_payments_id_tenant_id_key")
+  @@unique([provider, gatewayPaymentId], map: "billing_payments_provider_gateway_payment_id_key")
+  @@unique([externalReference], map: "billing_payments_external_reference_key")
   @@map("billing_payments")
 }
 
@@ -862,6 +866,28 @@ model BillingRefundIntent {
   @@index([tenantId, state, leaseExpiresAt])
   @@index([paymentId, tenantId])
   @@map("billing_refund_intents")
+}
+
+model BillingSubscriptionOperation {
+  id             String                           @id @default(uuid()) @db.Uuid
+  tenantId       String                           @map("tenant_id") @db.Uuid
+  subscriptionId String                           @map("subscription_id") @db.Uuid
+  provider       PaymentGatewayProvider
+  operation      String                           @default("CANCEL")
+  state          BillingSubscriptionOperationState @default(CLAIMED)
+  claimToken     String                           @map("claim_token") @db.Uuid
+  leaseExpiresAt DateTime                         @map("lease_expires_at")
+  failureCode    String?                          @map("failure_code")
+  completedAt    DateTime?                        @map("completed_at")
+  createdAt      DateTime                         @default(now()) @map("created_at")
+  updatedAt      DateTime                         @updatedAt @map("updated_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  subscription Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, subscriptionId, operation])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@map("billing_subscription_operations")
 }
 
 model BillingInvoice {
@@ -2266,6 +2292,15 @@ enum BillingRefundIntentState {
   FAILED_FINAL
 }
 
+enum BillingSubscriptionOperationState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
 enum BillingPaymentStatus {
   PENDING
   APPROVED
@@ -2647,6 +2682,8 @@ model PromotionReservation {
   releasedAt     DateTime?                 @map("released_at")
   releaseReason  String?                   @map("release_reason")
   checkoutSessionId String?                @unique @map("checkout_session_id") @db.Uuid
+  checkoutClaimToken String?               @map("checkout_claim_token") @db.Uuid
+  checkoutClaimExpiresAt DateTime?         @map("checkout_claim_expires_at")
   metadata       Json?
   campaign       PromotionCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   checkoutSession CheckoutSession?         @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
