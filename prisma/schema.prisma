@@ -838,6 +838,7 @@ model BillingPayment {
   @@index([invoiceId])
   @@index([externalReference])
   @@index([provider, gatewayPaymentId])
+  @@unique([id, tenantId], map: "billing_payments_id_tenant_id_key")
   @@map("billing_payments")
 }
 
@@ -855,10 +856,11 @@ model BillingRefundIntent {
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
   tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
-  payment BillingPayment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payment BillingPayment @relation(fields: [paymentId, tenantId], references: [id, tenantId], onDelete: Restrict)
 
   @@unique([tenantId, paymentId, operation])
   @@index([tenantId, state, leaseExpiresAt])
+  @@index([paymentId, tenantId])
   @@map("billing_refund_intents")
 }
 
