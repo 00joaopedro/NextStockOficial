@@ -203,12 +203,8 @@ window.fetch = async (...args) => {
         pathname !== '/api/auth/session/refresh' &&
         !pathname.startsWith('/api/auth/login') &&
         !pathname.startsWith('/api/auth/register')) {
-        const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { Accept: 'application/json' },
-        }).catch(() => null);
-        if (refresh?.ok)
+        const refresh = await refreshNextStockSession();
+    if (refresh?.ok)
             return originalNextStockFetch(...args);
     }
     if (response.status === 402 &&
