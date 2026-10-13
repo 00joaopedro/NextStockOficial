@@ -8,6 +8,7 @@ import {
   PartnerLinkEventType,
   PartnerLinkStatus,
   Prisma,
+  SystemType,
 } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { canAccessDev } from '../auth/super-admin.util';
