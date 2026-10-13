@@ -298,14 +298,20 @@ export class CheckoutService {
           },
         });
         if (promotionReservation) {
-          await tx.promotionReservation.updateMany({
+          const linkedReservation = await tx.promotionReservation.updateMany({
             where: {
               id: promotionReservation.id,
               tenantId: context.tenantId,
               status: 'RESERVED',
+              checkoutSessionId: null,
             },
             data: { checkoutSessionId: created.id },
           });
+          if (linkedReservation.count !== 1) {
+            throw new ConflictException(
+              'A reserva promocional já está vinculada a outro checkout.',
+            );
+          }
         }
         await tx.subscription.update({
           where: { id: subscription.id },
