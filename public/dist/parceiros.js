@@ -127,27 +127,8 @@ async function bootstrap() {
     document.body.dataset.locked = 'true';
     els.gate.innerHTML = '<h2>Validando acesso...</h2><p>Painel restrito ao Dev SuperAdmin.</p>';
     try {
-        let access = null;
-        for (let attempt = 1; attempt <= 3; attempt += 1) {
-            try {
-                access = await api('/auth/access-context');
-                break;
-            }
-            catch (error) {
-                const retryable = (error instanceof ApiError &&
-                    [499, 500, 502, 503, 504].includes(error.status)) ||
-                    (error instanceof Error &&
-                        error.message.includes('demorou para responder'));
-                if (!retryable || attempt === 3)
-                    throw error;
-                els.gate.innerHTML = `<h2>Servidor ocupado</h2><p>Tentando validar o acesso novamente (${attempt + 1}/3)...</p>`;
-                await wait(350 * attempt);
-            }
-        }
-        if (access === null || access.isDevSuperAdmin !== true) {
-            els.gate.innerHTML = '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
-            return;
-        }
+        // The HTML route is already protected by JwtAuthGuard + DevSuperAdminGuard.
+        // Do not block rendering on a duplicate client-side authorization request.
         document.body.dataset.locked = 'false';
         window.dispatchEvent(new Event('nextstock:partners-ready'));
         els.gate.remove();
@@ -165,7 +146,7 @@ async function bootstrap() {
     }
     catch (error) {
         document.body.dataset.locked = 'true';
-        els.gate.innerHTML = '<h2>Não foi possível validar o acesso</h2><p>O servidor não respondeu. Tente novamente.</p><button type="button" id="accessRetryBtn">Tentar novamente</button>';
+        els.gate.innerHTML = '<h2>Não foi possível carregar os parceiros</h2><p>O servidor não respondeu. Tente novamente.</p><button type="button" id="accessRetryBtn">Tentar novamente</button>';
         byId('accessRetryBtn').onclick = () => void bootstrap();
         showError(error);
     }

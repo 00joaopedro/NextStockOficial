@@ -144,6 +144,25 @@ Object.assign(window, {
     showNextStockPreviewBlocked,
 });
 const originalNextStockFetch = window.fetch.bind(window);
+const SESSION_REFRESH_TIMEOUT_MS = 5000;
+async function refreshNextStockSession() {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SESSION_REFRESH_TIMEOUT_MS);
+    try {
+        return await originalNextStockFetch('/api/auth/session/refresh', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+        });
+    }
+    catch {
+        return null;
+    }
+    finally {
+        window.clearTimeout(timeoutId);
+    }
+}
 window.fetch = async (...args) => {
     const request = args[0];
     const init = args[1];
@@ -174,11 +193,7 @@ window.fetch = async (...args) => {
     // Refresh before mutations so an expired local JWT never reaches a form
     // handler as a recoverable 401. The mutation itself is never replayed.
     if (isApiMutation) {
-        await originalNextStockFetch('/api/auth/session/refresh', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { Accept: 'application/json' },
-        }).catch(() => null);
+        await refreshNextStockSession();
     }
     const response = await originalNextStockFetch(...args);
     // Renew the revocable local session only for idempotent reads.
@@ -188,12 +203,8 @@ window.fetch = async (...args) => {
         pathname !== '/api/auth/session/refresh' &&
         !pathname.startsWith('/api/auth/login') &&
         !pathname.startsWith('/api/auth/register')) {
-        const refresh = await originalNextStockFetch('/api/auth/session/refresh', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { Accept: 'application/json' },
-        }).catch(() => null);
-        if (refresh?.ok)
+        const refresh = await refreshNextStockSession();
+    if (refresh?.ok)
             return originalNextStockFetch(...args);
     }
     if (response.status === 402 &&
