@@ -31,3 +31,15 @@ CREATE INDEX "registration_intents_state_lease_expires_at_idx"
   ON "registration_intents"("state", "lease_expires_at");
 CREATE INDEX "registration_intents_canonical_email_idx"
   ON "registration_intents"("canonical_email");
+
+
+ALTER TABLE "registration_intents" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "registration_intents" FROM anon, authenticated;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    EXECUTE 'DROP POLICY IF EXISTS registration_intents_service_role_all ON public.registration_intents';
+    EXECUTE 'CREATE POLICY registration_intents_service_role_all ON public.registration_intents FOR ALL TO service_role USING (true) WITH CHECK (true)';
+  END IF;
+END
+$$;
