@@ -59,8 +59,6 @@ CREATE INDEX IF NOT EXISTS "billing_subscription_operations_tenant_state_lease_i
 CREATE UNIQUE INDEX IF NOT EXISTS "billing_payments_provider_gateway_payment_id_key"
   ON "billing_payments" ("provider", "gateway_payment_id")
   WHERE "gateway_payment_id" IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS "billing_payments_external_reference_key"
-  ON "billing_payments" ("external_reference");
 
 CREATE UNIQUE INDEX IF NOT EXISTS "billing_checkout_intents_active_subscription_key"
   ON "billing_checkout_intents" ("subscription_id")
@@ -83,3 +81,12 @@ DO $$ BEGIN
     ADD CONSTRAINT "billing_subscription_operations_subscription_id_fkey"
     FOREIGN KEY ("subscription_id") REFERENCES "subscriptions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS "subscriptions_tenant_id_id_key"
+  ON "subscriptions" ("tenant_id", "id");
+
+ALTER TABLE "billing_subscription_operations"
+  ADD CONSTRAINT "billing_subscription_operations_tenant_subscription_fkey"
+  FOREIGN KEY ("tenant_id", "subscription_id")
+  REFERENCES "subscriptions" ("tenant_id", "id")
+  ON DELETE RESTRICT ON UPDATE CASCADE;
