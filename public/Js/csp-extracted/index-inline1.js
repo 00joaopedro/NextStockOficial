@@ -239,6 +239,12 @@
       return { res, data };
     }
 
+    document.getElementById('registerSystemType').addEventListener('change', () => {
+      if (!referralCode || !referralIsUniversal) return;
+      referralSystemType = document.getElementById('registerSystemType').value || null;
+      referralReady = ['padrao', 'petshop'].includes(referralSystemType);
+    });
+
     async function validateReferralLink() {
       if (!referralCode) return;
 
