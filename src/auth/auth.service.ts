@@ -149,22 +149,7 @@ export class AuthService {
     ) {
       this.localJwt?.assertSigningConfigured();
     }
-    let referral: ValidReferral | null = null;
-    if (input.referralCode) {
-      referral =
-        (await this.referrals?.resolveActive(
-          input.referralCode,
-          input.systemType,
-        )) ?? null;
-      if (!referral) {
-        await this.referrals?.recordRejected(input.referralCode);
-        throw new BadRequestException(
-          'Link de indicacao invalido ou indisponivel.',
-        );
-      }
-    }
-    const systemType =
-      referral?.systemType ?? this.normalizeSystemType(input.systemType);
+    const requestedSystemType = this.normalizeSystemType(input.systemType);
     const tenantName = companyName;
     const idempotencyKey = this.registrationIdempotencyKey(
       email,
@@ -174,8 +159,7 @@ export class AuthService {
       email,
       name,
       companyName,
-      password,
-      systemType,
+      requestedSystemType,
       referralCode: input.referralCode ?? null,
     });
     const intent = await this.claimRegistrationIntent({
@@ -184,12 +168,54 @@ export class AuthService {
       payloadHash,
       name,
       companyName,
-      systemType,
-      referralPartnerId: referral?.partnerId ?? null,
+      systemType: requestedSystemType,
+      referralPartnerId: null,
     });
     if (intent.state === UserProvisioningState.COMPLETED) {
       return this.login({ email, password });
     }
+
+    let referral: ValidReferral | null = intent.referralPartnerId
+      ? {
+          partnerId: intent.referralPartnerId,
+          systemType: intent.systemType,
+        }
+      : null;
+    if (!referral && input.referralCode) {
+      referral =
+        (await this.referrals?.resolveActive(
+          input.referralCode,
+          input.systemType,
+        )) ?? null;
+      if (!referral) {
+        await this.markRegistrationIntentFinal(
+          intent.id,
+          'REFERRAL_UNAVAILABLE',
+          intent.claimToken,
+        );
+        await this.referrals?.recordRejected(input.referralCode);
+        throw new BadRequestException(
+          'Link de indicacao invalido ou indisponivel.',
+        );
+      }
+      const referralClaim = await this.prisma.registrationIntent.updateMany({
+        where: {
+          id: intent.id,
+          claimToken: intent.claimToken,
+          state: UserProvisioningState.CLAIMED,
+        },
+        data: {
+          systemType: referral.systemType,
+          referralPartnerId: referral.partnerId,
+        },
+      });
+      if (referralClaim.count !== 1) {
+        throw new ConflictException(
+          'Registration ownership changed; retry the registration.',
+        );
+      }
+    }
+    const systemType = referral?.systemType ?? intent.systemType;
 
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName).catch(
       (error) => this.handleKnownPrismaAuthError(error, 'register.slug_lookup'),
@@ -240,8 +266,12 @@ export class AuthService {
         });
         authIdentityOwned = true;
       }
-      await this.prisma.registrationIntent.update({
-        where: { id: intent.id },
+      const authClaim = await this.prisma.registrationIntent.updateMany({
+        where: {
+          id: intent.id,
+          claimToken: intent.claimToken,
+          state: UserProvisioningState.CLAIMED,
+        },
         data: {
           state: UserProvisioningState.AUTH_CREATED,
           authUserId: authUser.id,
@@ -249,6 +279,11 @@ export class AuthService {
           lastErrorCode: null,
         },
       });
+      if (authClaim.count !== 1) {
+        throw new ConflictException(
+          'Registration ownership changed; retry the registration.',
+        );
+      }
     } catch (error) {
       if (
         error instanceof AuthProviderError &&
@@ -260,8 +295,12 @@ export class AuthService {
         ) {
           authUser = existingAuth;
           authIdentityOwned = true;
-          await this.prisma.registrationIntent.update({
-            where: { id: intent.id },
+          const authClaim = await this.prisma.registrationIntent.updateMany({
+            where: {
+              id: intent.id,
+              claimToken: intent.claimToken,
+              state: UserProvisioningState.CLAIMED,
+            },
             data: {
               state: UserProvisioningState.AUTH_CREATED,
               authUserId: existingAuth.id,
@@ -269,10 +308,16 @@ export class AuthService {
               lastErrorCode: null,
             },
           });
+          if (authClaim.count !== 1) {
+            throw new ConflictException(
+              'Registration ownership changed; retry the registration.',
+            );
+          }
         } else {
           await this.markRegistrationIntentFinal(
             intent.id,
             'AUTH_EMAIL_EXISTS',
+            intent.claimToken,
           );
           throw new ConflictException('E-mail ja cadastrado.');
         }
@@ -282,6 +327,7 @@ export class AuthService {
           error instanceof AuthProviderError
             ? error.code
             : 'AUTH_CREATE_FAILED',
+          intent.claimToken,
         );
         throw this.buildSupabaseAuthException(error as SupabaseAuthError);
       }
@@ -310,6 +356,22 @@ export class AuthService {
 
     try {
       result = await this.prisma.$transaction(async (tx) => {
+        const ownershipFence = await tx.registrationIntent.updateMany({
+          where: {
+            id: intent.id,
+            claimToken: intent.claimToken,
+            state: UserProvisioningState.AUTH_CREATED,
+          },
+          data: {
+            updatedAt: new Date(),
+          },
+        });
+        if (ownershipFence.count !== 1) {
+          throw new ConflictException(
+            'Registration ownership changed; retry the registration.',
+          );
+        }
+
         const tenant = await tx.tenant.create({
           data: {
             name: tenantName,
@@ -438,8 +500,12 @@ export class AuthService {
           await this.subscriptions.createTrial(tx, tenant.id);
         }
 
-        await tx.registrationIntent.update({
-          where: { id: intent.id },
+        const completion = await tx.registrationIntent.updateMany({
+          where: {
+            id: intent.id,
+            claimToken: intent.claimToken,
+            state: UserProvisioningState.AUTH_CREATED,
+          },
           data: {
             state: UserProvisioningState.COMPLETED,
             authUserId: authUser.id,
@@ -451,24 +517,39 @@ export class AuthService {
             lastErrorCode: null,
           },
         });
+        if (completion.count !== 1) {
+          throw new ConflictException(
+            'Registration ownership changed; retry the registration.',
+          );
+        }
 
         return { tenant, branch, profile };
       });
     } catch (error) {
-      const rollbackCompleted = authIdentityOwned
-        ? await this.rollbackAuthenticationUser(authUser.id)
-        : true;
-      if (rollbackCompleted) {
+      const compensationClaimed = authIdentityOwned
+        ? await this.claimRegistrationCompensation(
+            intent.id,
+            intent.claimToken,
+            'REGISTER_TRANSACTION_FAILED',
+          )
+        : false;
+      const rollbackCompleted =
+        compensationClaimed && authIdentityOwned
+          ? await this.rollbackAuthenticationUser(authUser.id)
+          : true;
+      if (compensationClaimed && rollbackCompleted) {
         await this.markRegistrationIntentRetryable(
           intent.id,
           error instanceof Error
             ? error.message.slice(0, 120)
             : 'REGISTER_TRANSACTION_FAILED',
+          intent.claimToken,
         );
-      } else {
+      } else if (compensationClaimed && !rollbackCompleted) {
         await this.markRegistrationIntentCompensationRequired(
           intent.id,
           'AUTH_ROLLBACK_FAILED',
+          intent.claimToken,
         );
       }
       this.handleKnownPrismaAuthError(error, 'register.transaction');
@@ -651,13 +732,36 @@ export class AuthService {
     });
   }
 
+  private async claimRegistrationCompensation(
+    id: string,
+    claimToken: string | null,
+    errorCode: string,
+  ) {
+    if (!claimToken) return false;
+    const claim = await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        claimToken,
+        state: UserProvisioningState.AUTH_CREATED,
+      },
+      data: {
+        state: UserProvisioningState.COMPENSATION_REQUIRED,
+        lastErrorCode: errorCode,
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    return claim.count === 1;
+  }
+
   private async markRegistrationIntentRetryable(
     id: string,
     errorCode: string,
+    claimToken?: string | null,
   ) {
     await this.prisma.registrationIntent.updateMany({
       where: {
         id,
+        ...(claimToken ? { claimToken } : {}),
         state: {
           not: UserProvisioningState.COMPLETED,
         },
@@ -674,9 +778,14 @@ export class AuthService {
   private async markRegistrationIntentCompensationRequired(
     id: string,
     errorCode: string,
+    claimToken?: string | null,
   ) {
     await this.prisma.registrationIntent.updateMany({
-      where: { id, state: { not: UserProvisioningState.COMPLETED } },
+      where: {
+        id,
+        ...(claimToken ? { claimToken } : {}),
+        state: { not: UserProvisioningState.COMPLETED },
+      },
       data: {
         state: UserProvisioningState.COMPENSATION_REQUIRED,
         lastErrorCode: errorCode.slice(0, 120),
@@ -686,9 +795,17 @@ export class AuthService {
     });
   }
 
-  private async markRegistrationIntentFinal(id: string, errorCode: string) {
+  private async markRegistrationIntentFinal(
+    id: string,
+    errorCode: string,
+    claimToken?: string | null,
+  ) {
     await this.prisma.registrationIntent.updateMany({
-      where: { id, state: { not: UserProvisioningState.COMPLETED } },
+      where: {
+        id,
+        ...(claimToken ? { claimToken } : {}),
+        state: { not: UserProvisioningState.COMPLETED },
+      },
       data: {
         state: UserProvisioningState.FAILED_FINAL,
         lastErrorCode: errorCode.slice(0, 120),
