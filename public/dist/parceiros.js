@@ -143,7 +143,7 @@ async function bootstrap() {
                 await wait(350 * attempt);
             }
         }
-        if (access?.isDevSuperAdmin !== true) {
+        if (access === null || access.isDevSuperAdmin !== true) {
             els.gate.innerHTML = '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
             return;
         }
