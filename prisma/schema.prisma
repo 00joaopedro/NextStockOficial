@@ -875,7 +875,7 @@ model BillingSubscriptionOperation {
   provider       PaymentGatewayProvider
   operation      String                           @default("CANCEL")
   state          BillingSubscriptionOperationState @default(CLAIMED)
-  claimToken     String                           @map("claim_token") @db.Uuid
+  claimToken     String?                          @map("claim_token") @db.Uuid
   leaseExpiresAt DateTime                         @map("lease_expires_at")
   failureCode    String?                          @map("failure_code")
   completedAt    DateTime?                        @map("completed_at")
