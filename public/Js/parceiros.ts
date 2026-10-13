@@ -1,6 +1,6 @@
 type LinkStatus = 'ACTIVE' | 'INACTIVE' | 'REVOKED';
 type PaymentStatus = 'UNPAID' | 'PAID' | 'REFUNDED' | 'CANCELED';
-type SystemType = 'padrao' | 'petshop';
+type SystemType = 'padrao' | 'petshop' | 'universal';
 
 interface Partner {
   id: string;
@@ -8,10 +8,12 @@ interface Partner {
   phone: string;
   bankNumber: string;
   sellerLink: string;
+  universalLink?: string;
   standardLink?: string;
   promotionLink?: string;
   linkStatus: LinkStatus;
   systemType: SystemType;
+  isUniversal?: boolean;
   referralCount: number;
   paidReferralCount?: number;
   createdAt: string;
@@ -49,6 +51,7 @@ const els = {
   systemType: byId<HTMLSelectElement>('partnerSystemType'),
   promotionLink: byId<HTMLInputElement>('promotionLink'),
   standardLink: byId<HTMLInputElement>('standardLink'),
+  universalLink: byId<HTMLInputElement>('universalLink'),
   partnerList: byId<HTMLDivElement>('partnerList'),
   partnerEmpty: byId<HTMLDivElement>('partnerEmpty'),
   partnerSearch: byId<HTMLInputElement>('partnerSearchInput'),
@@ -267,6 +270,7 @@ function renderPartners() {
       </div>
       <div>${escapeHtml(partner.phone)} · ${escapeHtml(partner.bankNumber)}</div>
       <small>${partner.referralCount} indicação(ões) · ${partner.paidReferralCount ?? 0} pagante(s)</small>
+      ${partner.isUniversal ? `<small class="link-label">Link universal (o cliente escolhe o modo)</small><div class="linkbox"><input readonly value="${escapeHtml(resolveLink(partner.universalLink || partner.sellerLink))}"><button type="button" class="secondary" data-copy-universal="${escapeHtml(partner.universalLink || partner.sellerLink)}">Copiar</button></div>` : ''}
       <small class="link-label">Link da promoção</small>
       <div class="linkbox"><input readonly value="${escapeHtml(resolveLink(partner.promotionLink || partner.sellerLink))}"><button type="button" class="secondary" data-copy-promotion="${escapeHtml(partner.promotionLink || partner.sellerLink)}">Copiar</button></div>
       <small class="link-label">Link sem promoção</small>
@@ -294,8 +298,9 @@ function fillForm(partner: Partner) {
   els.name.value = partner.name;
   els.phone.value = partner.phone;
   els.bankNumber.value = partner.bankNumber;
-  els.systemType.value = partner.systemType;
+  els.systemType.value = partner.isUniversal ? 'universal' : partner.systemType;
   els.systemType.disabled = true;
+  els.universalLink.value = partner.universalLink ? resolveLink(partner.universalLink) : '';
   els.promotionLink.value = resolveLink(partner.promotionLink || partner.sellerLink);
   els.standardLink.value = resolveLink(partner.standardLink || partner.sellerLink);
   byId<HTMLButtonElement>('toggleLinkBtn').textContent =
@@ -306,6 +311,7 @@ function resetForm() {
   state.selected = null;
   els.form.reset();
   els.id.value = '';
+  els.universalLink.value = '';
   els.promotionLink.value = '';
   els.standardLink.value = '';
   els.systemType.disabled = false;
@@ -323,7 +329,12 @@ async function savePartner(event: SubmitEvent) {
     name: els.name.value.trim(),
     phone: els.phone.value.trim(),
     bankNumber: els.bankNumber.value.trim(),
-    ...(!els.id.value ? { systemType: els.systemType.value } : {}),
+    ...(!els.id.value
+      ? {
+          systemType: els.systemType.value === 'universal' ? 'padrao' : els.systemType.value,
+          isUniversal: els.systemType.value === 'universal',
+        }
+      : {}),
   };
   setBusy(true);
   try {
@@ -550,6 +561,10 @@ function registerPageHandlers() {
   byId('deletePartnerBtn').addEventListener('click', deletePartner);
   byId('rotateLinkBtn').addEventListener('click', rotateLink);
   byId('toggleLinkBtn').addEventListener('click', toggleLink);
+  byId('copyUniversalLinkBtn').addEventListener('click', () => {
+    if (els.universalLink.value)
+      void navigator.clipboard.writeText(els.universalLink.value);
+  });
   byId('copyPromotionLinkBtn').addEventListener('click', () => {
     if (els.promotionLink.value)
       void navigator.clipboard.writeText(els.promotionLink.value);
@@ -561,10 +576,10 @@ function registerPageHandlers() {
   els.partnerList.addEventListener('click', (event) => {
     const target = event.target as HTMLElement;
     const copy = target.closest<HTMLButtonElement>(
-      '[data-copy-promotion],[data-copy-standard]',
+      '[data-copy-promotion],[data-copy-standard],[data-copy-universal]',
     );
     if (copy) {
-      const link = copy.dataset.copyPromotion || copy.dataset.copyStandard || '';
+      const link = copy.dataset.copyPromotion || copy.dataset.copyStandard || copy.dataset.copyUniversal || '';
       void navigator.clipboard.writeText(resolveLink(link));
       return;
     }
