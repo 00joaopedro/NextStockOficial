@@ -89,7 +89,10 @@
             <label>Telefone <input id="partnerPhone" type="tel" maxlength="24" required></label>
             <label>Número/código do banco <input id="partnerBankNumber" maxlength="80" required></label>
             <label>Tipo de sistema
-              <select id="partnerSystemType"><option value="padrao">Padrão</option><option value="petshop">Pet Shop</option></select>
+              <select id="partnerSystemType"><option value="padrao">Padrão</option><option value="petshop">Pet Shop</option><option value="universal">Link universal (Padrão + Pet Shop)</option></select>
+            </label>
+            <label>Link universal (escolha do cliente)
+              <span class="linkbox"><input id="universalLink" readonly aria-label="Link universal do afiliado"><button id="copyUniversalLinkBtn" class="secondary" type="button">Copiar</button></span>
             </label>
             <label>Link da promoção
               <span class="linkbox"><input id="promotionLink" readonly aria-label="Link promocional do afiliado"><button id="copyPromotionLinkBtn" class="secondary" type="button">Copiar</button></span>
