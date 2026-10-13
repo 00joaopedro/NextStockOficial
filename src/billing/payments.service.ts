@@ -361,23 +361,10 @@ export class PaymentsService {
       const existing = await tx.billingPayment.findFirst({
         where: {
           tenantId: checkout.tenantId,
-          OR: [
-            {
-              provider,
-              gatewayPaymentId: result.gatewayPaymentId,
-            },
-            { externalReference: result.externalReference! },
-          ],
+          provider,
+          gatewayPaymentId: result.gatewayPaymentId,
         },
       });
-      if (
-        existing?.gatewayPaymentId &&
-        existing.gatewayPaymentId !== result.gatewayPaymentId
-      ) {
-        throw new ConflictException(
-          'A referência externa já está vinculada a outro pagamento do gateway.',
-        );
-      }
       const currentState =
         existing?.status ?? checkout.subscription.lastPaymentState;
       const currentAt =
