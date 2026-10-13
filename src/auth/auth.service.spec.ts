@@ -71,6 +71,7 @@ describe('AuthService', () => {
           id: 'intent-1',
           state: 'COMPLETED',
         }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     };
     const prisma = {
@@ -288,9 +289,12 @@ describe('AuthService', () => {
         }),
       }),
     );
-    expect(prisma.tx.registrationIntent.update).toHaveBeenCalledWith(
+    expect(prisma.tx.registrationIntent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: 'intent-1' },
+        where: expect.objectContaining({
+          id: 'intent-1',
+          state: 'AUTH_CREATED',
+        }),
         data: expect.objectContaining({
           state: 'COMPLETED',
           tenantId: tenant.id,
