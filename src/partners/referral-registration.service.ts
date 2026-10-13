@@ -3,6 +3,13 @@ import { PartnerLinkEventType, PartnerLinkStatus, Prisma, SystemType } from '@pr
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
+export type ReferralContext = {
+  partnerId: string;
+  systemType: SystemType;
+  isUniversal: boolean;
+  allowedSystemTypes: SystemType[];
+};
+
 export type ValidReferral = {
   partnerId: string;
   systemType: SystemType;
@@ -23,7 +30,7 @@ export class ReferralRegistrationService {
       : null;
   }
 
-  async resolveActive(code?: string | null): Promise<ValidReferral | null> {
+  async resolveContext(code?: string | null): Promise<ReferralContext | null> {
     const normalized = this.normalizeCode(code);
     if (!normalized) return null;
 
@@ -35,10 +42,33 @@ export class ReferralRegistrationService {
         deletedAt: null,
         OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
       },
-      select: { id: true, systemType: true },
+      select: { id: true, systemType: true, isUniversal: true },
     });
 
-    return partner ? { partnerId: partner.id, systemType: partner.systemType } : null;
+    if (!partner) return null;
+    return {
+      partnerId: partner.id,
+      systemType: partner.systemType,
+      isUniversal: partner.isUniversal,
+      allowedSystemTypes: partner.isUniversal
+        ? [SystemType.padrao, SystemType.petshop]
+        : [partner.systemType],
+    };
+  }
+
+  async resolveActive(
+    code?: string | null,
+    requestedSystemType?: string | null,
+  ): Promise<ValidReferral | null> {
+    const context = await this.resolveContext(code);
+    if (!context) return null;
+
+    const requested = requestedSystemType?.trim() || null;
+    const selected = context.isUniversal ? requested : requested || context.systemType;
+    if (!selected || !context.allowedSystemTypes.includes(selected as SystemType)) {
+      return null;
+    }
+    return { partnerId: context.partnerId, systemType: selected as SystemType };
   }
 
   async recordRejected(code?: string | null) {
