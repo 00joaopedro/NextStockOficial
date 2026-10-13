@@ -10,7 +10,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   EmployeeStatus,
   Prisma,
@@ -50,6 +50,7 @@ type RegisterInput = {
   password?: string;
   systemType?: string;
   referralCode?: string;
+  idempotencyKey?: string;
 };
 
 type LoginInput = {
