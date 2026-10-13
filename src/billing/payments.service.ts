@@ -1,8 +1,10 @@
+import { randomUUID } from 'node:crypto';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   BillingEventType,
   BillingInvoiceStatus,
   BillingPaymentStatus,
+  BillingRefundIntentState,
   PartnerPaymentSource,
   PartnerPaymentStatus,
   PartnerReferralStatus,
@@ -32,23 +34,161 @@ export class PaymentsService {
 
   async refundForTenant(tenantId: string, paymentId: string) {
     const payment = await this.prisma.billingPayment.findFirst({
-      where: {
-        id: paymentId,
-        tenantId,
-        status: BillingPaymentStatus.APPROVED,
-      },
+      where: { id: paymentId, tenantId },
     });
     if (!payment) {
-      throw new NotFoundException('Pagamento aprovado não encontrado.');
+      throw new NotFoundException('Pagamento não encontrado.');
     }
     if (!payment.gatewayPaymentId || !this.gateways) {
       throw new ConflictException('Pagamento sem operação Mercado Pago disponível.');
     }
 
+    const existingIntent = await this.prisma.billingRefundIntent.findUnique({
+      where: {
+        tenantId_paymentId_operation: {
+          tenantId,
+          paymentId: payment.id,
+          operation: 'REFUND',
+        },
+      },
+    });
+    if (existingIntent?.state === BillingRefundIntentState.SUCCEEDED) {
+      return {
+        accepted: true,
+        status: existingIntent.state,
+        paymentId: payment.id,
+        refundIntentId: existingIntent.id,
+        idempotentReplay: true,
+      };
+    }
+    if (existingIntent?.state === BillingRefundIntentState.UNKNOWN) {
+      return {
+        accepted: false,
+        status: existingIntent.state,
+        paymentId: payment.id,
+        refundIntentId: existingIntent.id,
+        idempotentReplay: true,
+      };
+    }
+    if (
+      payment.status !== BillingPaymentStatus.APPROVED &&
+      !existingIntent
+    ) {
+      throw new ConflictException('Pagamento não está aprovado para reembolso.');
+    }
+
     const gateway = this.gateways.get(payment.provider);
-    await gateway.refundPayment(payment.gatewayPaymentId);
-    const verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
-    return this.processVerifiedPayment(payment.provider, verified, 'refund_api');
+    const claimToken = randomUUID();
+    let intent: { id: string; claimToken: string; state: BillingRefundIntentState };
+    try {
+      intent = await this.prisma.billingRefundIntent.create({
+        data: {
+          tenantId,
+          paymentId: payment.id,
+          provider: payment.provider,
+          claimToken,
+          leaseExpiresAt: new Date(Date.now() + 60_000),
+        },
+        select: { id: true, claimToken: true, state: true },
+      });
+    } catch (error) {
+      if (
+        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+        error.code !== 'P2002'
+      ) {
+        throw error;
+      }
+      const current = await this.prisma.billingRefundIntent.findUniqueOrThrow({
+        where: {
+          tenantId_paymentId_operation: {
+            tenantId,
+            paymentId: payment.id,
+            operation: 'REFUND',
+          },
+        },
+      });
+      if (current.state === BillingRefundIntentState.SUCCEEDED) {
+        return {
+          accepted: true,
+          status: current.state,
+          paymentId: payment.id,
+          refundIntentId: current.id,
+          idempotentReplay: true,
+        };
+      }
+      if (current.state === BillingRefundIntentState.UNKNOWN) {
+        return {
+          accepted: false,
+          status: current.state,
+          paymentId: payment.id,
+          refundIntentId: current.id,
+          idempotentReplay: true,
+        };
+      }
+      throw new ConflictException(
+        'Reembolso já está em processamento; não será feita uma segunda chamada ao gateway.',
+      );
+    }
+
+    const processing = await this.prisma.billingRefundIntent.updateMany({
+      where: { id: intent.id, claimToken, state: BillingRefundIntentState.CLAIMED },
+      data: { state: BillingRefundIntentState.PROCESSING },
+    });
+    if (processing.count !== 1) {
+      throw new ConflictException('Claim de reembolso expirou ou foi substituído.');
+    }
+
+    try {
+      await gateway.refundPayment(payment.gatewayPaymentId);
+      const verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
+      const localResult = await this.processVerifiedPayment(
+        payment.provider,
+        verified,
+        'refund_api',
+      );
+      if (verified.normalizedStatus !== 'REFUNDED') {
+        await this.markRefundUnknown(intent.id, claimToken, 'GATEWAY_REFUND_PENDING');
+        return {
+          accepted: false,
+          status: BillingRefundIntentState.UNKNOWN,
+          paymentId: payment.id,
+          refundIntentId: intent.id,
+          localResult,
+        };
+      }
+      const completed = await this.prisma.billingRefundIntent.updateMany({
+        where: {
+          id: intent.id,
+          claimToken,
+          state: BillingRefundIntentState.PROCESSING,
+        },
+        data: { state: BillingRefundIntentState.SUCCEEDED, failureCode: null },
+      });
+      if (completed.count !== 1) {
+        throw new ConflictException('Claim de reembolso expirou após a confirmação.');
+      }
+      return {
+        accepted: true,
+        status: BillingRefundIntentState.SUCCEEDED,
+        paymentId: payment.id,
+        refundIntentId: intent.id,
+        localResult,
+      };
+    } catch (error) {
+      await this.markRefundUnknown(intent.id, claimToken, 'GATEWAY_RESULT_UNKNOWN');
+      throw error;
+    }
+  }
+
+  private async markRefundUnknown(
+    id: string,
+    claimToken: string,
+    failureCode: string,
+  ) {
+    await this.prisma.billingRefundIntent.updateMany({
+      where: { id, claimToken, state: BillingRefundIntentState.PROCESSING },
+      data: { state: BillingRefundIntentState.UNKNOWN, failureCode },
+    });
   }
 
   async processVerifiedPayment(
@@ -285,7 +425,7 @@ export class PaymentsService {
       );
 
       if (status === BillingPaymentStatus.APPROVED) {
-        await this.convertPromotionReservation(tx, checkout.tenantId);
+        await this.convertPromotionReservation(tx, checkout.tenantId, checkout.id);
       }
 
       const checkoutStatus = this.checkoutStatus(status, checkout.status);
@@ -418,13 +558,14 @@ export class PaymentsService {
   private async convertPromotionReservation(
     tx: Prisma.TransactionClient,
     tenantId: string,
+    checkoutSessionId: string,
   ) {
     const reservation = await tx.promotionReservation.findFirst({
       where: {
         tenantId,
+        checkoutSessionId,
         status: PromotionReservationStatus.RESERVED,
       },
-      orderBy: { reservedAt: 'desc' },
     });
     if (!reservation) return;
 
