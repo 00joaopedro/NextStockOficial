@@ -511,10 +511,13 @@ export class PromotionsService {
   async listAdminPayments(campaignId: string) {
     // Não abra uma transação de pagamento quando a campanha ainda não tem
     // reservas com checkout. Esse é o caminho normal no primeiro carregamento.
-    const reservations = await this.prisma.promotionReservation.findMany({
-      where: { campaignId, checkoutSessionId: { not: null } },
-      select: { checkoutSessionId: true },
-    });
+    const reservations = await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+      return tx.promotionReservation.findMany({
+        where: { campaignId, checkoutSessionId: { not: null } },
+        select: { checkoutSessionId: true },
+      });
+    }, { timeout: 7000 });
     const checkoutSessionIds = reservations
       .map((row) => row.checkoutSessionId)
       .filter((id): id is string => Boolean(id));
