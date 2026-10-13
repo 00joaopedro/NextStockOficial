@@ -2048,6 +2048,7 @@ model PartnerReferralPaymentEvent {
 
   @@index([referralId, createdAt])
   @@index([source, providerEventId])
+  @@unique([referralId, providerEventId], map: "partner_referral_payment_events_ref_provider_key")
   @@index([createdAt])
   @@map("partner_referral_payment_events")
 }

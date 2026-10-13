@@ -3,6 +3,9 @@ import {
   BillingEventType,
   BillingInvoiceStatus,
   BillingPaymentStatus,
+  PartnerPaymentSource,
+  PartnerPaymentStatus,
+  PartnerReferralStatus,
   CheckoutSessionStatus,
   PaymentGatewayProvider,
   PlanInterval,
@@ -116,8 +119,22 @@ export class PaymentsService {
         result.providerOccurredAt,
       );
       if (!decision.apply) {
-        await this.events.create(
-          {
+        if (
+          currentState === BillingPaymentStatus.APPROVED ||
+          currentState === BillingPaymentStatus.REFUNDED ||
+          currentState === BillingPaymentStatus.CHARGEBACK ||
+          currentState === BillingPaymentStatus.CANCELED
+        ) {
+          await this.syncPartnerReferral(
+            tx,
+            checkout.tenantId,
+            currentState,
+            checkout.subscription.id,
+            `${provider}:${result.gatewayPaymentId}:${currentState}`,
+          );
+        }
+
+        await this.events.create(          {
             tenantId: checkout.tenantId,
             subscriptionId: checkout.subscription.id,
             paymentId: existing?.id,
@@ -259,6 +276,14 @@ export class PaymentsService {
         });
       }
 
+      await this.syncPartnerReferral(
+        tx,
+        checkout.tenantId,
+        status,
+        checkout.subscription.id,
+        `${provider}:${result.gatewayPaymentId}:${status}`,
+      );
+
       if (status === BillingPaymentStatus.APPROVED) {
         await this.convertPromotionReservation(tx, checkout.tenantId);
       }
@@ -311,6 +336,83 @@ export class PaymentsService {
       return { processed: true, applied: true, paymentId: payment.id, status };
     };
     return transaction ? apply(transaction) : this.prisma.$transaction(apply);
+  }
+
+  private async syncPartnerReferral(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    status: BillingPaymentStatus,
+    subscriptionId: string,
+    providerEventId: string,
+  ) {
+    const next =
+      status === BillingPaymentStatus.APPROVED
+        ? {
+            paymentStatus: PartnerPaymentStatus.PAID,
+            referralStatus: PartnerReferralStatus.CONVERTED,
+            reason: 'Pagamento confirmado pela assinatura.',
+          }
+        : status === BillingPaymentStatus.REFUNDED ||
+            status === BillingPaymentStatus.CHARGEBACK
+          ? {
+              paymentStatus: PartnerPaymentStatus.REFUNDED,
+              referralStatus: PartnerReferralStatus.REGISTERED,
+              reason: 'Pagamento revertido pelo gateway.',
+            }
+          : status === BillingPaymentStatus.CANCELED
+            ? {
+                paymentStatus: PartnerPaymentStatus.CANCELED,
+                referralStatus: PartnerReferralStatus.CANCELED,
+                reason: 'Pagamento cancelado pelo gateway.',
+              }
+            : null;
+    if (!next) return;
+
+    const referral = await tx.partnerReferral.findFirst({
+      where: { referredTenantId: tenantId },
+      select: {
+        id: true,
+        paymentStatus: true,
+        status: true,
+        convertedAt: true,
+      },
+    });
+    if (!referral) return;
+    if (
+      referral.paymentStatus === next.paymentStatus &&
+      referral.status === next.referralStatus
+    ) {
+      return;
+    }
+
+    const updated = await tx.partnerReferral.updateMany({
+      where: {
+        id: referral.id,
+        paymentStatus: referral.paymentStatus,
+        status: referral.status,
+      },
+      data: {
+        paymentStatus: next.paymentStatus,
+        status: next.referralStatus,
+        convertedAt:
+          next.paymentStatus === PartnerPaymentStatus.PAID
+            ? referral.convertedAt ?? new Date()
+            : referral.convertedAt,
+      },
+    });
+    if (updated.count !== 1) throw new BillingCasLostError();
+
+    await tx.partnerReferralPaymentEvent.create({
+      data: {
+        referralId: referral.id,
+        previousStatus: referral.paymentStatus,
+        newStatus: next.paymentStatus,
+        source: PartnerPaymentSource.SUBSCRIPTION_SYNC,
+        providerEventId,
+        subscriptionId,
+        reason: next.reason,
+      },
+    });
   }
 
   private async convertPromotionReservation(
