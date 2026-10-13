@@ -159,7 +159,7 @@ export class SubscriptionsService {
     const claimToken = randomUUID();
     const leaseExpiresAt = new Date(Date.now() + 60_000);
     let operation:
-      | { id: string; claimToken: string; state: BillingSubscriptionOperationState }
+      | { id: string; claimToken: string | null; state: BillingSubscriptionOperationState }
       | undefined;
 
     if (!existingOperation) {
