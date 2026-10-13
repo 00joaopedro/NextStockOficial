@@ -441,6 +441,7 @@ model Tenant {
   billingPayments              BillingPayment[]
   billingInvoices              BillingInvoice[]
   billingEvents                BillingEvent[]
+  refundIntents                BillingRefundIntent[]
   userSessions                 UserSession[]
   storedFiles                  StoredFile[]
   uploadQuotaCounters          UploadQuotaCounter[]
@@ -830,13 +831,37 @@ model BillingPayment {
   checkoutSession CheckoutSession? @relation(fields: [checkoutSessionId], references: [id], onDelete: SetNull)
   invoice         BillingInvoice?  @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   billingEvents   BillingEvent[]
+  refundIntents   BillingRefundIntent[]
 
   @@index([tenantId, status, createdAt])
   @@index([checkoutSessionId])
   @@index([invoiceId])
   @@index([externalReference])
   @@index([provider, gatewayPaymentId])
+  @@unique([id, tenantId], map: "billing_payments_id_tenant_id_key")
   @@map("billing_payments")
+}
+
+model BillingRefundIntent {
+  id             String                  @id @default(uuid()) @db.Uuid
+  tenantId       String                  @map("tenant_id") @db.Uuid
+  paymentId      String                  @map("payment_id") @db.Uuid
+  provider       PaymentGatewayProvider
+  operation      String                  @default("REFUND")
+  state          BillingRefundIntentState @default(CLAIMED)
+  claimToken     String                  @map("claim_token") @db.Uuid
+  leaseExpiresAt DateTime                @map("lease_expires_at")
+  failureCode    String?                 @map("failure_code")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  payment BillingPayment @relation(fields: [paymentId, tenantId], references: [id, tenantId], onDelete: Restrict)
+
+  @@unique([tenantId, paymentId, operation])
+  @@index([tenantId, state, leaseExpiresAt])
+  @@index([paymentId, tenantId])
+  @@map("billing_refund_intents")
 }
 
 model BillingInvoice {
@@ -2224,6 +2249,15 @@ enum CheckoutSessionStatus {
 }
 
 enum BillingCheckoutIntentState {
+  CLAIMED
+  PROCESSING
+  UNKNOWN
+  SUCCEEDED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
+enum BillingRefundIntentState {
   CLAIMED
   PROCESSING
   UNKNOWN

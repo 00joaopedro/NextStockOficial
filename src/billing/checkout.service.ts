@@ -80,6 +80,11 @@ export class CheckoutService {
           'A reserva promocional não está válida ou expirou.',
         );
       }
+      if (promotionReservation.checkoutSessionId) {
+        throw new ConflictException(
+          'A reserva promocional já está vinculada a outro checkout.',
+        );
+      }
       const metadata =
         promotionReservation.metadata &&
         typeof promotionReservation.metadata === 'object'
@@ -233,10 +238,13 @@ export class CheckoutService {
         };
     }
 
-    await this.prisma.billingCheckoutIntent.updateMany({
+    const processingClaim = await this.prisma.billingCheckoutIntent.updateMany({
       where: { id: intent.id, claimToken, state: 'CLAIMED' },
       data: { state: 'PROCESSING' },
     });
+    if (processingClaim.count !== 1) {
+      throw new ConflictException('Claim de checkout expirou ou foi substituído.');
+    }
     let gatewayCheckout;
     try {
       gatewayCheckout = await gateway.createCheckout({
@@ -295,14 +303,20 @@ export class CheckoutService {
           },
         });
         if (promotionReservation) {
-          await tx.promotionReservation.updateMany({
+          const linkedReservation = await tx.promotionReservation.updateMany({
             where: {
               id: promotionReservation.id,
               tenantId: context.tenantId,
               status: 'RESERVED',
+              checkoutSessionId: null,
             },
             data: { checkoutSessionId: created.id },
           });
+          if (linkedReservation.count !== 1) {
+            throw new ConflictException(
+              'A reserva promocional já está vinculada a outro checkout.',
+            );
+          }
         }
         await tx.subscription.update({
           where: { id: subscription.id },
