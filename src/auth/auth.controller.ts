@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Post,
   Req,
   Res,
@@ -177,10 +178,14 @@ export class AuthController {
   @CsrfExempt()
   async register(
     @Body() body: RegisterDto,
+    @Headers('idempotency-key') idempotencyKey: string | undefined,
     @Res({ passthrough: true }) reply: CompatibleReply,
     @Req() req?: AuthenticatedHttpRequest,
   ) {
-    const { accessToken, payload } = await this.authService.register(body);
+    const { accessToken, payload } = await this.authService.register({
+      ...body,
+      idempotencyKey,
+    });
 
     reply.header('Cache-Control', 'no-store');
     await this.createSession(req, reply, accessToken, payload.user);
