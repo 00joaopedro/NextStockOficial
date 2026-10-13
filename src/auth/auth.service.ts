@@ -455,13 +455,22 @@ export class AuthService {
         return { tenant, branch, profile };
       });
     } catch (error) {
-      if (authIdentityOwned) {
-        await this.rollbackAuthenticationUser(authUser.id);
+      const rollbackCompleted = authIdentityOwned
+        ? await this.rollbackAuthenticationUser(authUser.id)
+        : true;
+      if (rollbackCompleted) {
+        await this.markRegistrationIntentRetryable(
+          intent.id,
+          error instanceof Error
+            ? error.message.slice(0, 120)
+            : 'REGISTER_TRANSACTION_FAILED',
+        );
+      } else {
+        await this.markRegistrationIntentCompensationRequired(
+          intent.id,
+          'AUTH_ROLLBACK_FAILED',
+        );
       }
-      await this.markRegistrationIntentRetryable(
-        intent.id,
-        error instanceof Error ? error.message.slice(0, 120) : 'REGISTER_TRANSACTION_FAILED',
-      );
       this.handleKnownPrismaAuthError(error, 'register.transaction');
       throw new InternalServerErrorException(
         'Nao foi possivel concluir o cadastro.',
@@ -655,6 +664,21 @@ export class AuthService {
       },
       data: {
         state: UserProvisioningState.FAILED_RETRYABLE,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+  }
+
+  private async markRegistrationIntentCompensationRequired(
+    id: string,
+    errorCode: string,
+  ) {
+    await this.prisma.registrationIntent.updateMany({
+      where: { id, state: { not: UserProvisioningState.COMPLETED } },
+      data: {
+        state: UserProvisioningState.COMPENSATION_REQUIRED,
         lastErrorCode: errorCode.slice(0, 120),
         claimToken: null,
         leaseExpiresAt: null,
