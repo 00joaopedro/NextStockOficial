@@ -46,48 +46,55 @@ export class PartnersService {
         : {}),
     };
 
-    const [total, items, activeLinks, totalReferredUsers, paidUsers] =
-      await this.prisma.$transaction([
-        this.prisma.partner.count({ where }),
-        this.prisma.partner.findMany({
-          where,
-          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-          skip: (page - 1) * limit,
-          take: limit,
-          include: {
-            _count: { select: { referrals: true } },
-            referrals: {
-              where: { paymentStatus: 'PAID' },
-              select: { id: true },
-            },
-          },
-        }),
-        this.prisma.partner.count({
-          where: { deletedAt: null, linkStatus: PartnerLinkStatus.ACTIVE },
-        }),
-        this.prisma.partnerReferral.count({
-          where: { partner: { deletedAt: null } },
-        }),
-        this.prisma.partnerReferral.count({
-          where: { partner: { deletedAt: null }, paymentStatus: 'PAID' },
-        }),
-      ]);
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        const [total, items, activeLinks, totalReferredUsers, paidUsers, totalPartners] =
+          await Promise.all([
+            tx.partner.count({ where }),
+            tx.partner.findMany({
+              where,
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              skip: (page - 1) * limit,
+              take: limit,
+              include: {
+                _count: { select: { referrals: true } },
+                referrals: {
+                  where: { paymentStatus: 'PAID' },
+                  select: { id: true },
+                },
+              },
+            }),
+            tx.partner.count({
+              where: { deletedAt: null, linkStatus: PartnerLinkStatus.ACTIVE },
+            }),
+            tx.partnerReferral.count({
+              where: { partner: { deletedAt: null } },
+            }),
+            tx.partnerReferral.count({
+              where: { partner: { deletedAt: null }, paymentStatus: 'PAID' },
+            }),
+            tx.partner.count({ where: { deletedAt: null } }),
+          ]);
+        return { total, items, activeLinks, totalReferredUsers, paidUsers, totalPartners };
+      },
+      { maxWait: 3000, timeout: 7000 },
+    );
 
     return {
-      items: items.map((partner) => this.formatPartner(partner)),
+      items: result.items.map((partner) => this.formatPartner(partner)),
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
       metrics: {
-        totalPartners: await this.prisma.partner.count({ where: { deletedAt: null } }),
-        activeLinks,
-        totalReferredUsers,
-        paidUsers,
+        totalPartners: result.totalPartners,
+        activeLinks: result.activeLinks,
+        totalReferredUsers: result.totalReferredUsers,
+        paidUsers: result.paidUsers,
       },
     };
   }
-
   async findOne(user: AuthenticatedUser | undefined, id: string) {
     this.assertDev(user);
     const partner = await this.findActiveOrThrow(id);
