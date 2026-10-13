@@ -117,7 +117,8 @@ export class PartnersService {
           referralCode: token,
           referralCodeHash: this.hash(token),
           referralCodePrefix: token.slice(0, 8),
-          systemType: dto.systemType,
+          systemType: dto.isUniversal ? SystemType.padrao : dto.systemType,
+          isUniversal: dto.isUniversal === true,
           expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
           createdById: user!.id,
           updatedById: user!.id,
@@ -310,7 +311,10 @@ export class PartnersService {
       name: partner.name,
       phone: partner.phone,
       bankNumber: partner.bankNumber,
-      sellerLink: this.buildSellerLink(partner.referralCode),
+      sellerLink: this.buildSellerLink(partner.referralCode, partner.isUniversal),
+      universalLink: partner.isUniversal
+        ? this.buildUniversalLink(partner.referralCode)
+        : undefined,
       standardLink: this.buildReferralLink(partner.referralCode, 'index.html'),
       promotionLink: this.buildReferralLink(partner.referralCode, 'promocao.html'),
       linkStatus: partner.linkStatus,
@@ -324,11 +328,17 @@ export class PartnersService {
     };
   }
 
-  private buildSellerLink(code: string) {
-    return this.buildReferralLink(code, 'index.html');
+  private buildSellerLink(code: string, isUniversal = false) {
+    return isUniversal
+      ? this.buildUniversalLink(code)
+      : this.buildReferralLink(code, 'index.html');
   }
 
-  private buildReferralLink(code: string, page: 'index.html' | 'promocao.html') {
+  private buildUniversalLink(code: string) {
+    return this.buildReferralLink(code, 'venda.html');
+  }
+
+  private buildReferralLink(code: string, page: 'index.html' | 'promocao.html' | 'venda.html') {
     const base = (
       process.env.NEXTSTOCK_PUBLIC_URL ||
       process.env.PUBLIC_APP_URL ||
