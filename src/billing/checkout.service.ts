@@ -80,6 +80,11 @@ export class CheckoutService {
           'A reserva promocional não está válida ou expirou.',
         );
       }
+      if (promotionReservation.checkoutSessionId) {
+        throw new ConflictException(
+          'A reserva promocional já está vinculada a outro checkout.',
+        );
+      }
       const metadata =
         promotionReservation.metadata &&
         typeof promotionReservation.metadata === 'object'
