@@ -142,6 +142,15 @@ export class CheckoutService {
       );
     }
 
+    const payloadHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          operation: 'CREATE_CHECKOUT',
+          planSlug,
+          promotionReservationId,
+        }),
+      )
+      .digest('hex');
     const activeCheckout = await this.prisma.checkoutSession.findFirst({
       where: {
         tenantId: context.tenantId,
@@ -151,6 +160,22 @@ export class CheckoutService {
       orderBy: { createdAt: 'desc' },
     });
     if (activeCheckout) {
+      const activeIntent = await this.prisma.billingCheckoutIntent.findFirst({
+        where: {
+          tenantId: context.tenantId,
+          subscriptionId: subscription.id,
+          state: { in: ['CLAIMED', 'PROCESSING', 'SUCCEEDED'] },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (
+        activeCheckout.planId !== plan.id ||
+        (activeIntent && activeIntent.payloadHash !== payloadHash)
+      ) {
+        throw new ConflictException(
+          'Já existe um checkout ativo com uma solicitação diferente para esta assinatura.',
+        );
+      }
       if (promotionReservationId && !promotionReservation?.checkoutSessionId) {
         throw new ConflictException(
           'Já existe um checkout ativo para esta assinatura.',
@@ -158,9 +183,6 @@ export class CheckoutService {
       }
       return this.result(activeCheckout, true);
     }
-    const payloadHash = createHash('sha256')
-      .update(JSON.stringify({ operation: 'CREATE_CHECKOUT', planSlug, promotionReservationId }))
-      .digest('hex');
     const profile = await this.prisma.userProfile.findUnique({
       where: { id: context.userId },
       select: { email: true },
@@ -289,6 +311,7 @@ export class CheckoutService {
           OR: [
             { checkoutClaimToken: null },
             { checkoutClaimToken: intent.id },
+            { checkoutClaimExpiresAt: { lte: new Date() } },
           ],
         },
         data: {
