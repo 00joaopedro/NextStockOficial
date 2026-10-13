@@ -205,51 +205,9 @@ async function bootstrap() {
 
     await loadPartners();
   } catch (error) {
-        const retryable =
-          (error instanceof ApiError &&
-            [499, 500, 502, 503, 504].includes(error.status)) ||
-          (error instanceof Error &&
-            error.message.includes('demorou para responder'));
-        if (!retryable || attempt === 3) throw error;
-        els.gate.innerHTML =
-          `<h2>Servidor ocupado</h2><p>Tentando validar o acesso novamente (${attempt + 1}/3)...</p>`;
-        await wait(350 * attempt);
-      }
-    }
-
-    if (access === null || access.isDevSuperAdmin !== true) {
-      els.gate.innerHTML =
-        '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
-      return;
-    }
-
-    // O contexto operacional pode depender do pool do banco; ele não deve
-    // impedir a abertura da tela nem a consulta dos parceiros.
-    document.body.dataset.locked = 'false';
-    window.dispatchEvent(new Event('nextstock:partners-ready'));
-    els.gate.remove();
-    void api<{
-      systemMode?: string;
-      systemType?: string;
-      tenantType?: string;
-      isDevSuperAdmin?: boolean;
-    }>('/system/context')
-      .then((context) => {
-        state.preview = context.systemMode === 'PREVIEW';
-        (window as any).setNextStockBackendContext?.(context);
-        setBusy(state.busy);
-      })
-      .catch(() => {
-        // Falha de contexto deve bloquear mutações até a permissão operacional ser confirmada.
-        state.preview = true;
-        setBusy(state.busy);
-      });
-
-    await loadPartners();
-  } catch (error) {
     document.body.dataset.locked = 'true';
     els.gate.innerHTML =
-      '<h2>Não foi possível validar o acesso</h2><p>O servidor não respondeu. Tente novamente.</p><button type="button" id="accessRetryBtn">Tentar novamente</button>';
+      '<h2>Não foi possível carregar os parceiros</h2><p>O servidor não respondeu. Tente novamente.</p><button type="button" id="accessRetryBtn">Tentar novamente</button>';
     byId<HTMLButtonElement>('accessRetryBtn').onclick = () => void bootstrap();
     showError(error);
   } finally {
