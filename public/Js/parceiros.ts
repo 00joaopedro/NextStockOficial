@@ -181,12 +181,30 @@ async function bootstrap() {
     '<h2>Validando acesso...</h2><p>Painel restrito ao Dev SuperAdmin.</p>';
 
   try {
-    let access: { isDevSuperAdmin?: boolean } | null = null;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        access = await api<{ isDevSuperAdmin?: boolean }>('/auth/access-context');
-        break;
-      } catch (error) {
+    // The HTML route is already protected by JwtAuthGuard + DevSuperAdminGuard.
+    // Do not block rendering on a duplicate client-side authorization request.
+    document.body.dataset.locked = 'false';
+    window.dispatchEvent(new Event('nextstock:partners-ready'));
+    els.gate.remove();
+
+    void api<{
+      systemMode?: string;
+      systemType?: string;
+      tenantType?: string;
+      isDevSuperAdmin?: boolean;
+    }>('/system/context')
+      .then((context) => {
+        state.preview = context.systemMode === 'PREVIEW';
+        (window as any).setNextStockBackendContext?.(context);
+        setBusy(state.busy);
+      })
+      .catch(() => {
+        state.preview = true;
+        setBusy(state.busy);
+      });
+
+    await loadPartners();
+  } catch (error) {
         const retryable =
           (error instanceof ApiError &&
             [499, 500, 502, 503, 504].includes(error.status)) ||
