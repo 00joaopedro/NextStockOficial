@@ -194,6 +194,28 @@ Object.assign(window, {
 });
 
 const originalNextStockFetch = window.fetch.bind(window);
+
+const SESSION_REFRESH_TIMEOUT_MS = 5000;
+
+async function refreshNextStockSession(): Promise<Response | null> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(
+    () => controller.abort(),
+    SESSION_REFRESH_TIMEOUT_MS,
+  );
+  try {
+    return await originalNextStockFetch('/api/auth/session/refresh', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+  } catch {
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
 window.fetch = async (...args: Parameters<typeof fetch>) => {
   const request = args[0];
   const init = args[1];
@@ -235,11 +257,7 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
   // Refresh before mutations so an expired local JWT never reaches a form
   // handler as a recoverable 401. The mutation itself is never replayed.
   if (isApiMutation) {
-    await originalNextStockFetch('/api/auth/session/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    }).catch(() => null);
+    await refreshNextStockSession();
   }
 
   const response = await originalNextStockFetch(...args);
