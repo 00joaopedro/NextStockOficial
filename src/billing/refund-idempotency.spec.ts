@@ -2,6 +2,7 @@ import {
   BillingPaymentStatus,
   BillingRefundIntentState,
   PaymentGatewayProvider,
+  Prisma,
 } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 
@@ -58,9 +59,10 @@ describe('durable refund idempotency', () => {
         ),
         create: jest.fn().mockImplementation(async () => {
           if (currentState) {
-            const error = new Error('unique') as Error & { code: string };
-            error.code = 'P2002';
-            throw error;
+            throw new Prisma.PrismaClientKnownRequestError('unique', {
+              code: 'P2002',
+              clientVersion: 'test',
+            });
           }
           currentState = BillingRefundIntentState.CLAIMED;
           return intent;
