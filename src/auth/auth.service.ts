@@ -437,6 +437,20 @@ export class AuthService {
           await this.subscriptions.createTrial(tx, tenant.id);
         }
 
+        await tx.registrationIntent.update({
+          where: { id: intent.id },
+          data: {
+            state: UserProvisioningState.COMPLETED,
+            authUserId: authUser.id,
+            tenantId: tenant.id,
+            branchId: branch.id,
+            completedAt: new Date(),
+            claimToken: null,
+            leaseExpiresAt: null,
+            lastErrorCode: null,
+          },
+        });
+
         return { tenant, branch, profile };
       });
     } catch (error) {
