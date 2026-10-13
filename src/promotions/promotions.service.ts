@@ -410,26 +410,27 @@ export class PromotionsService {
     const campaign = await this.findCampaign(slug);
     await this.expireReservations(campaign.id).catch(() => undefined);
 
-    const [reservationsResult, paymentsResult] = await Promise.all([
-      this.listAdminReservations(campaign.id)
-        .then((reservations) => ({
-          reservations,
-          warning: null as string | null,
-        }))
-        .catch(() => ({
-          reservations: [],
-          warning: 'Reservas temporariamente indisponíveis no painel.',
-        })),
-      this.listAdminPayments(campaign.id)
-        .then((payments) => ({
-          payments,
-          warning: null as string | null,
-        }))
-        .catch(() => ({
-          payments: [],
-          warning: 'Pagamentos temporariamente indisponíveis no painel.',
-        })),
-    ]);
+    // As leituras são sequenciais para não concorrerem entre si nem com a
+    // inicialização do sidebar/sessão no primeiro carregamento da página.
+    const reservationsResult = await this.listAdminReservations(campaign.id)
+      .then((reservations) => ({
+        reservations,
+        warning: null as string | null,
+      }))
+      .catch(() => ({
+        reservations: [],
+        warning: 'Reservas temporariamente indisponíveis no painel.',
+      }));
+
+    const paymentsResult = await this.listAdminPayments(campaign.id)
+      .then((payments) => ({
+        payments,
+        warning: null as string | null,
+      }))
+      .catch(() => ({
+        payments: [],
+        warning: 'Pagamentos temporariamente indisponíveis no painel.',
+      }));
 
     const now = new Date();
     const isOpen = this.isOpen(campaign, now);
@@ -508,17 +509,22 @@ export class PromotionsService {
   }
 
   async listAdminPayments(campaignId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    // Não abra uma transação de pagamento quando a campanha ainda não tem
+    // reservas com checkout. Esse é o caminho normal no primeiro carregamento.
+    const reservations = await this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-      const reservations = await tx.promotionReservation.findMany({
+      return tx.promotionReservation.findMany({
         where: { campaignId, checkoutSessionId: { not: null } },
         select: { checkoutSessionId: true },
       });
-      const checkoutSessionIds = reservations
-        .map((row) => row.checkoutSessionId)
-        .filter((id): id is string => Boolean(id));
-      if (!checkoutSessionIds.length) return [];
+    }, { timeout: 7000 });
+    const checkoutSessionIds = reservations
+      .map((row) => row.checkoutSessionId)
+      .filter((id): id is string => Boolean(id));
+    if (!checkoutSessionIds.length) return [];
 
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
       return tx.billingPayment.findMany({
         where: { checkoutSessionId: { in: checkoutSessionIds } },
         orderBy: { createdAt: 'desc' },
