@@ -210,19 +210,31 @@ export class AuthService {
 
     let authUser;
     try {
-      authUser = await this.authProvider.createUser({
-        email,
-        password,
-        metadata: {
-          name,
-          full_name: name,
-          companyName,
-          systemType,
-          role: Role.Admin,
-          access_name_normalized: accessNameNormalized,
-          allowed_system_types: [systemType],
-          is_super_admin: false,
-          isSuperAdmin: false,
+      authUser = await this.authProvider.findByEmail(email);
+      if (!authUser) {
+        authUser = await this.authProvider.createUser({
+          email,
+          password,
+          metadata: {
+            name,
+            full_name: name,
+            companyName,
+            systemType,
+            role: Role.Admin,
+            access_name_normalized: accessNameNormalized,
+            allowed_system_types: [systemType],
+            is_super_admin: false,
+            isSuperAdmin: false,
+          },
+        });
+      }
+      await this.prisma.registrationIntent.update({
+        where: { id: intent.id },
+        data: {
+          state: UserProvisioningState.AUTH_CREATED,
+          authUserId: authUser.id,
+          leaseExpiresAt: new Date(Date.now() + 60_000),
+          lastErrorCode: null,
         },
       });
     } catch (error) {
@@ -230,9 +242,29 @@ export class AuthService {
         error instanceof AuthProviderError &&
         error.code === 'email_already_exists'
       ) {
-        throw new ConflictException('E-mail ja cadastrado.');
+        const existingAuth = await this.authProvider.findByEmail(email);
+        if (existingAuth) {
+          authUser = existingAuth;
+          await this.prisma.registrationIntent.update({
+            where: { id: intent.id },
+            data: {
+              state: UserProvisioningState.AUTH_CREATED,
+              authUserId: existingAuth.id,
+              leaseExpiresAt: new Date(Date.now() + 60_000),
+              lastErrorCode: null,
+            },
+          });
+        } else {
+          await this.markRegistrationIntentRetryable(intent.id, 'AUTH_EMAIL_EXISTS');
+          throw new ConflictException('E-mail ja cadastrado.');
+        }
+      } else {
+        await this.markRegistrationIntentRetryable(
+          intent.id,
+          error instanceof AuthProviderError ? error.code : 'AUTH_CREATE_FAILED',
+        );
+        throw this.buildSupabaseAuthException(error as SupabaseAuthError);
       }
-      throw this.buildSupabaseAuthException(error as SupabaseAuthError);
     }
 
     let result!: {
