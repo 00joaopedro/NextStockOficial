@@ -141,6 +141,23 @@ export class CheckoutService {
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
       );
     }
+
+    const activeCheckout = await this.prisma.checkoutSession.findFirst({
+      where: {
+        tenantId: context.tenantId,
+        subscriptionId: subscription.id,
+        status: { in: [CheckoutSessionStatus.OPEN, CheckoutSessionStatus.PENDING] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (activeCheckout) {
+      if (promotionReservationId && !promotionReservation?.checkoutSessionId) {
+        throw new ConflictException(
+          'Já existe um checkout ativo para esta assinatura.',
+        );
+      }
+      return this.result(activeCheckout, true);
+    }
     const payloadHash = createHash('sha256')
       .update(JSON.stringify({ operation: 'CREATE_CHECKOUT', planSlug, promotionReservationId }))
       .digest('hex');
@@ -181,16 +198,32 @@ export class CheckoutService {
         error.code !== 'P2002'
       )
         throw error;
-      intent = await this.prisma.billingCheckoutIntent.findUniqueOrThrow({
-        where: {
-          tenantId_operation_idempotencyKey: {
-            tenantId: context.tenantId,
-            operation: 'CREATE_CHECKOUT',
-            idempotencyKey,
+      try {
+        intent = await this.prisma.billingCheckoutIntent.findUniqueOrThrow({
+          where: {
+            tenantId_operation_idempotencyKey: {
+              tenantId: context.tenantId,
+              operation: 'CREATE_CHECKOUT',
+              idempotencyKey,
+            },
           },
-        },
-        include: { checkoutSession: true },
-      });
+          include: { checkoutSession: true },
+        });
+      } catch (lookupError) {
+        const activeIntent = await this.prisma.billingCheckoutIntent.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            subscriptionId: subscription.id,
+            state: { in: ['CLAIMED', 'PROCESSING'] },
+          },
+        });
+        if (activeIntent) {
+          throw new ConflictException(
+            'Já existe um checkout em processamento para esta assinatura.',
+          );
+        }
+        throw lookupError;
+      }
       if (intent.payloadHash !== payloadHash) {
         throw new ConflictException(
           'Idempotency-Key reutilizada com payload divergente.',
@@ -245,6 +278,35 @@ export class CheckoutService {
     if (processingClaim.count !== 1) {
       throw new ConflictException('Claim de checkout expirou ou foi substituído.');
     }
+
+    if (promotionReservation) {
+      const reservationClaim = await this.prisma.promotionReservation.updateMany({
+        where: {
+          id: promotionReservation.id,
+          tenantId: context.tenantId,
+          status: 'RESERVED',
+          checkoutSessionId: null,
+          OR: [
+            { checkoutClaimToken: null },
+            { checkoutClaimToken: intent.id },
+          ],
+        },
+        data: {
+          checkoutClaimToken: intent.id,
+          checkoutClaimExpiresAt: new Date(Date.now() + 300_000),
+        },
+      });
+      if (reservationClaim.count !== 1) {
+        await this.prisma.billingCheckoutIntent.updateMany({
+          where: { id: intent.id, claimToken, state: 'PROCESSING' },
+          data: { state: 'FAILED_RETRYABLE', failureCode: 'PROMOTION_RESERVATION_CLAIMED' },
+        });
+        throw new ConflictException(
+          'A reserva promocional já está em outra tentativa de checkout.',
+        );
+      }
+    }
+
     let gatewayCheckout;
     try {
       gatewayCheckout = await gateway.createCheckout({
@@ -310,7 +372,11 @@ export class CheckoutService {
               status: 'RESERVED',
               checkoutSessionId: null,
             },
-            data: { checkoutSessionId: created.id },
+            data: {
+              checkoutSessionId: created.id,
+              checkoutClaimToken: null,
+              checkoutClaimExpiresAt: null,
+            },
           });
           if (linkedReservation.count !== 1) {
             throw new ConflictException(
