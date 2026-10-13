@@ -39,7 +39,17 @@ const state = {
     busy: false,
     searchTimer: 0,
     preview: false,
+    partnerLoadSequence: 0,
+    referralLoadSequence: 0,
 };
+class ApiError extends Error {
+    constructor(message, status) {
+        super(message);
+        this.status = status;
+        this.name = 'ApiError';
+    }
+}
+const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 function operationalHeaders() {
     try {
         const branch = JSON.parse(sessionStorage.getItem('nextstockSelectedBranch') || 'null');
@@ -60,7 +70,7 @@ async function api(path, options = {}) {
     const shouldTimeout = method === 'GET';
     const controller = shouldTimeout ? new AbortController() : null;
     const timeoutId = shouldTimeout
-        ? window.setTimeout(() => controller?.abort(), 60000)
+        ? window.setTimeout(() => controller?.abort(), 15000)
         : null;
     let response;
     try {
@@ -95,7 +105,7 @@ async function api(path, options = {}) {
             : body.message ||
                 fallback[response.status] ||
                 'Não foi possível concluir.';
-        throw new Error(message);
+        throw new ApiError(message, response.status);
     }
     return body;
     } finally {
@@ -110,10 +120,30 @@ function isDevSuperAdmin(user) {
             user?.is_super_admin === true));
 }
 async function bootstrap() {
+    if (bootstrap.inFlight)
+        return;
+    bootstrap.inFlight = true;
+    document.body.dataset.locked = 'true';
+    els.gate.innerHTML = '<h2>Validando acesso...</h2><p>Painel restrito ao Dev SuperAdmin.</p>';
     try {
-        const access = await api('/auth/access-context');
-        if (access.isDevSuperAdmin !== true) {
-            document.body.dataset.locked = 'true';
+        let access = null;
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+                access = await api('/auth/access-context');
+                break;
+            }
+            catch (error) {
+                const retryable = (error instanceof ApiError &&
+                    [499, 500, 502, 503, 504].includes(error.status)) ||
+                    (error instanceof Error &&
+                        error.message.includes('demorou para responder'));
+                if (!retryable || attempt === 3)
+                    throw error;
+                els.gate.innerHTML = `<h2>Servidor ocupado</h2><p>Tentando validar o acesso novamente (${attempt + 1}/3)...</p>`;
+                await wait(350 * attempt);
+            }
+        }
+        if (access === null || access.isDevSuperAdmin !== true) {
             els.gate.innerHTML = '<h2>Acesso restrito</h2><p>Esta página é exclusiva do Dev SuperAdmin.</p>';
             return;
         }
@@ -126,7 +156,6 @@ async function bootstrap() {
             setBusy(state.busy);
         })
             .catch(() => {
-            // Falha de contexto deve bloquear mutações até a permissão operacional ser confirmada.
             state.preview = true;
             setBusy(state.busy);
         });
@@ -134,11 +163,16 @@ async function bootstrap() {
     }
     catch (error) {
         document.body.dataset.locked = 'true';
-        els.gate.innerHTML = '<h2>Não foi possível validar o acesso</h2><p>Atualize a página ou tente novamente em instantes.</p>';
+        els.gate.innerHTML = '<h2>Não foi possível validar o acesso</h2><p>O servidor não respondeu. Tente novamente.</p><button type="button" id="accessRetryBtn">Tentar novamente</button>';
+        byId('accessRetryBtn').onclick = () => void bootstrap();
         showError(error);
+    }
+    finally {
+        bootstrap.inFlight = false;
     }
 }
 async function loadPartners() {
+    const requestId = ++state.partnerLoadSequence;
     setBusy(true);
     try {
         const params = new URLSearchParams({
@@ -151,6 +185,8 @@ async function loadPartners() {
         if (els.linkStatus.value)
             params.set('linkStatus', els.linkStatus.value);
         const data = await api(`/partners?${params}`);
+        if (requestId !== state.partnerLoadSequence)
+            return;
         state.partners = data.items;
         state.partnerTotalPages = Math.max(1, data.totalPages);
         els.totalPartners.textContent = String(data.metrics.totalPartners);
@@ -163,7 +199,8 @@ async function loadPartners() {
         showError(error);
     }
     finally {
-        setBusy(false);
+        if (requestId === state.partnerLoadSequence)
+            setBusy(false);
     }
 }
 function renderPartners() {
@@ -307,6 +344,7 @@ async function toggleLink() {
 async function loadReferrals() {
     if (!state.selected)
         return;
+    const requestId = ++state.referralLoadSequence;
     const params = new URLSearchParams({
         page: String(state.referralPage),
         limit: '20',
@@ -320,6 +358,8 @@ async function loadReferrals() {
         params.set('seen', els.seenFilter.value);
     try {
         const data = await api(`/partners/${state.selected.id}/referrals?${params}`);
+        if (requestId !== state.referralLoadSequence)
+            return;
         state.referralTotalPages = Math.max(1, data.totalPages);
         renderReferrals(data.items);
     }

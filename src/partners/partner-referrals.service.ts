@@ -21,7 +21,6 @@ export class PartnerReferralsService {
     query: ReferralQueryDto,
   ) {
     this.assertDev(user);
-    await this.assertPartner(partnerId);
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const search = query.search?.replace(/\s+/g, ' ').trim();
@@ -50,25 +49,39 @@ export class PartnerReferralsService {
           }
         : {}),
     };
-    const [total, items] = await this.prisma.$transaction([
-      this.prisma.partnerReferral.count({ where }),
-      this.prisma.partnerReferral.findMany({
-        where,
-        orderBy: [{ registeredAt: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * limit,
-        take: limit,
-        select: this.referralSelect(),
-      }),
-    ]);
+
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        const partner = await tx.partner.findFirst({
+          where: { id: partnerId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!partner) throw new NotFoundException('Parceiro nao encontrado.');
+
+        const [total, items] = await Promise.all([
+          tx.partnerReferral.count({ where }),
+          tx.partnerReferral.findMany({
+            where,
+            orderBy: [{ registeredAt: 'desc' }, { id: 'desc' }],
+            skip: (page - 1) * limit,
+            take: limit,
+            select: this.referralSelect(),
+          }),
+        ]);
+        return { total, items };
+      },
+      { maxWait: 3000, timeout: 7000 },
+    );
+
     return {
-      items: items.map((item) => this.formatReferral(item)),
+      items: result.items.map((item) => this.formatReferral(item)),
       page,
       limit,
-      total,
-      totalPages: Math.ceil(total / limit),
+      total: result.total,
+      totalPages: Math.ceil(result.total / limit),
     };
   }
-
   async updateSeen(
     user: AuthenticatedUser | undefined,
     partnerId: string,
