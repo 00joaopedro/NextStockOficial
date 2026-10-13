@@ -165,6 +165,31 @@ export class AuthService {
     const systemType =
       referral?.systemType ?? this.normalizeSystemType(input.systemType);
     const tenantName = companyName;
+    const idempotencyKey = this.registrationIdempotencyKey(
+      email,
+      input.idempotencyKey,
+    );
+    const payloadHash = this.registrationPayloadHash({
+      email,
+      name,
+      companyName,
+      password,
+      systemType,
+      referralCode: input.referralCode ?? null,
+    });
+    const intent = await this.claimRegistrationIntent({
+      email,
+      idempotencyKey,
+      payloadHash,
+      name,
+      companyName,
+      systemType,
+      referralPartnerId: referral?.partnerId ?? null,
+    });
+    if (intent.state === UserProvisioningState.COMPLETED) {
+      return this.login({ email, password });
+    }
+
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName).catch(
       (error) => this.handleKnownPrismaAuthError(error, 'register.slug_lookup'),
     );
