@@ -983,6 +983,32 @@ model TenantMember {
   @@map("tenant_members")
 }
 
+model RegistrationIntent {
+  id                String                @id @default(uuid()) @db.Uuid
+  canonicalEmail    String                @unique @map("canonical_email")
+  idempotencyKey    String                @unique @map("idempotency_key")
+  payloadHash       String                @map("payload_hash")
+  state             UserProvisioningState @default(CLAIMED)
+  authUserId        String?               @unique @map("auth_user_id") @db.Uuid
+  tenantId          String?               @map("tenant_id") @db.Uuid
+  branchId          String?               @map("branch_id") @db.Uuid
+  requestedName     String                @map("requested_name")
+  companyName       String                @map("company_name")
+  systemType        SystemType            @map("system_type")
+  referralPartnerId String?               @map("referral_partner_id") @db.Uuid
+  claimToken        String?               @map("claim_token") @db.Uuid
+  leaseExpiresAt    DateTime?             @map("lease_expires_at")
+  attempts          Int                   @default(1)
+  lastErrorCode     String?               @map("last_error_code")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
+  completedAt       DateTime?             @map("completed_at")
+
+  @@index([state, leaseExpiresAt])
+  @@index([canonicalEmail])
+  @@map("registration_intents")
+}
+
 model UserProvisioning {
   id                String                  @id @default(uuid()) @db.Uuid
   tenantId          String                  @map("tenant_id") @db.Uuid
