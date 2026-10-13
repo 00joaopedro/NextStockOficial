@@ -10,13 +10,14 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import {
   EmployeeStatus,
   Prisma,
   Role,
   SystemMode,
   SystemType,
+  UserProvisioningState,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -50,6 +51,7 @@ type RegisterInput = {
   password?: string;
   systemType?: string;
   referralCode?: string;
+  idempotencyKey?: string;
 };
 
 type LoginInput = {
@@ -147,23 +149,74 @@ export class AuthService {
     ) {
       this.localJwt?.assertSigningConfigured();
     }
-    let referral: ValidReferral | null = null;
-    if (input.referralCode) {
+    const requestedSystemType = this.normalizeSystemType(input.systemType);
+    const tenantName = companyName;
+    const idempotencyKey = this.registrationIdempotencyKey(
+      email,
+      input.idempotencyKey,
+    );
+    const payloadHash = this.registrationPayloadHash({
+      email,
+      name,
+      companyName,
+      requestedSystemType,
+      referralCode: input.referralCode ?? null,
+    });
+    const intent = await this.claimRegistrationIntent({
+      email,
+      idempotencyKey,
+      payloadHash,
+      name,
+      companyName,
+      systemType: requestedSystemType,
+      referralPartnerId: null,
+    });
+    if (intent.state === UserProvisioningState.COMPLETED) {
+      return this.login({ email, password });
+    }
+
+    let referral: ValidReferral | null = intent.referralPartnerId
+      ? {
+          partnerId: intent.referralPartnerId,
+          systemType: intent.systemType,
+        }
+      : null;
+    if (!referral && input.referralCode) {
       referral =
         (await this.referrals?.resolveActive(
           input.referralCode,
           input.systemType,
         )) ?? null;
       if (!referral) {
+        await this.markRegistrationIntentFinal(
+          intent.id,
+          'REFERRAL_UNAVAILABLE',
+          intent.claimToken,
+        );
         await this.referrals?.recordRejected(input.referralCode);
         throw new BadRequestException(
           'Link de indicacao invalido ou indisponivel.',
         );
       }
+      const referralClaim = await this.prisma.registrationIntent.updateMany({
+        where: {
+          id: intent.id,
+          claimToken: intent.claimToken,
+          state: UserProvisioningState.CLAIMED,
+        },
+        data: {
+          systemType: referral.systemType,
+          referralPartnerId: referral.partnerId,
+        },
+      });
+      if (referralClaim.count !== 1) {
+        throw new ConflictException(
+          'Registration ownership changed; retry the registration.',
+        );
+      }
     }
-    const systemType =
-      referral?.systemType ?? this.normalizeSystemType(input.systemType);
-    const tenantName = companyName;
+    const systemType = referral?.systemType ?? intent.systemType;
+
     const tenantSlug = await this.buildUniqueTenantSlug(tenantName).catch(
       (error) => this.handleKnownPrismaAuthError(error, 'register.slug_lookup'),
     );
@@ -183,30 +236,101 @@ export class AuthService {
     }
 
     let authUser;
+    let authIdentityOwned = false;
     try {
-      authUser = await this.authProvider.createUser({
-        email,
-        password,
-        metadata: {
-          name,
-          full_name: name,
-          companyName,
-          systemType,
-          role: Role.Admin,
-          access_name_normalized: accessNameNormalized,
-          allowed_system_types: [systemType],
-          is_super_admin: false,
-          isSuperAdmin: false,
+      const existingAuth = await this.authProvider.findByEmail(email);
+      if (existingAuth) {
+        if (
+          existingAuth.metadata?.registration_intent_id !== intent.id
+        ) {
+          throw new AuthProviderError('email_already_exists');
+        }
+        authUser = existingAuth;
+        authIdentityOwned = true;
+      } else {
+        authUser = await this.authProvider.createUser({
+          email,
+          password,
+          metadata: {
+            name,
+            full_name: name,
+            companyName,
+            systemType,
+            registration_intent_id: intent.id,
+            role: Role.Admin,
+            access_name_normalized: accessNameNormalized,
+            allowed_system_types: [systemType],
+            is_super_admin: false,
+            isSuperAdmin: false,
+          },
+        });
+        authIdentityOwned = true;
+      }
+      const authClaim = await this.prisma.registrationIntent.updateMany({
+        where: {
+          id: intent.id,
+          claimToken: intent.claimToken,
+          state: UserProvisioningState.CLAIMED,
+        },
+        data: {
+          state: UserProvisioningState.AUTH_CREATED,
+          authUserId: authUser.id,
+          leaseExpiresAt: new Date(Date.now() + 60_000),
+          lastErrorCode: null,
         },
       });
+      if (authClaim.count !== 1) {
+        throw new ConflictException(
+          'Registration ownership changed; retry the registration.',
+        );
+      }
     } catch (error) {
       if (
         error instanceof AuthProviderError &&
         error.code === 'email_already_exists'
       ) {
-        throw new ConflictException('E-mail ja cadastrado.');
+        const existingAuth = await this.authProvider.findByEmail(email);
+        if (
+          existingAuth?.metadata?.registration_intent_id === intent.id
+        ) {
+          authUser = existingAuth;
+          authIdentityOwned = true;
+          const authClaim = await this.prisma.registrationIntent.updateMany({
+            where: {
+              id: intent.id,
+              claimToken: intent.claimToken,
+              state: UserProvisioningState.CLAIMED,
+            },
+            data: {
+              state: UserProvisioningState.AUTH_CREATED,
+              authUserId: existingAuth.id,
+              leaseExpiresAt: new Date(Date.now() + 60_000),
+              lastErrorCode: null,
+            },
+          });
+          if (authClaim.count !== 1) {
+            throw new ConflictException(
+              'Registration ownership changed; retry the registration.',
+            );
+          }
+        } else {
+          await this.markRegistrationIntentFinal(
+            intent.id,
+            'AUTH_EMAIL_EXISTS',
+            intent.claimToken,
+          );
+          throw new ConflictException('E-mail ja cadastrado.');
+        }
+      } else {
+        await this.markRegistrationIntentRetryable(
+          intent.id,
+          error instanceof AuthProviderError
+            ? error.code
+            : 'AUTH_CREATE_FAILED',
+          intent.claimToken,
+        );
+        throw this.buildSupabaseAuthException(error as SupabaseAuthError);
       }
-      throw this.buildSupabaseAuthException(error as SupabaseAuthError);
     }
 
     let result!: {
@@ -232,6 +356,22 @@ export class AuthService {
 
     try {
       result = await this.prisma.$transaction(async (tx) => {
+        const ownershipFence = await tx.registrationIntent.updateMany({
+          where: {
+            id: intent.id,
+            claimToken: intent.claimToken,
+            state: UserProvisioningState.AUTH_CREATED,
+          },
+          data: {
+            updatedAt: new Date(),
+          },
+        });
+        if (ownershipFence.count !== 1) {
+          throw new ConflictException(
+            'Registration ownership changed; retry the registration.',
+          );
+        }
+
         const tenant = await tx.tenant.create({
           data: {
             name: tenantName,
@@ -360,10 +500,58 @@ export class AuthService {
           await this.subscriptions.createTrial(tx, tenant.id);
         }
 
+        const completion = await tx.registrationIntent.updateMany({
+          where: {
+            id: intent.id,
+            claimToken: intent.claimToken,
+            state: UserProvisioningState.AUTH_CREATED,
+          },
+          data: {
+            state: UserProvisioningState.COMPLETED,
+            authUserId: authUser.id,
+            tenantId: tenant.id,
+            branchId: branch.id,
+            completedAt: new Date(),
+            claimToken: null,
+            leaseExpiresAt: null,
+            lastErrorCode: null,
+          },
+        });
+        if (completion.count !== 1) {
+          throw new ConflictException(
+            'Registration ownership changed; retry the registration.',
+          );
+        }
+
         return { tenant, branch, profile };
       });
     } catch (error) {
-      await this.rollbackAuthenticationUser(authUser.id);
+      const compensationClaimed = authIdentityOwned
+        ? await this.claimRegistrationCompensation(
+            intent.id,
+            intent.claimToken,
+            'REGISTER_TRANSACTION_FAILED',
+          )
+        : false;
+      const rollbackCompleted =
+        compensationClaimed && authIdentityOwned
+          ? await this.rollbackAuthenticationUser(authUser.id)
+          : true;
+      if (compensationClaimed && rollbackCompleted) {
+        await this.markRegistrationIntentRetryable(
+          intent.id,
+          error instanceof Error
+            ? error.message.slice(0, 120)
+            : 'REGISTER_TRANSACTION_FAILED',
+          intent.claimToken,
+        );
+      } else if (compensationClaimed && !rollbackCompleted) {
+        await this.markRegistrationIntentCompensationRequired(
+          intent.id,
+          'AUTH_ROLLBACK_FAILED',
+          intent.claimToken,
+        );
+      }
       this.handleKnownPrismaAuthError(error, 'register.transaction');
       throw new InternalServerErrorException(
         'Nao foi possivel concluir o cadastro.',
@@ -418,6 +606,213 @@ export class AuthService {
         redirectTo: 'produtos.html',
       },
     };
+  }
+
+  private registrationIdempotencyKey(email: string, provided?: string) {
+    const normalized = provided?.trim();
+    if (normalized) {
+      if (normalized.length > 255) {
+        throw new BadRequestException('idempotency key is too long');
+      }
+      return normalized;
+    }
+
+    return `email:${createHash('sha256').update(email).digest('hex')}`;
+  }
+
+  private registrationPayloadHash(input: Record<string, unknown>) {
+    return createHash('sha256')
+      .update(JSON.stringify(input))
+      .digest('hex');
+  }
+
+  private async claimRegistrationIntent(input: {
+    email: string;
+    idempotencyKey: string;
+    payloadHash: string;
+    name: string;
+    companyName: string;
+    systemType: SystemType;
+    referralPartnerId: string | null;
+  }) {
+    const leaseExpiresAt = new Date(Date.now() + 60_000);
+
+    try {
+      return await this.prisma.registrationIntent.create({
+        data: {
+          canonicalEmail: input.email,
+          idempotencyKey: input.idempotencyKey,
+          payloadHash: input.payloadHash,
+          state: UserProvisioningState.CLAIMED,
+          claimToken: randomUUID(),
+          leaseExpiresAt,
+          requestedName: input.name,
+          companyName: input.companyName,
+          systemType: input.systemType,
+          referralPartnerId: input.referralPartnerId,
+        },
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== 'P2002') {
+        throw error;
+      }
+    }
+
+    const existing = await this.prisma.registrationIntent.findFirst({
+      where: {
+        OR: [
+          { idempotencyKey: input.idempotencyKey },
+          { canonicalEmail: input.email },
+        ],
+      },
+    });
+
+    if (!existing) {
+      throw new ServiceUnavailableException(
+        'Registration intent could not be claimed.',
+      );
+    }
+    if (
+      existing.canonicalEmail !== input.email ||
+      existing.payloadHash !== input.payloadHash
+    ) {
+      throw new ConflictException(
+        'Idempotency key was reused with a different payload.',
+      );
+    }
+    if (existing.state === UserProvisioningState.COMPLETED) {
+      return existing;
+    }
+    if (existing.state === UserProvisioningState.FAILED_FINAL) {
+      throw new ConflictException('Registration cannot be retried safely.');
+    }
+
+    const leaseActive =
+      existing.leaseExpiresAt && existing.leaseExpiresAt.getTime() > Date.now();
+    if (leaseActive) {
+      throw new ConflictException(
+        'Registration is already in progress; retry shortly.',
+      );
+    }
+
+    const claim = await this.prisma.registrationIntent.updateMany({
+      where: {
+        id: existing.id,
+        state: {
+          in: [
+            UserProvisioningState.CLAIMED,
+            UserProvisioningState.AUTH_CREATED,
+            UserProvisioningState.UNKNOWN,
+            UserProvisioningState.COMPENSATION_REQUIRED,
+            UserProvisioningState.FAILED_RETRYABLE,
+          ],
+        },
+        OR: [
+          { leaseExpiresAt: null },
+          { leaseExpiresAt: { lte: new Date() } },
+        ],
+      },
+      data: {
+        state: UserProvisioningState.CLAIMED,
+        claimToken: randomUUID(),
+        leaseExpiresAt,
+        attempts: { increment: 1 },
+        lastErrorCode: null,
+      },
+    });
+
+    if (claim.count !== 1) {
+      throw new ConflictException(
+        'Registration is already in progress; retry shortly.',
+      );
+    }
+
+    return this.prisma.registrationIntent.findUniqueOrThrow({
+      where: { id: existing.id },
+    });
+  }
+
+  private async claimRegistrationCompensation(
+    id: string,
+    claimToken: string | null,
+    errorCode: string,
+  ) {
+    if (!claimToken) return false;
+    const claim = await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        claimToken,
+        state: UserProvisioningState.AUTH_CREATED,
+      },
+      data: {
+        state: UserProvisioningState.COMPENSATION_REQUIRED,
+        lastErrorCode: errorCode,
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    return claim.count === 1;
+  }
+
+  private async markRegistrationIntentRetryable(
+    id: string,
+    errorCode: string,
+    claimToken?: string | null,
+  ) {
+    await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        ...(claimToken ? { claimToken } : {}),
+        state: {
+          not: UserProvisioningState.COMPLETED,
+        },
+      },
+      data: {
+        state: UserProvisioningState.FAILED_RETRYABLE,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+  }
+
+  private async markRegistrationIntentCompensationRequired(
+    id: string,
+    errorCode: string,
+    claimToken?: string | null,
+  ) {
+    await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        ...(claimToken ? { claimToken } : {}),
+        state: { not: UserProvisioningState.COMPLETED },
+      },
+      data: {
+        state: UserProvisioningState.COMPENSATION_REQUIRED,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
+  }
+
+  private async markRegistrationIntentFinal(
+    id: string,
+    errorCode: string,
+    claimToken?: string | null,
+  ) {
+    await this.prisma.registrationIntent.updateMany({
+      where: {
+        id,
+        ...(claimToken ? { claimToken } : {}),
+        state: { not: UserProvisioningState.COMPLETED },
+      },
+      data: {
+        state: UserProvisioningState.FAILED_FINAL,
+        lastErrorCode: errorCode.slice(0, 120),
+        claimToken: null,
+        leaseExpiresAt: null,
+      },
+    });
   }
 
   async login(input: LoginInput) {
