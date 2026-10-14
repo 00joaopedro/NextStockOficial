@@ -91,11 +91,11 @@ export class SubscriptionsService {
         },
       });
 
-    if (
-      subscription.status === SubscriptionStatus.canceled &&
-      existingOperation?.state !== BillingSubscriptionOperationState.SUCCEEDED
-    ) {
-      if (existingOperation) {
+    if (subscription.status === SubscriptionStatus.canceled) {
+      if (
+        existingOperation &&
+        existingOperation.state !== BillingSubscriptionOperationState.SUCCEEDED
+      ) {
         await this.prisma.billingSubscriptionOperation.updateMany({
           where: {
             id: existingOperation.id,
