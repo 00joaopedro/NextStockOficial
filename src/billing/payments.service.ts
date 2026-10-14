@@ -377,9 +377,28 @@ export class PaymentsService {
         result.providerOccurredAt,
       );
       if (!decision.apply) {
-        // Replays and stale provider events are intentionally side-effect free.
-        // The webhook inbox and the aggregate CAS remain the audit boundary;
-        // creating a new billing event here would duplicate the ledger on replay.
+        // Replays and stale provider events never mutate the payment ledger.
+        // Keep a dedicated reconciliation record for deterministic observability.
+        await this.events.create(
+          {
+            tenantId: checkout.tenantId,
+            subscriptionId: checkout.subscription.id,
+            paymentId: existing?.id,
+            checkoutSessionId: checkout.id,
+            type: BillingEventType.MANUAL_RECONCILIATION,
+            source,
+            previousState: {
+              status: currentState,
+              providerOccurredAt: currentAt,
+            },
+            nextState: {
+              status,
+              providerOccurredAt: result.providerOccurredAt,
+            },
+            metadata: { applied: false, reason: decision.reason },
+          },
+          tx,
+        );
         return {
           processed: true,
           applied: false,
