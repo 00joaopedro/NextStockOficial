@@ -56,11 +56,17 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     return this.signatures.validate(input);
   }
 
-  async cancelSubscription(gatewaySubscriptionId: string) {
+  async cancelSubscription(
+    gatewaySubscriptionId: string,
+    idempotencyKey?: string,
+  ) {
     await this.request(
       `/preapproval/${encodeURIComponent(gatewaySubscriptionId)}`,
       {
         method: 'PUT',
+        headers: idempotencyKey
+          ? { 'X-Idempotency-Key': idempotencyKey }
+          : undefined,
         body: JSON.stringify({ status: 'cancelled' }),
       },
     );

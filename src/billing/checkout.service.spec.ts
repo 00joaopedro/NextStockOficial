@@ -36,10 +36,13 @@ describe('CheckoutService', () => {
     const prisma = {
       plan: { findFirst: jest.fn().mockResolvedValue(plan) },
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub' }) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue(null) },
       userProfile: {
         findUnique: jest.fn().mockResolvedValue({ email: 'admin@example.com' }),
       },
       billingCheckoutIntent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
         create: jest
           .fn()
           .mockImplementation(({ data }) =>

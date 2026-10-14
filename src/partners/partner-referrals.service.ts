@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   PartnerPaymentSource,
   PartnerPaymentStatus,
@@ -121,6 +121,15 @@ export class PartnerReferralsService {
   ) {
     this.assertDev(user);
     const current = await this.findScopedReferral(partnerId, referralId);
+    if (dto.paymentStatus === current.paymentStatus) {
+      return {
+        referral: await this.prisma.partnerReferral.findFirstOrThrow({
+          where: { id: current.id, partnerId },
+          select: this.referralSelect(),
+        }).then((referral) => this.formatReferral(referral)),
+      };
+    }
+
     const convertedAt =
       dto.paymentStatus === PartnerPaymentStatus.PAID
         ? current.convertedAt ?? new Date()
@@ -131,12 +140,22 @@ export class PartnerReferralsService {
         : current.status === PartnerReferralStatus.CONVERTED
           ? PartnerReferralStatus.REGISTERED
           : current.status;
+
     const referral = await this.prisma.$transaction(async (tx) => {
-      const updated = await tx.partnerReferral.update({
-        where: { id: current.id },
+      const updated = await tx.partnerReferral.updateMany({
+        where: {
+          id: current.id,
+          partnerId,
+          paymentStatus: current.paymentStatus,
+        },
         data: { paymentStatus: dto.paymentStatus, convertedAt, status },
-        select: this.referralSelect(),
       });
+      if (updated.count !== 1) {
+        throw new ConflictException(
+          'O pagamento do parceiro foi alterado por outra operação.',
+        );
+      }
+
       await tx.partnerReferralPaymentEvent.create({
         data: {
           referralId: current.id,
@@ -147,7 +166,10 @@ export class PartnerReferralsService {
           reason: dto.reason?.trim() || null,
         },
       });
-      return updated;
+      return tx.partnerReferral.findFirstOrThrow({
+        where: { id: current.id, partnerId },
+        select: this.referralSelect(),
+      });
     });
     return { referral: this.formatReferral(referral) };
   }

@@ -377,27 +377,15 @@ export class PaymentsService {
         result.providerOccurredAt,
       );
       if (!decision.apply) {
-        if (
-          currentState === BillingPaymentStatus.APPROVED ||
-          currentState === BillingPaymentStatus.REFUNDED ||
-          currentState === BillingPaymentStatus.CHARGEBACK ||
-          currentState === BillingPaymentStatus.CANCELED
-        ) {
-          await this.syncPartnerReferral(
-            tx,
-            checkout.tenantId,
-            currentState,
-            checkout.subscription.id,
-            `${provider}:${result.gatewayPaymentId}:${currentState}`,
-          );
-        }
-
-        await this.events.create(          {
+        // Replays and stale provider events never mutate the payment ledger.
+        // Keep a dedicated reconciliation record for deterministic observability.
+        await this.events.create(
+          {
             tenantId: checkout.tenantId,
             subscriptionId: checkout.subscription.id,
             paymentId: existing?.id,
             checkoutSessionId: checkout.id,
-            type: this.eventType(status),
+            type: BillingEventType.MANUAL_RECONCILIATION,
             source,
             previousState: {
               status: currentState,
