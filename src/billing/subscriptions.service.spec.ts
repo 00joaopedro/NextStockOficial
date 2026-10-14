@@ -101,7 +101,8 @@ describe('SubscriptionsService', () => {
       expect.stringMatching(/^[a-f0-9]{64}$/),
     );
     expect(tx.billingSubscriptionOperation.updateMany).toHaveBeenCalled();
-    expect(result.status).toBe(SubscriptionStatus.canceled);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe(SubscriptionStatus.canceled);
   });
 
   it('não chama o gateway novamente quando o cancelamento já foi concluído', async () => {
