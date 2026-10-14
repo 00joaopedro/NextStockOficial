@@ -39,7 +39,11 @@ describe('PartnerReferralsService', () => {
       referredBranch: { id: 'branch', name: 'Matriz' },
     };
     const tx = {
-      partnerReferral: { update: jest.fn().mockResolvedValue(formatted) },
+      partnerReferral: {
+        update: jest.fn().mockResolvedValue(formatted),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findFirstOrThrow: jest.fn().mockResolvedValue(formatted),
+      },
       partnerReferralPaymentEvent: {
         create: jest.fn().mockResolvedValue({ id: 'payment-event' }),
       },
