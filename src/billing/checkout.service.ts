@@ -151,6 +151,25 @@ export class CheckoutService {
         }),
       )
       .digest('hex');
+    const existingIntentForKey = await this.prisma.billingCheckoutIntent.findUnique({
+      where: {
+        tenantId_operation_idempotencyKey: {
+          tenantId: context.tenantId,
+          operation: 'CREATE_CHECKOUT',
+          idempotencyKey,
+        },
+      },
+      select: { payloadHash: true },
+    });
+    if (
+      existingIntentForKey &&
+      existingIntentForKey.payloadHash !== payloadHash
+    ) {
+      throw new ConflictException(
+        'Idempotency-Key reutilizada com payload divergente.',
+      );
+    }
+
     const activeCheckout = await this.prisma.checkoutSession.findFirst({
       where: {
         tenantId: context.tenantId,
