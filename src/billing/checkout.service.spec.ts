@@ -41,6 +41,7 @@ describe('CheckoutService', () => {
         findUnique: jest.fn().mockResolvedValue({ email: 'admin@example.com' }),
       },
       billingCheckoutIntent: {
+        findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),
         create: jest
           .fn()
