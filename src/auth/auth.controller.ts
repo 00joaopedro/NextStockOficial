@@ -536,9 +536,10 @@ export class AuthController {
     }
 
     try {
-      const refreshed = await this.authService.issueLocalSessionForProfile(
+      const refreshed = await this.authService.refreshLocalSessionForProfile(
         active.profileId,
         claims.authMethod,
+        req.cookies?.jwt,
       );
       const token = sessions.expiresAtFromJwt(refreshed.accessToken);
       const renewed = await sessions.renew(sessionToken, token.subject);
