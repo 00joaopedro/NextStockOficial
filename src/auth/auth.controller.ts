@@ -666,7 +666,8 @@ export class AuthController {
             reject(
               new ServiceUnavailableException({
                 code: 'SESSION_REFRESH_TIMEOUT',
-                message: 'Sessão temporariamente indisponível. Tente novamente.',
+                message:
+                  'Sessão temporariamente indisponível. Tente novamente.',
               }),
             );
           }, SESSION_REFRESH_TIMEOUT_MS);
