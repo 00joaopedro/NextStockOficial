@@ -31,7 +31,10 @@ import { authProviderMode } from './auth-provider-mode';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LOCAL_PASSWORD_MIN_LENGTH } from './local-password';
-import { RateLimit } from '../security/public-rate-limit.guard';
+import {
+  PublicRateLimitGuard,
+  RateLimit,
+} from '../security/public-rate-limit.guard';
 import { AuthRateLimitGuard } from './auth-rate-limit.guard';
 import { CsrfExempt } from '../security/csrf-origin.guard';
 import { BillingExempt } from '../billing/billing-exempt.decorator';
@@ -502,7 +505,10 @@ export class AuthController {
   }
 
   @Post('session/refresh')
-  @UseGuards(AuthRateLimitGuard)
+  // Session refresh must stay available when PostgreSQL is slow. The
+  // endpoint remains rate-limited in memory by IP and does not depend on the
+  // distributed auth bucket that can otherwise turn a refresh into a 503.
+  @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 30, windowMs: 60_000 })
   @CsrfExempt()
   async refreshSession(
