@@ -642,7 +642,8 @@ export class AuthController {
           );
           throw new UnauthorizedException({
             code: 'SESSION_NOT_FOUND',
-            message: 'Sessão não corresponde a uma empresa válida. Faça login novamente.',
+            message:
+              'Sessão não corresponde a uma empresa válida. Faça login novamente.',
           });
         }
 
