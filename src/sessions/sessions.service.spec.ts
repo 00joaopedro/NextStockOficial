@@ -52,6 +52,30 @@ describe('SessionsService', () => {
     ).resolves.toMatchObject({ id: 'session-1' });
   });
 
+  it('reads revoked and expired state without treating it as active', async () => {
+    const findUnique = jest.fn().mockResolvedValue({
+      id: 'session-1',
+      profileId: 'profile-1',
+      tenantId: 'tenant-1',
+      expiresAt: new Date(Date.now() - 1_000),
+      revokedAt: null,
+    });
+    const service = new SessionsService({
+      userSession: { findUnique },
+    } as any);
+
+    await expect(service.findByToken('opaque')).resolves.toMatchObject({
+      id: 'session-1',
+      profileId: 'profile-1',
+      revokedAt: null,
+    });
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ revokedAt: true }),
+      }),
+    );
+  });
+
   it('renews an active session without exposing its token', async () => {
     process.env.SESSION_IDLE_TTL_SECONDS = '43200';
     const findFirst = jest.fn().mockResolvedValue({

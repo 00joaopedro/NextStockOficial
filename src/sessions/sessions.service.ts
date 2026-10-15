@@ -50,6 +50,20 @@ export class SessionsService {
     });
   }
 
+  async findByToken(token: string | undefined) {
+    if (!token) return undefined;
+    return this.prisma.userSession.findUnique({
+      where: { tokenIdHash: this.hash(token) },
+      select: {
+        id: true,
+        profileId: true,
+        tenantId: true,
+        expiresAt: true,
+        revokedAt: true,
+      },
+    });
+  }
+
   async renewActive(
     token: string | undefined,
     profileId: string,

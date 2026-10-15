@@ -208,12 +208,19 @@ async function refreshNextStockSession(): Promise<Response | null> {
       SESSION_REFRESH_TIMEOUT_MS,
     );
     try {
-      return await originalNextStockFetch('/api/auth/session/refresh', {
+      const response = await originalNextStockFetch('/api/auth/session/refresh', {
         method: 'POST',
         credentials: 'include',
         headers: { Accept: 'application/json' },
         signal: controller.signal,
       });
+      if (response.status === 401) {
+        clearNextStockSessionState();
+        if (!window.location.pathname.toLowerCase().endsWith('/index.html')) {
+          window.location.href = '/index.html?auth_error=session_expired';
+        }
+      }
+      return response;
     } catch {
       return null;
     } finally {
