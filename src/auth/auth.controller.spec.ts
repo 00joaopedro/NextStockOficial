@@ -17,6 +17,7 @@ describe('AuthController', () => {
     login: jest.fn(),
     register: jest.fn(),
     forgotPassword: jest.fn(),
+    refreshLocalSessionForProfile: jest.fn(),
   } as any;
   const response = () => {
     const reply = {
@@ -609,4 +610,55 @@ describe('AuthController', () => {
       ),
     ).toEqual({ max: 10, windowMs: 60_000 });
   });
+  it('refresh da sessao usa o jwt atual quando a sessao opaca ainda esta ativa', async () => {
+    const jwt = `header.${Buffer.from(
+      JSON.stringify({ sub: 'profile-1', authMethod: 'google' }),
+    ).toString('base64url')}.signature`;
+    const sessions = {
+      findActive: jest.fn().mockResolvedValue({
+        profileId: 'profile-1',
+      }),
+      expiresAtFromJwt: jest.fn().mockReturnValue({
+        subject: 'profile-1',
+        expiresAt: new Date(Date.now() + 60_000),
+      }),
+      renew: jest.fn().mockResolvedValue(true),
+      sessionExpiresAt: jest
+        .fn()
+        .mockReturnValue(new Date(Date.now() + 43_200_000)),
+    };
+    const controller = new AuthController(
+      authService,
+      undefined,
+      sessions as any,
+    );
+    const res = response();
+    authService.refreshLocalSessionForProfile.mockResolvedValue({
+      accessToken: jwt,
+      reused: true,
+    });
+
+    await controller.refreshSession(
+      {
+        ...request(),
+        cookies: {
+          nextstock_session: 'opaque-session',
+          jwt,
+        },
+      } as any,
+      res,
+    );
+
+    expect(authService.refreshLocalSessionForProfile).toHaveBeenCalledWith(
+      'profile-1',
+      'google',
+      jwt,
+    );
+    expect(sessions.renew).toHaveBeenCalledWith(
+      'opaque-session',
+      'profile-1',
+    );
+  });
+
+
 });
