@@ -69,9 +69,11 @@ describe('SessionsService', () => {
       profileId: 'profile-1',
       revokedAt: null,
     });
-    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      select: expect.objectContaining({ revokedAt: true }),
-    }));
+    expect(findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ revokedAt: true }),
+      }),
+    );
   });
 
   it('renews an active session without exposing its token', async () => {
