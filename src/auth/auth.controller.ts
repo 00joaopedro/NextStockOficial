@@ -63,6 +63,8 @@ class GoogleCallbackFailure extends Error {
 
 const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
 
+const SESSION_REFRESH_TIMEOUT_MS = 1_800;
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -532,26 +534,28 @@ export class AuthController {
     }
 
     try {
-      const renewed = await sessions.renewActive(
-        sessionToken,
-        claims.subject,
-        claims.subject,
-      );
-      if (!renewed) {
-        this.recordSessionRefreshOutcome(
-          req,
-          AuditOutcome.DENIED,
-          'SESSION_NOT_FOUND',
+      const refreshed = await this.withSessionRefreshTimeout(async () => {
+        const renewed = await sessions.renewActive(
+          sessionToken,
+          claims.subject,
           claims.subject,
         );
-        throw new UnauthorizedException('Active session required.');
-      }
+        if (!renewed) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_NOT_FOUND',
+            claims.subject,
+          );
+          throw new UnauthorizedException('Active session required.');
+        }
 
-      const refreshed = await this.authService.refreshLocalSessionForProfile(
-        claims.subject,
-        claims.authMethod,
-        req.cookies?.jwt,
-      );
+        return this.authService.refreshLocalSessionForProfile(
+          claims.subject,
+          claims.authMethod,
+          req.cookies?.jwt,
+        );
+      });
       setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
       this.setJwtCookie(reply, refreshed.accessToken);
       reply.header('Cache-Control', 'no-store');
@@ -648,6 +652,29 @@ export class AuthController {
       path: '/',
       ...(maxAge ? { maxAge } : {}),
     });
+  }
+
+  private async withSessionRefreshTimeout<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            reject(
+              new ServiceUnavailableException({
+                code: 'SESSION_REFRESH_TIMEOUT',
+                message: 'Sessão temporariamente indisponível. Tente novamente.',
+              }),
+            );
+          }, SESSION_REFRESH_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   private recordSessionRefreshOutcome(
