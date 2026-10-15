@@ -558,16 +558,19 @@ export class AuthService {
       );
     }
 
-    const accessToken =
+    const authSession =
       this.authProvider.name === 'local' ||
       this.authProvider.name === 'coexistence'
-        ? await this.localJwt!.sign({
-            sub: result.profile.id,
-            jti: randomUUID(),
-            authMethod: 'password',
-            credentialVersion: 1,
-          })
+        ? {
+            accessToken: await this.localJwt!.sign({
+              sub: result.profile.id,
+              jti: randomUUID(),
+              authMethod: 'password',
+              credentialVersion: 1,
+            }),
+          }
         : await this.signInAfterRegister(email, password);
+    const accessToken = authSession.accessToken;
     const user = this.formatAuthUser({
       ...result.profile,
       role: Role.Admin,
@@ -594,6 +597,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken: authSession.refreshToken,
       payload: {
         message: 'Cadastro realizado com sucesso.',
         user,
@@ -895,6 +899,7 @@ export class AuthService {
 
     return {
       accessToken,
+      refreshToken: session.refreshToken,
       payload: {
         message: 'Login realizado com sucesso.',
         user,
@@ -1928,7 +1933,7 @@ export class AuthService {
       );
     });
 
-    return session.accessToken;
+    return session;
   }
 
   private normalizeEmail(email?: string) {
