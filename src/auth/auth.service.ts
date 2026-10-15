@@ -1046,6 +1046,22 @@ export class AuthService {
     };
   }
 
+  async verifyLocalSessionClaims(token?: string) {
+    if (!token || !this.localJwt) return null;
+    try {
+      const claims = await this.localJwt.verify(token);
+      if (
+        (claims.authMethod !== 'password' && claims.authMethod !== 'google') ||
+        !claims.sub
+      ) {
+        return null;
+      }
+      return { authMethod: claims.authMethod, subject: claims.sub };
+    } catch {
+      return null;
+    }
+  }
+
   async refreshLocalSessionForProfile(
     profileId: string,
     authMethod: 'password' | 'google',
