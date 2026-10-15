@@ -196,7 +196,13 @@ export class AuthController {
       });
 
     reply.header('Cache-Control', 'no-store');
-    await this.createSession(req, reply, accessToken, payload.user);
+    await this.createSession(
+      req,
+      reply,
+      accessToken,
+      payload.user,
+      Boolean(refreshToken),
+    );
     this.setJwtCookie(reply, accessToken);
     if (refreshToken) setAuthRefreshCookie(reply, refreshToken);
     void this.audit?.record({
