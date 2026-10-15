@@ -19,6 +19,7 @@ describe('AuthController', () => {
     forgotPassword: jest.fn(),
     refreshLocalSessionForProfile: jest.fn(),
     verifyLocalSessionClaims: jest.fn(),
+    resolveInternalProfileId: jest.fn(),
   } as any;
   const response = () => {
     const reply = {
@@ -661,6 +662,62 @@ describe('AuthController', () => {
       'opaque-session',
       'profile-1',
       'profile-1',
+    );
+  });
+
+  it('renova sessão Supabase com cookie HttpOnly e gira o refresh token', async () => {
+    const sessions = {
+      renewActive: jest.fn().mockResolvedValue(true),
+      sessionExpiresAt: jest
+        .fn()
+        .mockReturnValue(new Date(Date.now() + 43_200_000)),
+    };
+    const supabaseAuth = {
+      refresh: jest.fn().mockResolvedValue({
+        accessToken: 'supabase-access-token',
+        refreshToken: 'supabase-refresh-token-rotated',
+        identity: { id: 'supabase-user-1' },
+      }),
+    };
+    authService.verifyLocalSessionClaims.mockResolvedValue(null);
+    authService.resolveInternalProfileId.mockResolvedValue('profile-1');
+    const controller = new AuthController(
+      authService,
+      undefined,
+      sessions as any,
+      undefined,
+      undefined,
+      supabaseAuth as any,
+    );
+    const res = response();
+
+    await controller.refreshSession(
+      {
+        ...request(),
+        cookies: {
+          nextstock_session: 'opaque-session',
+          jwt: 'expired-supabase-access-token',
+          nextstock_refresh_token: 'supabase-refresh-token',
+        },
+      } as any,
+      res,
+    );
+
+    expect(supabaseAuth.refresh).toHaveBeenCalledWith(
+      'supabase-refresh-token',
+    );
+    expect(authService.resolveInternalProfileId).toHaveBeenCalledWith(
+      'supabase-user-1',
+    );
+    expect(sessions.renewActive).toHaveBeenCalledWith(
+      'opaque-session',
+      'profile-1',
+      'supabase-user-1',
+    );
+    expect(res.setCookie).toHaveBeenCalledWith(
+      'nextstock_refresh_token',
+      'supabase-refresh-token-rotated',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
     );
   });
 });
