@@ -1,6 +1,7 @@
 import type { CompatibleReply } from '../common/http-types';
 
 export const SESSION_COOKIE_NAME = 'nextstock_session';
+export const AUTH_REFRESH_COOKIE_NAME = 'nextstock_refresh_token';
 
 export function sessionCookieOptions() {
   return {
@@ -22,7 +23,13 @@ export function setSessionCookie(
   });
 }
 
+export function setAuthRefreshCookie(reply: CompatibleReply, token: string) {
+  reply.setCookie(AUTH_REFRESH_COOKIE_NAME, token, sessionCookieOptions());
+}
+
 export function clearAuthCookies(reply: CompatibleReply) {
-  reply.clearCookie('jwt', sessionCookieOptions());
-  reply.clearCookie(SESSION_COOKIE_NAME, sessionCookieOptions());
+  const options = sessionCookieOptions();
+  reply.clearCookie('jwt', options);
+  reply.clearCookie(SESSION_COOKIE_NAME, options);
+  reply.clearCookie(AUTH_REFRESH_COOKIE_NAME, options);
 }
