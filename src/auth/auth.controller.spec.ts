@@ -18,6 +18,7 @@ describe('AuthController', () => {
     register: jest.fn(),
     forgotPassword: jest.fn(),
     refreshLocalSessionForProfile: jest.fn(),
+    verifyLocalSessionClaims: jest.fn(),
   } as any;
   const response = () => {
     const reply = {
@@ -615,14 +616,11 @@ describe('AuthController', () => {
       JSON.stringify({ sub: 'profile-1', authMethod: 'google' }),
     ).toString('base64url')}.signature`;
     const sessions = {
-      findActive: jest.fn().mockResolvedValue({
-        profileId: 'profile-1',
-      }),
       expiresAtFromJwt: jest.fn().mockReturnValue({
         subject: 'profile-1',
         expiresAt: new Date(Date.now() + 60_000),
       }),
-      renew: jest.fn().mockResolvedValue(true),
+      renewActive: jest.fn().mockResolvedValue(true),
       sessionExpiresAt: jest
         .fn()
         .mockReturnValue(new Date(Date.now() + 43_200_000)),
@@ -633,6 +631,10 @@ describe('AuthController', () => {
       sessions as any,
     );
     const res = response();
+    authService.verifyLocalSessionClaims.mockResolvedValue({
+      subject: 'profile-1',
+      authMethod: 'google',
+    });
     authService.refreshLocalSessionForProfile.mockResolvedValue({
       accessToken: jwt,
       reused: true,
@@ -649,13 +651,15 @@ describe('AuthController', () => {
       res,
     );
 
+    expect(authService.verifyLocalSessionClaims).toHaveBeenCalledWith(jwt);
     expect(authService.refreshLocalSessionForProfile).toHaveBeenCalledWith(
       'profile-1',
       'google',
       jwt,
     );
-    expect(sessions.renew).toHaveBeenCalledWith(
+    expect(sessions.renewActive).toHaveBeenCalledWith(
       'opaque-session',
+      'profile-1',
       'profile-1',
     );
   });
