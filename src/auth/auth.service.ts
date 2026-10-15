@@ -1049,7 +1049,9 @@ export class AuthService {
   async verifyLocalSessionClaims(token?: string) {
     if (!token || !this.localJwt) return null;
     try {
-      const claims = await this.localJwt.verify(token, { ignoreExpiration: true });
+      const claims = await this.localJwt.verify(token, {
+        ignoreExpiration: true,
+      });
       if (
         (claims.authMethod !== 'password' && claims.authMethod !== 'google') ||
         !claims.sub
