@@ -1054,7 +1054,15 @@ export class AuthService {
     if (currentToken && this.localJwt) {
       try {
         const claims = await this.localJwt.verify(currentToken);
-        if (claims.sub === profileId && claims.authMethod === authMethod) {
+        const remainingSeconds =
+          typeof claims.exp === 'number'
+            ? claims.exp - Math.floor(Date.now() / 1000)
+            : 0;
+        if (
+          claims.sub === profileId &&
+          claims.authMethod === authMethod &&
+          remainingSeconds > 60
+        ) {
           return { accessToken: currentToken, reused: true };
         }
       } catch {
