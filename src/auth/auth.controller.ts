@@ -227,7 +227,13 @@ export class AuthController {
         await this.authService.login(body);
 
       reply.header('Cache-Control', 'no-store');
-      await this.createSession(req, reply, accessToken, payload.user);
+      await this.createSession(
+        req,
+        reply,
+        accessToken,
+        payload.user,
+        Boolean(refreshToken),
+      );
       this.setJwtCookie(reply, accessToken);
       if (refreshToken) setAuthRefreshCookie(reply, refreshToken);
       void this.audit?.record({
@@ -749,15 +755,17 @@ export class AuthController {
     reply: CompatibleReply,
     accessToken: string,
     user: { id: string; tenantId?: string | null },
+    providerSessionRenewable = false,
   ) {
     if (!this.sessions) return;
     const token = this.sessions.expiresAtFromJwt(accessToken);
     const isRenewableLocalJwt = Boolean(
       this.localAuthClaimsFromToken(accessToken),
     );
-    const sessionExpiresAt = isRenewableLocalJwt
-      ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
-      : token.expiresAt;
+    const sessionExpiresAt =
+      isRenewableLocalJwt || providerSessionRenewable
+        ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
+        : token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
       tenantId: user.tenantId,
