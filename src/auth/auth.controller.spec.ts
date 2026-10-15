@@ -718,6 +718,7 @@ describe('AuthController', () => {
     expect(sessions.create).toHaveBeenCalledWith(
       expect.objectContaining({
         profileId: 'profile-1',
+        tenantId: 'tenant-1',
         jwtSubject: 'supabase-user-1',
         metadata: { requestId: 'refresh-request' },
       }),
@@ -727,6 +728,45 @@ describe('AuthController', () => {
       'new-opaque-session',
       expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
     );
+  });
+
+  it('rejeita refresh sem sessão opaca ou com sessão desconhecida', async () => {
+    const sessions = {
+      findByToken: jest.fn().mockResolvedValue(undefined),
+      sessionExpiresAt: jest.fn(),
+      renewActive: jest.fn(),
+      create: jest.fn(),
+    };
+    const supabaseAuth = { refresh: jest.fn() };
+    authService.verifyLocalSessionClaims.mockResolvedValue(null);
+    const controller = new AuthController(
+      authService,
+      undefined,
+      sessions as any,
+      undefined,
+      undefined,
+      supabaseAuth as any,
+    );
+
+    for (const cookies of [
+      { nextstock_refresh_token: 'valid-refresh-token' },
+      {
+        nextstock_session: 'unknown-session',
+        nextstock_refresh_token: 'valid-refresh-token',
+      },
+    ]) {
+      await expect(
+        controller.refreshSession(
+          { ...request(), cookies } as any,
+          response(),
+        ),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: { code: 'SESSION_NOT_FOUND' },
+      });
+    }
+    expect(supabaseAuth.refresh).not.toHaveBeenCalled();
+    expect(sessions.create).not.toHaveBeenCalled();
   });
 
   it('converte refresh Supabase inválido em sessão requerida, não em 503', async () => {
@@ -753,7 +793,10 @@ describe('AuthController', () => {
       controller.refreshSession(
         {
           ...request(),
-          cookies: { nextstock_refresh_token: 'invalid-refresh-token' },
+          cookies: {
+            nextstock_session: 'known-session',
+            nextstock_refresh_token: 'invalid-refresh-token',
+          },
         } as any,
         response(),
       ),
