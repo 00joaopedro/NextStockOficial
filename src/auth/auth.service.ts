@@ -558,7 +558,10 @@ export class AuthService {
       );
     }
 
-    const authSession =
+    const authSession: {
+      accessToken: string;
+      refreshToken?: string;
+    } =
       this.authProvider.name === 'local' ||
       this.authProvider.name === 'coexistence'
         ? {
