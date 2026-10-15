@@ -59,7 +59,7 @@
     if (
       response.status === 401 &&
       (path === "/api/auth/profile" ||
-        ["SESSION_REVOKED", "SESSION_NOT_FOUND", "SESSION_CLAIMS_INVALID"].includes(body.code))
+        ["SESSION_REVOKED", "SESSION_NOT_FOUND", "SESSION_CLAIMS_INVALID", "SESSION_REFRESH_REQUIRED"].includes(body.code))
     ) {
       window.clearNextStockSessionState?.();
       location.href = "index.html";
@@ -377,10 +377,24 @@
     try {
       await bootstrap();
       renderPromotionHandoff();
-      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines(), loadPaymentConfiguration(), loadProductionTestCapability()]);
+      const results = await Promise.allSettled([
+        loadProfile(),
+        loadCompany(),
+        loadBilling(),
+        loadPlans(),
+        loadMachines(),
+        loadPaymentConfiguration(),
+        loadProductionTestCapability(),
+      ]);
       permissions();
+      const failures = results
+        .filter((result) => result.status === "rejected")
+        .map((result) => result.reason);
+      const authFailure = failures.find((error) => error?.status === 401);
+      if (authFailure) throw authFailure;
       const returned = new URLSearchParams(location.search).has("billingReturn");
       if (returned || sessionStorage.getItem("nextstockBillingCheckoutId")) await pollCheckout();
+      else if (failures.length) message("Perfil carregado parcialmente; alguns dados estão temporariamente indisponíveis.", "error");
       else message(state.preview ? "Modo visualização." : "Dados carregados.");
     } catch (error) { message(error.message, "error"); permissions(); }
   })();
