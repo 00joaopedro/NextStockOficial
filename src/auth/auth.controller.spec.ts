@@ -665,12 +665,122 @@ describe('AuthController', () => {
     );
   });
 
+  it('recupera uma sessão opaca expirada quando o refresh Supabase ainda é válido', async () => {
+    const recoveredExpiresAt = new Date(Date.now() + 43_200_000);
+    const sessions = {
+      findByToken: jest.fn().mockResolvedValue({
+        id: 'expired-session',
+        profileId: 'profile-1',
+        tenantId: 'tenant-1',
+        expiresAt: new Date(Date.now() - 1_000),
+        revokedAt: null,
+      }),
+      renewActive: jest.fn(),
+      sessionExpiresAt: jest.fn().mockReturnValue(recoveredExpiresAt),
+      metadataFromRequest: jest.fn().mockReturnValue({ requestId: 'refresh-request' }),
+      create: jest.fn().mockResolvedValue({
+        id: 'new-session',
+        token: 'new-opaque-session',
+        expiresAt: recoveredExpiresAt,
+      }),
+    };
+    const supabaseAuth = {
+      refresh: jest.fn().mockResolvedValue({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+        identity: { id: 'supabase-user-1' },
+      }),
+    };
+    authService.verifyLocalSessionClaims.mockResolvedValue(null);
+    authService.resolveInternalProfileId.mockResolvedValue('profile-1');
+    const controller = new AuthController(
+      authService,
+      undefined,
+      sessions as any,
+      undefined,
+      undefined,
+      supabaseAuth as any,
+    );
+    const res = response();
+
+    await controller.refreshSession(
+      {
+        ...request(),
+        cookies: {
+          nextstock_session: 'expired-opaque-session',
+          nextstock_refresh_token: 'valid-refresh-token',
+        },
+      } as any,
+      res,
+    );
+
+    expect(sessions.renewActive).not.toHaveBeenCalled();
+    expect(sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        profileId: 'profile-1',
+        jwtSubject: 'supabase-user-1',
+        metadata: { requestId: 'refresh-request' },
+      }),
+    );
+    expect(res.setCookie).toHaveBeenCalledWith(
+      'nextstock_session',
+      'new-opaque-session',
+      expect.objectContaining({ httpOnly: true, sameSite: 'lax' }),
+    );
+  });
+
+  it('converte refresh Supabase inválido em sessão requerida, não em 503', async () => {
+    const sessions = {
+      sessionExpiresAt: jest.fn(),
+      findByToken: jest.fn(),
+      renewActive: jest.fn(),
+      create: jest.fn(),
+    };
+    const supabaseAuth = {
+      refresh: jest.fn().mockRejectedValue(new AuthProviderError('invalid_credentials')),
+    };
+    authService.verifyLocalSessionClaims.mockResolvedValue(null);
+    const controller = new AuthController(
+      authService,
+      undefined,
+      sessions as any,
+      undefined,
+      undefined,
+      supabaseAuth as any,
+    );
+
+    await expect(
+      controller.refreshSession(
+        {
+          ...request(),
+          cookies: { nextstock_refresh_token: 'invalid-refresh-token' },
+        } as any,
+        response(),
+      ),
+    ).rejects.toMatchObject({
+      status: 401,
+      response: {
+        code: 'SESSION_REFRESH_REQUIRED',
+      },
+    });
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
+
   it('renova sessão Supabase com cookie HttpOnly e gira o refresh token', async () => {
     const sessions = {
+      findByToken: jest.fn().mockResolvedValue({
+        id: 'session-1',
+        profileId: 'profile-1',
+        tenantId: 'tenant-1',
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: null,
+      }),
       renewActive: jest.fn().mockResolvedValue(true),
       sessionExpiresAt: jest
         .fn()
         .mockReturnValue(new Date(Date.now() + 43_200_000)),
+      metadataFromRequest: jest.fn().mockReturnValue({ requestId: 'refresh-request' }),
+      create: jest.fn(),
     };
     const supabaseAuth = {
       refresh: jest.fn().mockResolvedValue({
