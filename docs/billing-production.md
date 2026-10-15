@@ -81,3 +81,25 @@ O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamento
 8. Somente então definir `BILLING_ENFORCEMENT_ENABLED=true` em produção.
 
 Nunca execute migration longa no boot do processo web.
+
+
+## Teste temporário de produção de R$ 1,00
+
+O teste deve usar um plano recorrente separado no Mercado Pago. Não use um link
+fixo nem substitua os IDs de Ouro, Esmeralda ou Diamante.
+
+Configure temporariamente no Railway de produção:
+
+- `BILLING_PRODUCTION_TEST_ENABLED=true`
+- `BILLING_PRODUCTION_TEST_ADMIN_EMAIL=0oficialwhis@gmail.com`
+- `MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID=<preapproval_plan_id>`
+
+Depois execute o seed controlado para criar o plano técnico
+`production-test-r1` e seu mapeamento de gateway. Esse plano fica oculto da
+lista normal e só pode ser iniciado pelo administrador cujo e-mail foi
+allowlistado. O botão aparece na área de assinatura de `perfil.html`.
+
+O pagamento deve ser iniciado pelo botão do NextStock, não pelo link público do
+Mercado Pago, para que a `external_reference` identifique o tenant. Após o
+teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false` e remova o ID temporário
+da Railway.

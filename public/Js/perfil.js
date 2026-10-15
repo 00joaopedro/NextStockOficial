@@ -8,6 +8,7 @@
     selectedMachineId: null,
     busy: false,
     paymentConfig: { connections: [], terminals: [], routes: [] },
+    productionTestAvailable: false,
   };
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -125,6 +126,9 @@
     el.saveMachine.disabled = blocked || !state.canManage;
     el.deleteMachine.disabled = blocked || !state.canManage || !state.selectedMachineId;
     [el.saveConnection, el.saveTerminal, el.saveRoute].forEach((button) => { button.disabled = blocked || !state.canManage; });
+    if (el.productionTestBtn) {
+      el.productionTestBtn.disabled = blocked || !state.productionTestAvailable;
+    }
   }
 
   async function bootstrap() {
@@ -150,6 +154,14 @@
     el.email.value = data.company?.email || "";
     el.contact.value = data.company?.contato || "";
   }
+  async function loadProductionTestCapability() {
+    if (!el.productionTestPanel) return;
+    const data = await api("/api/billing/production-test-capability");
+    state.productionTestAvailable = data.enabled === true;
+    el.productionTestPanel.hidden = !state.productionTestAvailable;
+    permissions();
+  }
+
   async function loadBilling() {
     const data = await api("/api/billing/subscription");
     const subscription = data.subscription;
@@ -189,6 +201,33 @@
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
   }
+  async function startProductionTestCheckout() {
+    if (!state.productionTestAvailable) return;
+    busy(true);
+    message("Criando checkout de validação...");
+    try {
+      const storageKey = "nextstockProductionTestBillingIntent";
+      let idempotencyKey = sessionStorage.getItem(storageKey);
+      if (!idempotencyKey) {
+        idempotencyKey = crypto.randomUUID();
+        sessionStorage.setItem(storageKey, idempotencyKey);
+      }
+      const checkout = await api("/api/billing/production-test-checkout", {
+        method: "POST",
+        headers: { "Idempotency-Key": idempotencyKey },
+      });
+      if (!checkout.checkoutUrl) {
+        message("Checkout em processamento. Tente novamente com segurança.");
+        return;
+      }
+      sessionStorage.setItem("nextstockBillingCheckoutId", checkout.checkoutId);
+      sessionStorage.removeItem(storageKey);
+      location.assign(checkout.checkoutUrl);
+    } finally {
+      busy(false);
+    }
+  }
+
   async function startCheckout(planSlug) {
     const selected = promotionSelection();
     const reservation = promotionReservation();
@@ -320,6 +359,7 @@
   el.addMachine.addEventListener("click", clearMachine); el.saveMachine.addEventListener("click", run(saveMachine));
   el.deleteMachine.addEventListener("click", run(deleteMachine));
   el.saveConnection.addEventListener("click", run(savePaymentConnection)); el.saveTerminal.addEventListener("click", run(savePaymentTerminal)); el.saveRoute.addEventListener("click", run(savePaymentRoute));
+  el.productionTestBtn?.addEventListener("click", run(startProductionTestCheckout));
   (async () => {
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
@@ -330,7 +370,7 @@
     try {
       await bootstrap();
       renderPromotionHandoff();
-      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines(), loadPaymentConfiguration()]);
+      await Promise.all([loadProfile(), loadCompany(), loadBilling(), loadPlans(), loadMachines(), loadPaymentConfiguration(), loadProductionTestCapability()]);
       permissions();
       const returned = new URLSearchParams(location.search).has("billingReturn");
       if (returned || sessionStorage.getItem("nextstockBillingCheckoutId")) await pollCheckout();

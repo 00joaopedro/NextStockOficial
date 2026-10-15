@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PaymentGatewayProvider } from '@prisma/client';
 import { NORMAL_PAYMENT_LINKS } from '../promotions/promotion-offers';
+import { PRODUCTION_TEST_PLAN_SLUG } from './production-test-access';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -17,7 +18,11 @@ export class PlansService {
       process.env.MERCADO_PAGO_MODE?.trim() ||
       'production';
     const plans = await this.prisma.plan.findMany({
-      where: { isActive: true, deletedAt: null },
+      where: {
+        isActive: true,
+        deletedAt: null,
+        NOT: { slug: PRODUCTION_TEST_PLAN_SLUG },
+      },
       include: {
         gatewayMappings: {
           where: {
