@@ -25,6 +25,8 @@
     connectionList: $("paymentConnectionList"), connectionName: $("paymentConnectionName"), connectionProvider: $("paymentConnectionProvider"), accessToken: $("paymentAccessToken"), saveConnection: $("savePaymentConnectionBtn"),
     terminalList: $("paymentTerminalList"), terminalNickname: $("paymentTerminalNickname"), terminalProvider: $("paymentTerminalProvider"), terminalConnection: $("paymentTerminalConnection"), terminalMode: $("paymentTerminalMode"), terminalSerial: $("paymentTerminalSerial"), terminalNotes: $("paymentTerminalNotes"), terminalManufacturer: $("paymentTerminalManufacturer"), terminalModel: $("paymentTerminalModel"), terminalExternalId: $("paymentTerminalExternalId"), saveTerminal: $("savePaymentTerminalBtn"),
     routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
+    productionTestPanel: $("productionTestCheckoutPanel"),
+    productionTestBtn: $("productionTestCheckoutBtn"),
   };
   const planImages = {
     ouro: "img/trofeu-ouro.png",
