@@ -189,10 +189,11 @@ export class AuthController {
     @Headers('idempotency-key') idempotencyKey?: string,
     @Req() req?: AuthenticatedHttpRequest,
   ) {
-    const { accessToken, refreshToken, payload } = await this.authService.register({
-      ...body,
-      idempotencyKey,
-    });
+    const { accessToken, refreshToken, payload } =
+      await this.authService.register({
+        ...body,
+        idempotencyKey,
+      });
 
     reply.header('Cache-Control', 'no-store');
     await this.createSession(req, reply, accessToken, payload.user);
@@ -222,11 +223,13 @@ export class AuthController {
     @Req() req?: AuthenticatedHttpRequest,
   ) {
     try {
-      const { accessToken, refreshToken, payload } = await this.authService.login(body);
+      const { accessToken, refreshToken, payload } =
+        await this.authService.login(body);
 
       reply.header('Cache-Control', 'no-store');
       await this.createSession(req, reply, accessToken, payload.user);
       this.setJwtCookie(reply, accessToken);
+      if (refreshToken) setAuthRefreshCookie(reply, refreshToken);
       void this.audit?.record({
         ...this.audit.fromRequest(req),
         eventType: 'auth.login.succeeded',
