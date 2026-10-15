@@ -589,47 +589,79 @@ export class AuthController {
             'Session refresh credentials unavailable.',
           );
         }
+        if (!sessionToken) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_NOT_FOUND',
+          );
+          throw new UnauthorizedException({
+            code: 'SESSION_NOT_FOUND',
+            message: 'Sessão revogável ausente. Faça login novamente.',
+          });
+        }
+
+        const existingSession = await sessions.findByToken(sessionToken);
+        if (!existingSession) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_NOT_FOUND',
+          );
+          throw new UnauthorizedException({
+            code: 'SESSION_NOT_FOUND',
+            message: 'Sessão desconhecida. Faça login novamente.',
+          });
+        }
+        if (existingSession.revokedAt) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_REVOKED',
+            existingSession.profileId,
+          );
+          throw new UnauthorizedException({
+            code: 'SESSION_REVOKED',
+            message: 'Sessão revogada. Faça login novamente.',
+          });
+        }
 
         const providerSession = await this.supabaseAuth.refresh(refreshToken);
         const profileId = await this.authService.resolveInternalProfileId(
           providerSession.identity.id,
         );
-        const existingSession = sessionToken
-          ? await sessions.findByToken(sessionToken)
-          : undefined;
         if (
-          existingSession &&
-          (existingSession.revokedAt || existingSession.profileId !== profileId)
+          existingSession.profileId !== profileId ||
+          !existingSession.tenantId
         ) {
           this.recordSessionRefreshOutcome(
             req,
             AuditOutcome.DENIED,
-            existingSession.revokedAt ? 'SESSION_REVOKED' : 'SESSION_NOT_FOUND',
+            'SESSION_NOT_FOUND',
             profileId,
           );
           throw new UnauthorizedException({
-            code: existingSession.revokedAt
-              ? 'SESSION_REVOKED'
-              : 'SESSION_NOT_FOUND',
-            message: 'Sessão expirada ou revogada. Faça login novamente.',
+            code: 'SESSION_NOT_FOUND',
+            message: 'Sessão não corresponde a uma empresa válida. Faça login novamente.',
           });
         }
 
         const sessionExpiresAt = sessions.sessionExpiresAt();
-        const renewed =
-          existingSession && existingSession.expiresAt > new Date()
-            ? await sessions.renewActive(
-                sessionToken,
-                profileId,
-                providerSession.identity.id,
-              )
-            : false;
+        const sessionStillActive = existingSession.expiresAt > new Date();
+        const renewed = sessionStillActive
+          ? await sessions.renewActive(
+              sessionToken,
+              profileId,
+              providerSession.identity.id,
+            )
+          : false;
         const activeSession = renewed
-          ? { token: sessionToken!, expiresAt: sessionExpiresAt }
-          : existingSession && existingSession.expiresAt > new Date()
+          ? { token: sessionToken, expiresAt: sessionExpiresAt }
+          : sessionStillActive
             ? null
             : await sessions.create({
                 profileId,
+                tenantId: existingSession.tenantId,
                 jwtSubject: providerSession.identity.id,
                 expiresAt: sessionExpiresAt,
                 metadata: sessions.metadataFromRequest(req),
