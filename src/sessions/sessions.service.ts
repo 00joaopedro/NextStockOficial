@@ -50,6 +50,28 @@ export class SessionsService {
     });
   }
 
+  async renewActive(
+    token: string | undefined,
+    profileId: string,
+    jwtSubject: string | null,
+  ) {
+    if (!token) return false;
+    const result = await this.prisma.userSession.updateMany({
+      where: {
+        tokenIdHash: this.hash(token),
+        profileId,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: {
+        jwtSubject,
+        expiresAt: this.sessionExpiresAt(),
+        lastSeenAt: new Date(),
+      },
+    });
+    return result.count === 1;
+  }
+
   async renew(token: string | undefined, jwtSubject: string | null) {
     if (!token) return false;
     const result = await this.prisma.userSession.updateMany({
