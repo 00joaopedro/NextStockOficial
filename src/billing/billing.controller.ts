@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Headers,
   Param,
@@ -28,6 +29,10 @@ import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
 import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from './subscriptions.service';
+import {
+  canUseProductionTestCheckout,
+  PRODUCTION_TEST_PLAN_SLUG,
+} from './production-test-access';
 
 @Controller('billing')
 @BillingExempt()
@@ -88,6 +93,36 @@ export class BillingController {
       ok: true,
       subscription: await this.subscriptions.cancelForTenant(context.tenantId),
     };
+  }
+
+  @Get('production-test-capability')
+  productionTestCapability(@Req() req: Request) {
+    return {
+      ok: true,
+      enabled: canUseProductionTestCheckout(req.user),
+    };
+  }
+
+  @Post('production-test-checkout')
+  @UseGuards(CsrfOriginGuard)
+  productionTestCheckout(
+    @Req() req: Request,
+    @Headers('idempotency-key') idempotencyKey?: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    if (!canUseProductionTestCheckout(req.user)) {
+      throw new ForbiddenException(
+        'Teste de produção não autorizado para este administrador.',
+      );
+    }
+    return this.checkouts.create(
+      req.user,
+      PRODUCTION_TEST_PLAN_SLUG,
+      idempotencyKey,
+      branchId,
+      devContext,
+    );
   }
 
   @Post('checkout')

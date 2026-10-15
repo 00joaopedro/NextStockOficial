@@ -148,6 +148,14 @@ const schema = Joi.object({
   BILLING_ENFORCEMENT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_CHECKOUT_ENABLED: Joi.string().valid('true', 'false').optional(),
   BILLING_WEBHOOK_ENABLED: Joi.string().valid('true', 'false').optional(),
+  BILLING_PRODUCTION_TEST_ENABLED: Joi.string()
+    .valid('true', 'false')
+    .optional(),
+  BILLING_PRODUCTION_TEST_ADMIN_EMAIL: Joi.string()
+    .email()
+    .allow('')
+    .optional(),
+  MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID: Joi.string().allow('').optional(),
   BILLING_DEFAULT_PROVIDER: Joi.string()
     .valid('MERCADO_PAGO', 'mercado_pago')
     .optional(),
@@ -460,6 +468,7 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     }
     const checkoutEnabled =
       String(value.BILLING_CHECKOUT_ENABLED ?? '').toLowerCase() === 'true';
+    const mercadoPagoMode = String(value.MERCADO_PAGO_MODE ?? '').toLowerCase();
     const webhookEnabled =
       String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
     if (checkoutEnabled || webhookEnabled) {
@@ -471,6 +480,23 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_OURO');
       requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_ESMERALDA');
       requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_DIAMANTE');
+    }
+    const productionTestEnabled =
+      String(value.BILLING_PRODUCTION_TEST_ENABLED ?? '').toLowerCase() ===
+      'true';
+    if (productionTestEnabled) {
+      if (appEnv !== 'production') {
+        throw new Error(
+          'BILLING_PRODUCTION_TEST_ENABLED is allowed only in production.',
+        );
+      }
+      requireWhenEmpty(required, value, 'BILLING_PRODUCTION_TEST_ADMIN_EMAIL');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID');
+      if (mercadoPagoMode !== 'production') {
+        throw new Error(
+          'Production billing test requires MERCADO_PAGO_MODE=production.',
+        );
+      }
     }
     if (webhookEnabled) {
       requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');

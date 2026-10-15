@@ -19,6 +19,10 @@ import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 import { createBillingExternalReference } from './external-reference.util';
 import {
+  canUseProductionTestCheckout,
+  PRODUCTION_TEST_PLAN_SLUG,
+} from './production-test-access';
+import {
   getPromotionOffer,
   NORMAL_PAYMENT_LINKS,
   promotionOfferMatches,
@@ -49,7 +53,19 @@ export class CheckoutService {
         'Idempotency-Key obrigatoria (8-128 caracteres seguros).',
       );
     }
-    if (process.env.BILLING_CHECKOUT_ENABLED?.toLowerCase() === 'false') {
+    const isProductionTestCheckout = planSlug === PRODUCTION_TEST_PLAN_SLUG;
+    if (
+      isProductionTestCheckout &&
+      !canUseProductionTestCheckout(user)
+    ) {
+      throw new ForbiddenException(
+        'Teste de produção não autorizado para este administrador.',
+      );
+    }
+    if (
+      process.env.BILLING_CHECKOUT_ENABLED?.toLowerCase() === 'false' &&
+      !isProductionTestCheckout
+    ) {
       throw new ForbiddenException('Checkout temporariamente desabilitado.');
     }
     const context = await this.tenantContext.resolve(user, {

@@ -41,6 +41,24 @@ async function main() {
     },
   ];
 
+  const productionTestPlanId =
+    process.env.MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID?.trim();
+  if (
+    process.env.BILLING_PRODUCTION_TEST_ENABLED?.trim().toLowerCase() ===
+      'true' &&
+    productionTestPlanId
+  ) {
+    plans.push({
+      name: 'Validação de produção — R$ 1,00',
+      slug: 'production-test-r1',
+      priceCents: 100,
+      description:
+        'Plano técnico temporário para validar o webhook e a ativação de billing.',
+      sortOrder: 999,
+      gatewayPlanId: productionTestPlanId,
+    });
+  }
+
   for (const plan of plans) {
     const savedPlan = await prisma.plan.upsert({
       where: { slug: plan.slug },
