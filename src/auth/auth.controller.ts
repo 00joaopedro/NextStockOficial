@@ -54,7 +54,7 @@ import type {
 } from '../common/http-types';
 import { GoogleOAuthService } from './google-oauth.service';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
-import { PasswordRecoveryError } from './auth-provider';
+import { AuthProviderError, PasswordRecoveryError } from './auth-provider';
 
 class GoogleCallbackFailure extends Error {
   constructor(readonly code: 'oauth_state_invalid' | 'oauth_code_missing') {
@@ -538,11 +538,15 @@ export class AuthController {
       throw new UnauthorizedException('Session service unavailable.');
 
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
-    const localClaims = await this.authService.verifyLocalSessionClaims(
-      req.cookies?.jwt,
-    );
+    let localClaims: {
+      authMethod: 'password' | 'google';
+      subject: string;
+    } | null = null;
 
     try {
+      localClaims = await this.authService.verifyLocalSessionClaims(
+        req.cookies?.jwt,
+      );
       const refreshed = await this.withSessionRefreshTimeout(async () => {
         if (localClaims) {
           const renewed = await sessions.renewActive(
@@ -569,6 +573,8 @@ export class AuthController {
             accessToken: local.accessToken,
             refreshToken: undefined,
             profileId: localClaims.subject,
+            sessionToken: sessionToken!,
+            sessionExpiresAt: sessions.sessionExpiresAt(),
           };
         }
 
@@ -588,12 +594,47 @@ export class AuthController {
         const profileId = await this.authService.resolveInternalProfileId(
           providerSession.identity.id,
         );
-        const renewed = await sessions.renewActive(
-          sessionToken,
-          profileId,
-          providerSession.identity.id,
-        );
-        if (!renewed) {
+        const existingSession = sessionToken
+          ? await sessions.findByToken(sessionToken)
+          : undefined;
+        if (
+          existingSession &&
+          (existingSession.revokedAt || existingSession.profileId !== profileId)
+        ) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            existingSession.revokedAt ? 'SESSION_REVOKED' : 'SESSION_NOT_FOUND',
+            profileId,
+          );
+          throw new UnauthorizedException({
+            code: existingSession.revokedAt
+              ? 'SESSION_REVOKED'
+              : 'SESSION_NOT_FOUND',
+            message: 'Sessão expirada ou revogada. Faça login novamente.',
+          });
+        }
+
+        const sessionExpiresAt = sessions.sessionExpiresAt();
+        const renewed =
+          existingSession && existingSession.expiresAt > new Date()
+            ? await sessions.renewActive(
+                sessionToken,
+                profileId,
+                providerSession.identity.id,
+              )
+            : false;
+        const activeSession = renewed
+          ? { token: sessionToken!, expiresAt: sessionExpiresAt }
+          : existingSession && existingSession.expiresAt > new Date()
+            ? null
+            : await sessions.create({
+                profileId,
+                jwtSubject: providerSession.identity.id,
+                expiresAt: sessionExpiresAt,
+                metadata: sessions.metadataFromRequest(req),
+              });
+        if (!activeSession) {
           this.recordSessionRefreshOutcome(
             req,
             AuditOutcome.DENIED,
@@ -607,10 +648,16 @@ export class AuthController {
           accessToken: providerSession.accessToken,
           refreshToken: providerSession.refreshToken,
           profileId,
+          sessionToken: activeSession.token,
+          sessionExpiresAt: activeSession.expiresAt,
         };
       });
 
-      setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
+      setSessionCookie(
+        reply,
+        refreshed.sessionToken,
+        refreshed.sessionExpiresAt,
+      );
       this.setJwtCookie(reply, refreshed.accessToken);
       if (refreshed.refreshToken) {
         setAuthRefreshCookie(reply, refreshed.refreshToken);
@@ -634,6 +681,17 @@ export class AuthController {
         `auth.session.refresh_failed request=${req.requestId ?? 'unknown'}`,
       );
       if (error instanceof UnauthorizedException) throw error;
+      if (
+        error instanceof AuthProviderError &&
+        ['invalid_credentials', 'identity_not_found', 'email_not_verified'].includes(
+          error.code,
+        )
+      ) {
+        throw new UnauthorizedException({
+          code: 'SESSION_REFRESH_REQUIRED',
+          message: 'Sessão expirada. Faça login novamente.',
+        });
+      }
       throw new ServiceUnavailableException({
         code: 'SESSION_REFRESH_TEMPORARILY_UNAVAILABLE',
         message: 'Sessão temporariamente indisponível. Tente novamente.',
