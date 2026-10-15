@@ -196,24 +196,35 @@ Object.assign(window, {
 const originalNextStockFetch = window.fetch.bind(window);
 
 const SESSION_REFRESH_TIMEOUT_MS = 5000;
+let nextStockRefreshPromise: Promise<Response | null> | null = null;
 
 async function refreshNextStockSession(): Promise<Response | null> {
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(
-    () => controller.abort(),
-    SESSION_REFRESH_TIMEOUT_MS,
-  );
+  if (nextStockRefreshPromise) return nextStockRefreshPromise;
+
+  nextStockRefreshPromise = (async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+      () => controller.abort(),
+      SESSION_REFRESH_TIMEOUT_MS,
+    );
+    try {
+      return await originalNextStockFetch('/api/auth/session/refresh', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
+      });
+    } catch {
+      return null;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  })();
+
   try {
-    return await originalNextStockFetch('/api/auth/session/refresh', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-      signal: controller.signal,
-    });
-  } catch {
-    return null;
+    return await nextStockRefreshPromise;
   } finally {
-    window.clearTimeout(timeoutId);
+    nextStockRefreshPromise = null;
   }
 }
 window.fetch = async (...args: Parameters<typeof fetch>) => {
