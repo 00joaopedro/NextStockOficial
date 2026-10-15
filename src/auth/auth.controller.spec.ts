@@ -659,6 +659,4 @@ describe('AuthController', () => {
       'profile-1',
     );
   });
-
-
 });
