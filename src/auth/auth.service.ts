@@ -1046,6 +1046,29 @@ export class AuthService {
     };
   }
 
+  async refreshLocalSessionForProfile(
+    profileId: string,
+    authMethod: 'password' | 'google',
+    currentToken?: string,
+  ) {
+    if (currentToken && this.localJwt) {
+      try {
+        const claims = await this.localJwt.verify(currentToken);
+        if (claims.sub === profileId && claims.authMethod === authMethod) {
+          return { accessToken: currentToken, reused: true };
+        }
+      } catch {
+        // An expired or invalid token must go through the full eligibility path.
+      }
+    }
+
+    const refreshed = await this.issueLocalSessionForProfile(
+      profileId,
+      authMethod,
+    );
+    return { ...refreshed, reused: false };
+  }
+
   async assertGoogleLoginEligibility(profileId: string) {
     const profile = await this.findProfileRecord({ profileId });
     this.assertEmployeeCanAuthenticate(profile);
