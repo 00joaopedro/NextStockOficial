@@ -468,9 +468,7 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     }
     const checkoutEnabled =
       String(value.BILLING_CHECKOUT_ENABLED ?? '').toLowerCase() === 'true';
-    const mercadoPagoMode = String(
-      value.MERCADO_PAGO_MODE ?? '',
-    ).toLowerCase();
+    const mercadoPagoMode = String(value.MERCADO_PAGO_MODE ?? '').toLowerCase();
     const webhookEnabled =
       String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
     if (checkoutEnabled || webhookEnabled) {
@@ -492,16 +490,8 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
           'BILLING_PRODUCTION_TEST_ENABLED is allowed only in production.',
         );
       }
-      requireWhenEmpty(
-        required,
-        value,
-        'BILLING_PRODUCTION_TEST_ADMIN_EMAIL',
-      );
-      requireWhenEmpty(
-        required,
-        value,
-        'MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID',
-      );
+      requireWhenEmpty(required, value, 'BILLING_PRODUCTION_TEST_ADMIN_EMAIL');
+      requireWhenEmpty(required, value, 'MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID');
       if (mercadoPagoMode !== 'production') {
         throw new Error(
           'Production billing test requires MERCADO_PAGO_MODE=production.',
