@@ -203,17 +203,22 @@
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
   }
+  function idempotencyKeyFor(storageKey) {
+    let idempotencyKey = sessionStorage.getItem(storageKey);
+    if (!idempotencyKey) {
+      idempotencyKey = crypto.randomUUID();
+      sessionStorage.setItem(storageKey, idempotencyKey);
+    }
+    return idempotencyKey;
+  }
+
   async function startProductionTestCheckout() {
     if (!state.productionTestAvailable) return;
     busy(true);
     message("Criando checkout de validação...");
     try {
       const storageKey = "nextstockProductionTestBillingIntent";
-      let idempotencyKey = sessionStorage.getItem(storageKey);
-      if (!idempotencyKey) {
-        idempotencyKey = crypto.randomUUID();
-        sessionStorage.setItem(storageKey, idempotencyKey);
-      }
+      const idempotencyKey = idempotencyKeyFor(storageKey);
       const checkout = await api("/api/billing/production-test-checkout", {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey },
@@ -240,11 +245,7 @@
     busy(true); message("Criando checkout...");
     try {
       const storageKey = `nextstockBillingIntent:${planSlug}:${reservation?.reservationId || "normal"}`;
-      let idempotencyKey = sessionStorage.getItem(storageKey);
-      if (!idempotencyKey) {
-        idempotencyKey = crypto.randomUUID();
-        sessionStorage.setItem(storageKey, idempotencyKey);
-      }
+      const idempotencyKey = idempotencyKeyFor(storageKey);
       const checkout = await api("/api/billing/checkout", {
         method: "POST",
         headers: { "Idempotency-Key": idempotencyKey },
