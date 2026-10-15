@@ -41,8 +41,10 @@ import { BillingExempt } from '../billing/billing-exempt.decorator';
 import { AuditService } from '../audit/audit.service';
 import { SessionsService } from '../sessions/sessions.service';
 import {
+  AUTH_REFRESH_COOKIE_NAME,
   clearAuthCookies,
   SESSION_COOKIE_NAME,
+  setAuthRefreshCookie,
   setSessionCookie,
 } from '../sessions/session-cookie';
 
@@ -187,14 +189,22 @@ export class AuthController {
     @Headers('idempotency-key') idempotencyKey?: string,
     @Req() req?: AuthenticatedHttpRequest,
   ) {
-    const { accessToken, payload } = await this.authService.register({
-      ...body,
-      idempotencyKey,
-    });
+    const { accessToken, refreshToken, payload } =
+      await this.authService.register({
+        ...body,
+        idempotencyKey,
+      });
 
     reply.header('Cache-Control', 'no-store');
-    await this.createSession(req, reply, accessToken, payload.user);
+    await this.createSession(
+      req,
+      reply,
+      accessToken,
+      payload.user,
+      Boolean(refreshToken),
+    );
     this.setJwtCookie(reply, accessToken);
+    if (refreshToken) setAuthRefreshCookie(reply, refreshToken);
     void this.audit?.record({
       ...this.audit.fromRequest(req),
       eventType: 'auth.register.succeeded',
@@ -219,11 +229,19 @@ export class AuthController {
     @Req() req?: AuthenticatedHttpRequest,
   ) {
     try {
-      const { accessToken, payload } = await this.authService.login(body);
+      const { accessToken, refreshToken, payload } =
+        await this.authService.login(body);
 
       reply.header('Cache-Control', 'no-store');
-      await this.createSession(req, reply, accessToken, payload.user);
+      await this.createSession(
+        req,
+        reply,
+        accessToken,
+        payload.user,
+        Boolean(refreshToken),
+      );
       this.setJwtCookie(reply, accessToken);
+      if (refreshToken) setAuthRefreshCookie(reply, refreshToken);
       void this.audit?.record({
         ...this.audit.fromRequest(req),
         eventType: 'auth.login.succeeded',
@@ -507,8 +525,7 @@ export class AuthController {
   }
 
   @Post('session/refresh')
-  // Refresh is deliberately kept independent from the slow distributed rate-limit
-  // transaction; it remains protected by the in-memory per-IP guard.
+  // Refresh stays independent from the slow distributed rate-limit transaction.
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 30, windowMs: 60_000 })
   @CsrfExempt()
@@ -521,49 +538,89 @@ export class AuthController {
       throw new UnauthorizedException('Session service unavailable.');
 
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
-    const claims = await this.authService.verifyLocalSessionClaims(
+    const localClaims = await this.authService.verifyLocalSessionClaims(
       req.cookies?.jwt,
     );
-    if (!claims) {
-      this.recordSessionRefreshOutcome(
-        req,
-        AuditOutcome.DENIED,
-        'SESSION_CLAIMS_INVALID',
-      );
-      throw new UnauthorizedException('Local session refresh unavailable.');
-    }
 
     try {
       const refreshed = await this.withSessionRefreshTimeout(async () => {
+        if (localClaims) {
+          const renewed = await sessions.renewActive(
+            sessionToken,
+            localClaims.subject,
+            localClaims.subject,
+          );
+          if (!renewed) {
+            this.recordSessionRefreshOutcome(
+              req,
+              AuditOutcome.DENIED,
+              'SESSION_NOT_FOUND',
+              localClaims.subject,
+            );
+            throw new UnauthorizedException('Active session required.');
+          }
+
+          const local = await this.authService.refreshLocalSessionForProfile(
+            localClaims.subject,
+            localClaims.authMethod,
+            req.cookies?.jwt,
+          );
+          return {
+            accessToken: local.accessToken,
+            refreshToken: undefined,
+            profileId: localClaims.subject,
+          };
+        }
+
+        const refreshToken = req.cookies?.[AUTH_REFRESH_COOKIE_NAME];
+        if (!refreshToken || !this.supabaseAuth) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_CLAIMS_INVALID',
+          );
+          throw new UnauthorizedException(
+            'Session refresh credentials unavailable.',
+          );
+        }
+
+        const providerSession = await this.supabaseAuth.refresh(refreshToken);
+        const profileId = await this.authService.resolveInternalProfileId(
+          providerSession.identity.id,
+        );
         const renewed = await sessions.renewActive(
           sessionToken,
-          claims.subject,
-          claims.subject,
+          profileId,
+          providerSession.identity.id,
         );
         if (!renewed) {
           this.recordSessionRefreshOutcome(
             req,
             AuditOutcome.DENIED,
             'SESSION_NOT_FOUND',
-            claims.subject,
+            profileId,
           );
           throw new UnauthorizedException('Active session required.');
         }
 
-        return this.authService.refreshLocalSessionForProfile(
-          claims.subject,
-          claims.authMethod,
-          req.cookies?.jwt,
-        );
+        return {
+          accessToken: providerSession.accessToken,
+          refreshToken: providerSession.refreshToken,
+          profileId,
+        };
       });
+
       setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
       this.setJwtCookie(reply, refreshed.accessToken);
+      if (refreshed.refreshToken) {
+        setAuthRefreshCookie(reply, refreshed.refreshToken);
+      }
       reply.header('Cache-Control', 'no-store');
       this.recordSessionRefreshOutcome(
         req,
         AuditOutcome.SUCCESS,
         'SESSION_REFRESHED',
-        claims.subject,
+        refreshed.profileId,
       );
       return { ok: true };
     } catch (error) {
@@ -571,7 +628,7 @@ export class AuthController {
         req,
         AuditOutcome.DENIED,
         'SESSION_REFRESH_FAILED',
-        claims.subject,
+        localClaims?.subject,
       );
       this.logger.warn(
         `auth.session.refresh_failed request=${req.requestId ?? 'unknown'}`,
@@ -704,15 +761,17 @@ export class AuthController {
     reply: CompatibleReply,
     accessToken: string,
     user: { id: string; tenantId?: string | null },
+    providerSessionRenewable = false,
   ) {
     if (!this.sessions) return;
     const token = this.sessions.expiresAtFromJwt(accessToken);
     const isRenewableLocalJwt = Boolean(
       this.localAuthClaimsFromToken(accessToken),
     );
-    const sessionExpiresAt = isRenewableLocalJwt
-      ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
-      : token.expiresAt;
+    const sessionExpiresAt =
+      isRenewableLocalJwt || providerSessionRenewable
+        ? (this.sessions.sessionExpiresAt?.() ?? token.expiresAt)
+        : token.expiresAt;
     const session = await this.sessions.create({
       profileId: user.id,
       tenantId: user.tenantId,
