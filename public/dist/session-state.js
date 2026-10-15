@@ -215,8 +215,18 @@ window.fetch = async (...args) => {
         !pathname.startsWith('/api/auth/login') &&
         !pathname.startsWith('/api/auth/register')) {
         const refresh = await refreshNextStockSession();
-    if (refresh?.ok)
+        if (refresh?.ok)
             return originalNextStockFetch(...args);
+        if (!refresh || refresh.status >= 500) {
+            return new Response(JSON.stringify({
+                statusCode: 503,
+                code: 'SESSION_REFRESH_TEMPORARILY_UNAVAILABLE',
+                message: 'Sessão temporariamente indisponível. Tente novamente.',
+            }), {
+                status: 503,
+                headers: { 'Content-Type': 'application/json' },
+            });
+        }
     }
     if (response.status === 402 &&
         !window.location.pathname.toLowerCase().endsWith('/perfil.html')) {

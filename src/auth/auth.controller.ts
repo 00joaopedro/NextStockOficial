@@ -63,6 +63,8 @@ class GoogleCallbackFailure extends Error {
 
 const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
 
+const SESSION_REFRESH_TIMEOUT_MS = 1_800;
+
 @Controller('auth')
 @BillingExempt()
 @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
@@ -505,9 +507,8 @@ export class AuthController {
   }
 
   @Post('session/refresh')
-  // Session refresh must stay available when PostgreSQL is slow. The
-  // endpoint remains rate-limited in memory by IP and does not depend on the
-  // distributed auth bucket that can otherwise turn a refresh into a 503.
+  // Refresh is deliberately kept independent from the slow distributed rate-limit
+  // transaction; it remains protected by the in-memory per-IP guard.
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 30, windowMs: 60_000 })
   @CsrfExempt()
@@ -520,37 +521,41 @@ export class AuthController {
       throw new UnauthorizedException('Session service unavailable.');
 
     const sessionToken = req.cookies?.[SESSION_COOKIE_NAME];
-    const active = await sessions.findActive(sessionToken);
-    if (!active) {
+    const claims = await this.authService.verifyLocalSessionClaims(
+      req.cookies?.jwt,
+    );
+    if (!claims) {
       this.recordSessionRefreshOutcome(
         req,
         AuditOutcome.DENIED,
-        'SESSION_NOT_FOUND',
-      );
-      throw new UnauthorizedException('Active session required.');
-    }
-
-    const claims = this.localAuthClaimsFromToken(req.cookies?.jwt);
-    if (!claims || claims.subject !== active.profileId) {
-      this.recordSessionRefreshOutcome(
-        req,
-        AuditOutcome.DENIED,
-        'SESSION_CLAIMS_MISMATCH',
-        active.profileId,
+        'SESSION_CLAIMS_INVALID',
       );
       throw new UnauthorizedException('Local session refresh unavailable.');
     }
 
     try {
-      const refreshed = await this.authService.refreshLocalSessionForProfile(
-        active.profileId,
-        claims.authMethod,
-        req.cookies?.jwt,
-      );
-      const token = sessions.expiresAtFromJwt(refreshed.accessToken);
-      const renewed = await sessions.renew(sessionToken, token.subject);
-      if (!renewed) throw new UnauthorizedException('Session expired.');
+      const refreshed = await this.withSessionRefreshTimeout(async () => {
+        const renewed = await sessions.renewActive(
+          sessionToken,
+          claims.subject,
+          claims.subject,
+        );
+        if (!renewed) {
+          this.recordSessionRefreshOutcome(
+            req,
+            AuditOutcome.DENIED,
+            'SESSION_NOT_FOUND',
+            claims.subject,
+          );
+          throw new UnauthorizedException('Active session required.');
+        }
 
+        return this.authService.refreshLocalSessionForProfile(
+          claims.subject,
+          claims.authMethod,
+          req.cookies?.jwt,
+        );
+      });
       setSessionCookie(reply, sessionToken!, sessions.sessionExpiresAt());
       this.setJwtCookie(reply, refreshed.accessToken);
       reply.header('Cache-Control', 'no-store');
@@ -558,7 +563,7 @@ export class AuthController {
         req,
         AuditOutcome.SUCCESS,
         'SESSION_REFRESHED',
-        active.profileId,
+        claims.subject,
       );
       return { ok: true };
     } catch (error) {
@@ -566,9 +571,16 @@ export class AuthController {
         req,
         AuditOutcome.DENIED,
         'SESSION_REFRESH_FAILED',
-        active.profileId,
+        claims.subject,
       );
-      throw error;
+      this.logger.warn(
+        `auth.session.refresh_failed request=${req.requestId ?? 'unknown'}`,
+      );
+      if (error instanceof UnauthorizedException) throw error;
+      throw new ServiceUnavailableException({
+        code: 'SESSION_REFRESH_TEMPORARILY_UNAVAILABLE',
+        message: 'Sessão temporariamente indisponível. Tente novamente.',
+      });
     }
   }
 
@@ -640,6 +652,30 @@ export class AuthController {
       path: '/',
       ...(maxAge ? { maxAge } : {}),
     });
+  }
+
+  private async withSessionRefreshTimeout<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    let timeout: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        operation(),
+        new Promise<never>((_, reject) => {
+          timeout = setTimeout(() => {
+            reject(
+              new ServiceUnavailableException({
+                code: 'SESSION_REFRESH_TIMEOUT',
+                message:
+                  'Sessão temporariamente indisponível. Tente novamente.',
+              }),
+            );
+          }, SESSION_REFRESH_TIMEOUT_MS);
+        }),
+      ]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   private recordSessionRefreshOutcome(

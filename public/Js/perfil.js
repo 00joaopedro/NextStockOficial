@@ -56,7 +56,11 @@
       headers: headers({ ...(options.body ? { "Content-Type": "application/json" } : {}), ...(options.headers || {}) }),
     });
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401) {
+    if (
+      response.status === 401 &&
+      (path === "/api/auth/profile" ||
+        ["SESSION_REVOKED", "SESSION_NOT_FOUND", "SESSION_CLAIMS_INVALID"].includes(body.code))
+    ) {
       window.clearNextStockSessionState?.();
       location.href = "index.html";
       throw new Error("Sessão expirada.");

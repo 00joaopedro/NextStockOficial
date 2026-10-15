@@ -285,6 +285,19 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
   ) {
     const refresh = await refreshNextStockSession();
     if (refresh?.ok) return originalNextStockFetch(...args);
+    if (!refresh || refresh.status >= 500) {
+      return new Response(
+        JSON.stringify({
+          statusCode: 503,
+          code: 'SESSION_REFRESH_TEMPORARILY_UNAVAILABLE',
+          message: 'Sessão temporariamente indisponível. Tente novamente.',
+        }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
   }
 
   if (
