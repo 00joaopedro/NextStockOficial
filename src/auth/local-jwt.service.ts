@@ -30,7 +30,7 @@ export class LocalJwtService {
     });
   }
 
-  async verify(token: string) {
+  async verify(token: string, options?: { ignoreExpiration?: boolean }) {
     localJwtConfig();
     const decoded = this.jwt.decode(token, { complete: true });
     const header =
@@ -45,6 +45,7 @@ export class LocalJwtService {
       algorithms: ['HS256'],
       issuer: localJwtConfig().issuer,
       audience: localJwtConfig().audience,
+      ignoreExpiration: options?.ignoreExpiration ?? false,
     });
   }
 }
