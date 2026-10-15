@@ -683,9 +683,11 @@ export class AuthController {
       if (error instanceof UnauthorizedException) throw error;
       if (
         error instanceof AuthProviderError &&
-        ['invalid_credentials', 'identity_not_found', 'email_not_verified'].includes(
-          error.code,
-        )
+        [
+          'invalid_credentials',
+          'identity_not_found',
+          'email_not_verified',
+        ].includes(error.code)
       ) {
         throw new UnauthorizedException({
           code: 'SESSION_REFRESH_REQUIRED',
