@@ -30,7 +30,7 @@ describe('production test checkout access', () => {
     ).toBe(false);
     expect(
       canUseProductionTestCheckout(
-        { ...user, role: Role.User },
+        { ...user, role: Role.Vendedor },
         env,
       ),
     ).toBe(false);
