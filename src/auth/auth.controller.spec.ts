@@ -772,7 +772,12 @@ describe('AuthController', () => {
   it('converte refresh Supabase inválido em sessão requerida, não em 503', async () => {
     const sessions = {
       sessionExpiresAt: jest.fn(),
-      findByToken: jest.fn(),
+      findByToken: jest.fn().mockResolvedValue({
+        profileId: 'profile-1',
+        tenantId: 'tenant-1',
+        expiresAt: new Date(Date.now() + 60_000),
+        revokedAt: null,
+      }),
       renewActive: jest.fn(),
       create: jest.fn(),
     };
