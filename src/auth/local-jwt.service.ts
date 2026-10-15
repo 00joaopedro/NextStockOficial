@@ -7,6 +7,7 @@ export type LocalJwtPayload = {
   jti: string;
   authMethod: 'password' | 'google';
   credentialVersion?: number;
+  exp?: number;
 };
 
 @Injectable()
