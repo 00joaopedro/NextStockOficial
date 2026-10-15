@@ -468,6 +468,9 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
     }
     const checkoutEnabled =
       String(value.BILLING_CHECKOUT_ENABLED ?? '').toLowerCase() === 'true';
+    const mercadoPagoMode = String(
+      value.MERCADO_PAGO_MODE ?? '',
+    ).toLowerCase();
     const webhookEnabled =
       String(value.BILLING_WEBHOOK_ENABLED ?? '').toLowerCase() === 'true';
     if (checkoutEnabled || webhookEnabled) {
