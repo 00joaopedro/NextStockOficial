@@ -13,7 +13,7 @@ describe('MercadoPagoGatewayAdapter', () => {
     jest.restoreAllMocks();
   });
 
-  it('cria preapproval individual com referencia interna', async () => {
+  it('cria assinatura pendente hospedada sem plano associado', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -30,7 +30,7 @@ describe('MercadoPagoGatewayAdapter', () => {
       amountCents: 20000,
       currency: 'BRL',
       title: 'Ouro',
-      gatewayPlanId: 'plan-1',
+      recurrence: { frequency: 1, frequencyType: 'months' },
       payerEmail: 'admin@example.com',
       backUrl: 'https://app.example.com/api/billing/checkout/return',
     });
@@ -45,6 +45,21 @@ describe('MercadoPagoGatewayAdapter', () => {
         body: expect.stringContaining('ns_cs_reference'),
       }),
     );
+    const request = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body)).toEqual({
+      reason: 'Ouro',
+      payer_email: 'admin@example.com',
+      external_reference: 'ns_cs_reference',
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: 'months',
+        transaction_amount: 200,
+        currency_id: 'BRL',
+      },
+      back_url: 'https://app.example.com/api/billing/checkout/return',
+      status: 'pending',
+    });
+    expect(JSON.parse(request.body)).not.toHaveProperty('preapproval_plan_id');
   });
 
   it('normaliza pagamento consultado sem vazar regra ao dominio', async () => {
@@ -92,7 +107,7 @@ describe('MercadoPagoGatewayAdapter', () => {
         amountCents: 100,
         currency: 'BRL',
         title: 'Validação',
-        gatewayPlanId: 'plan-1',
+        recurrence: { frequency: 1, frequencyType: 'months' },
         payerEmail: 'admin@example.com',
         backUrl: 'https://app.example.com/api/billing/checkout/return',
       }),
@@ -122,7 +137,7 @@ describe('MercadoPagoGatewayAdapter', () => {
         amountCents: 100,
         currency: 'BRL',
         title: 'Validação',
-        gatewayPlanId: 'plan-1',
+        recurrence: { frequency: 1, frequencyType: 'months' },
         payerEmail: 'admin@example.com',
         backUrl: 'https://app.example.com/api/billing/checkout/return',
       }),
