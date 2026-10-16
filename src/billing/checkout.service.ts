@@ -9,6 +9,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   BillingEventType,
   CheckoutSessionStatus,
+  PlanInterval,
   Prisma,
   Role,
 } from '@prisma/client';
@@ -54,10 +55,7 @@ export class CheckoutService {
       );
     }
     const isProductionTestCheckout = planSlug === PRODUCTION_TEST_PLAN_SLUG;
-    if (
-      isProductionTestCheckout &&
-      !canUseProductionTestCheckout(user)
-    ) {
+    if (isProductionTestCheckout && !canUseProductionTestCheckout(user)) {
       throw new ForbiddenException(
         'Teste de produção não autorizado para este administrador.',
       );
@@ -108,18 +106,24 @@ export class CheckoutService {
           : {};
       promotionOffer = getPromotionOffer(
         typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
-        typeof metadata.periodMonths === 'number' ? metadata.periodMonths : undefined,
+        typeof metadata.periodMonths === 'number'
+          ? metadata.periodMonths
+          : undefined,
       );
       if (
         !promotionOffer ||
         !promotionOfferMatches(
           promotionOffer,
           typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
-          typeof metadata.periodMonths === 'number' ? metadata.periodMonths : undefined,
+          typeof metadata.periodMonths === 'number'
+            ? metadata.periodMonths
+            : undefined,
         ) ||
         promotionOffer.planSlug !== planSlug
       ) {
-        throw new ConflictException('Oferta promocional divergente da reserva.');
+        throw new ConflictException(
+          'Oferta promocional divergente da reserva.',
+        );
       }
     }
 
@@ -138,15 +142,11 @@ export class CheckoutService {
     });
     if (!plan) throw new NotFoundException('Plano nao encontrado.');
     const mapping = plan.gatewayMappings[0];
-    const gatewayPlanId = promotionOffer
-      ? process.env[promotionOffer.gatewayPlanEnv]?.trim()
-      : mapping?.gatewayPlanId;
-    if (!gatewayPlanId)
+    if (!mapping)
       throw new ConflictException(
-        promotionOffer
-          ? 'Plano promocional sem checkout Mercado Pago configurado.'
-          : 'Plano sem checkout configurado.',
+        'Plano sem checkout Mercado Pago configurado.',
       );
+    const recurrence = this.recurrence(plan.interval, plan.intervalCount);
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -167,16 +167,17 @@ export class CheckoutService {
         }),
       )
       .digest('hex');
-    const existingIntentForKey = await this.prisma.billingCheckoutIntent.findUnique({
-      where: {
-        tenantId_operation_idempotencyKey: {
-          tenantId: context.tenantId,
-          operation: 'CREATE_CHECKOUT',
-          idempotencyKey,
+    const existingIntentForKey =
+      await this.prisma.billingCheckoutIntent.findUnique({
+        where: {
+          tenantId_operation_idempotencyKey: {
+            tenantId: context.tenantId,
+            operation: 'CREATE_CHECKOUT',
+            idempotencyKey,
+          },
         },
-      },
-      select: { payloadHash: true },
-    });
+        select: { payloadHash: true },
+      });
     if (
       existingIntentForKey &&
       existingIntentForKey.payloadHash !== payloadHash
@@ -190,7 +191,9 @@ export class CheckoutService {
       where: {
         tenantId: context.tenantId,
         subscriptionId: subscription.id,
-        status: { in: [CheckoutSessionStatus.OPEN, CheckoutSessionStatus.PENDING] },
+        status: {
+          in: [CheckoutSessionStatus.OPEN, CheckoutSessionStatus.PENDING],
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -229,7 +232,9 @@ export class CheckoutService {
       throw new ConflictException('PUBLIC_APP_URL nao configurada.');
     const gateway = this.gateways.get(provider);
     const gatewayIdempotencyKey = createHash('sha256')
-      .update(`${context.tenantId}:CREATE_CHECKOUT:${idempotencyKey}:${promotionReservationId || 'normal'}`)
+      .update(
+        `${context.tenantId}:CREATE_CHECKOUT:${idempotencyKey}:${promotionReservationId || 'normal'}`,
+      )
       .digest('hex');
     const claimToken = randomUUID();
     let intent: any;
@@ -333,31 +338,37 @@ export class CheckoutService {
       data: { state: 'PROCESSING' },
     });
     if (processingClaim.count !== 1) {
-      throw new ConflictException('Claim de checkout expirou ou foi substituído.');
+      throw new ConflictException(
+        'Claim de checkout expirou ou foi substituído.',
+      );
     }
 
     if (promotionReservation) {
-      const reservationClaim = await this.prisma.promotionReservation.updateMany({
-        where: {
-          id: promotionReservation.id,
-          tenantId: context.tenantId,
-          status: 'RESERVED',
-          checkoutSessionId: null,
-          OR: [
-            { checkoutClaimToken: null },
-            { checkoutClaimToken: intent.id },
-            { checkoutClaimExpiresAt: { lte: new Date() } },
-          ],
-        },
-        data: {
-          checkoutClaimToken: intent.id,
-          checkoutClaimExpiresAt: new Date(Date.now() + 300_000),
-        },
-      });
+      const reservationClaim =
+        await this.prisma.promotionReservation.updateMany({
+          where: {
+            id: promotionReservation.id,
+            tenantId: context.tenantId,
+            status: 'RESERVED',
+            checkoutSessionId: null,
+            OR: [
+              { checkoutClaimToken: null },
+              { checkoutClaimToken: intent.id },
+              { checkoutClaimExpiresAt: { lte: new Date() } },
+            ],
+          },
+          data: {
+            checkoutClaimToken: intent.id,
+            checkoutClaimExpiresAt: new Date(Date.now() + 300_000),
+          },
+        });
       if (reservationClaim.count !== 1) {
         await this.prisma.billingCheckoutIntent.updateMany({
           where: { id: intent.id, claimToken, state: 'PROCESSING' },
-          data: { state: 'FAILED_RETRYABLE', failureCode: 'PROMOTION_RESERVATION_CLAIMED' },
+          data: {
+            state: 'FAILED_RETRYABLE',
+            failureCode: 'PROMOTION_RESERVATION_CLAIMED',
+          },
         });
         throw new ConflictException(
           'A reserva promocional já está em outra tentativa de checkout.',
@@ -379,7 +390,7 @@ export class CheckoutService {
           promotionOffer?.paymentLinkUrl ??
           NORMAL_PAYMENT_LINKS[planSlug as keyof typeof NORMAL_PAYMENT_LINKS] ??
           mapping?.paymentLinkUrl,
-        gatewayPlanId,
+        recurrence,
         payerEmail: profile.email,
         backUrl: new URL(
           '/api/billing/checkout/return',
@@ -414,7 +425,8 @@ export class CheckoutService {
             checkoutUrl: gatewayCheckout.checkoutUrl,
             externalReference: intent.externalReference,
             status: CheckoutSessionStatus.OPEN,
-            expectedAmountCents: promotionOffer?.monthlyPriceCents ?? plan.priceCents,
+            expectedAmountCents:
+              promotionOffer?.monthlyPriceCents ?? plan.priceCents,
             currency: plan.currency,
             createdById: context.userId,
           },
@@ -488,6 +500,22 @@ export class CheckoutService {
   /** Lifecycle seam for observability/fault-injection without gateway-specific code. */
   protected afterGatewayCheckoutCreated(): Promise<void> {
     return Promise.resolve();
+  }
+
+  private recurrence(interval: PlanInterval, intervalCount: number) {
+    if (!Number.isInteger(intervalCount) || intervalCount < 1) {
+      throw new ConflictException('Plano com recorrência inválida.');
+    }
+    if (interval === PlanInterval.LIFETIME) {
+      throw new ConflictException(
+        'Plano vitalício não pode usar assinatura recorrente Mercado Pago.',
+      );
+    }
+    return {
+      frequency:
+        interval === PlanInterval.YEARLY ? intervalCount * 12 : intervalCount,
+      frequencyType: 'months' as const,
+    };
   }
 
   private result(checkout: any, automaticConfirmationAvailable: boolean) {
