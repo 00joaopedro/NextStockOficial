@@ -65,7 +65,7 @@ class GoogleCallbackFailure extends Error {
 
 const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
 
-const SESSION_REFRESH_TIMEOUT_MS = 1_800;
+const SESSION_REFRESH_TIMEOUT_MS = 5_000;
 
 @Controller('auth')
 @BillingExempt()
@@ -711,8 +711,11 @@ export class AuthController {
         localClaims?.subject,
       );
       this.logger.warn(
-        `auth.session.refresh_failed request=${req.requestId ?? 'unknown'}`,
-      );
+        'auth.session.refresh_failed request=' +
+          (req.requestId ?? 'unknown') +
+          ' diagnostic=' +
+          this.sessionRefreshDiagnostic(error),
+      );;
       if (error instanceof UnauthorizedException) throw error;
       if (
         error instanceof AuthProviderError &&
@@ -804,6 +807,18 @@ export class AuthController {
     });
   }
 
+  private sessionRefreshDiagnostic(error: unknown) {
+    if (error instanceof AuthProviderError) return 'provider=' + error.code;
+    if (error instanceof HttpException) {
+      const response = error.getResponse();
+      if (response && typeof response === 'object' && 'code' in response) {
+        const code = (response as { code?: unknown }).code;
+        if (typeof code === 'string') return 'code=' + code.slice(0, 80);
+      }
+      return 'http_status=' + error.getStatus();
+    }
+    return error instanceof Error ? 'error=' + error.name : 'error=unknown';
+  }
   private async withSessionRefreshTimeout<T>(
     operation: () => Promise<T>,
   ): Promise<T> {
