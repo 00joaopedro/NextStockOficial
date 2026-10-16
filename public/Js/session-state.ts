@@ -195,7 +195,9 @@ Object.assign(window, {
 
 const originalNextStockFetch = window.fetch.bind(window);
 
-const SESSION_REFRESH_TIMEOUT_MS = 5000;
+// Keep the browser deadline above the server's 3-10s range so network
+// latency and delivery of the server response do not become a synthetic 503.
+const SESSION_REFRESH_TIMEOUT_MS = 11000;
 let nextStockRefreshPromise: Promise<Response | null> | null = null;
 
 async function refreshNextStockSession(): Promise<Response | null> {

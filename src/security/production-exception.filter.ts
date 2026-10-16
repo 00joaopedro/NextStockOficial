@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type { Request, Response } from '../common/http-types';
+import { GatewayCheckoutError } from '../billing/gateways/payment-gateway.interface';
 
 const SENSITIVE_META_KEYS = new Set([
   'authorization',
@@ -164,13 +165,21 @@ export class ProductionExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       const name = error instanceof Error ? error.name : 'UnknownError';
+      const gatewayError =
+        error instanceof GatewayCheckoutError ? error : null;
+      const gatewayDetails = gatewayError
+        ? ' gateway_code=' + gatewayError.failureCode +
+          ' provider_status=' + (gatewayError.providerStatus ?? 'unknown') +
+          ' provider_request_id=' + (gatewayError.providerRequestId ?? 'none') +
+          ' checkout_state=' + gatewayError.checkoutState
+        : '';
       const prismaError = findPrismaKnownError(error);
       const prismaDetails = prismaError
         ? ` code=${prismaError.code} clientVersion=${prismaError.clientVersion} meta=${JSON.stringify(sanitizeMeta(prismaError.meta ?? {}))} message="${sanitizeMessage(prismaError.message)}"`
         : '';
 
       this.logger.error(
-        `request_failed id=${request.requestId ?? 'unknown'} method=${request.method} path=${requestPath(request)} status=${status} error=${name}${prismaDetails}`,
+        'request_failed id=' + (request.requestId ?? 'unknown') + ' method=' + request.method + ' path=' + requestPath(request) + ' status=' + status + ' error=' + name + gatewayDetails + prismaDetails,
       );
     }
 

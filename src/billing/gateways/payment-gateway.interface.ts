@@ -1,12 +1,41 @@
+import { BadGatewayException } from '@nestjs/common';
 import { PaymentGatewayProvider } from '@prisma/client';
 
-export class GatewayCheckoutError extends Error {
+export type GatewayCheckoutFailureState =
+  | 'UNKNOWN'
+  | 'FAILED_RETRYABLE'
+  | 'FAILED_FINAL';
+
+export class GatewayCheckoutError extends BadGatewayException {
   constructor(
     message: string,
     readonly networkStarted: boolean,
+    readonly details: {
+      code: string;
+      providerStatus?: number;
+      providerRequestId?: string;
+      state?: GatewayCheckoutFailureState;
+    } = { code: 'GATEWAY_ERROR' },
   ) {
     super(message);
     this.name = 'GatewayCheckoutError';
+  }
+
+  get failureCode() {
+    return this.details.code;
+  }
+
+  get providerStatus() {
+    return this.details.providerStatus;
+  }
+
+  get providerRequestId() {
+    return this.details.providerRequestId;
+  }
+
+  get checkoutState(): GatewayCheckoutFailureState {
+    if (this.details.state) return this.details.state;
+    return this.networkStarted ? 'UNKNOWN' : 'FAILED_RETRYABLE';
   }
 }
 

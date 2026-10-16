@@ -1,6 +1,6 @@
 import {
-  BadGatewayException,
   BadRequestException,
+  Logger,
   Injectable,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -9,12 +9,14 @@ import { MercadoPagoSignatureService } from './mercado-pago-signature.service';
 import {
   CreateGatewayCheckoutInput,
   GatewayPaymentResult,
+  GatewayCheckoutError,
   GatewayWebhookInput,
   PaymentGateway,
 } from '../payment-gateway.interface';
 
 @Injectable()
 export class MercadoPagoGatewayAdapter implements PaymentGateway {
+  private readonly logger = new Logger(MercadoPagoGatewayAdapter.name);
   readonly provider = PaymentGatewayProvider.MERCADO_PAGO;
   readonly supportsIdempotentCheckoutRecovery = true;
 
@@ -40,8 +42,10 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     const checkoutUrl = String(body.init_point || '');
     const gatewaySubscriptionId = String(body.id || '');
     if (!checkoutUrl || !gatewaySubscriptionId) {
-      throw new BadGatewayException(
+      throw new GatewayCheckoutError(
         'Mercado Pago nao criou a assinatura recorrente.',
+        true,
+        { code: 'GATEWAY_INVALID_RESPONSE', state: 'FAILED_RETRYABLE' },
       );
     }
     return {
@@ -158,24 +162,91 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
       throw new ServiceUnavailableException(
         'MERCADO_PAGO_ACCESS_TOKEN nao configurado.',
       );
-    const response = await fetch(`https://api.mercadopago.com${path}`, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/json',
-        ...(init.body ? { 'Content-Type': 'application/json' } : {}),
-        ...(init.headers || {}),
-      },
-    });
-    const body = (await response.json().catch(() => ({}))) as Record<
-      string,
-      any
-    >;
-    if (!response.ok)
-      throw new BadGatewayException('Mercado Pago nao confirmou a operacao.');
-    return body;
+
+    const timeoutMs = this.providerTimeoutMs();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const method = init.method || 'GET';
+    let response: Response;
+    try {
+      response = await fetch(`https://api.mercadopago.com${path}`, {
+        ...init,
+        signal: controller.signal,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+          ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+          ...(init.headers || {}),
+        },
+      });
+      const body = (await response.json().catch(() => ({}))) as Record<string, any>;
+      if (!response.ok) {
+        const providerRequestId =
+          response.headers.get('x-request-id') ||
+          response.headers.get('x-correlation-id') ||
+          undefined;
+        const providerCode = this.providerErrorCode(body);
+        const state = response.status >= 500 || response.status === 429
+          ? 'FAILED_RETRYABLE'
+          : 'FAILED_FINAL';
+        this.logger.error(
+          `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} status=${response.status} code=${providerCode} request_id=${providerRequestId || 'none'} state=${state}`,
+        );
+        throw new GatewayCheckoutError(
+          response.status >= 500 || response.status === 429
+            ? 'Mercado Pago temporariamente indisponivel.'
+            : 'Mercado Pago rejeitou a operacao.',
+          true,
+          {
+            code: providerCode,
+            providerStatus: response.status,
+            providerRequestId,
+            state,
+          },
+        );
+      }
+      return body;
+    } catch (error) {
+      if (error instanceof GatewayCheckoutError) throw error;
+      const timeoutError = error instanceof Error && error.name === 'AbortError';
+      this.logger.error(
+        `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} outcome=${timeoutError ? 'timeout' : 'network_error'} timeout_ms=${timeoutMs}`,
+      );
+      throw new GatewayCheckoutError(
+        'Mercado Pago temporariamente indisponivel.',
+        true,
+        {
+          code: timeoutError ? 'GATEWAY_TIMEOUT' : 'GATEWAY_NETWORK_ERROR',
+          state: 'UNKNOWN',
+        },
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
+  private providerTimeoutMs() {
+    const configured = Number(process.env.MERCADO_PAGO_REQUEST_TIMEOUT_MS || 12_000);
+    return Number.isInteger(configured) && configured >= 3_000 && configured <= 20_000
+      ? configured
+      : 12_000;
+  }
+
+  private providerErrorCode(body: Record<string, any>) {
+    const cause = Array.isArray(body.cause) ? body.cause[0] : undefined;
+    const candidates = [
+      body.code,
+      body.error,
+      cause && typeof cause === 'object' ? cause.code : undefined,
+      cause && typeof cause === 'object' ? cause.description : undefined,
+    ];
+    const value = candidates.find(
+      (candidate) => typeof candidate === 'string' && candidate.trim(),
+    );
+    return String(value || 'GATEWAY_PROVIDER_REJECTED')
+      .replace(/[^A-Za-z0-9._-]/g, '_')
+      .slice(0, 120);
+  }
   private assertMerchant(body: Record<string, any>) {
     const mode = process.env.MERCADO_PAGO_MODE?.trim() || 'production';
     if (mode === 'production' && body.live_mode !== true) {
