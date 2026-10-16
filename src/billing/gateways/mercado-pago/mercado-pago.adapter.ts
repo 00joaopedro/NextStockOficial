@@ -23,18 +23,22 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
   constructor(private readonly signatures: MercadoPagoSignatureService) {}
 
   async createCheckout(input: CreateGatewayCheckoutInput) {
-    if (!input.gatewayPlanId) {
-      throw new ServiceUnavailableException(
-        'Plano recorrente Mercado Pago nao configurado.',
-      );
-    }
     const body = await this.request('/preapproval', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': input.idempotencyKey },
       body: JSON.stringify({
-        preapproval_plan_id: input.gatewayPlanId,
+        // A assinatura pendente hospedada não usa preapproval_plan_id. O
+        // NextStock mantém preço e recorrência como fonte de verdade e o
+        // Mercado Pago devolve init_point para o pagador concluir o checkout.
+        reason: input.title,
         payer_email: input.payerEmail,
         external_reference: input.externalReference,
+        auto_recurring: {
+          frequency: input.recurrence.frequency,
+          frequency_type: input.recurrence.frequencyType,
+          transaction_amount: input.amountCents / 100,
+          currency_id: input.currency,
+        },
         back_url: input.backUrl,
         status: 'pending',
       }),
