@@ -13,7 +13,6 @@ describe('production test checkout access', () => {
   const env = {
     BILLING_PRODUCTION_TEST_ENABLED: 'true',
     BILLING_PRODUCTION_TEST_ADMIN_EMAIL: '0oficialwhis@gmail.com',
-    MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID: 'preapproval-plan-test',
   };
 
   it('allows only the configured tenant admin email', () => {
@@ -29,24 +28,15 @@ describe('production test checkout access', () => {
       ),
     ).toBe(false);
     expect(
-      canUseProductionTestCheckout(
-        { ...user, role: Role.Vendedor },
-        env,
-      ),
+      canUseProductionTestCheckout({ ...user, role: Role.Vendedor }, env),
     ).toBe(false);
   });
 
-  it('rejects the route while the feature flag or plan is missing', () => {
+  it('rejects the route while the feature flag is disabled', () => {
     expect(
       canUseProductionTestCheckout(user, {
         ...env,
         BILLING_PRODUCTION_TEST_ENABLED: 'false',
-      }),
-    ).toBe(false);
-    expect(
-      canUseProductionTestCheckout(user, {
-        ...env,
-        MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID: '',
       }),
     ).toBe(false);
   });

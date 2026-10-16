@@ -72,7 +72,9 @@ describe('Google OAuth local JWT signing contract', () => {
   );
 
   it('uses a twelve-hour idle session window by default and accepts overrides', () => {
-    expect(validateEnvironment({ ...base }).SESSION_IDLE_TTL_SECONDS).toBe(43_200);
+    expect(validateEnvironment({ ...base }).SESSION_IDLE_TTL_SECONDS).toBe(
+      43_200,
+    );
     expect(() =>
       validateEnvironment({
         ...base,
@@ -262,6 +264,30 @@ describe('environment isolation guardrails', () => {
         BILLING_WEBHOOK_ENABLED: 'true',
       }),
     ).toThrow('MERCADO_PAGO_ACCESS_TOKEN');
+  });
+
+  it('allows hosted recurring checkout without Mercado Pago plan IDs', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        BILLING_CHECKOUT_ENABLED: 'true',
+        MERCADO_PAGO_ACCESS_TOKEN: 'test-access-token',
+        MERCADO_PAGO_MODE: 'production',
+      }),
+    ).not.toThrow();
+  });
+
+  it('allows the controlled production test without an external plan ID', () => {
+    expect(() =>
+      validateEnvironment({
+        ...base,
+        APP_ENV: 'production',
+        BILLING_PRODUCTION_TEST_ENABLED: 'true',
+        BILLING_PRODUCTION_TEST_ADMIN_EMAIL: 'admin@example.com',
+        MERCADO_PAGO_MODE: 'production',
+      }),
+    ).not.toThrow();
   });
 
   it('applies deployed safeguards when APP_ENV is production', () => {

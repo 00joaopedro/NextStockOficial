@@ -46,7 +46,11 @@ export type CreateGatewayCheckoutInput = {
   currency: string;
   title: string;
   paymentLinkUrl?: string | null;
-  gatewayPlanId?: string | null;
+  recurrence: {
+    frequency: number;
+    frequencyType: 'months';
+    endDate?: string;
+  };
   payerEmail: string;
   backUrl: string;
 };

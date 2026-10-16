@@ -13,7 +13,7 @@ describe('MercadoPagoGatewayAdapter', () => {
     jest.restoreAllMocks();
   });
 
-  it('cria preapproval individual com referencia interna', async () => {
+  it('cria assinatura pendente hospedada sem plano associado', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
@@ -30,7 +30,7 @@ describe('MercadoPagoGatewayAdapter', () => {
       amountCents: 20000,
       currency: 'BRL',
       title: 'Ouro',
-      gatewayPlanId: 'plan-1',
+      recurrence: { frequency: 1, frequencyType: 'months' },
       payerEmail: 'admin@example.com',
       backUrl: 'https://app.example.com/api/billing/checkout/return',
     });
@@ -45,6 +45,21 @@ describe('MercadoPagoGatewayAdapter', () => {
         body: expect.stringContaining('ns_cs_reference'),
       }),
     );
+    const request = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body)).toEqual({
+      reason: 'Ouro',
+      payer_email: 'admin@example.com',
+      external_reference: 'ns_cs_reference',
+      auto_recurring: {
+        frequency: 1,
+        frequency_type: 'months',
+        transaction_amount: 200,
+        currency_id: 'BRL',
+      },
+      back_url: 'https://app.example.com/api/billing/checkout/return',
+      status: 'pending',
+    });
+    expect(JSON.parse(request.body)).not.toHaveProperty('preapproval_plan_id');
   });
 
   it('normaliza pagamento consultado sem vazar regra ao dominio', async () => {
@@ -65,6 +80,43 @@ describe('MercadoPagoGatewayAdapter', () => {
     } as any).getPaymentStatus('10');
     expect(result.normalizedStatus).toBe('APPROVED');
     expect(result.amountCents).toBe(20000);
+  });
+
+  it('envia o término de uma promoção finita ao Mercado Pago', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'preapproval-promo',
+        init_point: 'https://mercadopago.test/authorize',
+      }),
+    }) as any;
+    const adapter = new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any);
+
+    await adapter.createCheckout({
+      idempotencyKey: 'checkout-key-promo',
+      externalReference: 'ns_cs_promo',
+      amountCents: 6667,
+      currency: 'BRL',
+      title: 'Ouro — promoção 3 meses',
+      recurrence: {
+        frequency: 1,
+        frequencyType: 'months',
+        endDate: '2026-01-01T00:00:00.000Z',
+      },
+      payerEmail: 'admin@example.com',
+      backUrl: 'https://app.example.com/api/billing/checkout/return',
+    });
+
+    const request = (global.fetch as jest.Mock).mock.calls[0][1];
+    expect(JSON.parse(request.body).auto_recurring).toMatchObject({
+      frequency: 1,
+      frequency_type: 'months',
+      end_date: '2026-01-01T00:00:00.000Z',
+      transaction_amount: 66.67,
+      currency_id: 'BRL',
+    });
   });
 
   it('retains only structured provider codes for rejected checkouts', async () => {
@@ -92,7 +144,7 @@ describe('MercadoPagoGatewayAdapter', () => {
         amountCents: 100,
         currency: 'BRL',
         title: 'Validação',
-        gatewayPlanId: 'plan-1',
+        recurrence: { frequency: 1, frequencyType: 'months' },
         payerEmail: 'admin@example.com',
         backUrl: 'https://app.example.com/api/billing/checkout/return',
       }),
@@ -122,7 +174,7 @@ describe('MercadoPagoGatewayAdapter', () => {
         amountCents: 100,
         currency: 'BRL',
         title: 'Validação',
-        gatewayPlanId: 'plan-1',
+        recurrence: { frequency: 1, frequencyType: 'months' },
         payerEmail: 'admin@example.com',
         backUrl: 'https://app.example.com/api/billing/checkout/return',
       }),

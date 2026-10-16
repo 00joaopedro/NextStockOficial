@@ -19,7 +19,7 @@ async function main() {
       description:
         'Plano ideal para operacoes essenciais com praticidade no dia a dia.',
       sortOrder: 1,
-      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_OURO || null,
+      gatewayPlanId: 'hosted-pending',
     },
     {
       name: 'Esmeralda',
@@ -28,7 +28,7 @@ async function main() {
       description:
         'Mais recursos para gestao e crescimento, indicado para negocios em expansao.',
       sortOrder: 2,
-      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_ESMERALDA || null,
+      gatewayPlanId: 'hosted-pending',
     },
     {
       name: 'Diamante',
@@ -37,16 +37,12 @@ async function main() {
       description:
         'Plano completo para maxima performance, controle e escalabilidade.',
       sortOrder: 3,
-      gatewayPlanId: process.env.MERCADO_PAGO_PLAN_ID_DIAMANTE || null,
+      gatewayPlanId: 'hosted-pending',
     },
   ];
 
-  const productionTestPlanId =
-    process.env.MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID?.trim();
   if (
-    process.env.BILLING_PRODUCTION_TEST_ENABLED?.trim().toLowerCase() ===
-      'true' &&
-    productionTestPlanId
+    process.env.BILLING_PRODUCTION_TEST_ENABLED?.trim().toLowerCase() === 'true'
   ) {
     plans.push({
       name: 'Validação de produção — R$ 1,00',
@@ -55,7 +51,7 @@ async function main() {
       description:
         'Plano técnico temporário para validar o webhook e a ativação de billing.',
       sortOrder: 999,
-      gatewayPlanId: productionTestPlanId,
+      gatewayPlanId: 'hosted-pending',
     });
   }
 
@@ -97,7 +93,7 @@ async function main() {
       update: {
         gatewayPlanId: plan.gatewayPlanId,
         paymentLinkUrl: null,
-        isActive: Boolean(plan.gatewayPlanId),
+        isActive: true,
         metadata: {
           correlationMode: 'recurring_preapproval',
         },
@@ -108,7 +104,7 @@ async function main() {
         mode: gatewayMode,
         gatewayPlanId: plan.gatewayPlanId,
         paymentLinkUrl: null,
-        isActive: Boolean(plan.gatewayPlanId),
+        isActive: true,
         metadata: {
           correlationMode: 'recurring_preapproval',
         },
