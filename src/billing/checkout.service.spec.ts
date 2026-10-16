@@ -11,6 +11,7 @@ describe('CheckoutService', () => {
       priceCents: 20000,
       currency: 'BRL',
       interval: PlanInterval.MONTHLY,
+      intervalCount: 1,
       gatewayMappings: [
         {
           provider: PaymentGatewayProvider.MERCADO_PAGO,
@@ -94,6 +95,7 @@ describe('CheckoutService', () => {
       expect.objectContaining({
         idempotencyKey: expect.stringMatching(/^[a-f0-9]{64}$/),
         externalReference: expect.stringMatching(/^ns_cs_/),
+        recurrence: { frequency: 1, frequencyType: 'months' },
       }),
     );
     expect(tx.subscription.update).toHaveBeenCalledWith(
@@ -102,6 +104,97 @@ describe('CheckoutService', () => {
           gatewaySubscriptionId: 'mp-subscription',
         }),
       }),
+    );
+    expect(tx.subscription.update.mock.calls[0][0].data).not.toHaveProperty(
+      'status',
+    );
+  });
+
+  it('converte plano anual em recorrência de doze meses sem plano externo', async () => {
+    process.env.PUBLIC_APP_URL = 'https://app.nextstock.test';
+    const plan = {
+      id: 'plan',
+      slug: 'ouro',
+      name: 'Ouro',
+      priceCents: 20000,
+      currency: 'BRL',
+      interval: PlanInterval.YEARLY,
+      intervalCount: 1,
+      gatewayMappings: [{ provider: PaymentGatewayProvider.MERCADO_PAGO }],
+    };
+    const tx = {
+      checkoutSession: {
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'checkout', ...data }),
+          ),
+      },
+      billingEvent: { create: jest.fn().mockResolvedValue({}) },
+      subscription: { update: jest.fn().mockResolvedValue({}) },
+      billingCheckoutIntent: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      plan: { findFirst: jest.fn().mockResolvedValue(plan) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub' }) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue(null) },
+      userProfile: {
+        findUnique: jest.fn().mockResolvedValue({ email: 'admin@example.com' }),
+      },
+      billingCheckoutIntent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest
+          .fn()
+          .mockImplementation(({ data }) =>
+            Promise.resolve({ id: 'intent', ...data }),
+          ),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    } as any;
+    const gateway = {
+      supportsIdempotentCheckoutRecovery: true,
+      createCheckout: jest.fn().mockResolvedValue({
+        checkoutUrl: 'https://www.mercadopago.com/subscriptions/checkout',
+        gatewayCheckoutId: 'mp-subscription',
+        gatewaySubscriptionId: 'mp-subscription',
+        supportsExternalReference: true,
+      }),
+    };
+    const service = new CheckoutService(
+      prisma,
+      {
+        resolve: jest.fn().mockResolvedValue({
+          tenantId: 'tenant',
+          userId: 'user',
+          role: Role.Admin,
+        }),
+      } as any,
+      {
+        get: () => gateway,
+        defaultProvider: () => PaymentGatewayProvider.MERCADO_PAGO,
+      } as any,
+      {
+        create: jest
+          .fn()
+          .mockImplementation((data, transaction) =>
+            transaction.billingEvent.create({ data }),
+          ),
+      } as any,
+    );
+
+    await service.create({} as any, 'ouro', 'checkout-key-123');
+
+    expect(gateway.createCheckout).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recurrence: { frequency: 12, frequencyType: 'months' },
+      }),
+    );
+    expect(gateway.createCheckout.mock.calls[0][0]).not.toHaveProperty(
+      'gatewayPlanId',
     );
   });
 });
