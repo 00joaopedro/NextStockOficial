@@ -44,8 +44,7 @@ function validateProductionDatabaseTarget() {
   assertDatabaseUrlIdentity(databaseUrl, projectRef, 'DATABASE_URL');
 
   const administrativeUrl =
-    process.env.ADMIN_DATABASE_URL?.trim() ||
-    process.env.DIRECT_URL?.trim();
+    process.env.ADMIN_DATABASE_URL?.trim() || process.env.DIRECT_URL?.trim();
 
   if (!administrativeUrl) {
     throw new Error(
@@ -78,7 +77,9 @@ function assertDatabaseUrlIdentity(value, projectRef, variableName) {
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error(`Seed bloqueado: ${variableName} não é uma URL PostgreSQL válida.`);
+    throw new Error(
+      `Seed bloqueado: ${variableName} não é uma URL PostgreSQL válida.`,
+    );
   }
 
   if (!['postgresql:', 'postgres:'].includes(parsed.protocol)) {
@@ -98,9 +99,8 @@ function assertDatabaseUrlIdentity(value, projectRef, variableName) {
 async function main() {
   validateProductionDatabaseTarget();
 
-  const enabled = process.env.BILLING_PRODUCTION_TEST_ENABLED
-    ?.trim()
-    .toLowerCase();
+  const enabled =
+    process.env.BILLING_PRODUCTION_TEST_ENABLED?.trim().toLowerCase();
 
   if (enabled !== 'true') {
     throw new Error(
@@ -108,9 +108,6 @@ async function main() {
     );
   }
 
-  const productionTestPlanId = required(
-    'MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID',
-  );
   required('BILLING_PRODUCTION_TEST_ADMIN_EMAIL');
 
   const mode =
@@ -162,7 +159,7 @@ async function main() {
         },
       },
       update: {
-        gatewayPlanId: productionTestPlanId,
+        gatewayPlanId: 'hosted-pending',
         paymentLinkUrl: null,
         isActive: true,
         metadata: {
@@ -174,7 +171,7 @@ async function main() {
         planId: plan.id,
         provider: PaymentGatewayProvider.MERCADO_PAGO,
         mode,
-        gatewayPlanId: productionTestPlanId,
+        gatewayPlanId: 'hosted-pending',
         paymentLinkUrl: null,
         isActive: true,
         metadata: {
