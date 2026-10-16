@@ -94,10 +94,20 @@ Configure temporariamente no Railway de produção:
 - `BILLING_PRODUCTION_TEST_ADMIN_EMAIL=0oficialwhis@gmail.com`
 - `MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID=<preapproval_plan_id>`
 
-Depois execute o seed controlado para criar o plano técnico
-`production-test-r1` e seu mapeamento de gateway. Esse plano fica oculto da
-lista normal e só pode ser iniciado pelo administrador cujo e-mail foi
-allowlistado. O botão aparece na área de assinatura de `perfil.html`.
+Depois execute, no Console da Railway do serviço de produção, o comando:
+
+```bash
+npm run billing:production-test:seed
+```
+
+Esse comando exige as variáveis acima, usa o mesmo modo efetivo do checkout
+(`BILLING_MODE` ou `MERCADO_PAGO_MODE`) e cria/atualiza de forma idempotente o
+plano técnico `production-test-r1` e seu mapeamento de gateway. Ele não executa
+as migrações nem altera os planos comerciais. O comando falha de propósito se
+o recurso não estiver explicitamente habilitado ou se o modo não for
+`production`. Esse plano fica oculto da lista normal e só pode ser iniciado
+pelo administrador cujo e-mail foi allowlistado. O botão aparece na área de
+assinatura de `perfil.html`.
 
 O pagamento deve ser iniciado pelo botão do NextStock, não pelo link público do
 Mercado Pago, para que a `external_reference` identifique o tenant. Após o
