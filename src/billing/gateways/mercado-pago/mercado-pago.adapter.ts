@@ -36,6 +36,9 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
         auto_recurring: {
           frequency: input.recurrence.frequency,
           frequency_type: input.recurrence.frequencyType,
+          ...(input.recurrence.endDate
+            ? { end_date: input.recurrence.endDate }
+            : {}),
           transaction_amount: input.amountCents / 100,
           currency_id: input.currency,
         },
