@@ -9,6 +9,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   let effects = 0;
   let providerLookups = 0;
   const originalBillingMode = process.env.BILLING_MODE;
+  const originalMercadoPagoMode = process.env.MERCADO_PAGO_MODE;
 
   const gateway = {
     validateWebhookSignature: () => true,
@@ -58,6 +59,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   beforeAll(async () => {
     process.env.BILLING_WEBHOOK_ENABLED = 'true';
     process.env.BILLING_MODE = 'production';
+    process.env.MERCADO_PAGO_MODE = 'production';
     await first.gatewayWebhookEvent.deleteMany({
       where: { requestId: { startsWith: 'request-rc010-' } },
     });
@@ -70,6 +72,9 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   afterAll(async () => {
     if (originalBillingMode === undefined) delete process.env.BILLING_MODE;
     else process.env.BILLING_MODE = originalBillingMode;
+    if (originalMercadoPagoMode === undefined)
+      delete process.env.MERCADO_PAGO_MODE;
+    else process.env.MERCADO_PAGO_MODE = originalMercadoPagoMode;
     await Promise.all([first.$disconnect(), second.$disconnect()]);
   });
 
@@ -131,9 +136,28 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
     ).toBe(0);
   });
 
+  it('acknowledges a signed preapproval dashboard simulation without inbox writes', async () => {
+    const key = `rc010-preapproval-simulation-${Date.now()}`;
+    const result = await services[0].handleMercadoPago(
+      input(`event-${key}`, key, false, 'subscription_preapproval'),
+    );
+    expect(result).toEqual({
+      received: true,
+      processed: false,
+      simulation: true,
+    });
+    expect(providerLookups).toBe(0);
+    expect(
+      await first.gatewayWebhookEvent.count({
+        where: { requestId: `request-${key}` },
+      }),
+    ).toBe(0);
+  });
+
   it('processes a signed non-live sandbox payment normally', async () => {
     const key = `rc010-sandbox-${Date.now()}`;
     process.env.BILLING_MODE = 'sandbox';
+    process.env.MERCADO_PAGO_MODE = 'sandbox';
     try {
       await expect(
         services[0].handleMercadoPago(input(`event-${key}`, key, false)),
@@ -141,6 +165,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
       expect(providerLookups).toBe(1);
     } finally {
       process.env.BILLING_MODE = 'production';
+      process.env.MERCADO_PAGO_MODE = 'production';
     }
   });
 

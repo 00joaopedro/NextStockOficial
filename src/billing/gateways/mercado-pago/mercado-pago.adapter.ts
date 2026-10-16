@@ -179,16 +179,20 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
           ...(init.headers || {}),
         },
       });
-      const body = (await response.json().catch(() => ({}))) as Record<string, any>;
+      const body = (await response.json().catch(() => ({}))) as Record<
+        string,
+        any
+      >;
       if (!response.ok) {
         const providerRequestId =
           response.headers.get('x-request-id') ||
           response.headers.get('x-correlation-id') ||
           undefined;
         const providerCode = this.providerErrorCode(body);
-        const state = response.status >= 500 || response.status === 429
-          ? 'FAILED_RETRYABLE'
-          : 'FAILED_FINAL';
+        const state =
+          response.status >= 500 || response.status === 429
+            ? 'FAILED_RETRYABLE'
+            : 'FAILED_FINAL';
         this.logger.error(
           `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} status=${response.status} code=${providerCode} request_id=${providerRequestId || 'none'} state=${state}`,
         );
@@ -208,7 +212,8 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
       return body;
     } catch (error) {
       if (error instanceof GatewayCheckoutError) throw error;
-      const timeoutError = error instanceof Error && error.name === 'AbortError';
+      const timeoutError =
+        error instanceof Error && error.name === 'AbortError';
       this.logger.error(
         `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} outcome=${timeoutError ? 'timeout' : 'network_error'} timeout_ms=${timeoutMs}`,
       );
@@ -226,8 +231,12 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
   }
 
   private providerTimeoutMs() {
-    const configured = Number(process.env.MERCADO_PAGO_REQUEST_TIMEOUT_MS || 12_000);
-    return Number.isInteger(configured) && configured >= 3_000 && configured <= 20_000
+    const configured = Number(
+      process.env.MERCADO_PAGO_REQUEST_TIMEOUT_MS || 12_000,
+    );
+    return Number.isInteger(configured) &&
+      configured >= 3_000 &&
+      configured <= 20_000
       ? configured
       : 12_000;
   }
@@ -238,7 +247,6 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
       body.code,
       body.error,
       cause && typeof cause === 'object' ? cause.code : undefined,
-      cause && typeof cause === 'object' ? cause.description : undefined,
     ];
     const value = candidates.find(
       (candidate) => typeof candidate === 'string' && candidate.trim(),

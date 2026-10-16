@@ -31,11 +31,9 @@ describe('GatewayCheckoutError', () => {
   });
 
   it('marks a failure before the request as retryable', () => {
-    const error = new GatewayCheckoutError(
-      'Gateway indisponivel.',
-      false,
-      { code: 'GATEWAY_NOT_STARTED' },
-    );
+    const error = new GatewayCheckoutError('Gateway indisponivel.', false, {
+      code: 'GATEWAY_NOT_STARTED',
+    });
 
     expect(error.checkoutState).toBe('FAILED_RETRYABLE');
   });

@@ -70,14 +70,17 @@ describe('RC-010 webhook inbox policy', () => {
     );
   });
 
-  it('only acknowledges non-live dashboard simulations in production mode', () => {
+  it('only acknowledges non-live dashboard simulations in Mercado Pago production mode', () => {
     const originalBillingMode = process.env.BILLING_MODE;
     const originalMercadoPagoMode = process.env.MERCADO_PAGO_MODE;
     try {
       process.env.BILLING_MODE = 'production';
-      expect(service.isProductionMode()).toBe(true);
+      process.env.MERCADO_PAGO_MODE = 'production';
+      expect(service.isMercadoPagoProductionMode()).toBe(true);
       process.env.BILLING_MODE = 'sandbox';
-      expect(service.isProductionMode()).toBe(false);
+      expect(service.isMercadoPagoProductionMode()).toBe(true);
+      process.env.MERCADO_PAGO_MODE = 'sandbox';
+      expect(service.isMercadoPagoProductionMode()).toBe(false);
     } finally {
       if (originalBillingMode === undefined) delete process.env.BILLING_MODE;
       else process.env.BILLING_MODE = originalBillingMode;

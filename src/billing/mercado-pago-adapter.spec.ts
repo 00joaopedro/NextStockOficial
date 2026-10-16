@@ -66,4 +66,66 @@ describe('MercadoPagoGatewayAdapter', () => {
     expect(result.normalizedStatus).toBe('APPROVED');
     expect(result.amountCents).toBe(20000);
   });
+
+  it('retains only structured provider codes for rejected checkouts', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'provider-request-1' },
+      json: async () => ({
+        cause: [
+          {
+            code: 'invalid_payer',
+            description: 'payer email customer@example.com rejected 12345678',
+          },
+        ],
+      }),
+    }) as any;
+    const adapter = new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any);
+
+    await expect(
+      adapter.createCheckout({
+        idempotencyKey: 'checkout-key-123',
+        externalReference: 'ns_cs_reference',
+        amountCents: 100,
+        currency: 'BRL',
+        title: 'Validação',
+        gatewayPlanId: 'plan-1',
+        payerEmail: 'admin@example.com',
+        backUrl: 'https://app.example.com/api/billing/checkout/return',
+      }),
+    ).rejects.toMatchObject({
+      failureCode: 'invalid_payer',
+      providerStatus: 400,
+      providerRequestId: 'provider-request-1',
+    });
+  });
+
+  it('does not turn an arbitrary provider description into a failure code', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => null },
+      json: async () => ({
+        cause: [{ description: 'payer email customer@example.com rejected' }],
+      }),
+    }) as any;
+
+    await expect(
+      new MercadoPagoGatewayAdapter({
+        validate: jest.fn(),
+      } as any).createCheckout({
+        idempotencyKey: 'checkout-key-123',
+        externalReference: 'ns_cs_reference',
+        amountCents: 100,
+        currency: 'BRL',
+        title: 'Validação',
+        gatewayPlanId: 'plan-1',
+        payerEmail: 'admin@example.com',
+        backUrl: 'https://app.example.com/api/billing/checkout/return',
+      }),
+    ).rejects.toMatchObject({ failureCode: 'GATEWAY_PROVIDER_REJECTED' });
+  });
 });
