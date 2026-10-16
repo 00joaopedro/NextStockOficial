@@ -67,7 +67,7 @@ describe('MercadoPagoGatewayAdapter', () => {
     expect(result.amountCents).toBe(20000);
   });
 
-  it('retains a sanitized provider diagnostic for rejected checkouts', async () => {
+  it('retains only structured provider codes for rejected checkouts', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -100,8 +100,32 @@ describe('MercadoPagoGatewayAdapter', () => {
       failureCode: 'invalid_payer',
       providerStatus: 400,
       providerRequestId: 'provider-request-1',
-      providerDiagnostic:
-        'payer_email_[redacted-email]_rejected_[redacted-number]',
     });
+  });
+
+  it('does not turn an arbitrary provider description into a failure code', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => null },
+      json: async () => ({
+        cause: [{ description: 'payer email customer@example.com rejected' }],
+      }),
+    }) as any;
+
+    await expect(
+      new MercadoPagoGatewayAdapter({
+        validate: jest.fn(),
+      } as any).createCheckout({
+        idempotencyKey: 'checkout-key-123',
+        externalReference: 'ns_cs_reference',
+        amountCents: 100,
+        currency: 'BRL',
+        title: 'Validação',
+        gatewayPlanId: 'plan-1',
+        payerEmail: 'admin@example.com',
+        backUrl: 'https://app.example.com/api/billing/checkout/return',
+      }),
+    ).rejects.toMatchObject({ failureCode: 'GATEWAY_PROVIDER_REJECTED' });
   });
 });
