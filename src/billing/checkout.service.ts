@@ -396,7 +396,7 @@ export class CheckoutService {
             ? gatewayError.failureCode
             : 'GATEWAY_RESULT_UNKNOWN',
         },
-      });;
+      });
       throw error;
     }
 
