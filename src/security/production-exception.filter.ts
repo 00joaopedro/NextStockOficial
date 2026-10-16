@@ -171,8 +171,6 @@ export class ProductionExceptionFilter implements ExceptionFilter {
           gatewayError.failureCode +
           ' provider_status=' +
           (gatewayError.providerStatus ?? 'unknown') +
-          ' provider_diagnostic=' +
-          (gatewayError.providerDiagnostic ?? 'none') +
           ' provider_request_id=' +
           (gatewayError.providerRequestId ?? 'none') +
           ' checkout_state=' +
