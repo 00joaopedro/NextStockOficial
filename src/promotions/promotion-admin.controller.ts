@@ -1,7 +1,4 @@
-import {
-  AuditOutcome,
-  AuditSeverity,
-} from '@prisma/client';
+import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import {
   Body,
   Controller,
@@ -34,7 +31,7 @@ export class PromotionAdminController {
   }
 
   @Get(':slug/configuration')
-  configuration() {
+  async configuration() {
     return this.promotions.getProductionConfiguration();
   }
 
@@ -60,7 +57,12 @@ export class PromotionAdminController {
   @UseGuards(CsrfOriginGuard)
   async activate(@Req() request: Request, @Param('slug') slug: string) {
     const campaign = await this.promotions.activate(slug, true);
-    await this.recordTransition(request, campaign, 'ACTIVATE', 'PRODUCTION_READY');
+    await this.recordTransition(
+      request,
+      campaign,
+      'ACTIVATE',
+      'PRODUCTION_READY',
+    );
     return campaign;
   }
 
@@ -79,7 +81,12 @@ export class PromotionAdminController {
 
   private async recordTransition(
     request: Request,
-    campaign: { id: string; slug: string; status: string; closeReason?: string | null },
+    campaign: {
+      id: string;
+      slug: string;
+      status: string;
+      closeReason?: string | null;
+    },
     action: string,
     reasonCode: string,
   ) {
