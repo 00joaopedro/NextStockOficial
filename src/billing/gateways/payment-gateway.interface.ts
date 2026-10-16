@@ -2,7 +2,9 @@ import { BadGatewayException } from '@nestjs/common';
 import { PaymentGatewayProvider } from '@prisma/client';
 
 export type GatewayCheckoutFailureState =
-  'UNKNOWN' | 'FAILED_RETRYABLE' | 'FAILED_FINAL';
+  | 'UNKNOWN'
+  | 'FAILED_RETRYABLE'
+  | 'FAILED_FINAL';
 
 export class GatewayCheckoutError extends BadGatewayException {
   constructor(
@@ -47,6 +49,7 @@ export type CreateGatewayCheckoutInput = {
   recurrence: {
     frequency: number;
     frequencyType: 'months';
+    endDate?: string;
   };
   payerEmail: string;
   backUrl: string;
