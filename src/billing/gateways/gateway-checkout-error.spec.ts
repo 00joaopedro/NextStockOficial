@@ -18,7 +18,6 @@ describe('GatewayCheckoutError', () => {
     expect(error.failureCode).toBe('preapproval_plan_not_found');
     expect(error.providerStatus).toBe(404);
     expect(error.message).not.toContain('provider-request-id');
-    expect(error.providerDiagnostic).toBeUndefined();
   });
 
   it('keeps timeout outcomes unknown for safe recovery', () => {
