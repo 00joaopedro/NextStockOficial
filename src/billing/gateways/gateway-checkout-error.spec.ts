@@ -18,6 +18,7 @@ describe('GatewayCheckoutError', () => {
     expect(error.failureCode).toBe('preapproval_plan_not_found');
     expect(error.providerStatus).toBe(404);
     expect(error.message).not.toContain('provider-request-id');
+    expect(error.providerDiagnostic).toBeUndefined();
   });
 
   it('keeps timeout outcomes unknown for safe recovery', () => {
@@ -31,11 +32,9 @@ describe('GatewayCheckoutError', () => {
   });
 
   it('marks a failure before the request as retryable', () => {
-    const error = new GatewayCheckoutError(
-      'Gateway indisponivel.',
-      false,
-      { code: 'GATEWAY_NOT_STARTED' },
-    );
+    const error = new GatewayCheckoutError('Gateway indisponivel.', false, {
+      code: 'GATEWAY_NOT_STARTED',
+    });
 
     expect(error.checkoutState).toBe('FAILED_RETRYABLE');
   });
