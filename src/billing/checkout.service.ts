@@ -387,19 +387,16 @@ export class CheckoutService {
         ).toString(),
       });
     } catch (error) {
+      const gatewayError = error instanceof GatewayCheckoutError ? error : null;
       await this.prisma.billingCheckoutIntent.updateMany({
         where: { id: intent.id, claimToken, state: 'PROCESSING' },
         data: {
-          state:
-            error instanceof GatewayCheckoutError && !error.networkStarted
-              ? 'FAILED_RETRYABLE'
-              : 'UNKNOWN',
-          failureCode:
-            error instanceof GatewayCheckoutError && !error.networkStarted
-              ? 'GATEWAY_NOT_STARTED'
-              : 'GATEWAY_RESULT_UNKNOWN',
+          state: gatewayError ? gatewayError.checkoutState : 'UNKNOWN',
+          failureCode: gatewayError
+            ? gatewayError.failureCode
+            : 'GATEWAY_RESULT_UNKNOWN',
         },
-      });
+      });;
       throw error;
     }
 
