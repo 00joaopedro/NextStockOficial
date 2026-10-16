@@ -16,7 +16,88 @@ function required(name) {
   return value;
 }
 
+function validateProductionDatabaseTarget() {
+  const appEnv = (
+    process.env.APP_ENV?.trim() ||
+    process.env.NODE_ENV?.trim() ||
+    ''
+  ).toLowerCase();
+
+  if (appEnv !== 'production') {
+    throw new Error(
+      `Seed bloqueado: APP_ENV/NODE_ENV precisa ser production; recebido: ${appEnv || 'ausente'}`,
+    );
+  }
+
+  const projectRef = required('SUPABASE_PROJECT_REF').toLowerCase();
+  const productionProjectRef = required(
+    'PRODUCTION_SUPABASE_PROJECT_REF',
+  ).toLowerCase();
+
+  if (projectRef !== productionProjectRef) {
+    throw new Error(
+      'Seed bloqueado: SUPABASE_PROJECT_REF não corresponde ao projeto Supabase de produção.',
+    );
+  }
+
+  const databaseUrl = required('DATABASE_URL');
+  assertDatabaseUrlIdentity(databaseUrl, projectRef, 'DATABASE_URL');
+
+  const administrativeUrl =
+    process.env.ADMIN_DATABASE_URL?.trim() ||
+    process.env.DIRECT_URL?.trim();
+
+  if (!administrativeUrl) {
+    throw new Error(
+      'Seed bloqueado: DIRECT_URL ou ADMIN_DATABASE_URL é obrigatório em production.',
+    );
+  }
+
+  assertDatabaseUrlIdentity(
+    administrativeUrl,
+    projectRef,
+    process.env.ADMIN_DATABASE_URL?.trim()
+      ? 'ADMIN_DATABASE_URL'
+      : 'DIRECT_URL',
+  );
+
+  const parsedAdministrativeUrl = new URL(administrativeUrl);
+  if (
+    parsedAdministrativeUrl.port === '6543' ||
+    parsedAdministrativeUrl.searchParams.get('pgbouncer')?.toLowerCase() ===
+      'true'
+  ) {
+    throw new Error(
+      'Seed bloqueado: a conexão administrativa não pode usar o pooler de transação.',
+    );
+  }
+}
+
+function assertDatabaseUrlIdentity(value, projectRef, variableName) {
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Seed bloqueado: ${variableName} não é uma URL PostgreSQL válida.`);
+  }
+
+  if (!['postgresql:', 'postgres:'].includes(parsed.protocol)) {
+    throw new Error(
+      `Seed bloqueado: ${variableName} precisa usar o protocolo PostgreSQL.`,
+    );
+  }
+
+  const identity = `${parsed.hostname}/${parsed.username}`.toLowerCase();
+  if (!identity.includes(projectRef)) {
+    throw new Error(
+      `Seed bloqueado: ${variableName} não corresponde a SUPABASE_PROJECT_REF.`,
+    );
+  }
+}
+
 async function main() {
+  validateProductionDatabaseTarget();
+
   const enabled = process.env.BILLING_PRODUCTION_TEST_ENABLED
     ?.trim()
     .toLowerCase();
