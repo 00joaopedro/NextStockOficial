@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   BillingPaymentStatus,
+  PaymentGatewayProvider,
   Prisma,
   PromotionCampaignStatus,
   PromotionReservationStatus,
@@ -14,7 +15,6 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   getPromotionOffer,
   NORMAL_PAYMENT_LINKS,
-  NORMAL_PLAN_ID_ENVS,
   PROMOTION_OFFERS,
 } from './promotion-offers';
 
@@ -136,7 +136,9 @@ export class PromotionsService {
     const campaign = await this.findCampaign(input.slug);
     const offer = getPromotionOffer(input.planSlug, input.periodMonths);
     if (!offer || offer.campaignSlug !== campaign.slug) {
-      throw new ConflictException('Oferta promocional inválida para esta campanha.');
+      throw new ConflictException(
+        'Oferta promocional inválida para esta campanha.',
+      );
     }
     await this.expireReservations(campaign.id);
 
@@ -161,7 +163,8 @@ export class PromotionsService {
       where: { id: input.tenantId },
       select: { id: true, createdAt: true },
     });
-    if (!tenant) throw new NotFoundException('Tenant da promoção não encontrado.');
+    if (!tenant)
+      throw new NotFoundException('Tenant da promoção não encontrado.');
 
     if (campaign.startsAt && tenant.createdAt < campaign.startsAt) {
       throw new ConflictException(
@@ -326,7 +329,9 @@ export class PromotionsService {
         reservation.status !== PromotionReservationStatus.RESERVED ||
         reservation.expiresAt <= now
       ) {
-        throw new ConflictException('A reserva promocional não está mais válida.');
+        throw new ConflictException(
+          'A reserva promocional não está mais válida.',
+        );
       }
 
       const updated = await tx.promotionReservation.updateMany({
@@ -464,7 +469,7 @@ export class PromotionsService {
 
     return {
       campaign: campaignContext,
-      configuration: this.getProductionConfiguration(),
+      configuration: await this.getProductionConfiguration(),
       reservations: reservationsResult.reservations,
       payments: paymentsResult.payments,
       warnings,
@@ -482,92 +487,110 @@ export class PromotionsService {
   }
 
   async listAdminReservations(campaignId: string) {
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-      const rows = await tx.promotionReservation.findMany({
-        where: { campaignId },
-        orderBy: { reservedAt: 'desc' },
-      });
-      const tenantIds = rows.map((row) => row.tenantId);
-      const tenants = await tx.tenant.findMany({
-        where: { id: { in: tenantIds } },
-        select: { id: true, name: true, createdAt: true },
-      });
-      const tenantById = new Map(tenants.map((tenant) => [tenant.id, tenant]));
-      return rows.map((row) => ({
-        id: row.id,
-        tenantId: row.tenantId,
-        tenant: tenantById.get(row.tenantId) ?? null,
-        partnerId: row.partnerId,
-        status: row.status,
-        reservedAt: row.reservedAt,
-        expiresAt: row.expiresAt,
-        convertedAt: row.convertedAt,
-        metadata: row.metadata,
-      }));
-    }, { timeout: 7000 });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        const rows = await tx.promotionReservation.findMany({
+          where: { campaignId },
+          orderBy: { reservedAt: 'desc' },
+        });
+        const tenantIds = rows.map((row) => row.tenantId);
+        const tenants = await tx.tenant.findMany({
+          where: { id: { in: tenantIds } },
+          select: { id: true, name: true, createdAt: true },
+        });
+        const tenantById = new Map(
+          tenants.map((tenant) => [tenant.id, tenant]),
+        );
+        return rows.map((row) => ({
+          id: row.id,
+          tenantId: row.tenantId,
+          tenant: tenantById.get(row.tenantId) ?? null,
+          partnerId: row.partnerId,
+          status: row.status,
+          reservedAt: row.reservedAt,
+          expiresAt: row.expiresAt,
+          convertedAt: row.convertedAt,
+          metadata: row.metadata,
+        }));
+      },
+      { timeout: 7000 },
+    );
   }
 
   async listAdminPayments(campaignId: string) {
     // Não abra uma transação de pagamento quando a campanha ainda não tem
     // reservas com checkout. Esse é o caminho normal no primeiro carregamento.
-    const reservations = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-      return tx.promotionReservation.findMany({
-        where: { campaignId, checkoutSessionId: { not: null } },
-        select: { checkoutSessionId: true },
-      });
-    }, { timeout: 7000 });
+    const reservations = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        return tx.promotionReservation.findMany({
+          where: { campaignId, checkoutSessionId: { not: null } },
+          select: { checkoutSessionId: true },
+        });
+      },
+      { timeout: 7000 },
+    );
     const checkoutSessionIds = reservations
       .map((row) => row.checkoutSessionId)
       .filter((id): id is string => Boolean(id));
     if (!checkoutSessionIds.length) return [];
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-      return tx.billingPayment.findMany({
-        where: { checkoutSessionId: { in: checkoutSessionIds } },
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          tenantId: true,
-          checkoutSessionId: true,
-          provider: true,
-          gatewayPaymentId: true,
-          status: true,
-          amountCents: true,
-          currency: true,
-          paidAt: true,
-          refundedAt: true,
-          createdAt: true,
-          updatedAt: true,
-          metadata: true,
-        },
-      });
-    }, { timeout: 7000 });
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        return tx.billingPayment.findMany({
+          where: { checkoutSessionId: { in: checkoutSessionIds } },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            tenantId: true,
+            checkoutSessionId: true,
+            provider: true,
+            gatewayPaymentId: true,
+            status: true,
+            amountCents: true,
+            currency: true,
+            paidAt: true,
+            refundedAt: true,
+            createdAt: true,
+            updatedAt: true,
+            metadata: true,
+          },
+        });
+      },
+      { timeout: 7000 },
+    );
   }
 
-  getProductionConfiguration() {
+  async getProductionConfiguration() {
     const required: Array<{ env: string; configured: boolean }> = [
       {
         env: 'BILLING_DEFAULT_PROVIDER',
-        configured: process.env.BILLING_DEFAULT_PROVIDER?.trim().toUpperCase() === 'MERCADO_PAGO',
+        configured:
+          process.env.BILLING_DEFAULT_PROVIDER?.trim().toUpperCase() ===
+          'MERCADO_PAGO',
       },
       {
         env: 'BILLING_MODE',
-        configured: process.env.BILLING_MODE?.trim().toLowerCase() === 'production',
+        configured:
+          process.env.BILLING_MODE?.trim().toLowerCase() === 'production',
       },
       {
         env: 'BILLING_CHECKOUT_ENABLED',
-        configured: process.env.BILLING_CHECKOUT_ENABLED?.trim().toLowerCase() === 'true',
+        configured:
+          process.env.BILLING_CHECKOUT_ENABLED?.trim().toLowerCase() === 'true',
       },
       {
         env: 'BILLING_WEBHOOK_ENABLED',
-        configured: process.env.BILLING_WEBHOOK_ENABLED?.trim().toLowerCase() === 'true',
+        configured:
+          process.env.BILLING_WEBHOOK_ENABLED?.trim().toLowerCase() === 'true',
       },
       {
         env: 'BILLING_ENFORCEMENT_ENABLED',
-        configured: process.env.BILLING_ENFORCEMENT_ENABLED?.trim().toLowerCase() === 'true',
+        configured:
+          process.env.BILLING_ENFORCEMENT_ENABLED?.trim().toLowerCase() ===
+          'true',
       },
       {
         env: 'PUBLIC_APP_URL',
@@ -575,7 +598,9 @@ export class PromotionsService {
       },
       {
         env: 'BILLING_EXTERNAL_REFERENCE_SECRET',
-        configured: Boolean(process.env.BILLING_EXTERNAL_REFERENCE_SECRET?.trim()),
+        configured: Boolean(
+          process.env.BILLING_EXTERNAL_REFERENCE_SECRET?.trim(),
+        ),
       },
       {
         env: 'MERCADO_PAGO_ACCESS_TOKEN',
@@ -591,29 +616,49 @@ export class PromotionsService {
       },
       {
         env: 'MERCADO_PAGO_MODE',
-        configured: process.env.MERCADO_PAGO_MODE?.trim().toLowerCase() === 'production',
+        configured:
+          process.env.MERCADO_PAGO_MODE?.trim().toLowerCase() === 'production',
       },
     ];
-    const normalPlans = Object.entries(NORMAL_PLAN_ID_ENVS).map(([planSlug, env]) => ({
+    const configured = String(
+      process.env.BILLING_DEFAULT_PROVIDER || 'MERCADO_PAGO',
+    ).toUpperCase();
+    const provider = configured as PaymentGatewayProvider;
+    const mode =
+      process.env.BILLING_MODE?.trim() ||
+      process.env.MERCADO_PAGO_MODE?.trim() ||
+      'production';
+    const mappings = await this.prisma.gatewayPlanMapping.findMany({
+      where: {
+        provider,
+        mode,
+        isActive: true,
+        plan: { isActive: true, deletedAt: null },
+      },
+      select: { plan: { select: { slug: true } } },
+    });
+    const mappedPlanSlugs = new Set(mappings.map((item) => item.plan.slug));
+    const normalPlans = ['ouro', 'esmeralda', 'diamante'].map((planSlug) => ({
       planSlug,
-      env,
-      configured: Boolean(process.env[env]?.trim()),
-      paymentLinkUrl: NORMAL_PAYMENT_LINKS[planSlug as keyof typeof NORMAL_PAYMENT_LINKS],
+      env: `gateway_plan_mappings:${planSlug}`,
+      configured: mappedPlanSlugs.has(planSlug),
+      paymentLinkUrl:
+        NORMAL_PAYMENT_LINKS[planSlug as keyof typeof NORMAL_PAYMENT_LINKS],
     }));
     const promotionalPlans = PROMOTION_OFFERS.map((offer) => ({
       planSlug: offer.planSlug,
       periodMonths: offer.periodMonths,
       totalPriceCents: offer.totalPriceCents,
       paymentLinkUrl: offer.paymentLinkUrl,
-      env: offer.gatewayPlanEnv,
-      configured: Boolean(process.env[offer.gatewayPlanEnv]?.trim()),
+      env: `gateway_plan_mappings:${offer.planSlug}`,
+      configured: mappedPlanSlugs.has(offer.planSlug),
     }));
     return {
       seller: {
         name: process.env.MERCADO_PAGO_SELLER_NAME?.trim() || null,
         accountConfigured: Boolean(
           process.env.MERCADO_PAGO_ACCESS_TOKEN?.trim() &&
-            process.env.MERCADO_PAGO_COLLECTOR_ID?.trim(),
+          process.env.MERCADO_PAGO_COLLECTOR_ID?.trim(),
         ),
         credentialsRemainInRailway: true,
       },
@@ -624,19 +669,25 @@ export class PromotionsService {
     };
   }
 
-  validateProductionConfiguration() {
-    const config = this.getProductionConfiguration();
+  async validateProductionConfiguration() {
+    const config = await this.getProductionConfiguration();
     const missing = [
-      ...config.required.filter((item) => !item.configured).map((item) => item.env),
-      ...config.normalPlans.filter((item) => !item.configured).map((item) => item.env),
-      ...config.promotionalPlans.filter((item) => !item.configured).map((item) => item.env),
+      ...config.required
+        .filter((item) => !item.configured)
+        .map((item) => item.env),
+      ...config.normalPlans
+        .filter((item) => !item.configured)
+        .map((item) => item.env),
+      ...config.promotionalPlans
+        .filter((item) => !item.configured)
+        .map((item) => item.env),
     ];
     return { ok: missing.length === 0, missing, configuration: config };
   }
 
   async activate(slug: string, validateProduction = false) {
     if (validateProduction) {
-      const validation = this.validateProductionConfiguration();
+      const validation = await this.validateProductionConfiguration();
       if (!validation.ok) {
         throw new ConflictException(
           `Configuração de produção incompleta: ${validation.missing.join(', ')}`,
@@ -687,31 +738,34 @@ export class PromotionsService {
   }
 
   private async expireReservations(campaignId: string, now = new Date()) {
-    const expired = await this.prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-      const updated = await tx.promotionReservation.updateMany({
-        where: {
-          campaignId,
-          status: PromotionReservationStatus.RESERVED,
-          expiresAt: { lte: now },
-        },
-        data: {
-          status: PromotionReservationStatus.EXPIRED,
-          releasedAt: now,
-          releaseReason: 'RESERVATION_EXPIRED',
-        },
-      });
-      if (updated.count > 0) {
-        await tx.promotionCampaign.updateMany({
+    const expired = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+        const updated = await tx.promotionReservation.updateMany({
           where: {
-            id: campaignId,
-            reservedCount: { gte: updated.count },
+            campaignId,
+            status: PromotionReservationStatus.RESERVED,
+            expiresAt: { lte: now },
           },
-          data: { reservedCount: { decrement: updated.count } },
+          data: {
+            status: PromotionReservationStatus.EXPIRED,
+            releasedAt: now,
+            releaseReason: 'RESERVATION_EXPIRED',
+          },
         });
-      }
-      return updated.count;
-    }, { timeout: 7000 });
+        if (updated.count > 0) {
+          await tx.promotionCampaign.updateMany({
+            where: {
+              id: campaignId,
+              reservedCount: { gte: updated.count },
+            },
+            data: { reservedCount: { decrement: updated.count } },
+          });
+        }
+        return updated.count;
+      },
+      { timeout: 7000 },
+    );
     return expired;
   }
 
@@ -723,7 +777,8 @@ export class PromotionsService {
     const campaign = await this.prisma.promotionCampaign.findUnique({
       where: { slug: normalized },
     });
-    if (!campaign) throw new NotFoundException('Campanha promocional não encontrada.');
+    if (!campaign)
+      throw new NotFoundException('Campanha promocional não encontrada.');
     return campaign;
   }
 
