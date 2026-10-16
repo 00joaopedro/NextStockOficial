@@ -100,6 +100,17 @@ Depois execute, no Console da Railway do serviço de produção, o comando:
 npm run billing:production-test:seed
 ```
 
+Antes de criar qualquer checkout, execute a pré-validação sem cobrança:
+
+```bash
+npm run billing:production-test:preflight
+```
+
+Ela consulta apenas a conta e o plano no Mercado Pago; não cria assinatura,
+checkout, pagamento ou webhook. O comando confirma que o token pertence ao
+`MERCADO_PAGO_COLLECTOR_ID` configurado e que o plano técnico está ativo, é
+recorrente, usa BRL e cobra exatamente R$ 1,00. A saída nunca mostra o token.
+
 Esse comando exige as variáveis acima, usa o mesmo modo efetivo do checkout
 (`BILLING_MODE` ou `MERCADO_PAGO_MODE`) e cria/atualiza de forma idempotente o
 plano técnico `production-test-r1` e seu mapeamento de gateway. Ele não executa
