@@ -197,4 +197,21 @@ describe('CheckoutService', () => {
       'gatewayPlanId',
     );
   });
+
+  it('define término no prazo da promoção para impedir renovação ilimitada', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-10-16T00:00:00.000Z'));
+    const service = new CheckoutService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+
+    expect((service as any).recurrence(PlanInterval.MONTHLY, 1, 3)).toEqual({
+      frequency: 1,
+      frequencyType: 'months',
+      endDate: '2027-01-16T00:00:00.000Z',
+    });
+    jest.useRealTimers();
+  });
 });
