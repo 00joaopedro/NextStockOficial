@@ -7,11 +7,13 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   const first = new PrismaClient({ datasourceUrl: url });
   const second = new PrismaClient({ datasourceUrl: url });
   let effects = 0;
+  let providerLookups = 0;
 
   const gateway = {
     validateWebhookSignature: () => true,
-    getPaymentStatus: (resourceId: string) =>
-      Promise.resolve({
+    getPaymentStatus: (resourceId: string) => {
+      providerLookups += 1;
+      return Promise.resolve({
         gatewayPaymentId: resourceId,
         status: 'approved',
         normalizedStatus: 'APPROVED',
@@ -22,7 +24,8 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
         providerOccurredAt: null,
         gatewaySubscriptionId: null,
         raw: {},
-      }),
+      });
+    },
   };
   const processor = {
     processVerifiedPayment: () => {
@@ -35,12 +38,18 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
     new WebhookService(first as any, registry as any, processor as any),
     new WebhookService(second as any, registry as any, processor as any),
   ];
-  const input = (id: string | undefined, resourceId: string) => ({
+  const input = (
+    id: string | undefined,
+    resourceId: string,
+    liveMode?: boolean,
+    type = 'payment',
+  ) => ({
     headers: { 'x-request-id': `request-${resourceId}` },
     query: { 'data.id': resourceId },
     body: {
       ...(id ? { id } : {}),
-      type: 'payment',
+      type,
+      ...(liveMode === undefined ? {} : { live_mode: liveMode }),
       data: { id: resourceId },
     },
   });
@@ -50,6 +59,10 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
     await first.gatewayWebhookEvent.deleteMany({
       where: { requestId: { startsWith: 'request-rc010-' } },
     });
+  });
+
+  beforeEach(() => {
+    providerLookups = 0;
   });
 
   afterAll(async () => {
@@ -94,6 +107,45 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
         where: { requestId: `request-${key}` },
       }),
     ).toBe(1);
+  });
+
+  it('acknowledges a signed dashboard simulation without provider I/O or inbox writes', async () => {
+    const key = `rc010-simulation-${Date.now()}`;
+    const result = await services[0].handleMercadoPago(
+      input(`event-${key}`, key, false),
+    );
+    expect(result).toEqual({
+      received: true,
+      processed: false,
+      simulation: true,
+    });
+    expect(providerLookups).toBe(0);
+    expect(
+      await first.gatewayWebhookEvent.count({
+        where: { requestId: `request-${key}` },
+      }),
+    ).toBe(0);
+  });
+
+  it('keeps event identity distinct across signed event types that reuse an ID', () => {
+    const service = services[0] as any;
+    const paymentIdentity = service.identity(
+      'MERCADO_PAGO',
+      'scope',
+      '123456',
+      'payment',
+      '123456',
+      'hash',
+    );
+    const subscriptionIdentity = service.identity(
+      'MERCADO_PAGO',
+      'scope',
+      '123456',
+      'subscription_preapproval',
+      '123456',
+      'hash',
+    );
+    expect(paymentIdentity).not.toBe(subscriptionIdentity);
   });
 
   it('rejects an old attempt after an expired lease is reclaimed', async () => {
