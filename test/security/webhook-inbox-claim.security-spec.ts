@@ -157,6 +157,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   it('processes a signed non-live sandbox payment normally', async () => {
     const key = `rc010-sandbox-${Date.now()}`;
     process.env.BILLING_MODE = 'sandbox';
+    process.env.MERCADO_PAGO_MODE = 'sandbox';
     try {
       await expect(
         services[0].handleMercadoPago(input(`event-${key}`, key, false)),
@@ -164,6 +165,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
       expect(providerLookups).toBe(1);
     } finally {
       process.env.BILLING_MODE = 'production';
+      process.env.MERCADO_PAGO_MODE = 'production';
     }
   });
 
