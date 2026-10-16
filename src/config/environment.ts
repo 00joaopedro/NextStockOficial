@@ -476,11 +476,6 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
       requireWhenEmpty(required, value, 'MERCADO_PAGO_ACCESS_TOKEN');
       requireWhenEmpty(required, value, 'MERCADO_PAGO_MODE');
     }
-    if (checkoutEnabled) {
-      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_OURO');
-      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_ESMERALDA');
-      requireWhenEmpty(required, value, 'MERCADO_PAGO_PLAN_ID_DIAMANTE');
-    }
     const productionTestEnabled =
       String(value.BILLING_PRODUCTION_TEST_ENABLED ?? '').toLowerCase() ===
       'true';
@@ -491,7 +486,6 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
         );
       }
       requireWhenEmpty(required, value, 'BILLING_PRODUCTION_TEST_ADMIN_EMAIL');
-      requireWhenEmpty(required, value, 'MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID');
       if (mercadoPagoMode !== 'production') {
         throw new Error(
           'Production billing test requires MERCADO_PAGO_MODE=production.',
