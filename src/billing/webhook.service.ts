@@ -61,7 +61,7 @@ export class WebhookService {
     // Mercado Pago's dashboard sends signed, non-live fixtures with synthetic
     // resource IDs. Acknowledge them without storing or resolving a payment so
     // a production webhook can be tested without a real charge.
-    if (this.isProductionMode() && input.body.live_mode === false) {
+    if (this.isMercadoPagoProductionMode() && input.body.live_mode === false) {
       this.logger.log(
         `webhook signed simulation acknowledged type=${eventType ?? 'unknown'}`,
       );
@@ -275,11 +275,9 @@ export class WebhookService {
     );
   }
 
-  private isProductionMode() {
+  private isMercadoPagoProductionMode() {
     const mode = (
-      process.env.BILLING_MODE?.trim() ||
-      process.env.MERCADO_PAGO_MODE?.trim() ||
-      'production'
+      process.env.MERCADO_PAGO_MODE?.trim() || 'production'
     ).toLowerCase();
     return mode === 'production';
   }
