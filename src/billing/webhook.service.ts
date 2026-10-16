@@ -58,6 +58,16 @@ export class WebhookService {
     if (!signatureValid || process.env.BILLING_WEBHOOK_ENABLED === 'false')
       throw new UnauthorizedException('Webhook Mercado Pago nao autenticado.');
 
+    // Mercado Pago's dashboard sends signed, non-live fixtures with synthetic
+    // resource IDs. Acknowledge them without storing or resolving a payment so
+    // a production webhook can be tested without a real charge.
+    if (input.body.live_mode === false) {
+      this.logger.log(
+        `webhook signed simulation acknowledged type=${eventType ?? 'unknown'}`,
+      );
+      return { received: true, processed: false, simulation: true };
+    }
+
     const event = await this.persist({
       provider,
       gatewayEventId: eventId,
@@ -254,7 +264,7 @@ export class WebhookService {
   ) {
     return this.hash(
       eventId
-        ? `${provider}\n${accountScope}\nid\n${eventId}`
+        ? `${provider}\n${accountScope}\nid\n${eventId}\ntype\n${eventType || ''}\nresource\n${resourceId || ''}`
         : `${provider}\n${accountScope}\nfallback\n${eventType || ''}\n${resourceId || ''}\n${payloadHash}`,
     );
   }
