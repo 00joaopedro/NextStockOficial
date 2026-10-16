@@ -165,13 +165,18 @@ export class ProductionExceptionFilter implements ExceptionFilter {
 
     if (status >= 500) {
       const name = error instanceof Error ? error.name : 'UnknownError';
-      const gatewayError =
-        error instanceof GatewayCheckoutError ? error : null;
+      const gatewayError = error instanceof GatewayCheckoutError ? error : null;
       const gatewayDetails = gatewayError
-        ? ' gateway_code=' + gatewayError.failureCode +
-          ' provider_status=' + (gatewayError.providerStatus ?? 'unknown') +
-          ' provider_request_id=' + (gatewayError.providerRequestId ?? 'none') +
-          ' checkout_state=' + gatewayError.checkoutState
+        ? ' gateway_code=' +
+          gatewayError.failureCode +
+          ' provider_status=' +
+          (gatewayError.providerStatus ?? 'unknown') +
+          ' provider_diagnostic=' +
+          (gatewayError.providerDiagnostic ?? 'none') +
+          ' provider_request_id=' +
+          (gatewayError.providerRequestId ?? 'none') +
+          ' checkout_state=' +
+          gatewayError.checkoutState
         : '';
       const prismaError = findPrismaKnownError(error);
       const prismaDetails = prismaError
@@ -179,7 +184,18 @@ export class ProductionExceptionFilter implements ExceptionFilter {
         : '';
 
       this.logger.error(
-        'request_failed id=' + (request.requestId ?? 'unknown') + ' method=' + request.method + ' path=' + requestPath(request) + ' status=' + status + ' error=' + name + gatewayDetails + prismaDetails,
+        'request_failed id=' +
+          (request.requestId ?? 'unknown') +
+          ' method=' +
+          request.method +
+          ' path=' +
+          requestPath(request) +
+          ' status=' +
+          status +
+          ' error=' +
+          name +
+          gatewayDetails +
+          prismaDetails,
       );
     }
 
