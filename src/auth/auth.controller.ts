@@ -53,6 +53,7 @@ import type {
   CompatibleReply,
 } from '../common/http-types';
 import { GoogleOAuthService } from './google-oauth.service';
+import { sessionRefreshTimeoutMs } from './session-refresh-timeout';
 import { SupabaseAuthProvider } from './supabase-auth-provider';
 import { AuthProviderError, PasswordRecoveryError } from './auth-provider';
 
@@ -64,8 +65,6 @@ class GoogleCallbackFailure extends Error {
 }
 
 const PUBLIC_GOOGLE_AUTH_ERRORS = new Set(['auth_failed']);
-
-const SESSION_REFRESH_TIMEOUT_MS = 5_000;
 
 @Controller('auth')
 @BillingExempt()
@@ -835,7 +834,7 @@ export class AuthController {
                   'Sessão temporariamente indisponível. Tente novamente.',
               }),
             );
-          }, SESSION_REFRESH_TIMEOUT_MS);
+          }, sessionRefreshTimeoutMs());
         }),
       ]);
     } finally {
