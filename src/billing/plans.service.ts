@@ -30,7 +30,7 @@ export class PlansService {
             mode,
             isActive: true,
           },
-          select: { id: true, gatewayPlanId: true },
+          select: { id: true },
           take: 1,
         },
       },
@@ -48,10 +48,11 @@ export class PlansService {
       features: plan.features,
       sortOrder: plan.sortOrder,
       paymentLinkUrl:
-        NORMAL_PAYMENT_LINKS[plan.slug as keyof typeof NORMAL_PAYMENT_LINKS] ?? null,
+        NORMAL_PAYMENT_LINKS[plan.slug as keyof typeof NORMAL_PAYMENT_LINKS] ??
+        null,
       checkoutAvailable:
         process.env.BILLING_CHECKOUT_ENABLED?.toLowerCase() !== 'false' &&
-        Boolean(plan.gatewayMappings[0]?.gatewayPlanId),
+        Boolean(plan.gatewayMappings[0]),
     }));
   }
 }
