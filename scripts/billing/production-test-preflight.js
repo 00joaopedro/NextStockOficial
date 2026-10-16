@@ -73,6 +73,8 @@ function validatePlan(plan, expectedCollectorId) {
   const amountCents = Math.round(Number(recurring.transaction_amount) * 100);
   const currency = String(recurring.currency_id || '').toUpperCase();
   const status = String(plan.status || '').toLowerCase();
+  const frequency = Number(recurring.frequency);
+  const frequencyType = String(recurring.frequency_type || '').toLowerCase();
   const ownerId = planOwnerId(plan);
   const failures = [];
 
@@ -84,11 +86,8 @@ function validatePlan(plan, expectedCollectorId) {
     failures.push('Plano deve cobrar exatamente R$ 1,00.');
   }
   if (currency !== 'BRL') failures.push('Plano deve usar moeda BRL.');
-  if (!Number.isInteger(Number(recurring.frequency)) || Number(recurring.frequency) < 1) {
-    failures.push('Plano recorrente sem frequência válida.');
-  }
-  if (!recurring.frequency_type) {
-    failures.push('Plano recorrente sem unidade de frequência válida.');
+  if (frequency !== 1 || frequencyType !== 'months') {
+    failures.push('Plano deve ter recorrência mensal de 1 mês.');
   }
   if (ownerId && ownerId !== expectedCollectorId) {
     failures.push('Plano pertence a outro recebedor Mercado Pago.');
@@ -102,10 +101,8 @@ function validatePlan(plan, expectedCollectorId) {
       status: status || 'not_returned',
       amountCents: Number.isFinite(amountCents) ? amountCents : null,
       currency: currency || null,
-      frequency: Number.isInteger(Number(recurring.frequency))
-        ? Number(recurring.frequency)
-        : null,
-      frequencyType: recurring.frequency_type || null,
+      frequency: Number.isInteger(frequency) ? frequency : null,
+      frequencyType: frequencyType || null,
       ownerValidated: ownerId !== null,
     },
   };
