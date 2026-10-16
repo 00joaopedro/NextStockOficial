@@ -13,7 +13,7 @@ describe('RC-010 webhook inbox policy', () => {
     );
   });
 
-  it('uses provider/account/event ID and a strong fallback identity', () => {
+  it('uses provider/account/event/type/resource and a strong fallback identity', () => {
     const provider = PaymentGatewayProvider.MERCADO_PAGO;
     const byId = service.identity(
       provider,
@@ -28,9 +28,29 @@ describe('RC-010 webhook inbox policy', () => {
         provider,
         'account-a',
         'evt-1',
-        'other',
-        'p-2',
+        'payment',
+        'p-1',
         'hash-b',
+      ),
+    );
+    expect(byId).not.toBe(
+      service.identity(
+        provider,
+        'account-a',
+        'evt-1',
+        'other',
+        'p-1',
+        'hash-a',
+      ),
+    );
+    expect(byId).not.toBe(
+      service.identity(
+        provider,
+        'account-a',
+        'evt-1',
+        'payment',
+        'p-2',
+        'hash-a',
       ),
     );
     expect(byId).not.toBe(
@@ -48,6 +68,23 @@ describe('RC-010 webhook inbox policy', () => {
     ).not.toBe(
       service.identity(provider, 'account-a', null, 'payment', 'p-1', 'hash-b'),
     );
+  });
+
+  it('only acknowledges non-live dashboard simulations in production mode', () => {
+    const originalBillingMode = process.env.BILLING_MODE;
+    const originalMercadoPagoMode = process.env.MERCADO_PAGO_MODE;
+    try {
+      process.env.BILLING_MODE = 'production';
+      expect(service.isProductionMode()).toBe(true);
+      process.env.BILLING_MODE = 'sandbox';
+      expect(service.isProductionMode()).toBe(false);
+    } finally {
+      if (originalBillingMode === undefined) delete process.env.BILLING_MODE;
+      else process.env.BILLING_MODE = originalBillingMode;
+      if (originalMercadoPagoMode === undefined)
+        delete process.env.MERCADO_PAGO_MODE;
+      else process.env.MERCADO_PAGO_MODE = originalMercadoPagoMode;
+    }
   });
 
   it('sanitizes error codes', () => {
