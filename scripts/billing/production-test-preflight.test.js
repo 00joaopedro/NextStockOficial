@@ -41,6 +41,25 @@ test('rejects a plan with an incompatible owner or amount', () => {
   assert.equal(result.failures.length, 2);
 });
 
+test('rejects a daily or multi-month test plan to prevent unintended renewals', () => {
+  const result = validatePlan(
+    {
+      id: 'plan-1',
+      status: 'active',
+      collector_id: 'collector-1',
+      auto_recurring: {
+        transaction_amount: 1,
+        currency_id: 'BRL',
+        frequency: 1,
+        frequency_type: 'days',
+      },
+    },
+    'collector-1',
+  );
+  assert.equal(result.ok, false);
+  assert.match(result.failures[0], /mensal/);
+});
+
 test('sanitizes provider text before it reaches logs or terminal output', () => {
   assert.equal(sanitizeText('bad\nvalue <secret>'), 'bad value _secret_');
 });
