@@ -2,9 +2,10 @@
 
 O domínio de billing é independente de gateway. Mercado Pago é implementado
 somente pelo adapter em `src/billing/gateways/mercado-pago`. A contratação cria
-uma assinatura individual (`preapproval`) vinculada ao tenant por uma
-`external_reference` opaca e assinada; links fixos compartilhados não ativam
-assinaturas.
+uma assinatura pendente hospedada (`preapproval`) vinculada ao tenant por uma
+`external_reference` opaca e assinada. O backend envia preço, moeda e
+recorrência do plano interno e recebe o `init_point` oficial; links fixos
+compartilhados não ativam assinaturas.
 
 ## Regra de acesso
 
@@ -29,9 +30,10 @@ assinaturas.
 
 ## Provisionamento no Mercado Pago
 
-Crie um plano recorrente mensal para Ouro, Esmeralda e Diamante na mesma conta
-recebedora. Copie apenas seus IDs de plano para variáveis protegidas do Railway.
-Não envie access token ou webhook secret em chat, issue, commit ou frontend.
+Configure a conta recebedora que criará as assinaturas pendentes hospedadas.
+Os planos e preços do NextStock continuam sendo a fonte de verdade; não é
+necessário criar nem configurar `preapproval_plan_id` no Mercado Pago. Não
+envie access token ou webhook secret em chat, issue, commit ou frontend.
 
 Variáveis protegidas necessárias:
 
@@ -46,15 +48,6 @@ Variáveis protegidas necessárias:
 - `MERCADO_PAGO_COLLECTOR_ID`
 - `MERCADO_PAGO_SELLER_NAME` (opcional; nome exibido somente no painel SuperAdmin, nunca usado como credencial)
 - `MERCADO_PAGO_MODE=production`
-- `MERCADO_PAGO_PLAN_ID_OURO`
-- `MERCADO_PAGO_PLAN_ID_ESMERALDA`
-- `MERCADO_PAGO_PLAN_ID_DIAMANTE`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_1`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_3`
-- `MERCADO_PAGO_PROMO_PLAN_ID_OURO_6`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_1`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_3`
-- `MERCADO_PAGO_PROMO_PLAN_ID_ESMERALDA_6`
 
 Configure o webhook do Mercado Pago para
 `https://SEU_HOST/api/billing/webhooks/mercado-pago` e habilite notificações de
@@ -63,36 +56,33 @@ pagamento. O retorno visual é
 
 ## Campanha promocional
 
-A campanha `lancamento-2026` usa um catálogo server-side de seis ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 7 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e existe o respectivo plano recorrente Mercado Pago configurado. Nunca confie no preço enviado pelo navegador.
+A campanha `lancamento-2026` usa um catálogo server-side de seis ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 7 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e há mapeamento ativo do gateway. Nunca confie no preço enviado pelo navegador.
 
 O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamentos pendentes ou rejeitados não convertem a vaga. Reembolso e chargeback suspendem a assinatura e permanecem registrados no ledger e na auditoria.
 
 ## Ordem de ativação
 
-1. Criar e conferir os três planos mensais no Mercado Pago.
-2. Configurar segredos e IDs no Railway, inicialmente com checkout, webhook e
+1. Configurar os segredos e a conta recebedora no Railway, inicialmente com checkout, webhook e
    enforcement desabilitados.
-3. Aplicar a migration com `npm run railway:migrate` em job controlado.
-4. Executar o seed controlado para gravar os IDs em `gateway_plan_mappings`.
-5. Usar o painel `/promocao-admin.html` para conferir as seis ofertas, abrir a campanha e validar a configuração; depois habilitar webhook e checkout em staging/sandbox e validar pagamento,
+2. Aplicar a migration com `npm run railway:migrate` em job controlado, quando houver uma migration pendente.
+3. Executar o seed controlado para gravar os mapeamentos em `gateway_plan_mappings`.
+4. Usar o painel `/promocao-admin.html` para conferir as seis ofertas, abrir a campanha e validar a configuração; depois habilitar webhook e checkout em staging/sandbox e validar pagamento,
    reenvio de webhook, reconciliação, reembolso e chargeback.
-6. Agendar `npm run billing:reconcile`.
-7. Auditar subscriptions, invoices, payments e events.
-8. Somente então definir `BILLING_ENFORCEMENT_ENABLED=true` em produção.
+5. Agendar `npm run billing:reconcile`.
+6. Auditar subscriptions, invoices, payments e events.
+7. Somente então definir `BILLING_ENFORCEMENT_ENABLED=true` em produção.
 
 Nunca execute migration longa no boot do processo web.
 
-
 ## Teste temporário de produção de R$ 1,00
 
-O teste deve usar um plano recorrente separado no Mercado Pago. Não use um link
-fixo nem substitua os IDs de Ouro, Esmeralda ou Diamante.
+O teste cria uma assinatura pendente hospedada de R$ 1,00 usando o plano técnico
+interno do NextStock. Não use link fixo nem altere os planos comerciais.
 
 Configure temporariamente no Railway de produção:
 
 - `BILLING_PRODUCTION_TEST_ENABLED=true`
 - `BILLING_PRODUCTION_TEST_ADMIN_EMAIL=0oficialwhis@gmail.com`
-- `MERCADO_PAGO_PRODUCTION_TEST_PLAN_ID=<preapproval_plan_id>`
 
 Depois execute, no Console da Railway do serviço de produção, o comando:
 
@@ -106,10 +96,9 @@ Antes de criar qualquer checkout, execute a pré-validação sem cobrança:
 npm run billing:production-test:preflight
 ```
 
-Ela consulta apenas a conta e o plano no Mercado Pago; não cria assinatura,
-checkout, pagamento ou webhook. O comando confirma que o token pertence ao
-`MERCADO_PAGO_COLLECTOR_ID` configurado e que o plano técnico está ativo, é
-recorrente, usa BRL e cobra exatamente R$ 1,00. A saída nunca mostra o token.
+Ela consulta apenas a conta no Mercado Pago; não cria assinatura, checkout,
+pagamento ou webhook. O comando confirma que o token pertence ao
+`MERCADO_PAGO_COLLECTOR_ID` configurado. A saída nunca mostra o token.
 
 Esse comando exige as variáveis acima, usa o mesmo modo efetivo do checkout
 (`BILLING_MODE` ou `MERCADO_PAGO_MODE`) e cria/atualiza de forma idempotente o
@@ -122,5 +111,4 @@ assinatura de `perfil.html`.
 
 O pagamento deve ser iniciado pelo botão do NextStock, não pelo link público do
 Mercado Pago, para que a `external_reference` identifique o tenant. Após o
-teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false` e remova o ID temporário
-da Railway.
+teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false`.
