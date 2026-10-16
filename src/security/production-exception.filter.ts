@@ -179,7 +179,7 @@ export class ProductionExceptionFilter implements ExceptionFilter {
         : '';
 
       this.logger.error(
-        'request_failed id=' + (request.requestId ?? 'unknown') + ' method=' + request.method + ' path=' + requestPath(request) + ' status=' + status + ' error=' + name + gatewayDetails + prismaDetails,;
+        'request_failed id=' + (request.requestId ?? 'unknown') + ' method=' + request.method + ' path=' + requestPath(request) + ' status=' + status + ' error=' + name + gatewayDetails + prismaDetails,
     }
 
     if (process.env.NODE_ENV === 'production' && status >= 500) {
