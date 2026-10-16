@@ -179,7 +179,35 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
           ...(init.headers || {}),
         },
       });
+      const body = (await response.json().catch(() => ({}))) as Record<string, any>;
+      if (!response.ok) {
+        const providerRequestId =
+          response.headers.get('x-request-id') ||
+          response.headers.get('x-correlation-id') ||
+          undefined;
+        const providerCode = this.providerErrorCode(body);
+        const state = response.status >= 500 || response.status === 429
+          ? 'FAILED_RETRYABLE'
+          : 'FAILED_FINAL';
+        this.logger.error(
+          `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} status=${response.status} code=${providerCode} request_id=${providerRequestId || 'none'} state=${state}`,
+        );
+        throw new GatewayCheckoutError(
+          response.status >= 500 || response.status === 429
+            ? 'Mercado Pago temporariamente indisponivel.'
+            : 'Mercado Pago rejeitou a operacao.',
+          true,
+          {
+            code: providerCode,
+            providerStatus: response.status,
+            providerRequestId,
+            state,
+          },
+        );
+      }
+      return body;
     } catch (error) {
+      if (error instanceof GatewayCheckoutError) throw error;
       const timeoutError = error instanceof Error && error.name === 'AbortError';
       this.logger.error(
         `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} outcome=${timeoutError ? 'timeout' : 'network_error'} timeout_ms=${timeoutMs}`,
@@ -195,8 +223,6 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     } finally {
       clearTimeout(timeout);
     }
-
-    const body = (await response.json().catch(() => ({}))) as Record<string, any>;
     if (!response.ok) {
       const providerRequestId =
         response.headers.get('x-request-id') ||
