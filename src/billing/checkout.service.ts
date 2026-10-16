@@ -146,7 +146,11 @@ export class CheckoutService {
       throw new ConflictException(
         'Plano sem checkout Mercado Pago configurado.',
       );
-    const recurrence = this.recurrence(plan.interval, plan.intervalCount);
+    const recurrence = this.recurrence(
+      plan.interval,
+      plan.intervalCount,
+      promotionOffer?.periodMonths,
+    );
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -502,7 +506,11 @@ export class CheckoutService {
     return Promise.resolve();
   }
 
-  private recurrence(interval: PlanInterval, intervalCount: number) {
+  private recurrence(
+    interval: PlanInterval,
+    intervalCount: number,
+    promotionPeriodMonths?: number,
+  ) {
     if (!Number.isInteger(intervalCount) || intervalCount < 1) {
       throw new ConflictException('Plano com recorrência inválida.');
     }
@@ -511,11 +519,27 @@ export class CheckoutService {
         'Plano vitalício não pode usar assinatura recorrente Mercado Pago.',
       );
     }
+    if (
+      promotionPeriodMonths !== undefined &&
+      (!Number.isInteger(promotionPeriodMonths) || promotionPeriodMonths < 1)
+    ) {
+      throw new ConflictException('Oferta promocional com duração inválida.');
+    }
+    const endDate = promotionPeriodMonths
+      ? this.addUtcMonths(new Date(), promotionPeriodMonths).toISOString()
+      : undefined;
     return {
       frequency:
         interval === PlanInterval.YEARLY ? intervalCount * 12 : intervalCount,
       frequencyType: 'months' as const,
+      ...(endDate ? { endDate } : {}),
     };
+  }
+
+  private addUtcMonths(start: Date, months: number) {
+    const end = new Date(start);
+    end.setUTCMonth(end.getUTCMonth() + months);
+    return end;
   }
 
   private result(checkout: any, automaticConfirmationAvailable: boolean) {
