@@ -714,7 +714,7 @@ export class AuthController {
           (req.requestId ?? 'unknown') +
           ' diagnostic=' +
           this.sessionRefreshDiagnostic(error),
-      );;
+      );
       if (error instanceof UnauthorizedException) throw error;
       if (
         error instanceof AuthProviderError &&
