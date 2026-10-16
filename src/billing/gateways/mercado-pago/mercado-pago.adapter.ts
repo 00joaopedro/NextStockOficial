@@ -189,13 +189,12 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
           response.headers.get('x-correlation-id') ||
           undefined;
         const providerCode = this.providerErrorCode(body);
-        const providerDiagnostic = this.providerDiagnostic(body);
         const state =
           response.status >= 500 || response.status === 429
             ? 'FAILED_RETRYABLE'
             : 'FAILED_FINAL';
         this.logger.error(
-          `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} status=${response.status} code=${providerCode} diagnostic=${providerDiagnostic || 'none'} request_id=${providerRequestId || 'none'} state=${state}`,
+          `gateway.request_failed provider=MERCADO_PAGO method=${method} path=${path} status=${response.status} code=${providerCode} request_id=${providerRequestId || 'none'} state=${state}`,
         );
         throw new GatewayCheckoutError(
           response.status >= 500 || response.status === 429
@@ -206,7 +205,6 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
             code: providerCode,
             providerStatus: response.status,
             providerRequestId,
-            providerDiagnostic,
             state,
           },
         );
@@ -249,7 +247,6 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
       body.code,
       body.error,
       cause && typeof cause === 'object' ? cause.code : undefined,
-      cause && typeof cause === 'object' ? cause.description : undefined,
     ];
     const value = candidates.find(
       (candidate) => typeof candidate === 'string' && candidate.trim(),
@@ -257,24 +254,6 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     return String(value || 'GATEWAY_PROVIDER_REJECTED')
       .replace(/[^A-Za-z0-9._-]/g, '_')
       .slice(0, 120);
-  }
-
-  private providerDiagnostic(body: Record<string, any>) {
-    const cause = Array.isArray(body.cause) ? body.cause[0] : undefined;
-    const candidates = [
-      cause && typeof cause === 'object' ? cause.description : undefined,
-      body.message,
-      body.error_description,
-    ];
-    const value = candidates.find(
-      (candidate) => typeof candidate === 'string' && candidate.trim(),
-    );
-    if (!value) return undefined;
-    return String(value)
-      .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
-      .replace(/\b\d{8,}\b/g, '[redacted-number]')
-      .replace(/[^A-Za-z0-9._:\-\[\]]/g, '_')
-      .slice(0, 160);
   }
   private assertMerchant(body: Record<string, any>) {
     const mode = process.env.MERCADO_PAGO_MODE?.trim() || 'production';
