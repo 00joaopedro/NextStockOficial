@@ -68,6 +68,14 @@ export class BillingEntitlementService {
     ) {
       return this.allowed('SUBSCRIPTION_ACTIVE', subscription);
     }
+    if (
+      subscription.status === SubscriptionStatus.canceled &&
+      subscription.cancelAtPeriodEnd === true &&
+      subscription.currentPeriodEndsAt &&
+      subscription.currentPeriodEndsAt > now
+    ) {
+      return this.allowed('SUBSCRIPTION_CANCELED_PERIOD_ACTIVE', subscription);
+    }
     if (subscription.status === SubscriptionStatus.trialing) {
       return this.denied('TRIAL_EXPIRED', subscription);
     }
