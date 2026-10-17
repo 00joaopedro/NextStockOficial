@@ -254,4 +254,38 @@ describe('CheckoutService', () => {
       }),
     );
   });
+
+  it('bloqueia novo checkout enquanto a renovação cancelada ainda tem período pago', async () => {
+    const service = new CheckoutService(
+      {
+        plan: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'plan',
+            interval: PlanInterval.MONTHLY,
+            intervalCount: 1,
+            gatewayMappings: [{ provider: PaymentGatewayProvider.MERCADO_PAGO }],
+          }),
+        },
+        subscription: {
+          findFirst: jest.fn().mockResolvedValue({
+            id: 'sub',
+            status: 'canceled',
+            cancelAtPeriodEnd: true,
+            currentPeriodEndsAt: new Date(Date.now() + 86_400_000),
+          }),
+        },
+      } as any,
+      {
+        resolve: jest
+          .fn()
+          .mockResolvedValue({ tenantId: 'tenant', userId: 'user' }),
+      } as any,
+      { defaultProvider: () => PaymentGatewayProvider.MERCADO_PAGO } as any,
+      {} as any,
+    );
+
+    await expect(
+      service.create({} as any, 'ouro', 'checkout-key-123'),
+    ).rejects.toThrow('A renovação está cancelada');
+  });
 });
