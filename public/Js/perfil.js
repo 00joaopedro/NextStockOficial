@@ -9,6 +9,7 @@
     busy: false,
     paymentConfig: { connections: [], terminals: [], routes: [] },
     productionTestAvailable: false,
+    productionTestRefundAvailable: false,
     subscription: null,
   };
   const $ = (id) => document.getElementById(id);
@@ -28,6 +29,7 @@
     routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
     productionTestPanel: $("productionTestCheckoutPanel"),
     productionTestBtn: $("productionTestCheckoutBtn"),
+    productionTestRefundPanel: $("productionTestRefundPanel"), productionTestRefundBtn: $("productionTestRefundBtn"),
     cancellationPanel: $("subscriptionCancellationPanel"), cancellationTitle: $("subscriptionCancellationTitle"),
     cancellationDescription: $("subscriptionCancellationDescription"), cancelSubscription: $("cancelSubscriptionBtn"),
   };
@@ -138,6 +140,9 @@
     if (el.productionTestBtn) {
       el.productionTestBtn.disabled = blocked || !state.productionTestAvailable;
     }
+    if (el.productionTestRefundBtn) {
+      el.productionTestRefundBtn.disabled = blocked || !state.productionTestRefundAvailable;
+    }
     if (el.cancelSubscription) el.cancelSubscription.disabled = blocked || !state.canManage || !canCancelSubscription();
   }
 
@@ -169,6 +174,13 @@
     const data = await api("/api/billing/production-test-capability");
     state.productionTestAvailable = data.enabled === true;
     el.productionTestPanel.hidden = !state.productionTestAvailable;
+    permissions();
+  }
+  async function loadProductionTestRefundCapability() {
+    if (!el.productionTestRefundPanel) return;
+    const data = await api("/api/billing/production-test-refund-capability");
+    state.productionTestRefundAvailable = data.enabled === true;
+    el.productionTestRefundPanel.hidden = !state.productionTestRefundAvailable;
     permissions();
   }
 
@@ -270,6 +282,17 @@
     } finally {
       busy(false);
     }
+  }
+  async function refundProductionTest() {
+    if (!state.productionTestRefundAvailable) return;
+    if (!confirm("Solicitar o estorno do teste de R$ 1,00? A renovação será cancelada e o acesso será suspenso após a confirmação do Mercado Pago.")) return;
+    busy(true);
+    message("Solicitando estorno do teste...");
+    try {
+      const result = await api("/api/billing/production-test-refund", { method: "POST", body: JSON.stringify({}) });
+      message(result.result?.accepted ? "Estorno do teste solicitado. O acesso será suspenso após a confirmação do Mercado Pago." : "Estorno solicitado e aguardando confirmação do Mercado Pago.", "success");
+      await Promise.all([loadBilling(), loadProductionTestCapability(), loadProductionTestRefundCapability()]);
+    } finally { busy(false); }
   }
 
   async function startCheckout(planSlug) {
@@ -412,6 +435,7 @@
   el.deleteMachine.addEventListener("click", run(deleteMachine));
   el.saveConnection.addEventListener("click", run(savePaymentConnection)); el.saveTerminal.addEventListener("click", run(savePaymentTerminal)); el.saveRoute.addEventListener("click", run(savePaymentRoute));
   el.productionTestBtn?.addEventListener("click", run(startProductionTestCheckout));
+  el.productionTestRefundBtn?.addEventListener("click", run(refundProductionTest));
   el.cancelSubscription?.addEventListener("click", run(cancelSubscription));
   (async () => {
     if (window.isNextStockDemoMode?.()) {
@@ -431,6 +455,7 @@
         loadMachines(),
         loadPaymentConfiguration(),
         loadProductionTestCapability(),
+        loadProductionTestRefundCapability(),
       ]);
       permissions();
       const failures = results
