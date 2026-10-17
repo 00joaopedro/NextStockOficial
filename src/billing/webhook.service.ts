@@ -92,11 +92,12 @@ export class WebhookService {
       await this.finish(claim, Status.FAILED_FINAL, 'RESOURCE_ID_MISSING');
       return { received: true, processed: false };
     }
-    if (
-      !String(eventType || '')
-        .toLowerCase()
-        .includes('payment')
-    ) {
+    // Subscription notifications such as `subscription_authorized_payment`
+    // contain the word "payment", but their resource ID is not a payment
+    // resource. Only Mercado Pago's explicit payment topic can be resolved
+    // through /v1/payments/:id. Subscription state alone must never activate
+    // a NextStock subscription.
+    if (!this.isMercadoPagoPaymentEvent(eventType)) {
       await this.finish(claim, Status.IGNORED, 'NON_PAYMENT_EVENT');
       return { received: true, processed: false };
     }
@@ -280,6 +281,11 @@ export class WebhookService {
       process.env.MERCADO_PAGO_MODE?.trim() || 'production'
     ).toLowerCase();
     return mode === 'production';
+  }
+
+  private isMercadoPagoPaymentEvent(eventType: string | null) {
+    const normalized = eventType?.trim().toLowerCase();
+    return normalized === 'payment' || normalized?.startsWith('payment.');
   }
 
   private canonicalJson(value: unknown): string {
