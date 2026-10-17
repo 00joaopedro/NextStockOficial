@@ -170,6 +170,16 @@ export class CheckoutService {
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
       );
     }
+    if (
+      subscription.status === 'canceled' &&
+      subscription.cancelAtPeriodEnd &&
+      subscription.currentPeriodEndsAt &&
+      subscription.currentPeriodEndsAt > new Date()
+    ) {
+      throw new ConflictException(
+        'A renovação está cancelada e o acesso atual permanece ativo até o fim do período pago. Um novo checkout poderá ser criado após essa data.',
+      );
+    }
 
     const payloadHash = createHash('sha256')
       .update(
