@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BillingEventType,
   BillingInvoiceStatus,
@@ -40,7 +44,9 @@ export class PaymentsService {
       throw new NotFoundException('Pagamento não encontrado.');
     }
     if (!payment.gatewayPaymentId || !this.gateways) {
-      throw new ConflictException('Pagamento sem operação Mercado Pago disponível.');
+      throw new ConflictException(
+        'Pagamento sem operação Mercado Pago disponível.',
+      );
     }
 
     const gateway = this.gateways.get(payment.provider);
@@ -77,19 +83,20 @@ export class PaymentsService {
         idempotentReplay: true,
       };
     }
-    if (
-      payment.status !== BillingPaymentStatus.APPROVED &&
-      !existingIntent
-    ) {
-      throw new ConflictException('Pagamento não está aprovado para reembolso.');
+    if (payment.status !== BillingPaymentStatus.APPROVED && !existingIntent) {
+      throw new ConflictException(
+        'Pagamento não está aprovado para reembolso.',
+      );
     }
 
     const claimToken = randomUUID();
-    let intent: {
-      id: string;
-      claimToken: string;
-      state: BillingRefundIntentState;
-    } | undefined;
+    let intent:
+      | {
+          id: string;
+          claimToken: string;
+          state: BillingRefundIntentState;
+        }
+      | undefined;
     if (existingIntent) {
       const expired = existingIntent.leaseExpiresAt <= new Date();
       if (!expired) {
@@ -112,7 +119,9 @@ export class PaymentsService {
           },
         });
         if (reclaimed.count !== 1) {
-          throw new ConflictException('Claim de reembolso expirou ou foi substituído.');
+          throw new ConflictException(
+            'Claim de reembolso expirou ou foi substituído.',
+          );
         }
         intent = {
           id: existingIntent.id,
@@ -133,7 +142,9 @@ export class PaymentsService {
           },
         });
         if (fenced.count !== 1) {
-          throw new ConflictException('Claim de reembolso expirou ou foi substituído.');
+          throw new ConflictException(
+            'Claim de reembolso expirou ou foi substituído.',
+          );
         }
         const reconciled = await this.reconcileRefundIntent(
           payment,
@@ -150,7 +161,9 @@ export class PaymentsService {
           }
         );
       } else {
-        throw new ConflictException('Estado de reembolso não pode ser retomado automaticamente.');
+        throw new ConflictException(
+          'Estado de reembolso não pode ser retomado automaticamente.',
+        );
       }
     } else {
       try {
@@ -171,15 +184,17 @@ export class PaymentsService {
         ) {
           throw error;
         }
-        const current = await this.prisma.billingRefundIntent.findUniqueOrThrow({
-          where: {
-            tenantId_paymentId_operation: {
-              tenantId,
-              paymentId: payment.id,
-              operation: 'REFUND',
+        const current = await this.prisma.billingRefundIntent.findUniqueOrThrow(
+          {
+            where: {
+              tenantId_paymentId_operation: {
+                tenantId,
+                paymentId: payment.id,
+                operation: 'REFUND',
+              },
             },
           },
-        });
+        );
         if (current.state === BillingRefundIntentState.SUCCEEDED) {
           return {
             accepted: true,
@@ -211,11 +226,17 @@ export class PaymentsService {
       }
     }
     const processing = await this.prisma.billingRefundIntent.updateMany({
-      where: { id: intent.id, claimToken, state: BillingRefundIntentState.CLAIMED },
+      where: {
+        id: intent.id,
+        claimToken,
+        state: BillingRefundIntentState.CLAIMED,
+      },
       data: { state: BillingRefundIntentState.PROCESSING },
     });
     if (processing.count !== 1) {
-      throw new ConflictException('Claim de reembolso expirou ou foi substituído.');
+      throw new ConflictException(
+        'Claim de reembolso expirou ou foi substituído.',
+      );
     }
 
     try {
@@ -227,7 +248,11 @@ export class PaymentsService {
         'refund_api',
       );
       if (verified.normalizedStatus !== 'REFUNDED') {
-        await this.markRefundUnknown(intent.id, claimToken, 'GATEWAY_REFUND_PENDING');
+        await this.markRefundUnknown(
+          intent.id,
+          claimToken,
+          'GATEWAY_REFUND_PENDING',
+        );
         return {
           accepted: false,
           status: BillingRefundIntentState.UNKNOWN,
@@ -245,7 +270,9 @@ export class PaymentsService {
         data: { state: BillingRefundIntentState.SUCCEEDED, failureCode: null },
       });
       if (completed.count !== 1) {
-        throw new ConflictException('Claim de reembolso expirou após a confirmação.');
+        throw new ConflictException(
+          'Claim de reembolso expirou após a confirmação.',
+        );
       }
       return {
         accepted: true,
@@ -255,13 +282,21 @@ export class PaymentsService {
         localResult,
       };
     } catch (error) {
-      await this.markRefundUnknown(intent.id, claimToken, 'GATEWAY_RESULT_UNKNOWN');
+      await this.markRefundUnknown(
+        intent.id,
+        claimToken,
+        'GATEWAY_RESULT_UNKNOWN',
+      );
       throw error;
     }
   }
 
   private async reconcileRefundIntent(
-    payment: { id: string; provider: PaymentGatewayProvider; gatewayPaymentId: string | null },
+    payment: {
+      id: string;
+      provider: PaymentGatewayProvider;
+      gatewayPaymentId: string | null;
+    },
     intent: { id: string; state: BillingRefundIntentState },
     gateway: {
       getPaymentStatus: (resourceId: string) => Promise<GatewayPaymentResult>;
@@ -358,6 +393,10 @@ export class PaymentsService {
         );
 
       const status = BillingPaymentStatus[result.normalizedStatus];
+      const preserveCanceledSubscription =
+        status === BillingPaymentStatus.APPROVED &&
+        checkout.subscription.status === SubscriptionStatus.canceled &&
+        checkout.subscription.cancelAtPeriodEnd === true;
       const existing = await tx.billingPayment.findFirst({
         where: {
           tenantId: checkout.tenantId,
@@ -418,7 +457,14 @@ export class PaymentsService {
           version: checkout.subscription.version,
         },
         data: {
-          ...this.subscriptionState(status, checkout.planId, provider, result),
+          ...(preserveCanceledSubscription
+            ? {}
+            : this.subscriptionState(
+                status,
+                checkout.planId,
+                provider,
+                result,
+              )),
           lastPaymentState: status,
           lastProviderEventAt: result.providerOccurredAt,
           version: { increment: 1 },
@@ -429,7 +475,10 @@ export class PaymentsService {
       const periodStart =
         result.paidAt ?? result.providerOccurredAt ?? new Date();
       const periodEnd = this.periodEnd(periodStart, checkout.plan.interval);
-      if (status === BillingPaymentStatus.APPROVED) {
+      if (
+        status === BillingPaymentStatus.APPROVED &&
+        !preserveCanceledSubscription
+      ) {
         await tx.subscription.update({
           where: { id: checkout.subscription.id },
           data: { planId: checkout.planId, currentPeriodEndsAt: periodEnd },
@@ -530,8 +579,15 @@ export class PaymentsService {
         `${provider}:${result.gatewayPaymentId}:${status}`,
       );
 
-      if (status === BillingPaymentStatus.APPROVED) {
-        await this.convertPromotionReservation(tx, checkout.tenantId, checkout.id);
+      if (
+        status === BillingPaymentStatus.APPROVED &&
+        !preserveCanceledSubscription
+      ) {
+        await this.convertPromotionReservation(
+          tx,
+          checkout.tenantId,
+          checkout.id,
+        );
       }
 
       const checkoutStatus = this.checkoutStatus(status, checkout.status);
@@ -642,7 +698,7 @@ export class PaymentsService {
         status: next.referralStatus,
         convertedAt:
           next.paymentStatus === PartnerPaymentStatus.PAID
-            ? referral.convertedAt ?? new Date()
+            ? (referral.convertedAt ?? new Date())
             : referral.convertedAt,
       },
     });
