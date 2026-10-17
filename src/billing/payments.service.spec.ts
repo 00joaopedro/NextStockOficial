@@ -160,6 +160,9 @@ describe('RC-004 billing state policy', () => {
           tenantId: 'tenant',
           status: BillingPaymentStatus.APPROVED,
           plan: { slug: 'production-test-r1' },
+          subscription: {
+            is: { plan: { slug: 'production-test-r1' } },
+          },
           amountCents: 100,
           currency: 'BRL',
         }),
