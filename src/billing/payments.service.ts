@@ -25,6 +25,7 @@ import { decideBillingState } from './billing-state-order';
 import { isValidBillingExternalReference } from './external-reference.util';
 import { GatewayPaymentResult } from './gateways/payment-gateway.interface';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
+import { PRODUCTION_TEST_PLAN_SLUG } from './production-test-access';
 
 class BillingCasLostError extends Error {}
 
@@ -35,6 +36,45 @@ export class PaymentsService {
     private readonly events: BillingEventsService,
     private readonly gateways?: PaymentGatewayRegistry,
   ) {}
+
+  async productionTestRefundCapability(tenantId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+        plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+        amountCents: 100,
+        currency: 'BRL',
+      },
+      orderBy: { paidAt: 'desc' },
+      select: { id: true, amountCents: true, currency: true },
+    });
+    return {
+      enabled: Boolean(payment),
+      amountCents: payment?.amountCents ?? null,
+      currency: payment?.currency ?? null,
+    };
+  }
+
+  async refundProductionTestForTenant(tenantId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+        plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+        amountCents: 100,
+        currency: 'BRL',
+      },
+      orderBy: { paidAt: 'desc' },
+      select: { id: true },
+    });
+    if (!payment) {
+      throw new ConflictException(
+        'Não existe pagamento aprovado do teste de R$ 1,00 elegível para estorno.',
+      );
+    }
+    return this.refundForTenant(tenantId, payment.id);
+  }
 
   async refundForTenant(tenantId: string, paymentId: string) {
     const payment = await this.prisma.billingPayment.findFirst({
