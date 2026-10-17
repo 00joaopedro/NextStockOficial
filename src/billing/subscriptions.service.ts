@@ -1,5 +1,9 @@
 import { randomUUID, createHash } from 'node:crypto';
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BillingEventType,
   BillingSubscriptionOperationState,
@@ -79,6 +83,8 @@ export class SubscriptionsService {
     });
     if (!subscription)
       throw new NotFoundException('Subscription não encontrada.');
+    const retainAccessUntilPeriodEnd =
+      this.hasPaidAccessRemaining(subscription);
 
     const existingOperation =
       await this.prisma.billingSubscriptionOperation.findUnique({
@@ -122,7 +128,7 @@ export class SubscriptionsService {
         },
         data: {
           status: SubscriptionStatus.canceled,
-          cancelAtPeriodEnd: false,
+          cancelAtPeriodEnd: retainAccessUntilPeriodEnd,
           canceledAt: new Date(),
           version: { increment: 1 },
         },
@@ -146,7 +152,12 @@ export class SubscriptionsService {
         type: BillingEventType.SUBSCRIPTION_CANCELED,
         source: 'api',
         previousState: { status: subscription.status },
-        nextState: { status: current.status },
+        nextState: {
+          status: current.status,
+          cancelAtPeriodEnd: current.cancelAtPeriodEnd,
+          currentPeriodEndsAt:
+            current.currentPeriodEndsAt?.toISOString() ?? null,
+        },
       });
       return this.format(current);
     }
@@ -159,7 +170,11 @@ export class SubscriptionsService {
     const claimToken = randomUUID();
     const leaseExpiresAt = new Date(Date.now() + 60_000);
     let operation:
-      | { id: string; claimToken: string | null; state: BillingSubscriptionOperationState }
+      | {
+          id: string;
+          claimToken: string | null;
+          state: BillingSubscriptionOperationState;
+        }
       | undefined;
 
     if (!existingOperation) {
@@ -209,7 +224,7 @@ export class SubscriptionsService {
           },
           data: {
             status: SubscriptionStatus.canceled,
-            cancelAtPeriodEnd: false,
+            cancelAtPeriodEnd: retainAccessUntilPeriodEnd,
             canceledAt: new Date(),
             version: { increment: 1 },
           },
@@ -224,7 +239,12 @@ export class SubscriptionsService {
             type: BillingEventType.SUBSCRIPTION_CANCELED,
             source: 'reconciliation',
             previousState: { status: subscription.status },
-            nextState: { status: current.status },
+            nextState: {
+              status: current.status,
+              cancelAtPeriodEnd: current.cancelAtPeriodEnd,
+              currentPeriodEndsAt:
+                current.currentPeriodEndsAt?.toISOString() ?? null,
+            },
           });
         }
         return this.format(current);
@@ -234,27 +254,28 @@ export class SubscriptionsService {
           'Cancelamento já está em processamento; não será feita uma segunda chamada ao gateway.',
         );
       }
-      const reclaimed = await this.prisma.billingSubscriptionOperation.updateMany({
-        where: {
-          id: currentOperation.id,
-          claimToken: currentOperation.claimToken,
-          state: {
-            in: [
-              BillingSubscriptionOperationState.CLAIMED,
-              BillingSubscriptionOperationState.PROCESSING,
-              BillingSubscriptionOperationState.UNKNOWN,
-              BillingSubscriptionOperationState.FAILED_RETRYABLE,
-            ],
+      const reclaimed =
+        await this.prisma.billingSubscriptionOperation.updateMany({
+          where: {
+            id: currentOperation.id,
+            claimToken: currentOperation.claimToken,
+            state: {
+              in: [
+                BillingSubscriptionOperationState.CLAIMED,
+                BillingSubscriptionOperationState.PROCESSING,
+                BillingSubscriptionOperationState.UNKNOWN,
+                BillingSubscriptionOperationState.FAILED_RETRYABLE,
+              ],
+            },
+            leaseExpiresAt: { lte: new Date() },
           },
-          leaseExpiresAt: { lte: new Date() },
-        },
-        data: {
-          state: BillingSubscriptionOperationState.CLAIMED,
-          claimToken,
-          leaseExpiresAt,
-          failureCode: null,
-        },
-      });
+          data: {
+            state: BillingSubscriptionOperationState.CLAIMED,
+            claimToken,
+            leaseExpiresAt,
+            failureCode: null,
+          },
+        });
       if (reclaimed.count !== 1) {
         throw new ConflictException(
           'Claim de cancelamento expirou ou foi substituído.',
@@ -267,16 +288,17 @@ export class SubscriptionsService {
       };
     }
 
-    const processing = await this.prisma.billingSubscriptionOperation.updateMany({
-      where: {
-        id: operation.id,
-        claimToken,
-        state: BillingSubscriptionOperationState.CLAIMED,
-      },
-      data: {
-        state: BillingSubscriptionOperationState.PROCESSING,
-      },
-    });
+    const processing =
+      await this.prisma.billingSubscriptionOperation.updateMany({
+        where: {
+          id: operation.id,
+          claimToken,
+          state: BillingSubscriptionOperationState.CLAIMED,
+        },
+        data: {
+          state: BillingSubscriptionOperationState.PROCESSING,
+        },
+      });
     if (processing.count !== 1) {
       throw new ConflictException(
         'Claim de cancelamento expirou ou foi substituído.',
@@ -325,7 +347,7 @@ export class SubscriptionsService {
           },
           data: {
             status: SubscriptionStatus.canceled,
-            cancelAtPeriodEnd: false,
+            cancelAtPeriodEnd: this.hasPaidAccessRemaining(current),
             canceledAt: new Date(),
             version: { increment: 1 },
           },
@@ -363,7 +385,12 @@ export class SubscriptionsService {
             type: BillingEventType.SUBSCRIPTION_CANCELED,
             source: 'api',
             previousState: { status: current.status },
-            nextState: { status: next.status },
+            nextState: {
+              status: next.status,
+              cancelAtPeriodEnd: next.cancelAtPeriodEnd,
+              currentPeriodEndsAt:
+                next.currentPeriodEndsAt?.toISOString() ?? null,
+            },
           },
           tx,
         );
@@ -414,5 +441,14 @@ export class SubscriptionsService {
   private daysRemaining(value?: Date | null) {
     if (!value) return 0;
     return Math.max(0, Math.ceil((value.getTime() - Date.now()) / 86_400_000));
+  }
+
+  private hasPaidAccessRemaining(subscription: {
+    currentPeriodEndsAt?: Date | null;
+  }) {
+    return Boolean(
+      subscription.currentPeriodEndsAt &&
+      subscription.currentPeriodEndsAt > new Date(),
+    );
   }
 }
