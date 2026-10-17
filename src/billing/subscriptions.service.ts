@@ -444,10 +444,12 @@ export class SubscriptionsService {
   }
 
   private hasPaidAccessRemaining(subscription: {
+    status?: SubscriptionStatus;
     currentPeriodEndsAt?: Date | null;
   }) {
     return Boolean(
-      subscription.currentPeriodEndsAt &&
+      subscription.status === SubscriptionStatus.active &&
+        subscription.currentPeriodEndsAt &&
       subscription.currentPeriodEndsAt > new Date(),
     );
   }
