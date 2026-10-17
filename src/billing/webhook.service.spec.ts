@@ -90,6 +90,17 @@ describe('RC-010 webhook inbox policy', () => {
     }
   });
 
+  it('recognizes only explicit payment topics as payment resources', () => {
+    expect(service.isMercadoPagoPaymentEvent('payment')).toBe(true);
+    expect(service.isMercadoPagoPaymentEvent('payment.updated')).toBe(true);
+    expect(service.isMercadoPagoPaymentEvent('subscription_authorized_payment')).toBe(
+      false,
+    );
+    expect(service.isMercadoPagoPaymentEvent('subscription_preapproval')).toBe(
+      false,
+    );
+  });
+
   it('sanitizes error codes', () => {
     expect(service.safeErrorCode({ name: 'Bad error: token=secret!' })).toBe(
       'Baderrortokensecret',
