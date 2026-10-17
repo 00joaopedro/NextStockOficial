@@ -158,12 +158,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   it('acknowledges a live subscription payment event without resolving it as a payment', async () => {
     const key = `rc010-subscription-payment-${Date.now()}`;
     const result = await services[0].handleMercadoPago(
-      input(
-        `event-${key}`,
-        key,
-        true,
-        'subscription_authorized_payment',
-      ),
+      input(`event-${key}`, key, true, 'subscription_authorized_payment'),
     );
 
     expect(result).toEqual({ received: true, processed: false });
