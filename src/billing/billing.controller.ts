@@ -96,10 +96,18 @@ export class BillingController {
   }
 
   @Get('production-test-capability')
-  productionTestCapability(@Req() req: Request) {
+  async productionTestCapability(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
     return {
       ok: true,
-      enabled: canUseProductionTestCheckout(req.user),
+      enabled: await this.checkouts.productionTestCheckoutAvailable(
+        req.user,
+        branchId,
+        devContext,
+      ),
     };
   }
 
