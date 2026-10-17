@@ -23,7 +23,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BillingEventsService } from './billing-events.service';
 import { decideBillingState } from './billing-state-order';
 import { isValidBillingExternalReference } from './external-reference.util';
-import { GatewayPaymentResult } from './gateways/payment-gateway.interface';
+import {
+  GatewayCheckoutError,
+  GatewayPaymentResult,
+} from './gateways/payment-gateway.interface';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { PRODUCTION_TEST_PLAN_SLUG } from './production-test-access';
 
@@ -52,10 +55,44 @@ export class PaymentsService {
       orderBy: { paidAt: 'desc' },
       select: { id: true, amountCents: true, currency: true },
     });
+    if (!payment) {
+      return {
+        enabled: false,
+        visible: false,
+        action: 'NONE' as const,
+        amountCents: null,
+        currency: null,
+        refundState: null,
+      };
+    }
+    const intent = await this.prisma.billingRefundIntent.findUnique({
+      where: {
+        tenantId_paymentId_operation: {
+          tenantId,
+          paymentId: payment.id,
+          operation: 'REFUND',
+        },
+      },
+      select: { state: true },
+    });
+    const state = intent?.state ?? null;
+    const action =
+      state === BillingRefundIntentState.FAILED_RETRYABLE
+        ? ('RETRY' as const)
+        : state === BillingRefundIntentState.UNKNOWN
+          ? ('RECONCILE' as const)
+          : state || null
+            ? ('NONE' as const)
+            : ('REQUEST' as const);
     return {
-      enabled: Boolean(payment),
-      amountCents: payment?.amountCents ?? null,
-      currency: payment?.currency ?? null,
+      enabled:
+        action === 'REQUEST' || action === 'RETRY' || action === 'RECONCILE',
+      visible:
+        action !== 'NONE' || state === BillingRefundIntentState.FAILED_FINAL,
+      action,
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+      refundState: state,
     };
   }
 
@@ -129,6 +166,15 @@ export class PaymentsService {
         idempotentReplay: true,
       };
     }
+    if (existingIntent?.state === BillingRefundIntentState.FAILED_FINAL) {
+      return {
+        accepted: false,
+        status: existingIntent.state,
+        paymentId: payment.id,
+        refundIntentId: existingIntent.id,
+        idempotentReplay: true,
+      };
+    }
     if (payment.status !== BillingPaymentStatus.APPROVED && !existingIntent) {
       throw new ConflictException(
         'Pagamento não está aprovado para reembolso.',
@@ -144,29 +190,22 @@ export class PaymentsService {
         }
       | undefined;
     if (existingIntent) {
-      const expired = existingIntent.leaseExpiresAt <= new Date();
-      if (!expired) {
-        throw new ConflictException(
-          'Reembolso já está em processamento; não será feita uma segunda chamada ao gateway.',
-        );
-      }
-      if (existingIntent.state === BillingRefundIntentState.CLAIMED) {
-        const reclaimed = await this.prisma.billingRefundIntent.updateMany({
+      if (existingIntent.state === BillingRefundIntentState.FAILED_RETRYABLE) {
+        const retried = await this.prisma.billingRefundIntent.updateMany({
           where: {
             id: existingIntent.id,
-            claimToken: existingIntent.claimToken,
-            state: BillingRefundIntentState.CLAIMED,
-            leaseExpiresAt: { lte: new Date() },
+            state: BillingRefundIntentState.FAILED_RETRYABLE,
           },
           data: {
             claimToken,
             state: BillingRefundIntentState.PROCESSING,
             leaseExpiresAt: new Date(Date.now() + 60_000),
+            failureCode: null,
           },
         });
-        if (reclaimed.count !== 1) {
+        if (retried.count !== 1) {
           throw new ConflictException(
-            'Claim de reembolso expirou ou foi substituído.',
+            'Reembolso foi atualizado por outra solicitação.',
           );
         }
         intent = {
@@ -174,42 +213,76 @@ export class PaymentsService {
           claimToken,
           state: BillingRefundIntentState.PROCESSING,
         };
-      } else if (existingIntent.state === BillingRefundIntentState.PROCESSING) {
-        const fenced = await this.prisma.billingRefundIntent.updateMany({
-          where: {
-            id: existingIntent.id,
-            claimToken: existingIntent.claimToken,
-            state: BillingRefundIntentState.PROCESSING,
-            leaseExpiresAt: { lte: new Date() },
-          },
-          data: {
-            state: BillingRefundIntentState.UNKNOWN,
-            failureCode: 'EXPIRED_CLAIM_RECONCILIATION_REQUIRED',
-          },
-        });
-        if (fenced.count !== 1) {
+      } else {
+        const expired = existingIntent.leaseExpiresAt <= new Date();
+        if (!expired) {
           throw new ConflictException(
-            'Claim de reembolso expirou ou foi substituído.',
+            'Reembolso já está em processamento; não será feita uma segunda chamada ao gateway.',
           );
         }
-        const reconciled = await this.reconcileRefundIntent(
-          payment,
-          { ...existingIntent, state: BillingRefundIntentState.UNKNOWN },
-          gateway,
-        );
-        return (
-          reconciled ?? {
-            accepted: false,
-            status: BillingRefundIntentState.UNKNOWN,
-            paymentId: payment.id,
-            refundIntentId: existingIntent.id,
-            idempotentReplay: true,
+        if (existingIntent.state === BillingRefundIntentState.CLAIMED) {
+          const reclaimed = await this.prisma.billingRefundIntent.updateMany({
+            where: {
+              id: existingIntent.id,
+              claimToken: existingIntent.claimToken,
+              state: BillingRefundIntentState.CLAIMED,
+              leaseExpiresAt: { lte: new Date() },
+            },
+            data: {
+              claimToken,
+              state: BillingRefundIntentState.PROCESSING,
+              leaseExpiresAt: new Date(Date.now() + 60_000),
+            },
+          });
+          if (reclaimed.count !== 1) {
+            throw new ConflictException(
+              'Claim de reembolso expirou ou foi substituído.',
+            );
           }
-        );
-      } else {
-        throw new ConflictException(
-          'Estado de reembolso não pode ser retomado automaticamente.',
-        );
+          intent = {
+            id: existingIntent.id,
+            claimToken,
+            state: BillingRefundIntentState.PROCESSING,
+          };
+        } else if (
+          existingIntent.state === BillingRefundIntentState.PROCESSING
+        ) {
+          const fenced = await this.prisma.billingRefundIntent.updateMany({
+            where: {
+              id: existingIntent.id,
+              claimToken: existingIntent.claimToken,
+              state: BillingRefundIntentState.PROCESSING,
+              leaseExpiresAt: { lte: new Date() },
+            },
+            data: {
+              state: BillingRefundIntentState.UNKNOWN,
+              failureCode: 'EXPIRED_CLAIM_RECONCILIATION_REQUIRED',
+            },
+          });
+          if (fenced.count !== 1) {
+            throw new ConflictException(
+              'Claim de reembolso expirou ou foi substituído.',
+            );
+          }
+          const reconciled = await this.reconcileRefundIntent(
+            payment,
+            { ...existingIntent, state: BillingRefundIntentState.UNKNOWN },
+            gateway,
+          );
+          return (
+            reconciled ?? {
+              accepted: false,
+              status: BillingRefundIntentState.UNKNOWN,
+              paymentId: payment.id,
+              refundIntentId: existingIntent.id,
+              idempotentReplay: true,
+            }
+          );
+        } else {
+          throw new ConflictException(
+            'Estado de reembolso não pode ser retomado automaticamente.',
+          );
+        }
       }
     } else {
       try {
@@ -328,6 +401,21 @@ export class PaymentsService {
         localResult,
       };
     } catch (error) {
+      if (error instanceof GatewayCheckoutError) {
+        const state = this.refundFailureState(error);
+        await this.markRefundState(
+          intent.id,
+          claimToken,
+          state,
+          error.failureCode,
+        );
+        return {
+          accepted: false,
+          status: state,
+          paymentId: payment.id,
+          refundIntentId: intent.id,
+        };
+      }
       await this.markRefundUnknown(
         intent.id,
         claimToken,
@@ -384,9 +472,31 @@ export class PaymentsService {
     claimToken: string,
     failureCode: string,
   ) {
+    return this.markRefundState(
+      id,
+      claimToken,
+      BillingRefundIntentState.UNKNOWN,
+      failureCode,
+    );
+  }
+
+  private refundFailureState(error: GatewayCheckoutError) {
+    return error.checkoutState === 'FAILED_RETRYABLE'
+      ? BillingRefundIntentState.FAILED_RETRYABLE
+      : error.checkoutState === 'FAILED_FINAL'
+        ? BillingRefundIntentState.FAILED_FINAL
+        : BillingRefundIntentState.UNKNOWN;
+  }
+
+  private async markRefundState(
+    id: string,
+    claimToken: string,
+    state: BillingRefundIntentState,
+    failureCode: string,
+  ) {
     await this.prisma.billingRefundIntent.updateMany({
       where: { id, claimToken, state: BillingRefundIntentState.PROCESSING },
-      data: { state: BillingRefundIntentState.UNKNOWN, failureCode },
+      data: { state, failureCode },
     });
   }
 

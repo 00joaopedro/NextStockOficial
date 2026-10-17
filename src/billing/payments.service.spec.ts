@@ -1,10 +1,12 @@
 import {
   BillingPaymentStatus,
+  BillingRefundIntentState,
   PartnerPaymentStatus,
   PartnerReferralStatus,
   PaymentGatewayProvider,
 } from '@prisma/client';
 import { decideBillingState } from './billing-state-order';
+import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 import { PaymentsService } from './payments.service';
 
 describe('RC-004 billing state policy', () => {
@@ -171,6 +173,87 @@ describe('RC-004 billing state policy', () => {
     expect(service.refundForTenant).toHaveBeenCalledWith(
       'tenant',
       'test-payment',
+    );
+  });
+
+  it('expõe falha final do estorno técnico sem liberar nova tentativa', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'test-payment',
+          amountCents: 100,
+          currency: 'BRL',
+        }),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue({
+          state: BillingRefundIntentState.FAILED_FINAL,
+        }),
+      },
+    } as any;
+    const service = new PaymentsService(prisma, {} as any);
+
+    await expect(
+      service.productionTestRefundCapability('tenant'),
+    ).resolves.toEqual({
+      enabled: false,
+      visible: true,
+      action: 'NONE',
+      amountCents: 100,
+      currency: 'BRL',
+      refundState: BillingRefundIntentState.FAILED_FINAL,
+    });
+  });
+
+  it('registra como falha final uma recusa conhecida do gateway sem retornar 502', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'test-payment',
+          tenantId: 'tenant',
+          provider: PaymentGatewayProvider.MERCADO_PAGO,
+          gatewayPaymentId: 'gateway-payment',
+          status: BillingPaymentStatus.APPROVED,
+        }),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: 'refund-intent',
+          claimToken: 'claim-token',
+          state: BillingRefundIntentState.CLAIMED,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const gateway = {
+      refundPayment: jest.fn().mockRejectedValue(
+        new GatewayCheckoutError('Mercado Pago recusou', true, {
+          code: 'bad_request',
+          providerStatus: 400,
+          state: 'FAILED_FINAL',
+        }),
+      ),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.refundForTenant('tenant', 'test-payment'),
+    ).resolves.toMatchObject({
+      accepted: false,
+      status: BillingRefundIntentState.FAILED_FINAL,
+    });
+    expect(prisma.billingRefundIntent.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          state: BillingRefundIntentState.FAILED_FINAL,
+          failureCode: 'bad_request',
+        }),
+      }),
     );
   });
 });
