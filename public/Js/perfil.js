@@ -187,6 +187,17 @@
     if (!entitlement.allowed) details.push("Seu período gratuito terminou. Escolha um plano para continuar usando o sistema.");
     el.details.textContent = details.join(" ");
     renderCancellation(subscription);
+    updatePlanActionsForCancellation();
+  }
+  function cancellationPeriodActive() {
+    return Boolean(state.subscription?.status === "canceled" && state.subscription?.cancelAtPeriodEnd && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date());
+  }
+  function updatePlanActionsForCancellation() {
+    if (!cancellationPeriodActive()) return;
+    el.plans.querySelectorAll("button[data-billing-plan-action]").forEach((button) => {
+      button.disabled = true;
+      button.title = "A renovação foi cancelada. Um novo checkout poderá ser criado após o fim do período já pago.";
+    });
   }
   function canCancelSubscription() {
     return Boolean(state.subscription && !["canceled", "expired", "suspended"].includes(state.subscription.status));
@@ -219,13 +230,15 @@
       action.textContent = isPromotionPlan
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
-      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady;
+      action.dataset.billingPlanAction = "true";
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive();
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
       action.addEventListener("click", () => startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
+    updatePlanActionsForCancellation();
   }
   function idempotencyKeyFor(storageKey) {
     let idempotencyKey = sessionStorage.getItem(storageKey);
