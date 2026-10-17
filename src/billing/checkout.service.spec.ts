@@ -1,4 +1,9 @@
-import { PaymentGatewayProvider, PlanInterval, Role } from '@prisma/client';
+import {
+  BillingPaymentStatus,
+  PaymentGatewayProvider,
+  PlanInterval,
+  Role,
+} from '@prisma/client';
 import { CheckoutService } from './checkout.service';
 
 describe('CheckoutService', () => {
@@ -213,5 +218,40 @@ describe('CheckoutService', () => {
       endDate: '2027-01-16T00:00:00.000Z',
     });
     jest.useRealTimers();
+  });
+
+  it('indisponibiliza um novo teste de produção depois de um pagamento aprovado', async () => {
+    process.env.BILLING_PRODUCTION_TEST_ENABLED = 'true';
+    process.env.BILLING_PRODUCTION_TEST_ADMIN_EMAIL = 'admin@example.com';
+    const service = new CheckoutService(
+      {
+        billingPayment: {
+          findFirst: jest.fn().mockResolvedValue({ id: 'approved-payment' }),
+        },
+      } as any,
+      {
+        resolve: jest
+          .fn()
+          .mockResolvedValue({ tenantId: 'tenant', userId: 'user' }),
+      } as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.productionTestCheckoutAvailable({
+        email: 'admin@example.com',
+        role: Role.Admin,
+      } as any),
+    ).resolves.toBe(false);
+    expect(
+      (service as any).prisma.billingPayment.findFirst,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: BillingPaymentStatus.APPROVED,
+        }),
+      }),
+    );
   });
 });
