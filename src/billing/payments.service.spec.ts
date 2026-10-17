@@ -1,4 +1,9 @@
-import { BillingPaymentStatus, PartnerPaymentStatus, PartnerReferralStatus, PaymentGatewayProvider } from '@prisma/client';
+import {
+  BillingPaymentStatus,
+  PartnerPaymentStatus,
+  PartnerReferralStatus,
+  PaymentGatewayProvider,
+} from '@prisma/client';
 import { decideBillingState } from './billing-state-order';
 import { PaymentsService } from './payments.service';
 
@@ -134,4 +139,35 @@ describe('RC-004 billing state policy', () => {
     expect(tx.partnerReferralPaymentEvent.create).not.toHaveBeenCalled();
   });
 
+  it('estorna exclusivamente o pagamento aprovado do plano técnico', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'test-payment' }),
+      },
+    } as any;
+    const service = new PaymentsService(prisma, {} as any);
+    jest
+      .spyOn(service, 'refundForTenant')
+      .mockResolvedValue({ accepted: true } as any);
+
+    await expect(
+      service.refundProductionTestForTenant('tenant'),
+    ).resolves.toMatchObject({ accepted: true });
+
+    expect(prisma.billingPayment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant',
+          status: BillingPaymentStatus.APPROVED,
+          plan: { slug: 'production-test-r1' },
+          amountCents: 100,
+          currency: 'BRL',
+        }),
+      }),
+    );
+    expect(service.refundForTenant).toHaveBeenCalledWith(
+      'tenant',
+      'test-payment',
+    );
+  });
 });
