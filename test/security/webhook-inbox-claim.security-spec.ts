@@ -67,6 +67,7 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
 
   beforeEach(() => {
     providerLookups = 0;
+    effects = 0;
   });
 
   afterAll(async () => {
@@ -152,6 +153,30 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
         where: { requestId: `request-${key}` },
       }),
     ).toBe(0);
+  });
+
+  it('acknowledges a live subscription payment event without resolving it as a payment', async () => {
+    const key = `rc010-subscription-payment-${Date.now()}`;
+    const result = await services[0].handleMercadoPago(
+      input(
+        `event-${key}`,
+        key,
+        true,
+        'subscription_authorized_payment',
+      ),
+    );
+
+    expect(result).toEqual({ received: true, processed: false });
+    expect(providerLookups).toBe(0);
+    expect(effects).toBe(0);
+    expect(
+      await first.gatewayWebhookEvent.findFirstOrThrow({
+        where: { requestId: `request-${key}` },
+      }),
+    ).toMatchObject({
+      processingStatus: 'IGNORED',
+      failureCode: 'NON_PAYMENT_EVENT',
+    });
   });
 
   it('processes a signed non-live sandbox payment normally', async () => {
