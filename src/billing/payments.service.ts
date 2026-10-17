@@ -43,6 +43,9 @@ export class PaymentsService {
         tenantId,
         status: BillingPaymentStatus.APPROVED,
         plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+        subscription: {
+          is: { plan: { slug: PRODUCTION_TEST_PLAN_SLUG } },
+        },
         amountCents: 100,
         currency: 'BRL',
       },
@@ -62,6 +65,9 @@ export class PaymentsService {
         tenantId,
         status: BillingPaymentStatus.APPROVED,
         plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+        subscription: {
+          is: { plan: { slug: PRODUCTION_TEST_PLAN_SLUG } },
+        },
         amountCents: 100,
         currency: 'BRL',
       },
