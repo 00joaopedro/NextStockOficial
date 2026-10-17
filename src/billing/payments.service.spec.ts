@@ -1,1 +1,259 @@
-aW1wb3J0IHsKICBCaWxsaW5nUGF5bWVudFN0YXR1cywKICBCaWxsaW5nUmVmdW5kSW50ZW50U3RhdGUsCiAgUGFydG5lclBheW1lbnRTdGF0dXMsCiAgUGFydG5lclJlZmVycmFsU3RhdHVzLAogIFBheW1lbnRHYXRld2F5UHJvdmlkZXIsCn0gZnJvbSAnQHByaXNtYS9jbGllbnQnOwppbXBvcnQgeyBkZWNpZGVCaWxsaW5nU3RhdGUgfSBmcm9tICcuL2JpbGxpbmctc3RhdGUtb3JkZXInOwppbXBvcnQgeyBHYXRld2F5Q2hlY2tvdXRFcnJvciB9IGZyb20gJy4vZ2F0ZXdheXMvcGF5bWVudC1nYXRld2F5LmludGVyZmFjZSc7CmltcG9ydCB7IFBheW1lbnRzU2VydmljZSB9IGZyb20gJy4vcGF5bWVudHMuc2VydmljZSc7CgpkZXNjcmliZSgnUkMtMDA0IGJpbGxpbmcgc3RhdGUgcG9saWN5JywgKCkgPT4gewogIGNvbnN0IGF0ID0gKHZhbHVlOiBzdHJpbmcgfCBudWxsKSA9PiAodmFsdWUgPyBuZXcgRGF0ZSh2YWx1ZSkgOiBudWxsKTsKCiAgaXQuZWFjaChbCiAgICBbJ1BFTkRJTkcnLCAnQVBQUk9WRUQnLCB0cnVlXSwKICAgIFsnUEVORElORycsICdSRUpFQ1RFRCcsIHRydWVdLAogICAgWydBUFBST1ZFRCcsICdQRU5ESU5HJywgZmFsc2VdLAogICAgWydBUFBST1ZFRCcsICdSRUpFQ1RFRCcsIGZhbHNlXSwKICAgIFsnQVBQUk9WRUQnLCAnUkVGVU5ERUQnLCB0cnVlXSwKICAgIFsnUkVGVU5ERUQnLCAnQVBQUk9WRUQnLCBmYWxzZV0sCiAgICBbJ1JFRlVOREVEJywgJ0NIQVJHRUJBQ0snLCB0cnVlXSwKICAgIFsnQ0hBUkdFQkFDSycsICdSRUZVTkRFRCcsIGZhbHNlXSwKICBdIGFzIGNvbnN0KSgnJXMgLT4gJXMgYXBwbHk9JXMgd2l0aG91dCBwcm92aWRlciB0aW1lJywgKGZyb20sIHRvLCBhcHBseSkgPT4gewogICAgZXhwZWN0KAogICAgICBkZWNpZGVCaWxsaW5nU3RhdGUoCiAgICAgICAgQmlsbGluZ1BheW1lbnRTdGF0dXNbZnJvbV0sCiAgICAgICAgbnVsbCwKICAgICAgICBCaWxsaW5nUGF5bWVudFN0YXR1c1t0b10sCiAgICAgICAgbnVsbCwKICAgICAgKS5hcHBseSwKICAgICkudG9CZShhcHBseSk7CiAgfSk7CgogIGl0KCdyZWplY3RzIGFuIG9sZGVyIGV2ZW50IGFuZCBkZXRlcm1pbmlzdGljYWxseSBicmVha3MgZXF1YWwtdGltZSB0aWVzJywgKCkgPT4gewogICAgZXhwZWN0KAogICAgICBkZWNpZGVCaWxsaW5nU3RhdGUoCiAgICAgICAgQmlsbGluZ1BheW1lbnRTdGF0dXMuQVBQUk9WRUQsCiAgICAgICAgYXQoJzIwMjYtMDctMjlUMTI6MDA6MDFaJyksCiAgICAgICAgQmlsbGluZ1BheW1lbnRTdGF0dXMuUkVGVU5ERUQsCiAgICAgICAgYXQoJzIwMjYtMDctMjlUMTI6MDA6MDBaJyksCiAgICAgICksCiAgICApLnRvTWF0Y2hPYmplY3QoeyBhcHBseTogZmFsc2UsIHJlYXNvbjogJ09MREVSJyB9KTsKICAgIGV4cGVjdCgKICAgICAgZGVjaWRlQmlsbGluZ1N0YXRlKAogICAgICAgIEJpbGxpbmdQYXltZW50U3RhdHVzLlBFTkRJTkcsCiAgICAgICAgYXQoJzIwMjYtMDctMjlUMTI6MDA6MDBaJyksCiAgICAgICAgQmlsbGluZ1BheW1lbnRTdGF0dXMuQVBQUk9WRUQsCiAgICAgICAgYXQoJzIwMjYtMDctMjlUMTI6MDA6MDBaJyksCiAgICAgICkuYXBwbHksCiAgICApLnRvQmUodHJ1ZSk7CiAgfSk7CgogIGl0KCdyZWplY3RzIG1hbGZvcm1lZCBjb3JyZWxhdGlvbiBiZWZvcmUgb3BlbmluZyBhIHRyYW5zYWN0aW9uJywgYXN5bmMgKCkgPT4gewogICAgY29uc3QgcHJpc21hID0geyAkdHJhbnNhY3Rpb246IGplc3QuZm4oKSB9IGFzIGFueTsKICAgIGNvbnN0IHNlcnZpY2UgPSBuZXcgUGF5bWVudHNTZXJ2aWNlKHByaXNtYSwge30gYXMgYW55KTsKICAgIGF3YWl0IGV4cGVjdCgKICAgICAgc2VydmljZS5wcm9jZXNzVmVyaWZpZWRQYXltZW50KFBheW1lbnRHYXRld2F5UHJvdmlkZXIuTUVSQ0FET19QQUdPLCB7CiAgICAgICAgZ2F0ZXdheVBheW1lbnRJZDogJ3AnLAogICAgICAgIHN0YXR1czogJ2FwcHJvdmVkJywKICAgICAgICBub3JtYWxpemVkU3RhdHVzOiAnQVBQUk9WRUQnLAogICAgICAgIGV4dGVybmFsUmVmZXJlbmNlOiBudWxsLAogICAgICAgIGFtb3VudENlbnRzOiAxLAogICAgICAgIGN1cnJlbmN5OiAnQlJMJywKICAgICAgICBwYWlkQXQ6IG51bGwsCiAgICAgICAgcHJvdmlkZXJPY2N1cnJlZEF0OiBudWxsLAogICAgICAgIGdhdGV3YXlTdWJzY3JpcHRpb25JZDogbnVsbCwKICAgICAgICByYXc6IHt9LAogICAgICB9KSwKICAgICkucmVzb2x2ZXMudG9FcXVhbCh7CiAgICAgIHByb2Nlc3NlZDogZmFsc2UsCiAgICAgIHJlYXNvbjogJ01JU1NJTkdfRVhURVJOQUxfUkVGRVJFTkNFJywKICAgIH0pOwogICAgZXhwZWN0KHByaXNtYS4kdHJhbnNhY3Rpb24pLm5vdC50b0hhdmVCZWVuQ2FsbGVkKCk7CiAgfSk7CiAgaXQoJ3NpbmNyb25pemEgbyBwYXJjZWlybyB1bWEgw7puaWNhIHZleiBwb3IgdHJhbnNpw6fDo28gZGUgcGFnYW1lbnRvJywgYXN5bmMgKCkgPT4gewogICAgY29uc3QgdHggPSB7CiAgICAgIHBhcnRuZXJSZWZlcnJhbDogewogICAgICAgIGZpbmRGaXJzdDogamVzdC5mbigpLm1vY2tSZXNvbHZlZFZhbHVlKHsKICAgICAgICAgIGlkOiAncmVmZXJyYWwnLAogICAgICAgICAgcGF5bWVudFN0YXR1czogUGFydG5lclBheW1lbnRTdGF0dXMuVU5QQUlELAogICAgICAgICAgc3RhdHVzOiBQYXJ0bmVyUmVmZXJyYWxTdGF0dXMuUkVHSVNURVJFRCwKICAgICAgICAgIGNvbnZlcnRlZEF0OiBudWxsLAogICAgICAgIH0pLAogICAgICAgIHVwZGF0ZU1hbnk6IGplc3QuZm4oKS5tb2NrUmVzb2x2ZWRWYWx1ZSh7IGNvdW50OiAxIH0pLAogICAgICB9LAogICAgICBwYXJ0bmVyUmVmZXJyYWxQYXltZW50RXZlbnQ6IHsgY3JlYXRlOiBqZXN0LmZuKCkgfSwKICAgIH0gYXMgYW55OwogICAgY29uc3Qgc2VydmljZSA9IG5ldyBQYXltZW50c1NlcnZpY2Uoe30gYXMgYW55LCB7fSBhcyBhbnkpOwoKICAgIGF3YWl0IChzZXJ2aWNlIGFzIGFueSkuc3luY1BhcnRuZXJSZWZlcnJhbCgKICAgICAgdHgsCiAgICAgICd0ZW5hbnQnLAogICAgICBCaWxsaW5nUGF5bWVudFN0YXR1cy5BUFBST1ZFRCwKICAgICAgJ3N1YnNjcmlwdGlvbicsCiAgICAgICdNRVJDQURPX1BBR086cGF5bWVudDpBUFBST1ZFRCcsCiAgICApOwoKICAgIGV4cGVjdCh0eC5wYXJ0bmVyUmVmZXJyYWwudXBkYXRlTWFueSkudG9IYXZlQmVlbkNhbGxlZFdpdGgoCiAgICAgIGV4cGVjdC5vYmplY3RDb250YWluaW5nKHsKICAgICAgICBkYXRhOiBleHBlY3Qub2JqZWN0Q29udGFpbmluZyh7CiAgICAgICAgICBwYXltZW50U3RhdHVzOiBQYXJ0bmVyUGF5bWVudFN0YXR1cy5QQUlELAogICAgICAgICAgc3RhdHVzOiBQYXJ0bmVyUmVmZXJyYWxTdGF0dXMuQ09OVkVSVEVELAogICAgICAgIH0pLAogICAgICB9KSwKICAgICk7CiAgICBleHBlY3QodHgucGFydG5lclJlZmVycmFsUGF5bWVudEV2ZW50LmNyZWF0ZSkudG9IYXZlQmVlbkNhbGxlZFdpdGgoCiAgICAgIGV4cGVjdC5vYmplY3RDb250YWluaW5nKHsKICAgICAgICBkYXRhOiBleHBlY3Qub2JqZWN0Q29udGFpbmluZyh7CiAgICAgICAgICBzb3VyY2U6ICdTVUJTQ1JJUFRJT05fU1lOQycsCiAgICAgICAgICBwcm92aWRlckV2ZW50SWQ6ICdNRVJDQURPX1BBR086cGF5bWVudDpBUFBST1ZFRCcsCiAgICAgICAgfSksCiAgICAgIH0pLAogICAgKTsKICB9KTsKCiAgaXQoJ2lnbm9yYSB1bWEgdHJhbnNpw6fDo28gasOhIGFwbGljYWRhIHNlbSBjcmlhciBub3ZvIGV2ZW50bycsIGFzeW5jICgpID0+IHsKICAgIGNvbnN0IHR4ID0gewogICAgICBwYXJ0bmVyUmVmZXJyYWw6IHsKICAgICAgICBmaW5kRmlyc3Q6IGplc3QuZm4oKS5tb2NrUmVzb2x2ZWRWYWx1ZSh7CiAgICAgICAgICBpZDogJ3JlZmVycmFsJywKICAgICAgICAgIHBheW1lbnRTdGF0dXM6IFBhcnRuZXJQYXltZW50U3RhdHVzLlBBSUQsCiAgICAgICAgICBzdGF0dXM6IFBhcnRuZXJSZWZlcnJhbFN0YXR1cy5DT05WRVJURUQsCiAgICAgICAgICBjb252ZXJ0ZWRBdDogbmV3IERhdGUoKSwKICAgICAgICB9KSwKICAgICAgICB1cGRhdGVNYW55OiBqZXN0LmZuKCksCiAgICAgIH0sCiAgICAgIHBhcnRuZXJSZWZlcnJhbFBheW1lbnRFdmVudDogeyBjcmVhdGU6IGplc3QuZm4oKSB9LAogICAgfSBhcyBhbnk7CiAgICBjb25zdCBzZXJ2aWNlID0gbmV3IFBheW1lbnRzU2VydmljZSh7fSBhcyBhbnksIHt9IGFzIGFueSk7CgogICAgYXdhaXQgKHNlcnZpY2UgYXMgYW55KS5zeW5jUGFydG5lclJlZmVycmFsKAogICAgICB0eCwKICAgICAgJ3RlbmFudCcsCiAgICAgIEJpbGxpbmdQYXltZW50U3RhdHVzLkFQUFJPVkVELAogICAgICAnc3Vic2NyaXB0aW9uJywKICAgICAgJ01FUkNBRE9fUEFHTzpwYXltZW50OkFQUFJPVkVEJywKICAgICk7CgogICAgZXhwZWN0KHR4LnBhcnRuZXJSZWZlcnJhbC51cGRhdGVNYW55KS5ub3QudG9IYXZlQmVlbkNhbGxlZCgpOwogICAgZXhwZWN0KHR4LnBhcnRuZXJSZWZlcnJhbFBheW1lbnRFdmVudC5jcmVhdGUpLm5vdC50b0hhdmVCZWVuQ2FsbGVkKCk7CiAgfSk7CgogIGl0KCdlc3Rvcm5hIGV4Y2x1c2l2YW1lbnRlIG8gcGFnYW1lbnRvIGFwcm92YWRvIGRvIHBsYW5vIHTDqWNuaWNvJywgYXN5bmMgKCkgPT4gewogICAgY29uc3QgcHJpc21hID0gewogICAgICBiaWxsaW5nUGF5bWVudDogewogICAgICAgIGZpbmRGaXJzdDogamVzdC5mbigpLm1vY2tSZXNvbHZlZFZhbHVlKHsgaWQ6ICd0ZXN0LXBheW1lbnQnIH0pLAogICAgICB9LAogICAgfSBhcyBhbnk7CiAgICBjb25zdCBzZXJ2aWNlID0gbmV3IFBheW1lbnRzU2VydmljZShwcmlzbWEsIHt9IGFzIGFueSk7CiAgICBqZXN0CiAgICAgIC5zcHlPbihzZXJ2aWNlLCAncmVmdW5kRm9yVGVuYW50JykKICAgICAgLm1vY2tSZXNvbHZlZFZhbHVlKHsgYWNjZXB0ZWQ6IHRydWUgfSBhcyBhbnkpOwoKICAgIGF3YWl0IGV4cGVjdCgKICAgICAgc2VydmljZS5yZWZ1bmRQcm9kdWN0aW9uVGVzdEZvclRlbmFudCgndGVuYW50JyksCiAgICApLnJlc29sdmVzLnRvTWF0Y2hPYmplY3QoeyBhY2NlcHRlZDogdHJ1ZSB9KTsKCiAgICBleHBlY3QocHJpc21hLmJpbGxpbmdQYXltZW50LmZpbmRGaXJzdCkudG9IYXZlQmVlbkNhbGxlZFdpdGgoCiAgICAgIGV4cGVjdC5vYmplY3RDb250YWluaW5nKHsKICAgICAgICB3aGVyZTogZXhwZWN0Lm9iamVjdENvbnRhaW5pbmcoewogICAgICAgICAgdGVuYW50SWQ6ICd0ZW5hbnQnLAogICAgICAgICAgc3RhdHVzOiBCaWxsaW5nUGF5bWVudFN0YXR1cy5BUFBST1ZFRCwKICAgICAgICAgIHBsYW46IHsgc2x1ZzogJ3Byb2R1Y3Rpb24tdGVzdC1yMScgfSwKICAgICAgICAgIHN1YnNjcmlwdGlvbjogewogICAgICAgICAgICBpczogeyBwbGFuOiB7IHNsdWc6ICdwcm9kdWN0aW9uLXRlc3QtcjEnIH0gfSwKICAgICAgICAgIH0sCiAgICAgICAgICBhbW91bnRDZW50czogMTAwLAogICAgICAgICAgY3VycmVuY3k6ICdCUkwnLAogICAgICAgIH0pLAogICAgICB9KSwKICAgICk7CiAgICBleHBlY3Qoc2VydmljZS5yZWZ1bmRGb3JUZW5hbnQpLnRvSGF2ZUJlZW5DYWxsZWRXaXRoKAogICAgICAndGVuYW50JywKICAgICAgJ3Rlc3QtcGF5bWVudCcsCiAgICApOwogIH0pOwoKICBpdCgnZXhww7VlIGZhbGhhIGZpbmFsIGRvIGVzdG9ybm8gdMOpY25pY28gc2VtIGxpYmVyYXIgbm92YSB0ZW50YXRpdmEnLCBhc3luYyAoKSA9PiB7CiAgICBjb25zdCBwcmlzbWEgPSB7CiAgICAgIGJpbGxpbmdQYXltZW50OiB7CiAgICAgICAgZmluZEZpcnN0OiBqZXN0LmZuKCkubW9ja1Jlc29sdmVkVmFsdWUoewogICAgICAgICAgaWQ6ICd0ZXN0LXBheW1lbnQnLAogICAgICAgICAgYW1vdW50Q2VudHM6IDEwMCwKICAgICAgICAgIGN1cnJlbmN5OiAnQlJMJywKICAgICAgICB9KSwKICAgICAgfSwKICAgICAgYmlsbGluZ1JlZnVuZEludGVudDogewogICAgICAgIGZpbmRVbmlxdWU6IGplc3QuZm4oKS5tb2NrUmVzb2x2ZWRWYWx1ZSh7CiAgICAgICAgICBzdGF0ZTogQmlsbGluZ1JlZnVuZEludGVudFN0YXRlLkZBSUxFRF9GSU5BTCwKICAgICAgICB9KSwKICAgICAgfSwKICAgIH0gYXMgYW55OwogICAgY29uc3Qgc2VydmljZSA9IG5ldyBQYXltZW50c1NlcnZpY2UocHJpc21hLCB7fSBhcyBhbnkpOwoKICAgIGF3YWl0IGV4cGVjdCgKICAgICAgc2VydmljZS5wcm9kdWN0aW9uVGVzdFJlZnVuZENhcGFiaWxpdHkoJ3RlbmFudCcpLAogICAgKS5yZXNvbHZlcy50b0VxdWFsKHsKICAgICAgZW5hYmxlZDogZmFsc2UsCiAgICAgIHZpc2libGU6IHRydWUsCiAgICAgIGFjdGlvbjogJ05PTkUnLAogICAgICBhbW91bnRDZW50czogMTAwLAogICAgICBjdXJyZW5jeTogJ0JSTCcsCiAgICAgIHJlZnVuZFN0YXRlOiBCaWxsaW5nUmVmdW5kSW50ZW50U3RhdGUuRkFJTEVEX0ZJTkFMLAogICAgfSk7CiAgfSk7CgogIGl0KCdyZWdpc3RyYSBjb21vIGZhbGhhIGZpbmFsIHVtYSByZWN1c2EgY29uaGVjaWRhIGRvIGdhdGV3YXkgc2VtIHJldG9ybmFyIDUwMicsIGFzeW5jICgpID0+IHsKICAgIGNvbnN0IHByaXNtYSA9IHsKICAgICAgYmlsbGluZ1BheW1lbnQ6IHsKICAgICAgICBmaW5kRmlyc3Q6IGplc3QuZm4oKS5tb2NrUmVzb2x2ZWRWYWx1ZSh7CiAgICAgICAgICBpZDogJ3Rlc3QtcGF5bWVudCcsCiAgICAgICAgICB0ZW5hbnRJZDogJ3RlbmFudCcsCiAgICAgICAgICBwcm92aWRlcjogUGF5bWVudEdhdGV3YXlQcm92aWRlci5NRVJDQURPX1BBR08sCiAgICAgICAgICBnYXRld2F5UGF5bWVudElkOiAnZ2F0ZXdheS1wYXltZW50JywKICAgICAgICAgIHN0YXR1czogQmlsbGluZ1BheW1lbnRTdGF0dXMuQVBQUk9WRUQsCiAgICAgICAgfSksCiAgICAgIH0sCiAgICAgIGJpbGxpbmdSZWZ1bmRJbnRlbnQ6IHsKICAgICAgICBmaW5kVW5pcXVlOiBqZXN0LmZuKCkubW9ja1Jlc29sdmVkVmFsdWUobnVsbCksCiAgICAgICAgY3JlYXRlOiBqZXN0LmZuKCkubW9ja1Jlc29sdmVkVmFsdWUoewogICAgICAgICAgaWQ6ICdyZWZ1bmQtaW50ZW50JywKICAgICAgICAgIGNsYWltVG9rZW46ICdjbGFpbS10b2tlbicsCiAgICAgICAgICBzdGF0ZTogQmlsbGluZ1JlZnVuZEludGVudFN0YXRlLkNMQUlNRUQsCiAgICAgICAgfSksCiAgICAgICAgdXBkYXRlTWFueTogamVzdC5mbigpLm1vY2tSZXNvbHZlZFZhbHVlKHsgY291bnQ6IDEgfSksCiAgICAgIH0sCiAgICB9IGFzIGFueTsKICAgIGNvbnN0IGdhdGV3YXkgPSB7CiAgICAgIHJlZnVuZFBheW1lbnQ6IGplc3QuZm4oKS5tb2NrUmVqZWN0ZWRWYWx1ZSgKICAgICAgICBuZXcgR2F0ZXdheUNoZWNrb3V0RXJyb3IoJ01lcmNhZG8gUGFnbyByZWN1c291JywgdHJ1ZSwgewogICAgICAgICAgY29kZTogJ2JhZF9yZXF1ZXN0JywKICAgICAgICAgIHByb3ZpZGVyU3RhdHVzOiA0MDAsCiAgICAgICAgICBzdGF0ZTogJ0ZBSUxFRF9GSU5BTCcsCiAgICAgICAgfSksCiAgICAgICksCiAgICB9OwogICAgY29uc3Qgc2VydmljZSA9IG5ldyBQYXltZW50c1NlcnZpY2UoCiAgICAgIHByaXNtYSwKICAgICAge30gYXMgYW55LAogICAgICB7IGdldDogKCkgPT4gZ2F0ZXdheSB9IGFzIGFueSwKICAgICk7CgogICAgYXdhaXQgZXhwZWN0KAogICAgICBzZXJ2aWNlLnJlZnVuZEZvclRlbmFudCgndGVuYW50JywgJ3Rlc3QtcGF5bWVudCcpLAogICAgKS5yZXNvbHZlcy50b01hdGNoT2JqZWN0KHsKICAgICAgYWNjZXB0ZWQ6IGZhbHNlLAogICAgICBzdGF0dXM6IEJpbGxpbmdSZWZ1bmRJbnRlbnRTdGF0ZS5GQUlMRURfRklOQUwsCiAgICB9KTsKICAgIGV4cGVjdChwcmlzbWEuYmlsbGluZ1JlZnVuZEludGVudC51cGRhdGVNYW55KS50b0hhdmVCZWVuTGFzdENhbGxlZFdpdGgoCiAgICAgIGV4cGVjdC5vYmplY3RDb250YWluaW5nKHsKICAgICAgICBkYXRhOiBleHBlY3Qub2JqZWN0Q29udGFpbmluZyh7CiAgICAgICAgICBzdGF0ZTogQmlsbGluZ1JlZnVuZEludGVudFN0YXRlLkZBSUxFRF9GSU5BTCwKICAgICAgICAgIGZhaWx1cmVDb2RlOiAnYmFkX3JlcXVlc3QnLAogICAgICAgIH0pLAogICAgICB9KSwKICAgICk7CiAgfSk7Cn0pOwo=
+import {
+  BillingPaymentStatus,
+  BillingRefundIntentState,
+  PartnerPaymentStatus,
+  PartnerReferralStatus,
+  PaymentGatewayProvider,
+} from '@prisma/client';
+import { decideBillingState } from './billing-state-order';
+import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
+import { PaymentsService } from './payments.service';
+
+describe('RC-004 billing state policy', () => {
+  const at = (value: string | null) => (value ? new Date(value) : null);
+
+  it.each([
+    ['PENDING', 'APPROVED', true],
+    ['PENDING', 'REJECTED', true],
+    ['APPROVED', 'PENDING', false],
+    ['APPROVED', 'REJECTED', false],
+    ['APPROVED', 'REFUNDED', true],
+    ['REFUNDED', 'APPROVED', false],
+    ['REFUNDED', 'CHARGEBACK', true],
+    ['CHARGEBACK', 'REFUNDED', false],
+  ] as const)('%s -> %s apply=%s without provider time', (from, to, apply) => {
+    expect(
+      decideBillingState(
+        BillingPaymentStatus[from],
+        null,
+        BillingPaymentStatus[to],
+        null,
+      ).apply,
+    ).toBe(apply);
+  });
+
+  it('rejects an older event and deterministically breaks equal-time ties', () => {
+    expect(
+      decideBillingState(
+        BillingPaymentStatus.APPROVED,
+        at('2026-07-29T12:00:01Z'),
+        BillingPaymentStatus.REFUNDED,
+        at('2026-07-29T12:00:00Z'),
+      ),
+    ).toMatchObject({ apply: false, reason: 'OLDER' });
+    expect(
+      decideBillingState(
+        BillingPaymentStatus.PENDING,
+        at('2026-07-29T12:00:00Z'),
+        BillingPaymentStatus.APPROVED,
+        at('2026-07-29T12:00:00Z'),
+      ).apply,
+    ).toBe(true);
+  });
+
+  it('rejects malformed correlation before opening a transaction', async () => {
+    const prisma = { $transaction: jest.fn() } as any;
+    const service = new PaymentsService(prisma, {} as any);
+    await expect(
+      service.processVerifiedPayment(PaymentGatewayProvider.MERCADO_PAGO, {
+        gatewayPaymentId: 'p',
+        status: 'approved',
+        normalizedStatus: 'APPROVED',
+        externalReference: null,
+        amountCents: 1,
+        currency: 'BRL',
+        paidAt: null,
+        providerOccurredAt: null,
+        gatewaySubscriptionId: null,
+        raw: {},
+      }),
+    ).resolves.toEqual({
+      processed: false,
+      reason: 'MISSING_EXTERNAL_REFERENCE',
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+  it('sincroniza o parceiro uma única vez por transição de pagamento', async () => {
+    const tx = {
+      partnerReferral: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'referral',
+          paymentStatus: PartnerPaymentStatus.UNPAID,
+          status: PartnerReferralStatus.REGISTERED,
+          convertedAt: null,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      partnerReferralPaymentEvent: { create: jest.fn() },
+    } as any;
+    const service = new PaymentsService({} as any, {} as any);
+
+    await (service as any).syncPartnerReferral(
+      tx,
+      'tenant',
+      BillingPaymentStatus.APPROVED,
+      'subscription',
+      'MERCADO_PAGO:payment:APPROVED',
+    );
+
+    expect(tx.partnerReferral.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          paymentStatus: PartnerPaymentStatus.PAID,
+          status: PartnerReferralStatus.CONVERTED,
+        }),
+      }),
+    );
+    expect(tx.partnerReferralPaymentEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          source: 'SUBSCRIPTION_SYNC',
+          providerEventId: 'MERCADO_PAGO:payment:APPROVED',
+        }),
+      }),
+    );
+  });
+
+  it('ignora uma transição já aplicada sem criar novo evento', async () => {
+    const tx = {
+      partnerReferral: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'referral',
+          paymentStatus: PartnerPaymentStatus.PAID,
+          status: PartnerReferralStatus.CONVERTED,
+          convertedAt: new Date(),
+        }),
+        updateMany: jest.fn(),
+      },
+      partnerReferralPaymentEvent: { create: jest.fn() },
+    } as any;
+    const service = new PaymentsService({} as any, {} as any);
+
+    await (service as any).syncPartnerReferral(
+      tx,
+      'tenant',
+      BillingPaymentStatus.APPROVED,
+      'subscription',
+      'MERCADO_PAGO:payment:APPROVED',
+    );
+
+    expect(tx.partnerReferral.updateMany).not.toHaveBeenCalled();
+    expect(tx.partnerReferralPaymentEvent.create).not.toHaveBeenCalled();
+  });
+
+  it('estorna exclusivamente o pagamento aprovado do plano técnico', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'test-payment' }),
+      },
+    } as any;
+    const service = new PaymentsService(prisma, {} as any);
+    jest
+      .spyOn(service, 'refundForTenant')
+      .mockResolvedValue({ accepted: true } as any);
+
+    await expect(
+      service.refundProductionTestForTenant('tenant'),
+    ).resolves.toMatchObject({ accepted: true });
+
+    expect(prisma.billingPayment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant',
+          status: BillingPaymentStatus.APPROVED,
+          plan: { slug: 'production-test-r1' },
+          subscription: {
+            is: { plan: { slug: 'production-test-r1' } },
+          },
+          amountCents: 100,
+          currency: 'BRL',
+        }),
+      }),
+    );
+    expect(service.refundForTenant).toHaveBeenCalledWith(
+      'tenant',
+      'test-payment',
+    );
+  });
+
+  it('expõe falha final do estorno técnico sem liberar nova tentativa', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'test-payment',
+          amountCents: 100,
+          currency: 'BRL',
+        }),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue({
+          state: BillingRefundIntentState.FAILED_FINAL,
+        }),
+      },
+    } as any;
+    const service = new PaymentsService(prisma, {} as any);
+
+    await expect(
+      service.productionTestRefundCapability('tenant'),
+    ).resolves.toEqual({
+      enabled: false,
+      visible: true,
+      action: 'NONE',
+      amountCents: 100,
+      currency: 'BRL',
+      refundState: BillingRefundIntentState.FAILED_FINAL,
+    });
+  });
+
+  it('registra como falha final uma recusa conhecida do gateway sem retornar 502', async () => {
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'test-payment',
+          tenantId: 'tenant',
+          provider: PaymentGatewayProvider.MERCADO_PAGO,
+          gatewayPaymentId: 'gateway-payment',
+          status: BillingPaymentStatus.APPROVED,
+        }),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: 'refund-intent',
+          claimToken: 'claim-token',
+          state: BillingRefundIntentState.CLAIMED,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const gateway = {
+      refundPayment: jest.fn().mockRejectedValue(
+        new GatewayCheckoutError('Mercado Pago recusou', true, {
+          code: 'bad_request',
+          providerStatus: 400,
+          state: 'FAILED_FINAL',
+        }),
+      ),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.refundForTenant('tenant', 'test-payment'),
+    ).resolves.toMatchObject({
+      accepted: false,
+      status: BillingRefundIntentState.FAILED_FINAL,
+    });
+    expect(prisma.billingRefundIntent.updateMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          state: BillingRefundIntentState.FAILED_FINAL,
+          failureCode: 'bad_request',
+        }),
+      }),
+    );
+  });
+});
