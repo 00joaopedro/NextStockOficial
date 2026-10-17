@@ -162,14 +162,15 @@ export class BillingController {
     return this.checkouts.status(req.user, id, branchId, devContext);
   }
 
-  @Post('payments/:id/refund')
-  @UseGuards(CsrfOriginGuard)
-  async refundPayment(
+  @Get('production-test-refund-capability')
+  async productionTestRefundCapability(
     @Req() req: Request,
-    @Param('id', ParseUUIDPipe) paymentId: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
+    if (!canUseProductionTestCheckout(req.user)) {
+      return { ok: true, enabled: false, amountCents: null, currency: null };
+    }
     const context = await this.tenantContext.resolve(req.user, {
       selectedBranchId: branchId,
       writable: true,
@@ -178,7 +179,42 @@ export class BillingController {
     });
     return {
       ok: true,
-      result: await this.payments.refundForTenant(context.tenantId, paymentId),
+      ...(await this.payments.productionTestRefundCapability(context.tenantId)),
+    };
+  }
+
+  @Post('production-test-refund')
+  @UseGuards(CsrfOriginGuard)
+  async refundProductionTest(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    if (!canUseProductionTestCheckout(req.user)) {
+      throw new ForbiddenException(
+        'Estorno do teste de produção não autorizado para este administrador.',
+      );
+    }
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    const capability = await this.payments.productionTestRefundCapability(
+      context.tenantId,
+    );
+    if (!capability.enabled) {
+      throw new ForbiddenException(
+        'Não existe estorno de teste de produção disponível para este tenant.',
+      );
+    }
+    return {
+      ok: true,
+      subscription: await this.subscriptions.cancelForTenant(context.tenantId),
+      result: await this.payments.refundProductionTestForTenant(
+        context.tenantId,
+      ),
     };
   }
 
