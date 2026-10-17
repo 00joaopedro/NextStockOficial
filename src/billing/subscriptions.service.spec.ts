@@ -219,4 +219,15 @@ describe('SubscriptionsService', () => {
     );
     expect(result?.cancelAtPeriodEnd).toBe(true);
   });
+
+  it('não preserva período antigo ao cancelar assinatura já suspensa', async () => {
+    const service = new SubscriptionsService({} as any, {} as any, {} as any);
+
+    expect(
+      (service as any).hasPaidAccessRemaining({
+        status: SubscriptionStatus.suspended,
+        currentPeriodEndsAt: new Date(Date.now() + 86_400_000),
+      }),
+    ).toBe(false);
+  });
 });
