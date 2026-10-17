@@ -11,36 +11,88 @@ describe('BillingEntitlementService', () => {
   });
 
   it('permite trial dentro dos 15 dias', () => {
-    const result = service.evaluate({
-      status: SubscriptionStatus.trialing,
-      trialEndsAt: new Date('2026-06-29T12:00:00Z'),
-      graceEndsAt: null,
-    }, now);
+    const result = service.evaluate(
+      {
+        status: SubscriptionStatus.trialing,
+        trialEndsAt: new Date('2026-06-29T12:00:00Z'),
+        graceEndsAt: null,
+      },
+      now,
+    );
     expect(result.allowed).toBe(true);
     expect(result.reason).toBe('TRIAL_ACTIVE');
   });
 
   it('bloqueia trial expirado, active vencido e past_due sem grace', () => {
-    expect(service.evaluate({
-      status: SubscriptionStatus.trialing,
-      trialEndsAt: new Date('2026-06-27T12:00:00Z'),
-      graceEndsAt: null,
-    }, now).allowed).toBe(false);
-    expect(service.evaluate({
-      status: SubscriptionStatus.active,
-      currentPeriodEndsAt: new Date('2026-06-27T12:00:00Z'),
-      graceEndsAt: null,
-    }, now).allowed).toBe(false);
-    expect(service.evaluate({
-      status: SubscriptionStatus.past_due,
-      graceEndsAt: null,
-    }, now).allowed).toBe(false);
+    expect(
+      service.evaluate(
+        {
+          status: SubscriptionStatus.trialing,
+          trialEndsAt: new Date('2026-06-27T12:00:00Z'),
+          graceEndsAt: null,
+        },
+        now,
+      ).allowed,
+    ).toBe(false);
+    expect(
+      service.evaluate(
+        {
+          status: SubscriptionStatus.active,
+          currentPeriodEndsAt: new Date('2026-06-27T12:00:00Z'),
+          graceEndsAt: null,
+        },
+        now,
+      ).allowed,
+    ).toBe(false);
+    expect(
+      service.evaluate(
+        {
+          status: SubscriptionStatus.past_due,
+          graceEndsAt: null,
+        },
+        now,
+      ).allowed,
+    ).toBe(false);
   });
 
   it('nao usa grace para liberar acesso sem pagamento confirmado', () => {
-    expect(service.evaluate({
-      status: SubscriptionStatus.expired,
-      graceEndsAt: new Date('2026-06-29T12:00:00Z'),
-    }, now).allowed).toBe(false);
+    expect(
+      service.evaluate(
+        {
+          status: SubscriptionStatus.expired,
+          graceEndsAt: new Date('2026-06-29T12:00:00Z'),
+        },
+        now,
+      ).allowed,
+    ).toBe(false);
+  });
+
+  it('mantém o acesso até o fim do período pago após cancelar a renovação', () => {
+    const result = service.evaluate(
+      {
+        status: SubscriptionStatus.canceled,
+        cancelAtPeriodEnd: true,
+        currentPeriodEndsAt: new Date('2026-06-29T12:00:00Z'),
+      },
+      now,
+    );
+
+    expect(result).toMatchObject({
+      allowed: true,
+      reason: 'SUBSCRIPTION_CANCELED_PERIOD_ACTIVE',
+    });
+  });
+
+  it('bloqueia assinatura cancelada ao terminar o período já pago', () => {
+    expect(
+      service.evaluate(
+        {
+          status: SubscriptionStatus.canceled,
+          cancelAtPeriodEnd: true,
+          currentPeriodEndsAt: new Date('2026-06-27T12:00:00Z'),
+        },
+        now,
+      ).allowed,
+    ).toBe(false);
   });
 });

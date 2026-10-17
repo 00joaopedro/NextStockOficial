@@ -8,6 +8,7 @@ import {
 import { createHash, randomUUID } from 'node:crypto';
 import {
   BillingEventType,
+  BillingPaymentStatus,
   CheckoutSessionStatus,
   PlanInterval,
   Prisma,
@@ -72,6 +73,14 @@ export class CheckoutService {
       allowedRoles: [Role.Admin],
       allowDevSupport: devContextMode?.toLowerCase() === 'support',
     });
+    if (
+      isProductionTestCheckout &&
+      (await this.hasApprovedProductionTestPayment(context.tenantId))
+    ) {
+      throw new ConflictException(
+        'O checkout de validação já foi aprovado para este tenant.',
+      );
+    }
     const provider = this.gateways.defaultProvider();
     const mode =
       process.env.BILLING_MODE?.trim() ||
@@ -159,6 +168,16 @@ export class CheckoutService {
     if (!subscription) {
       throw new ConflictException(
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
+      );
+    }
+    if (
+      subscription.status === 'canceled' &&
+      subscription.cancelAtPeriodEnd &&
+      subscription.currentPeriodEndsAt &&
+      subscription.currentPeriodEndsAt > new Date()
+    ) {
+      throw new ConflictException(
+        'A renovação está cancelada e o acesso atual permanece ativo até o fim do período pago. Um novo checkout poderá ser criado após essa data.',
       );
     }
 
@@ -499,6 +518,33 @@ export class CheckoutService {
     }
 
     return this.result(checkout, gatewayCheckout.supportsExternalReference);
+  }
+
+  async productionTestCheckoutAvailable(
+    user: AuthenticatedUser | undefined,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    if (!canUseProductionTestCheckout(user)) return false;
+    const context = await this.tenantContext.resolve(user, {
+      selectedBranchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContextMode?.toLowerCase() === 'support',
+    });
+    return !(await this.hasApprovedProductionTestPayment(context.tenantId));
+  }
+
+  private async hasApprovedProductionTestPayment(tenantId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+        plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+      },
+      select: { id: true },
+    });
+    return Boolean(payment);
   }
 
   /** Lifecycle seam for observability/fault-injection without gateway-specific code. */

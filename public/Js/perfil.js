@@ -9,6 +9,7 @@
     busy: false,
     paymentConfig: { connections: [], terminals: [], routes: [] },
     productionTestAvailable: false,
+    subscription: null,
   };
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -27,6 +28,8 @@
     routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
     productionTestPanel: $("productionTestCheckoutPanel"),
     productionTestBtn: $("productionTestCheckoutBtn"),
+    cancellationPanel: $("subscriptionCancellationPanel"), cancellationTitle: $("subscriptionCancellationTitle"),
+    cancellationDescription: $("subscriptionCancellationDescription"), cancelSubscription: $("cancelSubscriptionBtn"),
   };
   const planImages = {
     ouro: "img/trofeu-ouro.png",
@@ -135,6 +138,7 @@
     if (el.productionTestBtn) {
       el.productionTestBtn.disabled = blocked || !state.productionTestAvailable;
     }
+    if (el.cancelSubscription) el.cancelSubscription.disabled = blocked || !state.canManage || !canCancelSubscription();
   }
 
   async function bootstrap() {
@@ -171,6 +175,7 @@
   async function loadBilling() {
     const data = await api("/api/billing/subscription");
     const subscription = data.subscription;
+    state.subscription = subscription || null;
     const entitlement = data.entitlement || {};
     const plan = subscription?.plan;
     el.currentPlan.textContent = plan ? `Plano atual: ${plan.name}` : "Período gratuito";
@@ -178,8 +183,34 @@
     const details = [];
     if (subscription?.trialEndsAt) details.push(`Trial termina em ${date(subscription.trialEndsAt)} (${data.trialDaysRemaining || 0} dia(s) restante(s)).`);
     if (subscription?.currentPeriodEndsAt) details.push(`Período pago até ${date(subscription.currentPeriodEndsAt)}.`);
+    if (subscription?.status === "canceled" && subscription?.cancelAtPeriodEnd && subscription?.currentPeriodEndsAt) details.push("A renovação foi cancelada; seu acesso permanece ativo até essa data.");
     if (!entitlement.allowed) details.push("Seu período gratuito terminou. Escolha um plano para continuar usando o sistema.");
     el.details.textContent = details.join(" ");
+    renderCancellation(subscription);
+    updatePlanActionsForCancellation();
+  }
+  function cancellationPeriodActive() {
+    return Boolean(state.subscription?.status === "canceled" && state.subscription?.cancelAtPeriodEnd && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date());
+  }
+  function updatePlanActionsForCancellation() {
+    if (!cancellationPeriodActive()) return;
+    el.plans.querySelectorAll("button[data-billing-plan-action]").forEach((button) => {
+      button.disabled = true;
+      button.title = "A renovação foi cancelada. Um novo checkout poderá ser criado após o fim do período já pago.";
+    });
+  }
+  function canCancelSubscription() {
+    return Boolean(state.subscription && !["canceled", "expired", "suspended"].includes(state.subscription.status));
+  }
+  function renderCancellation(subscription) {
+    if (!el.cancellationPanel) return;
+    const available = canCancelSubscription();
+    el.cancellationPanel.hidden = !available;
+    if (!available) return;
+    const hasPaidPeriod = Boolean(subscription.currentPeriodEndsAt && new Date(subscription.currentPeriodEndsAt) > new Date());
+    el.cancellationTitle.textContent = hasPaidPeriod ? "Cancelar renovação" : "Cancelar assinatura";
+    el.cancellationDescription.textContent = hasPaidPeriod ? `Nenhuma cobrança futura será feita. Você continuará com acesso até ${date(subscription.currentPeriodEndsAt)}.` : "A assinatura será cancelada e nenhuma cobrança futura será feita.";
+    el.cancelSubscription.textContent = hasPaidPeriod ? "Cancelar renovação" : "Cancelar assinatura";
   }
   async function loadPlans() {
     const data = await api("/api/billing/plans");
@@ -199,13 +230,15 @@
       action.textContent = isPromotionPlan
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
-      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady;
+      action.dataset.billingPlanAction = "true";
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive();
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
       action.addEventListener("click", () => startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
+    updatePlanActionsForCancellation();
   }
   function idempotencyKeyFor(storageKey) {
     let idempotencyKey = sessionStorage.getItem(storageKey);
@@ -264,6 +297,18 @@
       sessionStorage.setItem("nextstockBillingCheckoutId", checkout.checkoutId);
       sessionStorage.removeItem(storageKey);
       location.assign(checkout.checkoutUrl);
+    } finally { busy(false); }
+  }
+  async function cancelSubscription() {
+    if (!canCancelSubscription()) return;
+    const hasPaidPeriod = Boolean(state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date());
+    const confirmation = hasPaidPeriod ? `Cancelar a renovação? Você manterá o acesso até ${date(state.subscription.currentPeriodEndsAt)} e não haverá nova cobrança.` : "Cancelar esta assinatura? Não haverá nova cobrança.";
+    if (!confirm(confirmation)) return;
+    busy(true);
+    try {
+      const result = await api("/api/billing/subscription/cancel", { method: "POST", body: JSON.stringify({}) });
+      await loadBilling();
+      message(result.subscription?.cancelAtPeriodEnd ? `Renovação cancelada. Seu acesso permanece ativo até ${date(result.subscription.currentPeriodEndsAt)}.` : "Assinatura cancelada.", "success");
     } finally { busy(false); }
   }
   async function pollCheckout() {
@@ -367,6 +412,7 @@
   el.deleteMachine.addEventListener("click", run(deleteMachine));
   el.saveConnection.addEventListener("click", run(savePaymentConnection)); el.saveTerminal.addEventListener("click", run(savePaymentTerminal)); el.saveRoute.addEventListener("click", run(savePaymentRoute));
   el.productionTestBtn?.addEventListener("click", run(startProductionTestCheckout));
+  el.cancelSubscription?.addEventListener("click", run(cancelSubscription));
   (async () => {
     if (window.isNextStockDemoMode?.()) {
       state.preview = true;
