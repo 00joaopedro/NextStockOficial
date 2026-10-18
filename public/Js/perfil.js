@@ -10,6 +10,7 @@
     paymentConfig: { connections: [], terminals: [], routes: [] },
     productionTestAvailable: false,
     productionTestRefundAvailable: false,
+    productionTestRefundVisible: false,
     productionTestRefundAction: "NONE",
     productionTestRefundDiagnostic: "",
     subscription: null,
@@ -32,6 +33,7 @@
     productionTestPanel: $("productionTestCheckoutPanel"),
     productionTestBtn: $("productionTestCheckoutBtn"),
     productionTestRefundPanel: $("productionTestRefundPanel"), productionTestRefundBtn: $("productionTestRefundBtn"), productionTestRefundDescription: $("productionTestRefundDescription"),
+    productionTestRefundDiagnosticAccessPanel: $("productionTestRefundDiagnosticAccessPanel"),
     productionTestRefundDiagnosticBtn: $("productionTestRefundDiagnosticBtn"), productionTestRefundDiagnosticPanel: $("productionTestRefundDiagnosticPanel"), productionTestRefundDiagnosticOutput: $("productionTestRefundDiagnosticOutput"), copyProductionTestRefundDiagnosticBtn: $("copyProductionTestRefundDiagnosticBtn"),
     cancellationPanel: $("subscriptionCancellationPanel"), cancellationTitle: $("subscriptionCancellationTitle"),
     cancellationDescription: $("subscriptionCancellationDescription"), cancelSubscription: $("cancelSubscriptionBtn"),
@@ -147,7 +149,7 @@
       el.productionTestRefundBtn.disabled = blocked || !state.productionTestRefundAvailable;
     }
     if (el.productionTestRefundDiagnosticBtn) {
-      el.productionTestRefundDiagnosticBtn.disabled = blocked || !el.productionTestRefundPanel || el.productionTestRefundPanel.hidden;
+      el.productionTestRefundDiagnosticBtn.disabled = blocked || !el.productionTestRefundDiagnosticAccessPanel || el.productionTestRefundDiagnosticAccessPanel.hidden;
     }
     if (el.cancelSubscription) el.cancelSubscription.disabled = blocked || !state.canManage || !canCancelSubscription();
   }
@@ -180,14 +182,23 @@
     const data = await api("/api/billing/production-test-capability");
     state.productionTestAvailable = data.enabled === true;
     el.productionTestPanel.hidden = !state.productionTestAvailable;
+    renderProductionTestRefundDiagnosticAvailability();
     permissions();
+  }
+  function renderProductionTestRefundDiagnosticAvailability() {
+    if (!el.productionTestRefundDiagnosticAccessPanel) return;
+    el.productionTestRefundDiagnosticAccessPanel.hidden = !(
+      state.productionTestAvailable || state.productionTestRefundVisible
+    );
   }
   async function loadProductionTestRefundCapability() {
     if (!el.productionTestRefundPanel) return;
     const data = await api("/api/billing/production-test-refund-capability");
     state.productionTestRefundAvailable = data.enabled === true;
+    state.productionTestRefundVisible = data.visible === true;
     state.productionTestRefundAction = data.action || "NONE";
     el.productionTestRefundPanel.hidden = data.visible !== true;
+    renderProductionTestRefundDiagnosticAvailability();
     if (el.productionTestRefundDescription) {
       const descriptions = {
         REQUEST: "Disponível apenas para a validação técnica. O estorno cancela a renovação e suspende o acesso após a confirmação do Mercado Pago.",
