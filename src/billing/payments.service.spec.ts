@@ -274,7 +274,10 @@ describe('RC-004 billing state policy', () => {
     };
     const prisma = {
       billingPayment: {
-        findFirst: jest.fn().mockResolvedValue(payment),
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(payment)
+          .mockResolvedValueOnce(null),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       billingRefundIntent: {
@@ -339,5 +342,75 @@ describe('RC-004 billing state policy', () => {
         }),
       }),
     );
+  });
+
+  it('não sobrescreve uma cobrança já registrada durante a resolução', async () => {
+    const payment = {
+      id: 'stale-payment',
+      tenantId: 'tenant',
+      provider: PaymentGatewayProvider.MERCADO_PAGO,
+      gatewayPaymentId: 'preapproval-incorreto',
+      externalReference: 'ns_cs_reference',
+      amountCents: 100,
+      currency: 'BRL',
+      status: BillingPaymentStatus.APPROVED,
+      subscription: { gatewaySubscriptionId: 'preapproval-1' },
+    };
+    const prisma = {
+      billingPayment: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(payment)
+          .mockResolvedValueOnce({
+            id: 'payment-real-local',
+            tenantId: 'tenant',
+            externalReference: payment.externalReference,
+            amountCents: 100,
+            currency: 'BRL',
+            subscriptionId: 'subscription',
+          }),
+        updateMany: jest.fn(),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'refund-intent',
+          state: BillingRefundIntentState.UNKNOWN,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const gateway = {
+      getPaymentStatus: jest.fn().mockRejectedValue(new Error('not found')),
+      findPayments: jest.fn().mockResolvedValue([
+        {
+          gatewayPaymentId: 'payment-real',
+          status: 'approved',
+          normalizedStatus: 'APPROVED',
+          externalReference: payment.externalReference,
+          amountCents: 100,
+          currency: 'BRL',
+          paidAt: new Date(),
+          providerOccurredAt: new Date(),
+          gatewaySubscriptionId: 'preapproval-1',
+          raw: {},
+        },
+      ]),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.refundForTenant('tenant', payment.id, {
+        resolveGatewayPayment: true,
+      }),
+    ).resolves.toMatchObject({
+      accepted: false,
+      status: BillingRefundIntentState.UNKNOWN,
+      diagnostic: 'PAYMENT_RESOLUTION_ALREADY_RECORDED',
+    });
+    expect(prisma.billingPayment.updateMany).not.toHaveBeenCalled();
   });
 });
