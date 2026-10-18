@@ -213,7 +213,9 @@ export class PaymentsService {
       );
     }
     const checks = {
-      authorizedPaymentSubscriptionMatches: true,
+      authorizedPaymentSubscriptionMatches:
+        providerPayment.gatewaySubscriptionId === null ||
+        providerPayment.gatewaySubscriptionId === gatewaySubscriptionId,
       paymentExternalReferenceMatches:
         providerPayment.externalReference === payment.externalReference,
       paymentAmountMatches: providerPayment.amountCents === payment.amountCents,
