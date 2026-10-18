@@ -52,4 +52,15 @@ describe('billing frontend', () => {
     expect(script).toContain('O retorno do checkout não libera acesso');
     expect(script).not.toMatch(/subscription.*=.*ACTIVE/i);
   });
+
+  it('oferece diagnóstico técnico somente leitura sem expor segredos', () => {
+    expect(html).toContain('productionTestRefundDiagnosticBtn');
+    expect(html).toContain('productionTestRefundDiagnosticAccessPanel');
+    expect(html).toContain('productionTestRefundDiagnosticOutput');
+    expect(script).toContain('/api/billing/production-test-refund-diagnostic');
+    expect(script).toContain('Nenhuma cobrança, cancelamento ou estorno foi executado.');
+    expect(script).toContain('renderProductionTestRefundDiagnosticAvailability');
+    expect(script).toContain('navigator.clipboard.writeText');
+    expect(script).not.toContain('MERCADO_PAGO_ACCESS_TOKEN');
+  });
 });

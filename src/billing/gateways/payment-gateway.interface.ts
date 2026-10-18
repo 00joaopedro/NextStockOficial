@@ -88,6 +88,16 @@ export type GatewayPaymentResult = {
   raw: Record<string, unknown>;
 };
 
+/** A recurring-subscription invoice, which may point to its actual payment. */
+export type GatewayAuthorizedPaymentResult = {
+  gatewayAuthorizedPaymentId: string;
+  gatewayPaymentId: string | null;
+  gatewaySubscriptionId: string | null;
+  status: string;
+  amountCents: number;
+  currency: string;
+};
+
 export interface PaymentGateway {
   readonly provider: PaymentGatewayProvider;
   /** Replaying create with the same key is an authoritative provider lookup/recovery. */
@@ -99,6 +109,9 @@ export interface PaymentGateway {
   getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult>;
   syncPayment(resourceId: string): Promise<GatewayPaymentResult>;
   findPayments(externalReference: string): Promise<GatewayPaymentResult[]>;
+  findAuthorizedPayments(
+    gatewaySubscriptionId: string,
+  ): Promise<GatewayAuthorizedPaymentResult[]>;
   cancelSubscription(
     gatewaySubscriptionId: string,
     idempotencyKey?: string,

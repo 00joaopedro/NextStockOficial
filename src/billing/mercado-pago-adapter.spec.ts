@@ -82,6 +82,44 @@ describe('MercadoPagoGatewayAdapter', () => {
     expect(result.amountCents).toBe(20000);
   });
 
+  it('localiza faturas recorrentes pelo id da assinatura sem solicitar estorno', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        results: [
+          {
+            id: 'authorized-payment-1',
+            preapproval_id: 'preapproval-1',
+            status: 'processed',
+            transaction_amount: 1,
+            currency_id: 'BRL',
+            payment: { id: 123, status: 'approved' },
+          },
+        ],
+      }),
+    }) as any;
+
+    const result = await new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any).findAuthorizedPayments('preapproval-1');
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        gatewayAuthorizedPaymentId: 'authorized-payment-1',
+        gatewayPaymentId: '123',
+        gatewaySubscriptionId: 'preapproval-1',
+        amountCents: 100,
+        currency: 'BRL',
+      }),
+    ]);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+      }),
+    );
+  });
+
   it('envia o término de uma promoção finita ao Mercado Pago', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,

@@ -183,6 +183,32 @@ export class BillingController {
     };
   }
 
+  @Get('production-test-refund-diagnostic')
+  async productionTestRefundDiagnostic(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    if (!canUseProductionTestCheckout(req.user)) {
+      throw new ForbiddenException(
+        'Diagnóstico do estorno de teste não autorizado para este administrador.',
+      );
+    }
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return {
+      ok: true,
+      requestId: req.requestId ?? null,
+      diagnostic: await this.payments.productionTestRefundDiagnostic(
+        context.tenantId,
+      ),
+    };
+  }
+
   @Post('production-test-refund')
   @UseGuards(CsrfOriginGuard)
   async refundProductionTest(

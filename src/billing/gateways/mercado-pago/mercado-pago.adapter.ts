@@ -9,6 +9,7 @@ import { MercadoPagoSignatureService } from './mercado-pago-signature.service';
 import {
   CreateGatewayCheckoutInput,
   GatewayPaymentResult,
+  GatewayAuthorizedPaymentResult,
   GatewayCheckoutError,
   GatewayWebhookInput,
   PaymentGateway,
@@ -105,6 +106,38 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
       ? body.results.map((payment: Record<string, any>) =>
           this.mapPayment(payment, String(payment.id || '')),
         )
+      : [];
+  }
+
+  async findAuthorizedPayments(
+    gatewaySubscriptionId: string,
+  ): Promise<GatewayAuthorizedPaymentResult[]> {
+    const body = await this.request(
+      `/authorized_payments/search?preapproval_id=${encodeURIComponent(gatewaySubscriptionId)}`,
+    );
+    return Array.isArray(body.results)
+      ? body.results.map((invoice: Record<string, any>) => {
+          const payment =
+            invoice.payment && typeof invoice.payment === 'object'
+              ? (invoice.payment as Record<string, unknown>)
+              : {};
+          return {
+            gatewayAuthorizedPaymentId: String(invoice.id || ''),
+            gatewayPaymentId:
+              typeof payment.id === 'string' || typeof payment.id === 'number'
+                ? String(payment.id)
+                : null,
+            gatewaySubscriptionId:
+              typeof invoice.preapproval_id === 'string'
+                ? invoice.preapproval_id
+                : null,
+            status: String(invoice.status ?? payment.status ?? 'unknown'),
+            amountCents: Math.round(
+              Number(invoice.transaction_amount ?? 0) * 100,
+            ),
+            currency: String(invoice.currency_id ?? ''),
+          };
+        })
       : [];
   }
 

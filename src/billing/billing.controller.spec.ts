@@ -65,4 +65,42 @@ describe('BillingController', () => {
       payments.refundProductionTestForTenant.mock.invocationCallOrder[0],
     );
   });
+
+  it('expõe diagnóstico técnico somente leitura ao administrador autorizado', async () => {
+    const payments = {
+      productionTestRefundDiagnostic: jest.fn().mockResolvedValue({
+        stage: 'PAYMENT_VALIDATION',
+        code: 'PAYMENT_ELIGIBLE',
+      }),
+    };
+    const tenantContext = {
+      resolve: jest.fn().mockResolvedValue({ tenantId: 'tenant' }),
+    };
+    const controller = new BillingController(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      payments as any,
+      tenantContext as any,
+    );
+    const request = {
+      requestId: 'diagnostic-request',
+      user: { email: 'admin@example.com', role: Role.Admin },
+    } as any;
+
+    await expect(
+      controller.productionTestRefundDiagnostic(request),
+    ).resolves.toEqual({
+      ok: true,
+      requestId: 'diagnostic-request',
+      diagnostic: {
+        stage: 'PAYMENT_VALIDATION',
+        code: 'PAYMENT_ELIGIBLE',
+      },
+    });
+    expect(payments.productionTestRefundDiagnostic).toHaveBeenCalledWith(
+      'tenant',
+    );
+  });
 });
