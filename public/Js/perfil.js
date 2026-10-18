@@ -11,6 +11,7 @@
     productionTestAvailable: false,
     productionTestRefundAvailable: false,
     productionTestRefundAction: "NONE",
+    productionTestRefundDiagnostic: "",
     subscription: null,
   };
   const $ = (id) => document.getElementById(id);
@@ -31,6 +32,7 @@
     productionTestPanel: $("productionTestCheckoutPanel"),
     productionTestBtn: $("productionTestCheckoutBtn"),
     productionTestRefundPanel: $("productionTestRefundPanel"), productionTestRefundBtn: $("productionTestRefundBtn"), productionTestRefundDescription: $("productionTestRefundDescription"),
+    productionTestRefundDiagnosticBtn: $("productionTestRefundDiagnosticBtn"), productionTestRefundDiagnosticPanel: $("productionTestRefundDiagnosticPanel"), productionTestRefundDiagnosticOutput: $("productionTestRefundDiagnosticOutput"), copyProductionTestRefundDiagnosticBtn: $("copyProductionTestRefundDiagnosticBtn"),
     cancellationPanel: $("subscriptionCancellationPanel"), cancellationTitle: $("subscriptionCancellationTitle"),
     cancellationDescription: $("subscriptionCancellationDescription"), cancelSubscription: $("cancelSubscriptionBtn"),
   };
@@ -143,6 +145,9 @@
     }
     if (el.productionTestRefundBtn) {
       el.productionTestRefundBtn.disabled = blocked || !state.productionTestRefundAvailable;
+    }
+    if (el.productionTestRefundDiagnosticBtn) {
+      el.productionTestRefundDiagnosticBtn.disabled = blocked || !el.productionTestRefundPanel || el.productionTestRefundPanel.hidden;
     }
     if (el.cancelSubscription) el.cancelSubscription.disabled = blocked || !state.canManage || !canCancelSubscription();
   }
@@ -343,6 +348,32 @@
       await Promise.all([loadBilling(), loadProductionTestCapability(), loadProductionTestRefundCapability()]);
     } finally { busy(false); }
   }
+  async function loadProductionTestRefundDiagnostic() {
+    if (!el.productionTestRefundDiagnosticPanel || !el.productionTestRefundDiagnosticOutput) return;
+    busy(true);
+    message("Consultando diagnóstico do estorno...");
+    try {
+      const data = await api("/api/billing/production-test-refund-diagnostic");
+      const diagnostic = {
+        requestId: data.requestId || null,
+        ...(data.diagnostic || {}),
+      };
+      state.productionTestRefundDiagnostic = JSON.stringify(diagnostic, null, 2);
+      el.productionTestRefundDiagnosticOutput.textContent = state.productionTestRefundDiagnostic;
+      el.productionTestRefundDiagnosticPanel.hidden = false;
+      el.productionTestRefundDiagnosticPanel.open = true;
+      if (el.copyProductionTestRefundDiagnosticBtn) el.copyProductionTestRefundDiagnosticBtn.hidden = false;
+      message("Diagnóstico carregado. Nenhuma cobrança, cancelamento ou estorno foi executado.", "success");
+    } finally { busy(false); }
+  }
+  async function copyProductionTestRefundDiagnostic() {
+    if (!state.productionTestRefundDiagnostic || !navigator.clipboard?.writeText) {
+      message("Não foi possível copiar o diagnóstico neste navegador.", "error");
+      return;
+    }
+    await navigator.clipboard.writeText(state.productionTestRefundDiagnostic);
+    message("Diagnóstico copiado.", "success");
+  }
 
   async function startCheckout(planSlug) {
     const selected = promotionSelection();
@@ -485,6 +516,8 @@
   el.saveConnection.addEventListener("click", run(savePaymentConnection)); el.saveTerminal.addEventListener("click", run(savePaymentTerminal)); el.saveRoute.addEventListener("click", run(savePaymentRoute));
   el.productionTestBtn?.addEventListener("click", run(startProductionTestCheckout));
   el.productionTestRefundBtn?.addEventListener("click", run(refundProductionTest));
+  el.productionTestRefundDiagnosticBtn?.addEventListener("click", run(loadProductionTestRefundDiagnostic));
+  el.copyProductionTestRefundDiagnosticBtn?.addEventListener("click", run(copyProductionTestRefundDiagnostic));
   el.cancelSubscription?.addEventListener("click", run(cancelSubscription));
   (async () => {
     if (window.isNextStockDemoMode?.()) {
