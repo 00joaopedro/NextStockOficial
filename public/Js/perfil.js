@@ -190,13 +190,16 @@
         RECONCILE: "O resultado da solicitação anterior ainda não pôde ser confirmado. Verifique o status antes de qualquer nova cobrança.",
         NONE: data.refundState === "FAILED_FINAL"
           ? "O Mercado Pago recusou o estorno do teste. A renovação já foi cancelada; não será feita nova tentativa automática."
-          : data.diagnostic === "PAYMENT_RESOLUTION_NOT_FOUND"
-            ? "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno adicional será enviado."
-            : data.diagnostic === "PAYMENT_RESOLUTION_AMBIGUOUS"
-              ? "Foram encontradas cobranças que não podem ser diferenciadas com segurança. Nenhum estorno adicional será enviado."
           : "O estorno do teste está sendo processado. Aguarde a confirmação do Mercado Pago.",
       };
-      el.productionTestRefundDescription.textContent = descriptions[state.productionTestRefundAction] || descriptions.NONE;
+      const resolutionDescriptions = {
+        PAYMENT_RESOLUTION_NOT_FOUND: "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno adicional será enviado.",
+        PAYMENT_RESOLUTION_AMBIGUOUS: "Foram encontradas cobranças que não podem ser diferenciadas com segurança. Nenhum estorno adicional será enviado.",
+        PAYMENT_RESOLUTION_ALREADY_RECORDED: "A cobrança já foi registrada por outra confirmação. Nenhum novo estorno será enviado automaticamente.",
+      };
+      el.productionTestRefundDescription.textContent = resolutionDescriptions[data.diagnostic]
+        || descriptions[state.productionTestRefundAction]
+        || descriptions.NONE;
     }
     if (el.productionTestRefundBtn) {
       el.productionTestRefundBtn.textContent = state.productionTestRefundAction === "RETRY"
