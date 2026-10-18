@@ -207,6 +207,65 @@ describe('RC-004 billing state policy', () => {
     });
   });
 
+  it('diagnostica a cobrança recorrente sem cancelar, gravar ou estornar', async () => {
+    const payment = {
+      id: 'local-payment-id',
+      provider: PaymentGatewayProvider.MERCADO_PAGO,
+      externalReference: 'ns_cs_00000000-0000-0000-0000-000000000000_aaaa',
+      amountCents: 100,
+      currency: 'BRL',
+      subscription: { gatewaySubscriptionId: 'preapproval-1' },
+    };
+    const prisma = {
+      billingPayment: { findFirst: jest.fn().mockResolvedValue(payment) },
+    } as any;
+    const gateway = {
+      findAuthorizedPayments: jest.fn().mockResolvedValue([
+        {
+          gatewayAuthorizedPaymentId: 'authorized-payment-1',
+          gatewayPaymentId: 'payment-real',
+          gatewaySubscriptionId: 'preapproval-1',
+          status: 'processed',
+          amountCents: 100,
+          currency: 'BRL',
+        },
+      ]),
+      getPaymentStatus: jest.fn().mockResolvedValue({
+        gatewayPaymentId: 'payment-real',
+        gatewaySubscriptionId: null,
+        normalizedStatus: 'APPROVED',
+        externalReference: payment.externalReference,
+        amountCents: 100,
+        currency: 'BRL',
+      }),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.productionTestRefundDiagnostic('tenant'),
+    ).resolves.toMatchObject({
+      available: true,
+      stage: 'PAYMENT_VALIDATION',
+      code: 'PAYMENT_ELIGIBLE',
+      checks: {
+        authorizedPaymentSubscriptionMatches: true,
+        paymentExternalReferenceMatches: true,
+        paymentAmountMatches: true,
+        paymentCurrencyMatches: true,
+        paymentIsApproved: true,
+      },
+    });
+    expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith('preapproval-1');
+    expect(gateway.getPaymentStatus).toHaveBeenCalledWith('payment-real');
+    expect(prisma.billingPayment).toEqual({ findFirst: expect.any(Function) });
+    expect(prisma.billingPayment.updateMany).toBeUndefined();
+    expect(prisma.billingRefundIntent).toBeUndefined();
+  });
+
   it('registra como falha final uma recusa conhecida do gateway sem retornar 502', async () => {
     const prisma = {
       billingPayment: {
