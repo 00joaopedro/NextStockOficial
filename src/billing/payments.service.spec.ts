@@ -173,6 +173,7 @@ describe('RC-004 billing state policy', () => {
     expect(service.refundForTenant).toHaveBeenCalledWith(
       'tenant',
       'test-payment',
+      { resolveGatewayPayment: true },
     );
   });
 
@@ -202,6 +203,7 @@ describe('RC-004 billing state policy', () => {
       amountCents: 100,
       currency: 'BRL',
       refundState: BillingRefundIntentState.FAILED_FINAL,
+      diagnostic: null,
     });
   });
 
@@ -252,6 +254,88 @@ describe('RC-004 billing state policy', () => {
         data: expect.objectContaining({
           state: BillingRefundIntentState.FAILED_FINAL,
           failureCode: 'bad_request',
+        }),
+      }),
+    );
+  });
+
+  it('localiza e grava o pagamento real antes de exigir nova tentativa explícita', async () => {
+    const payment = {
+      id: 'test-payment',
+      tenantId: 'tenant',
+      provider: PaymentGatewayProvider.MERCADO_PAGO,
+      gatewayPaymentId: 'preapproval-id-incorreto',
+      externalReference:
+        'ns_cs_00000000-0000-0000-0000-000000000000_aaaaaaaaaaaaaaaa',
+      amountCents: 100,
+      currency: 'BRL',
+      status: BillingPaymentStatus.APPROVED,
+      subscription: { gatewaySubscriptionId: 'preapproval-1' },
+    };
+    const prisma = {
+      billingPayment: {
+        findFirst: jest.fn().mockResolvedValue(payment),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      billingRefundIntent: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'refund-intent',
+          state: BillingRefundIntentState.UNKNOWN,
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as any;
+    const gateway = {
+      getPaymentStatus: jest.fn().mockRejectedValue(
+        new GatewayCheckoutError('não encontrado', true, {
+          code: 'not_found',
+          providerStatus: 404,
+          state: 'FAILED_FINAL',
+        }),
+      ),
+      findPayments: jest.fn().mockResolvedValue([
+        {
+          gatewayPaymentId: 'payment-real',
+          status: 'approved',
+          normalizedStatus: 'APPROVED',
+          externalReference: payment.externalReference,
+          amountCents: 100,
+          currency: 'BRL',
+          paidAt: new Date(),
+          providerOccurredAt: new Date(),
+          gatewaySubscriptionId: 'preapproval-1',
+          raw: {},
+        },
+      ]),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.refundForTenant('tenant', 'test-payment', {
+        resolveGatewayPayment: true,
+      }),
+    ).resolves.toMatchObject({
+      accepted: false,
+      status: BillingRefundIntentState.FAILED_RETRYABLE,
+      diagnostic: 'PAYMENT_RESOLVED_RETRY_REQUIRED',
+    });
+    expect(gateway.findPayments).toHaveBeenCalledWith(
+      payment.externalReference,
+    );
+    expect(prisma.billingPayment.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { gatewayPaymentId: 'payment-real' },
+      }),
+    );
+    expect(prisma.billingRefundIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          state: BillingRefundIntentState.FAILED_RETRYABLE,
+          failureCode: 'PAYMENT_RESOLVED_RETRY_REQUIRED',
         }),
       }),
     );
