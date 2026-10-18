@@ -138,7 +138,10 @@ export class PaymentsService {
     if (!payment) {
       throw new NotFoundException('Pagamento não encontrado.');
     }
-    if (!payment.gatewayPaymentId || !this.gateways) {
+    if (
+      !this.gateways ||
+      (!payment.gatewayPaymentId && !options.resolveGatewayPayment)
+    ) {
       throw new ConflictException(
         'Pagamento sem operação Mercado Pago disponível.',
       );
@@ -191,6 +194,12 @@ export class PaymentsService {
     if (payment.status !== BillingPaymentStatus.APPROVED && !existingIntent) {
       throw new ConflictException(
         'Pagamento não está aprovado para reembolso.',
+      );
+    }
+    const gatewayPaymentId = payment.gatewayPaymentId;
+    if (!gatewayPaymentId) {
+      throw new ConflictException(
+        'Pagamento sem operação Mercado Pago disponível.',
       );
     }
 
@@ -372,8 +381,8 @@ export class PaymentsService {
     }
 
     try {
-      await gateway.refundPayment(payment.gatewayPaymentId);
-      const verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
+      await gateway.refundPayment(gatewayPaymentId);
+      const verified = await gateway.getPaymentStatus(gatewayPaymentId);
       const localResult = await this.processVerifiedPayment(
         payment.provider,
         verified,
@@ -458,7 +467,11 @@ export class PaymentsService {
     },
     resolveGatewayPayment = false,
   ) {
-    if (!payment.gatewayPaymentId) return null;
+    if (!payment.gatewayPaymentId) {
+      return resolveGatewayPayment
+        ? this.resolveRefundPaymentByReference(payment, intent, gateway)
+        : null;
+    }
     let verified: GatewayPaymentResult;
     try {
       verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
@@ -500,6 +513,7 @@ export class PaymentsService {
       id: string;
       tenantId: string;
       provider: PaymentGatewayProvider;
+      gatewayPaymentId: string | null;
       externalReference: string;
       amountCents: number;
       currency: string;
@@ -511,7 +525,7 @@ export class PaymentsService {
         externalReference: string,
       ) => Promise<GatewayPaymentResult[]>;
     },
-    lookupError: unknown,
+    _lookupError?: unknown,
   ) {
     let results: GatewayPaymentResult[];
     try {
@@ -552,27 +566,102 @@ export class PaymentsService {
     }
 
     const [resolved] = candidates;
-    const saved = await this.prisma.billingPayment.updateMany({
+    const recordedPayment = await this.prisma.billingPayment.findFirst({
       where: {
-        id: payment.id,
-        tenantId: payment.tenantId,
         provider: payment.provider,
-        externalReference: payment.externalReference,
-        amountCents: payment.amountCents,
-        currency: payment.currency,
+        gatewayPaymentId: resolved.gatewayPaymentId,
       },
-      data: { gatewayPaymentId: resolved.gatewayPaymentId },
+      select: {
+        id: true,
+        tenantId: true,
+        externalReference: true,
+        amountCents: true,
+        currency: true,
+        subscriptionId: true,
+      },
     });
-    if (saved.count !== 1) {
+    const sameRecordedPayment =
+      !recordedPayment ||
+      (recordedPayment.id === payment.id &&
+        recordedPayment.tenantId === payment.tenantId) ||
+      (recordedPayment.tenantId === payment.tenantId &&
+        recordedPayment.externalReference === payment.externalReference &&
+        recordedPayment.amountCents === payment.amountCents &&
+        recordedPayment.currency === payment.currency);
+    if (!sameRecordedPayment) {
       await this.markExistingRefundState(
         intent.id,
         BillingRefundIntentState.UNKNOWN,
-        'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+        'PAYMENT_RESOLUTION_ALREADY_RECORDED',
       );
       return this.refundDiagnosticResult(
         payment,
         intent,
-        'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+        'PAYMENT_RESOLUTION_ALREADY_RECORDED',
+      );
+    }
+
+    if (!recordedPayment) {
+      let saved: { count: number };
+      try {
+        saved = await this.prisma.billingPayment.updateMany({
+          where: {
+            id: payment.id,
+            tenantId: payment.tenantId,
+            provider: payment.provider,
+            externalReference: payment.externalReference,
+            amountCents: payment.amountCents,
+            currency: payment.currency,
+            gatewayPaymentId: payment.gatewayPaymentId,
+          },
+          data: { gatewayPaymentId: resolved.gatewayPaymentId },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          await this.markExistingRefundState(
+            intent.id,
+            BillingRefundIntentState.UNKNOWN,
+            'PAYMENT_RESOLUTION_ALREADY_RECORDED',
+          );
+          return this.refundDiagnosticResult(
+            payment,
+            intent,
+            'PAYMENT_RESOLUTION_ALREADY_RECORDED',
+          );
+        }
+        throw error;
+      }
+      if (saved.count === 1) {
+        // The old, invalid identifier was atomically replaced by the validated
+        // payment id. A concurrent webhook may still win this race, handled below.
+      } else {
+        await this.markExistingRefundState(
+          intent.id,
+          BillingRefundIntentState.UNKNOWN,
+          'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+        );
+        return this.refundDiagnosticResult(
+          payment,
+          intent,
+          'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+        );
+      }
+    }
+    if (recordedPayment && recordedPayment.id !== payment.id) {
+      // The ledger already owns this gateway payment. Never overwrite the
+      // stale row and never send another financial request from this path.
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        'PAYMENT_RESOLUTION_ALREADY_RECORDED',
+      );
+      return this.refundDiagnosticResult(
+        payment,
+        intent,
+        'PAYMENT_RESOLUTION_ALREADY_RECORDED',
       );
     }
 
