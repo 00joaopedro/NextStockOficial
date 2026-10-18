@@ -738,11 +738,8 @@ export class PaymentsService {
           ),
       ),
     ];
-    if (paymentIds.length !== 1) {
-      const diagnostic =
-        paymentIds.length === 0
-          ? 'PAYMENT_RESOLUTION_NOT_FOUND'
-          : 'PAYMENT_RESOLUTION_AMBIGUOUS';
+    if (paymentIds.length === 0) {
+      const diagnostic = 'PAYMENT_RESOLUTION_NOT_FOUND';
       await this.markExistingRefundState(
         intent.id,
         BillingRefundIntentState.UNKNOWN,
@@ -751,14 +748,32 @@ export class PaymentsService {
       return this.refundDiagnosticResult(payment, intent, diagnostic);
     }
 
-    let resolved: GatewayPaymentResult;
-    try {
-      resolved = await gateway.getPaymentStatus(paymentIds[0]);
-    } catch (error) {
+    const resolvedCandidates: GatewayPaymentResult[] = [];
+    let lookupFailure: unknown;
+    for (const gatewayPaymentId of paymentIds) {
+      try {
+        const candidate = await gateway.getPaymentStatus(gatewayPaymentId);
+        const paymentMatches =
+          candidate.externalReference === payment.externalReference &&
+          candidate.amountCents === payment.amountCents &&
+          candidate.currency === payment.currency &&
+          (candidate.gatewaySubscriptionId === null ||
+            candidate.gatewaySubscriptionId === gatewaySubscriptionId) &&
+          ['APPROVED', 'REFUNDED'].includes(candidate.normalizedStatus);
+        if (paymentMatches) resolvedCandidates.push(candidate);
+      } catch (error) {
+        lookupFailure ??= error;
+      }
+    }
+    if (resolvedCandidates.length !== 1) {
       const diagnostic =
-        error instanceof GatewayCheckoutError
-          ? `PAYMENT_RESOLUTION_LOOKUP_${error.failureCode}`
-          : 'PAYMENT_RESOLUTION_LOOKUP_UNAVAILABLE';
+        resolvedCandidates.length > 1
+          ? 'PAYMENT_RESOLUTION_AMBIGUOUS'
+          : lookupFailure instanceof GatewayCheckoutError
+            ? `PAYMENT_RESOLUTION_LOOKUP_${lookupFailure.failureCode}`
+            : lookupFailure
+              ? 'PAYMENT_RESOLUTION_LOOKUP_UNAVAILABLE'
+              : 'PAYMENT_RESOLUTION_VALIDATION_FAILED';
       await this.markExistingRefundState(
         intent.id,
         BillingRefundIntentState.UNKNOWN,
@@ -766,23 +781,7 @@ export class PaymentsService {
       );
       return this.refundDiagnosticResult(payment, intent, diagnostic);
     }
-    const paymentMatches =
-      resolved.externalReference === payment.externalReference &&
-      resolved.amountCents === payment.amountCents &&
-      resolved.currency === payment.currency &&
-      (resolved.gatewaySubscriptionId === null ||
-        resolved.gatewaySubscriptionId === gatewaySubscriptionId) &&
-      ['APPROVED', 'REFUNDED'].includes(resolved.normalizedStatus);
-    if (!paymentMatches) {
-      const diagnostic = 'PAYMENT_RESOLUTION_VALIDATION_FAILED';
-      await this.markExistingRefundState(
-        intent.id,
-        BillingRefundIntentState.UNKNOWN,
-        diagnostic,
-      );
-      return this.refundDiagnosticResult(payment, intent, diagnostic);
-    }
-
+    const [resolved] = resolvedCandidates;
     const recordedPayment = await this.prisma.billingPayment.findFirst({
       where: {
         provider: payment.provider,
