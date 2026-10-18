@@ -211,6 +211,7 @@
       const resolutionDescriptions = {
         PAYMENT_RESOLUTION_NOT_FOUND: "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno adicional será enviado.",
         PAYMENT_RESOLUTION_AMBIGUOUS: "Foram encontradas cobranças que não podem ser diferenciadas com segurança. Nenhum estorno adicional será enviado.",
+        PAYMENT_RESOLUTION_VALIDATION_FAILED: "A cobrança localizada não passou nas validações de assinatura, valor, moeda ou referência. Nenhum estorno será enviado.",
         PAYMENT_RESOLUTION_ALREADY_RECORDED: "A cobrança já foi registrada por outra confirmação. Nenhum novo estorno será enviado automaticamente.",
       };
       el.productionTestRefundDescription.textContent = resolutionDescriptions[data.diagnostic]
@@ -350,6 +351,8 @@
             ? "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno foi reenviado."
             : diagnostic === "PAYMENT_RESOLUTION_AMBIGUOUS"
               ? "Existem cobranças que não podem ser diferenciadas com segurança. Nenhum estorno foi reenviado."
+            : diagnostic === "PAYMENT_RESOLUTION_VALIDATION_FAILED"
+              ? "A cobrança localizada não passou nas validações de segurança. Nenhum estorno foi reenviado."
         : refundStatus === "FAILED_RETRYABLE"
           ? "O Mercado Pago não concluiu o estorno agora. Você poderá tentar novamente com segurança."
           : refundStatus === "FAILED_FINAL"
