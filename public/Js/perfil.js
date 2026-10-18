@@ -10,6 +10,7 @@
     paymentConfig: { connections: [], terminals: [], routes: [] },
     productionTestAvailable: false,
     productionTestRefundAvailable: false,
+    productionTestRefundAction: "NONE",
     subscription: null,
   };
   const $ = (id) => document.getElementById(id);
@@ -29,7 +30,7 @@
     routeList: $("paymentRouteList"), routeMethod: $("paymentRouteMethod"), routeContext: $("paymentRouteContext"), routeConnection: $("paymentRouteConnection"), saveRoute: $("savePaymentRouteBtn"),
     productionTestPanel: $("productionTestCheckoutPanel"),
     productionTestBtn: $("productionTestCheckoutBtn"),
-    productionTestRefundPanel: $("productionTestRefundPanel"), productionTestRefundBtn: $("productionTestRefundBtn"),
+    productionTestRefundPanel: $("productionTestRefundPanel"), productionTestRefundBtn: $("productionTestRefundBtn"), productionTestRefundDescription: $("productionTestRefundDescription"),
     cancellationPanel: $("subscriptionCancellationPanel"), cancellationTitle: $("subscriptionCancellationTitle"),
     cancellationDescription: $("subscriptionCancellationDescription"), cancelSubscription: $("cancelSubscriptionBtn"),
   };
@@ -180,7 +181,26 @@
     if (!el.productionTestRefundPanel) return;
     const data = await api("/api/billing/production-test-refund-capability");
     state.productionTestRefundAvailable = data.enabled === true;
-    el.productionTestRefundPanel.hidden = !state.productionTestRefundAvailable;
+    state.productionTestRefundAction = data.action || "NONE";
+    el.productionTestRefundPanel.hidden = data.visible !== true;
+    if (el.productionTestRefundDescription) {
+      const descriptions = {
+        REQUEST: "Disponível apenas para a validação técnica. O estorno cancela a renovação e suspende o acesso após a confirmação do Mercado Pago.",
+        RETRY: "A tentativa anterior não foi concluída pelo Mercado Pago. Você pode tentar novamente com segurança; nenhuma renovação futura será criada.",
+        RECONCILE: "O resultado da solicitação anterior ainda não pôde ser confirmado. Verifique o status antes de qualquer nova cobrança.",
+        NONE: data.refundState === "FAILED_FINAL"
+          ? "O Mercado Pago recusou o estorno do teste. A renovação já foi cancelada; não será feita nova tentativa automática."
+          : "O estorno do teste está sendo processado. Aguarde a confirmação do Mercado Pago.",
+      };
+      el.productionTestRefundDescription.textContent = descriptions[state.productionTestRefundAction] || descriptions.NONE;
+    }
+    if (el.productionTestRefundBtn) {
+      el.productionTestRefundBtn.textContent = state.productionTestRefundAction === "RETRY"
+        ? "Tentar estorno novamente — R$ 1,00"
+        : state.productionTestRefundAction === "RECONCILE"
+          ? "Verificar status do estorno"
+          : "Solicitar estorno do teste — R$ 1,00";
+    }
     permissions();
   }
 
@@ -285,12 +305,27 @@
   }
   async function refundProductionTest() {
     if (!state.productionTestRefundAvailable) return;
-    if (!confirm("Solicitar o estorno do teste de R$ 1,00? A renovação será cancelada e o acesso será suspenso após a confirmação do Mercado Pago.")) return;
+    const checking = state.productionTestRefundAction === "RECONCILE";
+    const retrying = state.productionTestRefundAction === "RETRY";
+    const confirmation = checking
+      ? "Verificar se o Mercado Pago confirmou o estorno? Nenhuma nova cobrança será criada."
+      : retrying
+        ? "Tentar novamente o estorno do teste de R$ 1,00? A renovação já está cancelada."
+        : "Solicitar o estorno do teste de R$ 1,00? A renovação será cancelada e o acesso será suspenso após a confirmação do Mercado Pago.";
+    if (!confirm(confirmation)) return;
     busy(true);
-    message("Solicitando estorno do teste...");
+    message(checking ? "Verificando status do estorno..." : "Solicitando estorno do teste...");
     try {
       const result = await api("/api/billing/production-test-refund", { method: "POST", body: JSON.stringify({}) });
-      message(result.result?.accepted ? "Estorno do teste solicitado. O acesso será suspenso após a confirmação do Mercado Pago." : "Estorno solicitado e aguardando confirmação do Mercado Pago.", "success");
+      const refundStatus = result.result?.status;
+      const resultMessage = result.result?.accepted
+        ? "Estorno do teste confirmado. O acesso foi suspenso."
+        : refundStatus === "FAILED_RETRYABLE"
+          ? "O Mercado Pago não concluiu o estorno agora. Você poderá tentar novamente com segurança."
+          : refundStatus === "FAILED_FINAL"
+            ? "O Mercado Pago recusou o estorno. A renovação já foi cancelada; nenhuma nova tentativa será feita automaticamente."
+            : "O estorno ainda não foi confirmado pelo Mercado Pago. Verifique o status novamente mais tarde.";
+      message(resultMessage, result.result?.accepted ? "success" : "error");
       await Promise.all([loadBilling(), loadProductionTestCapability(), loadProductionTestRefundCapability()]);
     } finally { busy(false); }
   }
