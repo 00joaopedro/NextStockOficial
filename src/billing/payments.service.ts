@@ -73,7 +73,7 @@ export class PaymentsService {
           operation: 'REFUND',
         },
       },
-      select: { state: true },
+      select: { state: true, failureCode: true },
     });
     const state = intent?.state ?? null;
     const action =
@@ -93,6 +93,7 @@ export class PaymentsService {
       amountCents: payment.amountCents,
       currency: payment.currency,
       refundState: state,
+      diagnostic: intent?.failureCode ?? null,
     };
   }
 
@@ -116,12 +117,23 @@ export class PaymentsService {
         'Não existe pagamento aprovado do teste de R$ 1,00 elegível para estorno.',
       );
     }
-    return this.refundForTenant(tenantId, payment.id);
+    return this.refundForTenant(tenantId, payment.id, {
+      resolveGatewayPayment: true,
+    });
   }
 
-  async refundForTenant(tenantId: string, paymentId: string) {
+  async refundForTenant(
+    tenantId: string,
+    paymentId: string,
+    options: { resolveGatewayPayment?: boolean } = {},
+  ) {
     const payment = await this.prisma.billingPayment.findFirst({
       where: { id: paymentId, tenantId },
+      include: {
+        subscription: {
+          select: { gatewaySubscriptionId: true },
+        },
+      },
     });
     if (!payment) {
       throw new NotFoundException('Pagamento não encontrado.');
@@ -156,6 +168,7 @@ export class PaymentsService {
         payment,
         existingIntent,
         gateway,
+        options.resolveGatewayPayment === true,
       );
       if (reconciled) return reconciled;
       return {
@@ -428,20 +441,35 @@ export class PaymentsService {
   private async reconcileRefundIntent(
     payment: {
       id: string;
+      tenantId: string;
       provider: PaymentGatewayProvider;
       gatewayPaymentId: string | null;
+      externalReference: string;
+      amountCents: number;
+      currency: string;
+      subscription: { gatewaySubscriptionId: string | null } | null;
     },
     intent: { id: string; state: BillingRefundIntentState },
     gateway: {
       getPaymentStatus: (resourceId: string) => Promise<GatewayPaymentResult>;
+      findPayments: (
+        externalReference: string,
+      ) => Promise<GatewayPaymentResult[]>;
     },
+    resolveGatewayPayment = false,
   ) {
     if (!payment.gatewayPaymentId) return null;
     let verified: GatewayPaymentResult;
     try {
       verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
-    } catch {
-      return null;
+    } catch (error) {
+      if (!resolveGatewayPayment) return null;
+      return this.resolveRefundPaymentByReference(
+        payment,
+        intent,
+        gateway,
+        error,
+      );
     }
     if (verified.normalizedStatus !== 'REFUNDED') return null;
 
@@ -465,6 +493,152 @@ export class PaymentsService {
       idempotentReplay: completed.count !== 1,
       localResult,
     };
+  }
+
+  private async resolveRefundPaymentByReference(
+    payment: {
+      id: string;
+      tenantId: string;
+      provider: PaymentGatewayProvider;
+      externalReference: string;
+      amountCents: number;
+      currency: string;
+      subscription: { gatewaySubscriptionId: string | null } | null;
+    },
+    intent: { id: string; state: BillingRefundIntentState },
+    gateway: {
+      findPayments: (
+        externalReference: string,
+      ) => Promise<GatewayPaymentResult[]>;
+    },
+    lookupError: unknown,
+  ) {
+    let results: GatewayPaymentResult[];
+    try {
+      results = await gateway.findPayments(payment.externalReference);
+    } catch (error) {
+      const diagnostic =
+        error instanceof GatewayCheckoutError
+          ? `PAYMENT_SEARCH_${error.failureCode}`
+          : 'PAYMENT_SEARCH_UNAVAILABLE';
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        diagnostic,
+      );
+      return this.refundDiagnosticResult(payment, intent, diagnostic);
+    }
+
+    const candidates = results.filter(
+      (result) =>
+        result.externalReference === payment.externalReference &&
+        result.amountCents === payment.amountCents &&
+        result.currency === payment.currency &&
+        result.gatewaySubscriptionId ===
+          payment.subscription?.gatewaySubscriptionId &&
+        ['APPROVED', 'REFUNDED'].includes(result.normalizedStatus),
+    );
+    if (candidates.length !== 1) {
+      const diagnostic =
+        candidates.length === 0
+          ? 'PAYMENT_RESOLUTION_NOT_FOUND'
+          : 'PAYMENT_RESOLUTION_AMBIGUOUS';
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        diagnostic,
+      );
+      return this.refundDiagnosticResult(payment, intent, diagnostic);
+    }
+
+    const [resolved] = candidates;
+    const saved = await this.prisma.billingPayment.updateMany({
+      where: {
+        id: payment.id,
+        tenantId: payment.tenantId,
+        provider: payment.provider,
+        externalReference: payment.externalReference,
+        amountCents: payment.amountCents,
+        currency: payment.currency,
+      },
+      data: { gatewayPaymentId: resolved.gatewayPaymentId },
+    });
+    if (saved.count !== 1) {
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+      );
+      return this.refundDiagnosticResult(
+        payment,
+        intent,
+        'PAYMENT_RESOLUTION_SAVE_CONFLICT',
+      );
+    }
+
+    if (resolved.normalizedStatus === 'REFUNDED') {
+      const localResult = await this.processVerifiedPayment(
+        payment.provider,
+        resolved,
+        'refund_reconciliation_reference',
+      );
+      const completed = await this.prisma.billingRefundIntent.updateMany({
+        where: { id: intent.id, state: BillingRefundIntentState.UNKNOWN },
+        data: {
+          state: BillingRefundIntentState.SUCCEEDED,
+          failureCode: null,
+        },
+      });
+      return {
+        accepted: true,
+        status: BillingRefundIntentState.SUCCEEDED,
+        paymentId: payment.id,
+        refundIntentId: intent.id,
+        idempotentReplay: completed.count !== 1,
+        localResult,
+      };
+    }
+
+    // A previous request may have reached the provider. Once the exact payment
+    // is recovered, require an explicit admin retry instead of resending now.
+    await this.markExistingRefundState(
+      intent.id,
+      BillingRefundIntentState.FAILED_RETRYABLE,
+      'PAYMENT_RESOLVED_RETRY_REQUIRED',
+    );
+    return this.refundDiagnosticResult(
+      payment,
+      intent,
+      'PAYMENT_RESOLVED_RETRY_REQUIRED',
+      BillingRefundIntentState.FAILED_RETRYABLE,
+    );
+  }
+
+  private refundDiagnosticResult(
+    payment: { id: string },
+    intent: { id: string },
+    diagnostic: string,
+    status: BillingRefundIntentState = BillingRefundIntentState.UNKNOWN,
+  ) {
+    return {
+      accepted: false,
+      status,
+      paymentId: payment.id,
+      refundIntentId: intent.id,
+      idempotentReplay: true,
+      diagnostic,
+    };
+  }
+
+  private async markExistingRefundState(
+    id: string,
+    state: BillingRefundIntentState,
+    failureCode: string,
+  ) {
+    await this.prisma.billingRefundIntent.updateMany({
+      where: { id, state: BillingRefundIntentState.UNKNOWN },
+      data: { state, failureCode },
+    });
   }
 
   private async markRefundUnknown(
