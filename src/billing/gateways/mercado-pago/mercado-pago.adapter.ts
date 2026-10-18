@@ -112,33 +112,57 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
   async findAuthorizedPayments(
     gatewaySubscriptionId: string,
   ): Promise<GatewayAuthorizedPaymentResult[]> {
-    const body = await this.request(
-      `/authorized_payments/search?preapproval_id=${encodeURIComponent(gatewaySubscriptionId)}`,
-    );
-    return Array.isArray(body.results)
-      ? body.results.map((invoice: Record<string, any>) => {
-          const payment =
-            invoice.payment && typeof invoice.payment === 'object'
-              ? (invoice.payment as Record<string, unknown>)
-              : {};
-          return {
-            gatewayAuthorizedPaymentId: String(invoice.id || ''),
-            gatewayPaymentId:
-              typeof payment.id === 'string' || typeof payment.id === 'number'
-                ? String(payment.id)
-                : null,
-            gatewaySubscriptionId:
-              typeof invoice.preapproval_id === 'string'
-                ? invoice.preapproval_id
-                : null,
-            status: String(invoice.status ?? payment.status ?? 'unknown'),
-            amountCents: Math.round(
-              Number(invoice.transaction_amount ?? 0) * 100,
-            ),
-            currency: String(invoice.currency_id ?? ''),
-          };
-        })
-      : [];
+    const limit = 20;
+    let offset = 0;
+    let total = 0;
+    const invoices: GatewayAuthorizedPaymentResult[] = [];
+
+    do {
+      const body = await this.request(
+        `/authorized_payments/search?preapproval_id=${encodeURIComponent(gatewaySubscriptionId)}&offset=${offset}&limit=${limit}`,
+      );
+      const results = Array.isArray(body.results) ? body.results : [];
+      invoices.push(
+        ...results.map((invoice: Record<string, any>) =>
+          this.mapAuthorizedPayment(invoice),
+        ),
+      );
+      const paging =
+        body.paging && typeof body.paging === 'object'
+          ? (body.paging as Record<string, unknown>)
+          : {};
+      const declaredTotal = Number(paging.total);
+      total = Number.isFinite(declaredTotal)
+        ? Math.max(0, declaredTotal)
+        : offset + results.length;
+      if (results.length === 0) break;
+      offset += results.length;
+    } while (offset < total);
+
+    return invoices;
+  }
+
+  private mapAuthorizedPayment(
+    invoice: Record<string, any>,
+  ): GatewayAuthorizedPaymentResult {
+    const payment =
+      invoice.payment && typeof invoice.payment === 'object'
+        ? (invoice.payment as Record<string, unknown>)
+        : {};
+    return {
+      gatewayAuthorizedPaymentId: String(invoice.id || ''),
+      gatewayPaymentId:
+        typeof payment.id === 'string' || typeof payment.id === 'number'
+          ? String(payment.id)
+          : null,
+      gatewaySubscriptionId:
+        typeof invoice.preapproval_id === 'string'
+          ? invoice.preapproval_id
+          : null,
+      status: String(invoice.status ?? payment.status ?? 'unknown'),
+      amountCents: Math.round(Number(invoice.transaction_amount ?? 0) * 100),
+      currency: String(invoice.currency_id ?? ''),
+    };
   }
 
   private mapPayment(
