@@ -266,6 +266,53 @@ describe('RC-004 billing state policy', () => {
     expect(prisma.billingRefundIntent).toBeUndefined();
   });
 
+  it('marca como inelegível um pagamento que pertence a outra assinatura', async () => {
+    const payment = {
+      id: 'test-payment',
+      tenantId: 'tenant',
+      provider: PaymentGatewayProvider.MERCADO_PAGO,
+      externalReference: 'billing:test-payment',
+      amountCents: 100,
+      currency: 'BRL',
+      subscription: { gatewaySubscriptionId: 'preapproval-1' },
+    };
+    const prisma = {
+      billingPayment: { findFirst: jest.fn().mockResolvedValue(payment) },
+    } as any;
+    const gateway = {
+      findAuthorizedPayments: jest.fn().mockResolvedValue([
+        {
+          gatewayAuthorizedPaymentId: 'authorized-payment-1',
+          gatewayPaymentId: 'payment-real',
+          gatewaySubscriptionId: 'preapproval-1',
+          status: 'processed',
+          amountCents: 100,
+          currency: 'BRL',
+        },
+      ]),
+      getPaymentStatus: jest.fn().mockResolvedValue({
+        gatewayPaymentId: 'payment-real',
+        gatewaySubscriptionId: 'preapproval-from-another-subscription',
+        normalizedStatus: 'APPROVED',
+        externalReference: payment.externalReference,
+        amountCents: 100,
+        currency: 'BRL',
+      }),
+    };
+    const service = new PaymentsService(
+      prisma,
+      {} as any,
+      { get: () => gateway } as any,
+    );
+
+    await expect(
+      service.productionTestRefundDiagnostic('tenant'),
+    ).resolves.toMatchObject({
+      code: 'PAYMENT_VALIDATION_FAILED',
+      checks: { authorizedPaymentSubscriptionMatches: false },
+    });
+  });
+
   it('registra como falha final uma recusa conhecida do gateway sem retornar 502', async () => {
     const prisma = {
       billingPayment: {
