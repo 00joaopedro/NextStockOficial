@@ -97,6 +97,147 @@ export class PaymentsService {
     };
   }
 
+  /**
+   * Read-only evidence for the restricted R$ 1,00 production test. This must
+   * never cancel a subscription, persist a payment id, or request a refund.
+   */
+  async productionTestRefundDiagnostic(tenantId: string) {
+    const payment = await this.prisma.billingPayment.findFirst({
+      where: {
+        tenantId,
+        status: BillingPaymentStatus.APPROVED,
+        plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+        subscription: {
+          is: { plan: { slug: PRODUCTION_TEST_PLAN_SLUG } },
+        },
+        amountCents: 100,
+        currency: 'BRL',
+      },
+      orderBy: { paidAt: 'desc' },
+      select: {
+        id: true,
+        provider: true,
+        externalReference: true,
+        amountCents: true,
+        currency: true,
+        subscription: { select: { gatewaySubscriptionId: true } },
+      },
+    });
+    if (!payment) {
+      return this.productionTestDiagnosticFailure(
+        'LOCAL_PAYMENT',
+        'TECHNICAL_PAYMENT_NOT_FOUND',
+      );
+    }
+
+    const gatewaySubscriptionId = payment.subscription?.gatewaySubscriptionId;
+    if (!gatewaySubscriptionId) {
+      return this.productionTestDiagnosticFailure(
+        'SUBSCRIPTION',
+        'SUBSCRIPTION_ID_NOT_FOUND',
+        payment,
+      );
+    }
+    if (!this.gateways) {
+      return this.productionTestDiagnosticFailure(
+        'GATEWAY',
+        'GATEWAY_UNAVAILABLE',
+        payment,
+      );
+    }
+
+    const gateway = this.gateways.get(payment.provider);
+    let invoices;
+    try {
+      invoices = await gateway.findAuthorizedPayments(gatewaySubscriptionId);
+    } catch (error) {
+      return this.productionTestDiagnosticGatewayFailure(
+        'AUTHORIZED_PAYMENT_LOOKUP',
+        error,
+        payment,
+      );
+    }
+
+    const matchingInvoices = invoices.filter(
+      (invoice) =>
+        invoice.gatewaySubscriptionId === gatewaySubscriptionId &&
+        invoice.amountCents === payment.amountCents &&
+        invoice.currency === payment.currency &&
+        Boolean(invoice.gatewayPaymentId),
+    );
+    const invoiceSummary = {
+      found: invoices.length,
+      eligible: matchingInvoices.length,
+      statuses: invoices.slice(0, 5).map((invoice) => ({
+        status: invoice.status,
+        hasPaymentId: Boolean(invoice.gatewayPaymentId),
+        subscriptionMatches:
+          invoice.gatewaySubscriptionId === gatewaySubscriptionId,
+        amountMatches: invoice.amountCents === payment.amountCents,
+        currencyMatches: invoice.currency === payment.currency,
+      })),
+    };
+    if (matchingInvoices.length === 0) {
+      return this.productionTestDiagnosticFailure(
+        'AUTHORIZED_PAYMENT_LOOKUP',
+        'AUTHORIZED_PAYMENT_NOT_FOUND',
+        payment,
+        { invoices: invoiceSummary },
+      );
+    }
+    const paymentIds: string[] = [
+      ...new Set<string>(
+        matchingInvoices.flatMap((invoice) =>
+          invoice.gatewayPaymentId ? [invoice.gatewayPaymentId] : [],
+        ),
+      ),
+    ];
+    if (paymentIds.length !== 1) {
+      return this.productionTestDiagnosticFailure(
+        'AUTHORIZED_PAYMENT_LOOKUP',
+        'AUTHORIZED_PAYMENT_AMBIGUOUS',
+        payment,
+        { invoices: invoiceSummary },
+      );
+    }
+
+    let providerPayment;
+    try {
+      providerPayment = await gateway.getPaymentStatus(paymentIds[0]);
+    } catch (error) {
+      return this.productionTestDiagnosticGatewayFailure(
+        'PAYMENT_LOOKUP',
+        error,
+        payment,
+        { invoices: invoiceSummary },
+      );
+    }
+    const checks = {
+      authorizedPaymentSubscriptionMatches: true,
+      paymentExternalReferenceMatches:
+        providerPayment.externalReference === payment.externalReference,
+      paymentAmountMatches: providerPayment.amountCents === payment.amountCents,
+      paymentCurrencyMatches: providerPayment.currency === payment.currency,
+      paymentIsApproved: providerPayment.normalizedStatus === 'APPROVED',
+    };
+    const eligible = Object.values(checks).every(Boolean);
+    return {
+      available: true,
+      stage: 'PAYMENT_VALIDATION',
+      code: eligible ? 'PAYMENT_ELIGIBLE' : 'PAYMENT_VALIDATION_FAILED',
+      local: this.productionTestDiagnosticLocal(payment),
+      invoices: invoiceSummary,
+      payment: {
+        status: providerPayment.normalizedStatus,
+        paymentIdSuffix: this.redactGatewayId(providerPayment.gatewayPaymentId),
+        gatewaySubscriptionObserved: Boolean(
+          providerPayment.gatewaySubscriptionId,
+        ),
+      },
+      checks,
+    };
+  }
+
   async refundProductionTestForTenant(tenantId: string) {
     const payment = await this.prisma.billingPayment.findFirst({
       where: {
@@ -717,6 +858,75 @@ export class PaymentsService {
       idempotentReplay: true,
       diagnostic,
     };
+  }
+
+  private productionTestDiagnosticLocal(payment: {
+    id: string;
+    externalReference: string;
+    amountCents: number;
+    currency: string;
+    subscription: { gatewaySubscriptionId: string | null } | null;
+  }) {
+    return {
+      paymentIdSuffix: this.redactGatewayId(payment.id),
+      subscriptionIdSuffix: this.redactGatewayId(
+        payment.subscription?.gatewaySubscriptionId,
+      ),
+      externalReferenceSuffix: this.redactGatewayId(payment.externalReference),
+      amountCents: payment.amountCents,
+      currency: payment.currency,
+    };
+  }
+
+  private productionTestDiagnosticFailure(
+    stage: string,
+    code: string,
+    payment?: {
+      id: string;
+      externalReference: string;
+      amountCents: number;
+      currency: string;
+      subscription: { gatewaySubscriptionId: string | null } | null;
+    },
+    extra: Record<string, unknown> = {},
+  ) {
+    return {
+      available: Boolean(payment),
+      stage,
+      code,
+      ...(payment ? { local: this.productionTestDiagnosticLocal(payment) } : {}),
+      ...extra,
+    };
+  }
+
+  private productionTestDiagnosticGatewayFailure(
+    stage: string,
+    error: unknown,
+    payment: {
+      id: string;
+      externalReference: string;
+      amountCents: number;
+      currency: string;
+      subscription: { gatewaySubscriptionId: string | null } | null;
+    },
+    extra: Record<string, unknown> = {},
+  ) {
+    const gateway = error instanceof GatewayCheckoutError ? error : undefined;
+    return this.productionTestDiagnosticFailure(
+      stage,
+      gateway ? `GATEWAY_${gateway.failureCode}` : 'GATEWAY_UNAVAILABLE',
+      payment,
+      {
+        providerStatus: gateway?.providerStatus ?? null,
+        providerRequestId: gateway?.providerRequestId ?? null,
+        ...extra,
+      },
+    );
+  }
+
+  private redactGatewayId(value: string | null | undefined) {
+    if (!value) return null;
+    return `…${value.slice(-8)}`;
   }
 
   private async markExistingRefundState(
