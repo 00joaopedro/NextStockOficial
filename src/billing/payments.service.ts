@@ -604,15 +604,24 @@ export class PaymentsService {
     intent: { id: string; state: BillingRefundIntentState },
     gateway: {
       getPaymentStatus: (resourceId: string) => Promise<GatewayPaymentResult>;
-      findPayments: (
-        externalReference: string,
-      ) => Promise<GatewayPaymentResult[]>;
+      findAuthorizedPayments: (gatewaySubscriptionId: string) => Promise<
+        Array<{
+          gatewayPaymentId: string | null;
+          gatewaySubscriptionId: string | null;
+          amountCents: number;
+          currency: string;
+        }>
+      >;
     },
     resolveGatewayPayment = false,
   ) {
     if (!payment.gatewayPaymentId) {
       return resolveGatewayPayment
-        ? this.resolveRefundPaymentByReference(payment, intent, gateway)
+        ? this.resolveRefundPaymentFromAuthorizedPayment(
+            payment,
+            intent,
+            gateway,
+          )
         : null;
     }
     let verified: GatewayPaymentResult;
@@ -620,14 +629,21 @@ export class PaymentsService {
       verified = await gateway.getPaymentStatus(payment.gatewayPaymentId);
     } catch (error) {
       if (!resolveGatewayPayment) return null;
-      return this.resolveRefundPaymentByReference(
+      return this.resolveRefundPaymentFromAuthorizedPayment(
         payment,
         intent,
         gateway,
-        error,
       );
     }
-    if (verified.normalizedStatus !== 'REFUNDED') return null;
+    if (verified.normalizedStatus !== 'REFUNDED') {
+      return resolveGatewayPayment
+        ? this.resolveRefundPaymentFromAuthorizedPayment(
+            payment,
+            intent,
+            gateway,
+          )
+        : null;
+    }
 
     const localResult = await this.processVerifiedPayment(
       payment.provider,
@@ -651,7 +667,7 @@ export class PaymentsService {
     };
   }
 
-  private async resolveRefundPaymentByReference(
+  private async resolveRefundPaymentFromAuthorizedPayment(
     payment: {
       id: string;
       tenantId: string;
@@ -664,20 +680,41 @@ export class PaymentsService {
     },
     intent: { id: string; state: BillingRefundIntentState },
     gateway: {
-      findPayments: (
-        externalReference: string,
-      ) => Promise<GatewayPaymentResult[]>;
+      getPaymentStatus: (resourceId: string) => Promise<GatewayPaymentResult>;
+      findAuthorizedPayments: (gatewaySubscriptionId: string) => Promise<
+        Array<{
+          gatewayPaymentId: string | null;
+          gatewaySubscriptionId: string | null;
+          amountCents: number;
+          currency: string;
+        }>
+      >;
     },
-    _lookupError?: unknown,
   ) {
-    let results: GatewayPaymentResult[];
+    const gatewaySubscriptionId = payment.subscription?.gatewaySubscriptionId;
+    if (!gatewaySubscriptionId) {
+      const diagnostic = 'PAYMENT_RESOLUTION_SUBSCRIPTION_NOT_FOUND';
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        diagnostic,
+      );
+      return this.refundDiagnosticResult(payment, intent, diagnostic);
+    }
+
+    let invoices: Array<{
+      gatewayPaymentId: string | null;
+      gatewaySubscriptionId: string | null;
+      amountCents: number;
+      currency: string;
+    }>;
     try {
-      results = await gateway.findPayments(payment.externalReference);
+      invoices = await gateway.findAuthorizedPayments(gatewaySubscriptionId);
     } catch (error) {
       const diagnostic =
         error instanceof GatewayCheckoutError
-          ? `PAYMENT_SEARCH_${error.failureCode}`
-          : 'PAYMENT_SEARCH_UNAVAILABLE';
+          ? `AUTHORIZED_PAYMENT_SEARCH_${error.failureCode}`
+          : 'AUTHORIZED_PAYMENT_SEARCH_UNAVAILABLE';
       await this.markExistingRefundState(
         intent.id,
         BillingRefundIntentState.UNKNOWN,
@@ -686,20 +723,57 @@ export class PaymentsService {
       return this.refundDiagnosticResult(payment, intent, diagnostic);
     }
 
-    const candidates = results.filter(
-      (result) =>
-        result.externalReference === payment.externalReference &&
-        result.amountCents === payment.amountCents &&
-        result.currency === payment.currency &&
-        result.gatewaySubscriptionId ===
-          payment.subscription?.gatewaySubscriptionId &&
-        ['APPROVED', 'REFUNDED'].includes(result.normalizedStatus),
-    );
-    if (candidates.length !== 1) {
+    const paymentIds = [
+      ...new Set(
+        invoices
+          .filter(
+            (invoice) =>
+              invoice.gatewaySubscriptionId === gatewaySubscriptionId &&
+              invoice.amountCents === payment.amountCents &&
+              invoice.currency === payment.currency &&
+              Boolean(invoice.gatewayPaymentId),
+          )
+          .flatMap((invoice) =>
+            invoice.gatewayPaymentId ? [invoice.gatewayPaymentId] : [],
+          ),
+      ),
+    ];
+    if (paymentIds.length === 0) {
+      const diagnostic = 'PAYMENT_RESOLUTION_NOT_FOUND';
+      await this.markExistingRefundState(
+        intent.id,
+        BillingRefundIntentState.UNKNOWN,
+        diagnostic,
+      );
+      return this.refundDiagnosticResult(payment, intent, diagnostic);
+    }
+
+    const resolvedCandidates: GatewayPaymentResult[] = [];
+    let lookupFailure: unknown;
+    for (const gatewayPaymentId of paymentIds) {
+      try {
+        const candidate = await gateway.getPaymentStatus(gatewayPaymentId);
+        const paymentMatches =
+          candidate.externalReference === payment.externalReference &&
+          candidate.amountCents === payment.amountCents &&
+          candidate.currency === payment.currency &&
+          (candidate.gatewaySubscriptionId === null ||
+            candidate.gatewaySubscriptionId === gatewaySubscriptionId) &&
+          ['APPROVED', 'REFUNDED'].includes(candidate.normalizedStatus);
+        if (paymentMatches) resolvedCandidates.push(candidate);
+      } catch (error) {
+        lookupFailure ??= error;
+      }
+    }
+    if (resolvedCandidates.length !== 1) {
       const diagnostic =
-        candidates.length === 0
-          ? 'PAYMENT_RESOLUTION_NOT_FOUND'
-          : 'PAYMENT_RESOLUTION_AMBIGUOUS';
+        resolvedCandidates.length > 1
+          ? 'PAYMENT_RESOLUTION_AMBIGUOUS'
+          : lookupFailure instanceof GatewayCheckoutError
+            ? `PAYMENT_RESOLUTION_LOOKUP_${lookupFailure.failureCode}`
+            : lookupFailure
+              ? 'PAYMENT_RESOLUTION_LOOKUP_UNAVAILABLE'
+              : 'PAYMENT_RESOLUTION_VALIDATION_FAILED';
       await this.markExistingRefundState(
         intent.id,
         BillingRefundIntentState.UNKNOWN,
@@ -707,8 +781,7 @@ export class PaymentsService {
       );
       return this.refundDiagnosticResult(payment, intent, diagnostic);
     }
-
-    const [resolved] = candidates;
+    const [resolved] = resolvedCandidates;
     const recordedPayment = await this.prisma.billingPayment.findFirst({
       where: {
         provider: payment.provider,

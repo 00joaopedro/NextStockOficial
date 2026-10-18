@@ -113,10 +113,56 @@ describe('MercadoPagoGatewayAdapter', () => {
       }),
     ]);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1',
+      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1&offset=0&limit=20',
       expect.objectContaining({
         headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
       }),
+    );
+  });
+
+  it('percorre todas as páginas de faturas recorrentes', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          paging: { offset: 0, limit: 20, total: 2 },
+          results: [
+            {
+              id: 'authorized-payment-1',
+              preapproval_id: 'preapproval-1',
+              transaction_amount: 1,
+              currency_id: 'BRL',
+              payment: { id: 1 },
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          paging: { offset: 1, limit: 20, total: 2 },
+          results: [
+            {
+              id: 'authorized-payment-2',
+              preapproval_id: 'preapproval-1',
+              transaction_amount: 1,
+              currency_id: 'BRL',
+              payment: { id: 2 },
+            },
+          ],
+        }),
+      }) as any;
+
+    const result = await new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any).findAuthorizedPayments('preapproval-1');
+
+    expect(result.map((invoice) => invoice.gatewayPaymentId)).toEqual(['1', '2']);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1&offset=1&limit=20',
+      expect.anything(),
     );
   });
 
