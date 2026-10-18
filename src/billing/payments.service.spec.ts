@@ -415,6 +415,18 @@ describe('RC-004 billing state policy', () => {
           providerOccurredAt: new Date(),
           gatewaySubscriptionId: null,
           raw: {},
+        })
+        .mockResolvedValueOnce({
+          gatewayPaymentId: 'payment-rejected',
+          status: 'rejected',
+          normalizedStatus: 'REJECTED',
+          externalReference: 'other-reference',
+          amountCents: 100,
+          currency: 'BRL',
+          paidAt: null,
+          providerOccurredAt: new Date(),
+          gatewaySubscriptionId: null,
+          raw: {},
         }),
       findAuthorizedPayments: jest.fn().mockResolvedValue([
         {
@@ -422,6 +434,14 @@ describe('RC-004 billing state policy', () => {
           gatewayPaymentId: 'payment-real',
           gatewaySubscriptionId: 'preapproval-1',
           status: 'approved',
+          amountCents: 100,
+          currency: 'BRL',
+        },
+        {
+          gatewayAuthorizedPaymentId: 'authorized-payment-2',
+          gatewayPaymentId: 'payment-rejected',
+          gatewaySubscriptionId: 'preapproval-1',
+          status: 'rejected',
           amountCents: 100,
           currency: 'BRL',
         },
@@ -443,7 +463,14 @@ describe('RC-004 billing state policy', () => {
       diagnostic: 'PAYMENT_RESOLVED_RETRY_REQUIRED',
     });
     expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith('preapproval-1');
-    expect(gateway.getPaymentStatus).toHaveBeenLastCalledWith('payment-real');
+    expect(gateway.getPaymentStatus).toHaveBeenNthCalledWith(
+      2,
+      'payment-real',
+    );
+    expect(gateway.getPaymentStatus).toHaveBeenNthCalledWith(
+      3,
+      'payment-rejected',
+    );
     expect(prisma.billingPayment.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: { gatewayPaymentId: 'payment-real' },
