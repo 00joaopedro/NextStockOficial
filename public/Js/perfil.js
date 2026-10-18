@@ -192,7 +192,14 @@
           ? "O Mercado Pago recusou o estorno do teste. A renovação já foi cancelada; não será feita nova tentativa automática."
           : "O estorno do teste está sendo processado. Aguarde a confirmação do Mercado Pago.",
       };
-      el.productionTestRefundDescription.textContent = descriptions[state.productionTestRefundAction] || descriptions.NONE;
+      const resolutionDescriptions = {
+        PAYMENT_RESOLUTION_NOT_FOUND: "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno adicional será enviado.",
+        PAYMENT_RESOLUTION_AMBIGUOUS: "Foram encontradas cobranças que não podem ser diferenciadas com segurança. Nenhum estorno adicional será enviado.",
+        PAYMENT_RESOLUTION_ALREADY_RECORDED: "A cobrança já foi registrada por outra confirmação. Nenhum novo estorno será enviado automaticamente.",
+      };
+      el.productionTestRefundDescription.textContent = resolutionDescriptions[data.diagnostic]
+        || descriptions[state.productionTestRefundAction]
+        || descriptions.NONE;
     }
     if (el.productionTestRefundBtn) {
       el.productionTestRefundBtn.textContent = state.productionTestRefundAction === "RETRY"
@@ -318,8 +325,15 @@
     try {
       const result = await api("/api/billing/production-test-refund", { method: "POST", body: JSON.stringify({}) });
       const refundStatus = result.result?.status;
+      const diagnostic = result.result?.diagnostic;
       const resultMessage = result.result?.accepted
         ? "Estorno do teste confirmado. O acesso foi suspenso."
+        : diagnostic === "PAYMENT_RESOLVED_RETRY_REQUIRED"
+          ? "A cobrança correta foi localizada e validada. Confirme uma nova tentativa para solicitar o estorno desse pagamento específico."
+          : diagnostic === "PAYMENT_RESOLUTION_NOT_FOUND"
+            ? "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno foi reenviado."
+            : diagnostic === "PAYMENT_RESOLUTION_AMBIGUOUS"
+              ? "Existem cobranças que não podem ser diferenciadas com segurança. Nenhum estorno foi reenviado."
         : refundStatus === "FAILED_RETRYABLE"
           ? "O Mercado Pago não concluiu o estorno agora. Você poderá tentar novamente com segurança."
           : refundStatus === "FAILED_FINAL"

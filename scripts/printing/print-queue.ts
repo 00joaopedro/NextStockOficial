@@ -71,6 +71,7 @@ export class PrintQueue {
   private persistTail: Promise<void> = Promise.resolve();
   private active = new Set<string>();
   private retryAfterActive = new Set<string>();
+  private retryTimers = new Set<ReturnType<typeof setTimeout>>();
   private monitoring = new Set<string>();
 
   constructor(
@@ -223,7 +224,11 @@ export class PrintQueue {
    */
   async waitForIdle() {
     await this.load();
-    while (this.active.size > 0 || this.monitoring.size > 0) {
+    while (
+      this.active.size > 0 ||
+      this.monitoring.size > 0 ||
+      this.retryTimers.size > 0
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     await this.persistTail;
@@ -290,7 +295,14 @@ export class PrintQueue {
       job.updatedAt = new Date().toISOString();
       await this.persist();
       if (job.status === 'error' && job.attempts < this.maxAttempts) {
-        setTimeout(() => void this.process(id), 250 * 2 ** (job.attempts - 1));
+        const timer = setTimeout(
+          () => {
+            this.retryTimers.delete(timer);
+            void this.process(id);
+          },
+          250 * 2 ** (job.attempts - 1),
+        );
+        this.retryTimers.add(timer);
       }
     } finally {
       this.active.delete(id);

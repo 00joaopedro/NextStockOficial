@@ -57,7 +57,7 @@ describe('local thermal print queue', () => {
     let attempts = 0;
     const queue = new PrintQueue(join(directory, 'queue.json'), { send: async () => { attempts += 1; throw new Error('offline'); } }, 2);
     const job = await queue.enqueue({ idempotencyKey: 'failure-1', html: '<p>Teste</p>', paperWidthMm: 58 });
-    await new Promise((resolve) => setTimeout(resolve, 700));
+    await queue.waitForIdle();
     expect(attempts).toBe(2);
     expect((await queue.get(job.id))?.status).toBe('error');
     await rm(directory, { recursive: true, force: true });
