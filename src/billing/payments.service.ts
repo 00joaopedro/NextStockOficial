@@ -341,6 +341,26 @@ export class PaymentsService {
         idempotentReplay: true,
       };
     }
+    if (existingIntent?.state === BillingRefundIntentState.FAILED_RETRYABLE) {
+      // Legacy failures do not prove that the provider did not process the call.
+      await this.prisma.billingRefundIntent.updateMany({
+        where: {
+          id: existingIntent.id,
+          state: BillingRefundIntentState.FAILED_RETRYABLE,
+        },
+        data: {
+          state: BillingRefundIntentState.UNKNOWN,
+          failureCode: 'REFUND_RECONCILIATION_REQUIRED',
+        },
+      });
+      return {
+        accepted: false,
+        status: BillingRefundIntentState.UNKNOWN,
+        paymentId: payment.id,
+        refundIntentId: existingIntent.id,
+        idempotentReplay: true,
+      };
+    }
     if (existingIntent?.state === BillingRefundIntentState.FAILED_FINAL) {
       return {
         accepted: false,
@@ -371,99 +391,72 @@ export class PaymentsService {
         }
       | undefined;
     if (existingIntent) {
-      if (existingIntent.state === BillingRefundIntentState.FAILED_RETRYABLE) {
-        const retried = await this.prisma.billingRefundIntent.updateMany({
+      const expired = existingIntent.leaseExpiresAt <= new Date();
+      if (!expired) {
+        throw new ConflictException(
+          'Reembolso já está em processamento; não será feita uma segunda chamada ao gateway.',
+        );
+      }
+      if (existingIntent.state === BillingRefundIntentState.CLAIMED) {
+        const reclaimed = await this.prisma.billingRefundIntent.updateMany({
           where: {
             id: existingIntent.id,
-            state: BillingRefundIntentState.FAILED_RETRYABLE,
+            claimToken: existingIntent.claimToken,
+            state: BillingRefundIntentState.CLAIMED,
+            leaseExpiresAt: { lte: new Date() },
           },
           data: {
             claimToken,
-            state: BillingRefundIntentState.PROCESSING,
+            state: BillingRefundIntentState.CLAIMED,
             leaseExpiresAt: new Date(Date.now() + 60_000),
-            failureCode: null,
           },
         });
-        if (retried.count !== 1) {
+        if (reclaimed.count !== 1) {
           throw new ConflictException(
-            'Reembolso foi atualizado por outra solicitação.',
+            'Claim de reembolso expirou ou foi substituído.',
           );
         }
         intent = {
           id: existingIntent.id,
           claimToken,
-          state: BillingRefundIntentState.PROCESSING,
+          state: BillingRefundIntentState.CLAIMED,
         };
-      } else {
-        const expired = existingIntent.leaseExpiresAt <= new Date();
-        if (!expired) {
-          throw new ConflictException(
-            'Reembolso já está em processamento; não será feita uma segunda chamada ao gateway.',
-          );
-        }
-        if (existingIntent.state === BillingRefundIntentState.CLAIMED) {
-          const reclaimed = await this.prisma.billingRefundIntent.updateMany({
-            where: {
-              id: existingIntent.id,
-              claimToken: existingIntent.claimToken,
-              state: BillingRefundIntentState.CLAIMED,
-              leaseExpiresAt: { lte: new Date() },
-            },
-            data: {
-              claimToken,
-              state: BillingRefundIntentState.PROCESSING,
-              leaseExpiresAt: new Date(Date.now() + 60_000),
-            },
-          });
-          if (reclaimed.count !== 1) {
-            throw new ConflictException(
-              'Claim de reembolso expirou ou foi substituído.',
-            );
-          }
-          intent = {
+      } else if (existingIntent.state === BillingRefundIntentState.PROCESSING) {
+        const fenced = await this.prisma.billingRefundIntent.updateMany({
+          where: {
             id: existingIntent.id,
-            claimToken,
+            claimToken: existingIntent.claimToken,
             state: BillingRefundIntentState.PROCESSING,
-          };
-        } else if (
-          existingIntent.state === BillingRefundIntentState.PROCESSING
-        ) {
-          const fenced = await this.prisma.billingRefundIntent.updateMany({
-            where: {
-              id: existingIntent.id,
-              claimToken: existingIntent.claimToken,
-              state: BillingRefundIntentState.PROCESSING,
-              leaseExpiresAt: { lte: new Date() },
-            },
-            data: {
-              state: BillingRefundIntentState.UNKNOWN,
-              failureCode: 'EXPIRED_CLAIM_RECONCILIATION_REQUIRED',
-            },
-          });
-          if (fenced.count !== 1) {
-            throw new ConflictException(
-              'Claim de reembolso expirou ou foi substituído.',
-            );
-          }
-          const reconciled = await this.reconcileRefundIntent(
-            payment,
-            { ...existingIntent, state: BillingRefundIntentState.UNKNOWN },
-            gateway,
-          );
-          return (
-            reconciled ?? {
-              accepted: false,
-              status: BillingRefundIntentState.UNKNOWN,
-              paymentId: payment.id,
-              refundIntentId: existingIntent.id,
-              idempotentReplay: true,
-            }
-          );
-        } else {
+            leaseExpiresAt: { lte: new Date() },
+          },
+          data: {
+            state: BillingRefundIntentState.UNKNOWN,
+            failureCode: 'EXPIRED_CLAIM_RECONCILIATION_REQUIRED',
+          },
+        });
+        if (fenced.count !== 1) {
           throw new ConflictException(
-            'Estado de reembolso não pode ser retomado automaticamente.',
+            'Claim de reembolso expirou ou foi substituído.',
           );
         }
+        const reconciled = await this.reconcileRefundIntent(
+          payment,
+          { ...existingIntent, state: BillingRefundIntentState.UNKNOWN },
+          gateway,
+        );
+        return (
+          reconciled ?? {
+            accepted: false,
+            status: BillingRefundIntentState.UNKNOWN,
+            paymentId: payment.id,
+            refundIntentId: existingIntent.id,
+            idempotentReplay: true,
+          }
+        );
+      } else {
+        throw new ConflictException(
+          'Estado de reembolso não pode ser retomado automaticamente.',
+        );
       }
     } else {
       try {
@@ -539,8 +532,27 @@ export class PaymentsService {
       );
     }
 
+    let refundAccepted = false;
     try {
-      await gateway.refundPayment(gatewayPaymentId);
+      const refund = await gateway.refundPayment(gatewayPaymentId, intent.id);
+      refundAccepted = true;
+      if (refund?.refundId || refund?.status) {
+        const saved = await this.prisma.billingRefundIntent.updateMany({
+          where: {
+            id: intent.id,
+            claimToken,
+            state: BillingRefundIntentState.PROCESSING,
+          },
+          data: {
+            gatewayRefundId: refund.refundId,
+            gatewayRefundStatus: refund.status,
+          },
+        });
+        if (saved.count !== 1)
+          throw new ConflictException(
+            'Claim de reembolso expirou após a resposta.',
+          );
+      }
       const verified = await gateway.getPaymentStatus(gatewayPaymentId);
       const localResult = await this.processVerifiedPayment(
         payment.provider,
@@ -583,7 +595,9 @@ export class PaymentsService {
       };
     } catch (error) {
       if (error instanceof GatewayCheckoutError) {
-        const state = this.refundFailureState(error);
+        const state = refundAccepted
+          ? BillingRefundIntentState.UNKNOWN
+          : this.refundFailureState(error);
         await this.markRefundState(
           intent.id,
           claimToken,
@@ -1047,7 +1061,7 @@ export class PaymentsService {
 
   private refundFailureState(error: GatewayCheckoutError) {
     return error.checkoutState === 'FAILED_RETRYABLE'
-      ? BillingRefundIntentState.FAILED_RETRYABLE
+      ? BillingRefundIntentState.UNKNOWN
       : error.checkoutState === 'FAILED_FINAL'
         ? BillingRefundIntentState.FAILED_FINAL
         : BillingRefundIntentState.UNKNOWN;
