@@ -84,11 +84,35 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     );
   }
 
-  async refundPayment(gatewayPaymentId: string) {
-    await this.request(
+  async refundPayment(gatewayPaymentId: string, idempotencyKey: string) {
+    const body = await this.request(
       `/v1/payments/${encodeURIComponent(gatewayPaymentId)}/refunds`,
-      { method: 'POST', body: JSON.stringify({}) },
+      {
+        method: 'POST',
+        headers: { 'X-Idempotency-Key': idempotencyKey },
+        body: JSON.stringify({}),
+      },
     );
+    const id = body.id;
+    const status =
+      typeof body.status === 'string' ? body.status.toLowerCase() : '';
+    const allowed = [
+      'approved',
+      'pending',
+      'processing',
+      'rejected',
+      'cancelled',
+      'refunded',
+    ];
+    return {
+      refundId:
+        typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+          ? String(id)
+          : typeof id === 'string' && /^\d{1,32}$/.test(id)
+            ? id
+            : null,
+      status: allowed.includes(status) ? status : null,
+    };
   }
 
   async getRefundSummary(gatewayPaymentId: string) {
