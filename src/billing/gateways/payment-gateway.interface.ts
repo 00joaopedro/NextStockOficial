@@ -109,6 +109,9 @@ export interface PaymentGateway {
   getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult>;
   syncPayment(resourceId: string): Promise<GatewayPaymentResult>;
   findPayments(externalReference: string): Promise<GatewayPaymentResult[]>;
+  getRefundSummary?(
+    gatewayPaymentId: string,
+  ): Promise<{ count: number; statuses: string[] }>;
   findAuthorizedPayments(
     gatewaySubscriptionId: string,
   ): Promise<GatewayAuthorizedPaymentResult[]>;
@@ -116,5 +119,8 @@ export interface PaymentGateway {
     gatewaySubscriptionId: string,
     idempotencyKey?: string,
   ): Promise<void>;
-  refundPayment(gatewayPaymentId: string): Promise<void>;
+  refundPayment(
+    gatewayPaymentId: string,
+    idempotencyKey: string,
+  ): Promise<{ refundId: string | null; status: string | null }>;
 }

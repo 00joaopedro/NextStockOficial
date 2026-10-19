@@ -84,11 +84,63 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
     );
   }
 
-  async refundPayment(gatewayPaymentId: string) {
-    await this.request(
+  async refundPayment(gatewayPaymentId: string, idempotencyKey: string) {
+    const body = await this.request(
       `/v1/payments/${encodeURIComponent(gatewayPaymentId)}/refunds`,
-      { method: 'POST', body: JSON.stringify({}) },
+      {
+        method: 'POST',
+        headers: { 'X-Idempotency-Key': idempotencyKey },
+        body: JSON.stringify({}),
+      },
     );
+    const id = body.id;
+    const status =
+      typeof body.status === 'string' ? body.status.toLowerCase() : '';
+    const allowed = [
+      'approved',
+      'pending',
+      'processing',
+      'rejected',
+      'cancelled',
+      'refunded',
+    ];
+    return {
+      refundId:
+        typeof id === 'number' && Number.isSafeInteger(id) && id > 0
+          ? String(id)
+          : typeof id === 'string' && /^\d{1,32}$/.test(id)
+            ? id
+            : null,
+      status: allowed.includes(status) ? status : null,
+    };
+  }
+
+  async getRefundSummary(gatewayPaymentId: string) {
+    const body = await this.request(
+      `/v1/payments/${encodeURIComponent(gatewayPaymentId)}/refunds`,
+    );
+    if (!Array.isArray(body)) {
+      throw new GatewayCheckoutError('Resposta de estornos inválida.', true, {
+        code: 'REFUND_LIST_INVALID_RESPONSE',
+        state: 'FAILED_FINAL',
+      });
+    }
+    const allowed = new Set([
+      'approved',
+      'pending',
+      'processing',
+      'rejected',
+      'cancelled',
+      'refunded',
+    ]);
+    return {
+      count: body.length,
+      statuses: body.slice(0, 10).map((refund: Record<string, unknown>) => {
+        const status =
+          typeof refund.status === 'string' ? refund.status.toLowerCase() : '';
+        return allowed.has(status) ? status : 'unknown';
+      }),
+    };
   }
 
   async getPaymentStatus(resourceId: string): Promise<GatewayPaymentResult> {
@@ -112,34 +164,32 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
   async findAuthorizedPayments(
     gatewaySubscriptionId: string,
   ): Promise<GatewayAuthorizedPaymentResult[]> {
-    const limit = 20;
-    let offset = 0;
-    let total = 0;
-    const invoices: GatewayAuthorizedPaymentResult[] = [];
-
-    do {
-      const body = await this.request(
-        `/authorized_payments/search?preapproval_id=${encodeURIComponent(gatewaySubscriptionId)}&offset=${offset}&limit=${limit}`,
-      );
-      const results = Array.isArray(body.results) ? body.results : [];
-      invoices.push(
-        ...results.map((invoice: Record<string, any>) =>
-          this.mapAuthorizedPayment(invoice),
-        ),
-      );
-      const paging =
-        body.paging && typeof body.paging === 'object'
-          ? (body.paging as Record<string, unknown>)
-          : {};
-      const declaredTotal = Number(paging.total);
-      total = Number.isFinite(declaredTotal)
-        ? Math.max(0, declaredTotal)
-        : offset + results.length;
-      if (results.length === 0) break;
-      offset += results.length;
-    } while (offset < total);
-
-    return invoices;
+    const body = await this.request(
+      `/authorized_payments/search?preapproval_id=${encodeURIComponent(gatewaySubscriptionId)}`,
+    );
+    if (!Array.isArray(body.results)) {
+      throw new GatewayCheckoutError('Resposta de faturas inválida.', true, {
+        code: 'AUTHORIZED_PAYMENT_INVALID_RESPONSE',
+        state: 'FAILED_FINAL',
+      });
+    }
+    const paging = body.paging;
+    if (
+      paging != null &&
+      (typeof paging !== 'object' ||
+        !Number.isInteger(paging.total) ||
+        paging.total < 0 ||
+        (paging.offset != null && paging.offset !== 0) ||
+        paging.total > body.results.length)
+    ) {
+      throw new GatewayCheckoutError('Busca de faturas incompleta.', true, {
+        code: 'AUTHORIZED_PAYMENT_INCOMPLETE',
+        state: 'FAILED_FINAL',
+      });
+    }
+    return body.results.map((invoice: Record<string, any>) =>
+      this.mapAuthorizedPayment(invoice),
+    );
   }
 
   private mapAuthorizedPayment(

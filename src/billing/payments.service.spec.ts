@@ -259,7 +259,9 @@ describe('RC-004 billing state policy', () => {
         paymentIsApproved: true,
       },
     });
-    expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith('preapproval-1');
+    expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith(
+      'preapproval-1',
+    );
     expect(gateway.getPaymentStatus).toHaveBeenCalledWith('payment-real');
     expect(prisma.billingPayment).toEqual({ findFirst: expect.any(Function) });
     expect(prisma.billingPayment.updateMany).toBeUndefined();
@@ -459,14 +461,13 @@ describe('RC-004 billing state policy', () => {
       }),
     ).resolves.toMatchObject({
       accepted: false,
-      status: BillingRefundIntentState.FAILED_RETRYABLE,
-      diagnostic: 'PAYMENT_RESOLVED_RETRY_REQUIRED',
+      status: BillingRefundIntentState.UNKNOWN,
+      diagnostic: 'PAYMENT_RESOLVED_REFUND_UNCONFIRMED',
     });
-    expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith('preapproval-1');
-    expect(gateway.getPaymentStatus).toHaveBeenNthCalledWith(
-      2,
-      'payment-real',
+    expect(gateway.findAuthorizedPayments).toHaveBeenCalledWith(
+      'preapproval-1',
     );
+    expect(gateway.getPaymentStatus).toHaveBeenNthCalledWith(2, 'payment-real');
     expect(gateway.getPaymentStatus).toHaveBeenNthCalledWith(
       3,
       'payment-rejected',
@@ -479,8 +480,8 @@ describe('RC-004 billing state policy', () => {
     expect(prisma.billingRefundIntent.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          state: BillingRefundIntentState.FAILED_RETRYABLE,
-          failureCode: 'PAYMENT_RESOLVED_RETRY_REQUIRED',
+          state: BillingRefundIntentState.UNKNOWN,
+          failureCode: 'PAYMENT_RESOLVED_REFUND_UNCONFIRMED',
         }),
       }),
     );

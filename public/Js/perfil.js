@@ -209,6 +209,7 @@
           : "O estorno do teste está sendo processado. Aguarde a confirmação do Mercado Pago.",
       };
       const resolutionDescriptions = {
+        PAYMENT_RESOLVED_REFUND_UNCONFIRMED: "A cobrança foi identificada, mas o resultado do estorno anterior ainda precisa ser confirmado no Mercado Pago. Nenhum novo estorno será enviado.",
         PAYMENT_RESOLUTION_NOT_FOUND: "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno adicional será enviado.",
         PAYMENT_RESOLUTION_AMBIGUOUS: "Foram encontradas cobranças que não podem ser diferenciadas com segurança. Nenhum estorno adicional será enviado.",
         PAYMENT_RESOLUTION_VALIDATION_FAILED: "A cobrança localizada não passou nas validações de assinatura, valor, moeda ou referência. Nenhum estorno será enviado.",
@@ -345,8 +346,8 @@
       const diagnostic = result.result?.diagnostic;
       const resultMessage = result.result?.accepted
         ? "Estorno do teste confirmado. O acesso foi suspenso."
-        : diagnostic === "PAYMENT_RESOLVED_RETRY_REQUIRED"
-          ? "A cobrança correta foi localizada e validada. Confirme uma nova tentativa para solicitar o estorno desse pagamento específico."
+        : diagnostic === "PAYMENT_RESOLVED_REFUND_UNCONFIRMED"
+          ? "A cobrança foi localizada, mas o estorno anterior ainda não foi confirmado. Nenhum novo estorno foi enviado."
           : diagnostic === "PAYMENT_RESOLUTION_NOT_FOUND"
             ? "Não foi encontrada uma cobrança elegível de R$ 1,00 para esta assinatura. Nenhum estorno foi reenviado."
             : diagnostic === "PAYMENT_RESOLUTION_AMBIGUOUS"

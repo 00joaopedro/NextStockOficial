@@ -856,6 +856,8 @@ model BillingRefundIntent {
   claimToken     String                  @map("claim_token") @db.Uuid
   leaseExpiresAt DateTime                @map("lease_expires_at")
   failureCode    String?                 @map("failure_code")
+  gatewayRefundId String?                 @map("gateway_refund_id")
+  gatewayRefundStatus String?             @map("gateway_refund_status")
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
