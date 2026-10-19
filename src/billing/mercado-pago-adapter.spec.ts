@@ -13,6 +13,29 @@ describe('MercadoPagoGatewayAdapter', () => {
     jest.restoreAllMocks();
   });
 
+  it('envia chave estável e retorna identificador e estado sanitizados do estorno', async () => {
+    global.fetch = jest
+      .fn()
+      .mockResolvedValue({
+        ok: true,
+        json: async () => ({ id: 123, status: 'approved', private: 'secret' }),
+      }) as any;
+    const adapter = new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any);
+    await expect(
+      adapter.refundPayment('payment-1', 'intent-1'),
+    ).resolves.toEqual({ refundId: '123', status: 'approved' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.mercadopago.com/v1/payments/payment-1/refunds',
+      expect.objectContaining({
+        method: 'POST',
+        body: '{}',
+        headers: expect.objectContaining({ 'X-Idempotency-Key': 'intent-1' }),
+      }),
+    );
+  });
+
   it('cria assinatura pendente hospedada sem plano associado', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
