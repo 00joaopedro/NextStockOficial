@@ -113,56 +113,56 @@ describe('MercadoPagoGatewayAdapter', () => {
       }),
     ]);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1&offset=0&limit=20',
+      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1',
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer test-token' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+        }),
       }),
     );
   });
 
-  it('percorre todas as páginas de faturas recorrentes', async () => {
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          paging: { offset: 0, limit: 20, total: 2 },
-          results: [
-            {
-              id: 'authorized-payment-1',
-              preapproval_id: 'preapproval-1',
-              transaction_amount: 1,
-              currency_id: 'BRL',
-              payment: { id: 1 },
-            },
-          ],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          paging: { offset: 1, limit: 20, total: 2 },
-          results: [
-            {
-              id: 'authorized-payment-2',
-              preapproval_id: 'preapproval-1',
-              transaction_amount: 1,
-              currency_id: 'BRL',
-              payment: { id: 2 },
-            },
-          ],
-        }),
-      }) as any;
-
-    const result = await new MercadoPagoGatewayAdapter({
+  it('bloqueia resultado incompleto de faturas', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        paging: { offset: 0, total: 2 },
+        results: [{ id: '1' }],
+      }),
+    }) as any;
+    const adapter = new MercadoPagoGatewayAdapter({
       validate: jest.fn(),
-    } as any).findAuthorizedPayments('preapproval-1');
+    } as any);
+    await expect(
+      adapter.findAuthorizedPayments('preapproval-1'),
+    ).rejects.toMatchObject({
+      details: expect.objectContaining({
+        code: 'AUTHORIZED_PAYMENT_INCOMPLETE',
+      }),
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
 
-    expect(result.map((invoice) => invoice.gatewayPaymentId)).toEqual(['1', '2']);
-    expect(global.fetch).toHaveBeenNthCalledWith(
-      2,
-      'https://api.mercadopago.com/authorized_payments/search?preapproval_id=preapproval-1&offset=1&limit=20',
-      expect.anything(),
+  it('consulta estornos sem expor informações do provedor', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { status: 'pending', id: 999, sensitive: 'secret' },
+        { status: 'private-data' },
+      ],
+    }) as any;
+    const adapter = new MercadoPagoGatewayAdapter({
+      validate: jest.fn(),
+    } as any);
+    await expect(adapter.getRefundSummary('123')).resolves.toEqual({
+      count: 2,
+      statuses: ['pending', 'unknown'],
+    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://api.mercadopago.com/v1/payments/123/refunds',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Accept: 'application/json' }),
+      }),
     );
   });
 
