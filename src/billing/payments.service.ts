@@ -223,6 +223,21 @@ export class PaymentsService {
       paymentIsApproved: providerPayment.normalizedStatus === 'APPROVED',
     };
     const eligible = Object.values(checks).every(Boolean);
+    let refunds: { count: number; statuses: string[] } | undefined;
+    if (eligible && gateway.getRefundSummary) {
+      try {
+        refunds = await gateway.getRefundSummary(
+          providerPayment.gatewayPaymentId,
+        );
+      } catch (error) {
+        return this.productionTestDiagnosticGatewayFailure(
+          'REFUND_LOOKUP',
+          error,
+          payment,
+          { invoices: invoiceSummary, checks },
+        );
+      }
+    }
     return {
       available: true,
       stage: 'PAYMENT_VALIDATION',
@@ -237,6 +252,7 @@ export class PaymentsService {
         ),
       },
       checks,
+      ...(refunds ? { refunds } : {}),
     };
   }
 
@@ -765,7 +781,7 @@ export class PaymentsService {
         lookupFailure ??= error;
       }
     }
-    if (resolvedCandidates.length !== 1) {
+    if (resolvedCandidates.length !== 1 || lookupFailure) {
       const diagnostic =
         resolvedCandidates.length > 1
           ? 'PAYMENT_RESOLUTION_AMBIGUOUS'
@@ -904,18 +920,17 @@ export class PaymentsService {
       };
     }
 
-    // A previous request may have reached the provider. Once the exact payment
-    // is recovered, require an explicit admin retry instead of resending now.
+    // An approved payment alone cannot rule out a pending or delayed refund.
     await this.markExistingRefundState(
       intent.id,
-      BillingRefundIntentState.FAILED_RETRYABLE,
-      'PAYMENT_RESOLVED_RETRY_REQUIRED',
+      BillingRefundIntentState.UNKNOWN,
+      'PAYMENT_RESOLVED_REFUND_UNCONFIRMED',
     );
     return this.refundDiagnosticResult(
       payment,
       intent,
-      'PAYMENT_RESOLVED_RETRY_REQUIRED',
-      BillingRefundIntentState.FAILED_RETRYABLE,
+      'PAYMENT_RESOLVED_REFUND_UNCONFIRMED',
+      BillingRefundIntentState.UNKNOWN,
     );
   }
 
@@ -969,7 +984,9 @@ export class PaymentsService {
       available: Boolean(payment),
       stage,
       code,
-      ...(payment ? { local: this.productionTestDiagnosticLocal(payment) } : {}),
+      ...(payment
+        ? { local: this.productionTestDiagnosticLocal(payment) }
+        : {}),
       ...extra,
     };
   }
