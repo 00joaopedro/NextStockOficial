@@ -119,5 +119,8 @@ export interface PaymentGateway {
     gatewaySubscriptionId: string,
     idempotencyKey?: string,
   ): Promise<void>;
-  refundPayment(gatewayPaymentId: string): Promise<void>;
+  refundPayment(
+    gatewayPaymentId: string,
+    idempotencyKey: string,
+  ): Promise<{ refundId: string | null; status: string | null }>;
 }
