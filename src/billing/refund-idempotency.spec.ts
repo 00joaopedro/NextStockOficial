@@ -5,8 +5,20 @@ import {
   Prisma,
 } from '@prisma/client';
 import { PaymentsService } from './payments.service';
+import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 
 describe('durable refund idempotency', () => {
+  it('trata erros temporários do provedor como resultado incerto', () => {
+    const service = new PaymentsService({} as any, {} as any, {} as any);
+    const error = new GatewayCheckoutError('temporário', true, {
+      code: 'GATEWAY_UNAVAILABLE',
+      providerStatus: 503,
+      state: 'FAILED_RETRYABLE',
+    });
+    expect((service as any).refundFailureState(error)).toBe(
+      BillingRefundIntentState.UNKNOWN,
+    );
+  });
   it('allows only one gateway refund while a concurrent request is in flight', async () => {
     const payment = {
       id: 'payment',
@@ -33,12 +45,14 @@ describe('durable refund idempotency', () => {
       refundPayment: jest.fn(async () => {
         gatewayStarted();
         await release;
+        return { refundId: '123', status: 'approved' };
       }),
       getPaymentStatus: jest.fn().mockResolvedValue({
         gatewayPaymentId: 'gateway-payment',
         status: 'refunded',
         normalizedStatus: 'REFUNDED',
-        externalReference: 'ns_cs_00000000-0000-0000-0000-000000000000_aaaaaaaaaaaaaaaa',
+        externalReference:
+          'ns_cs_00000000-0000-0000-0000-000000000000_aaaaaaaaaaaaaaaa',
         amountCents: 1000,
         currency: 'BRL',
         paidAt: null,
@@ -52,11 +66,11 @@ describe('durable refund idempotency', () => {
         findFirst: jest.fn().mockResolvedValue(payment),
       },
       billingRefundIntent: {
-        findUnique: jest.fn().mockImplementation(async () =>
-          currentState
-            ? { ...intent, state: currentState }
-            : null,
-        ),
+        findUnique: jest
+          .fn()
+          .mockImplementation(async () =>
+            currentState ? { ...intent, state: currentState } : null,
+          ),
         create: jest.fn().mockImplementation(async () => {
           if (currentState) {
             throw new Prisma.PrismaClientKnownRequestError('unique', {
@@ -98,5 +112,14 @@ describe('durable refund idempotency', () => {
       status: BillingRefundIntentState.SUCCEEDED,
     });
     expect(gateway.refundPayment).toHaveBeenCalledTimes(1);
+    expect(gateway.refundPayment).toHaveBeenCalledWith(
+      'gateway-payment',
+      'refund-intent',
+    );
+    expect(prisma.billingRefundIntent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { gatewayRefundId: '123', gatewayRefundStatus: 'approved' },
+      }),
+    );
   });
 });
