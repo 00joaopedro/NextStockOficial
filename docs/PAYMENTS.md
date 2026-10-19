@@ -32,3 +32,7 @@ Cadastre o webhook em `POST /api/payments/webhooks/mercado-pago`. Não registre 
 ## Fluxo Mercado Pago
 
 Na fase 1 o administrador informa um access token da própria conta, que é transmitido por HTTPS, validado em `/users/me`, cifrado e nunca retornado. A UI permite cadastrar terminais e definir rotas para PIX, cartão online, Point e boleto. `POST /api/payments/pix` exige pedido da filial, valor exatamente igual ao total servidor-side, rota ativa e idempotency key; o QR retornado é metadado não sensível da transação. Eventos assinados são deduplicados e o status é novamente consultado no Mercado Pago.
+
+### Estorno técnico: rastreabilidade e implantação
+
+A migration `20261019190000_refund_provider_tracking` adiciona campos opcionais para o identificador e o estado do reembolso retornados pelo provedor. Aplique as migrations em uma etapa controlada antes de implantar esta versão da aplicação, conforme o procedimento Railway do projeto. Não execute migrations no boot da API. A chave de idempotência é o ID persistente da intenção de estorno; uma falha ambígua requer reconciliação e não autoriza novo envio por si só. A migração não confirma nem altera o resultado das tentativas antigas.
