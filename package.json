@@ -66,7 +66,8 @@
     "backup:verify": "ts-node scripts/backup/verify-backup.ts",
     "postinstall": "prisma generate",
     "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts",
-    "billing:payment:diagnostic": "node scripts/billing/payment-investigation.js"
+    "billing:payment:diagnostic": "node scripts/billing/payment-investigation.js",
+    "test:billing-diagnostic": "node --test test/billing/payment-investigation.test.js"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
