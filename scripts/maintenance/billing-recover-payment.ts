@@ -6,6 +6,11 @@ import { PrismaService } from '../../src/prisma/prisma.service';
 import { PaymentGatewayRegistry } from '../../src/billing/gateways/payment-gateway.registry';
 import { PaymentsService } from '../../src/billing/payments.service';
 
+import {
+  RecoveryValidationError,
+  recoveryFailureCode,
+} from '../../src/billing/payment-recovery-errors';
+
 async function main() {
   const tenantId = process.env.BILLING_RECOVERY_TENANT_ID || '';
   const paymentId = process.env.BILLING_RECOVERY_PAYMENT_ID || '';
@@ -15,9 +20,10 @@ async function main() {
     ) ||
     !/^\d{1,30}$/.test(paymentId)
   )
-    throw new Error('INVALID_INPUT');
+    throw new RecoveryValidationError('INVALID_INPUT');
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
+    abortOnError: false,
   });
   try {
     const prisma = app.get(PrismaService);
@@ -31,7 +37,7 @@ async function main() {
       !result.externalReference ||
       !result.paidAt
     )
-      throw new Error('PAYMENT_NOT_ELIGIBLE');
+      throw new RecoveryValidationError('PAYMENT_NOT_ELIGIBLE');
     const checkout = await prisma.checkoutSession.findFirst({
       where: {
         tenantId,
@@ -51,7 +57,7 @@ async function main() {
       (result.gatewaySubscriptionId &&
         result.gatewaySubscriptionId !== checkout.gatewayCheckoutId)
     )
-      throw new Error('PAYMENT_CORRELATION_FAILED');
+      throw new RecoveryValidationError('PAYMENT_CORRELATION_FAILED');
     const applied = await app
       .get(PaymentsService)
       .processVerifiedPayment(
@@ -64,9 +70,10 @@ async function main() {
     await app.close();
   }
 }
-void main().catch(() => {
-  process.stderr.write(
-    'RECOVERY_FAILED: consulta ou validação não concluída.\n',
-  );
-  process.exitCode = 1;
-});
+if (require.main === module)
+  void main().catch((error: unknown) => {
+    process.stderr.write(
+      `RECOVERY_FAILED code=${recoveryFailureCode(error)}\n`,
+    );
+    process.exitCode = 1;
+  });
