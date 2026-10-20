@@ -241,6 +241,56 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
     120_000,
   );
 
+  it('accepts a new payment after refund and ignores a late refund for the old period', async () => {
+    const f = await fixture();
+    await serviceA.processVerifiedPayment(
+      provider,
+      payment(f, 'APPROVED', baseTime),
+    );
+    const oldRefundTime = new Date(baseTime.getTime() + 1000);
+    await serviceA.processVerifiedPayment(
+      provider,
+      payment(f, 'REFUNDED', oldRefundTime),
+    );
+    const newReference = createBillingExternalReference();
+    const nextCheckout = await prismaA.checkoutSession.create({
+      data: {
+        tenantId: f.tenant.id,
+        planId: f.plan.id,
+        subscriptionId: f.subscription.id,
+        provider,
+        gatewayCheckoutId: `new-${randomUUID()}`,
+        checkoutUrl: 'https://local.invalid/checkout',
+        externalReference: newReference,
+        expectedAmountCents: 20000,
+        currency: 'BRL',
+      },
+    });
+    await prismaA.subscription.update({
+      where: { id: f.subscription.id },
+      data: { gatewaySubscriptionId: nextCheckout.gatewayCheckoutId },
+    });
+    const newPaidAt = new Date(baseTime.getTime() + 2000);
+    const newResult = await serviceA.processVerifiedPayment(provider, {
+      ...payment(f, 'APPROVED', newPaidAt),
+      gatewayPaymentId: `payment-${nextCheckout.id}`,
+      externalReference: newReference,
+    });
+    expect(newResult).toMatchObject({ applied: true, status: 'APPROVED' });
+    await serviceA.processVerifiedPayment(
+      provider,
+      payment(f, 'REFUNDED', new Date(baseTime.getTime() + 3000)),
+    );
+    const subscription = await prismaA.subscription.findUniqueOrThrow({
+      where: { id: f.subscription.id },
+    });
+    expect(subscription.status).toBe(SubscriptionStatus.active);
+    expect(subscription.lastPaymentState).toBe('APPROVED');
+    expect(
+      await prismaA.billingPayment.count({ where: { tenantId: f.tenant.id } }),
+    ).toBe(2);
+  });
+
   it('older, duplicate and equal-time events are deterministic and observable', async () => {
     const f = await fixture();
     await serviceA.processVerifiedPayment(
