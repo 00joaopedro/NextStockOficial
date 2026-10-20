@@ -1139,17 +1139,39 @@ export class PaymentsService {
           gatewayPaymentId: result.gatewayPaymentId,
         },
       });
-      const currentState =
-        existing?.status ?? checkout.subscription.lastPaymentState;
-      const currentAt =
-        existing?.providerOccurredAt ??
-        checkout.subscription.lastProviderEventAt;
+      if (existing && existing.checkoutSessionId !== checkout.id) {
+        throw new ConflictException('Pagamento vinculado a outro checkout.');
+      }
+      // Lifecycle ordering is per gateway payment, not per subscription:
+      // a new charge can be approved after an older charge was refunded.
+      const currentState = existing?.status ?? null;
+      const currentAt = existing?.providerOccurredAt ?? null;
       const decision = decideBillingState(
         currentState,
         currentAt,
         status,
         result.providerOccurredAt,
       );
+      const supersededCheckout = Boolean(
+        checkout.gatewayCheckoutId &&
+        checkout.subscription.gatewaySubscriptionId &&
+        checkout.gatewayCheckoutId !==
+          checkout.subscription.gatewaySubscriptionId,
+      );
+      const paymentPeriodStart = result.paidAt ?? existing?.paidAt ?? null;
+      const supersededPeriod = Boolean(
+        paymentPeriodStart &&
+        checkout.subscription.lastPaymentAt &&
+        paymentPeriodStart < checkout.subscription.lastPaymentAt,
+      );
+      // Without an authoritative payment date a reversal cannot safely be
+      // attributed to the currently paid period.
+      const ambiguousReversal =
+        status !== BillingPaymentStatus.APPROVED &&
+        Boolean(checkout.subscription.lastPaymentAt) &&
+        !paymentPeriodStart;
+      const protectCurrentSubscription =
+        supersededCheckout || supersededPeriod || ambiguousReversal;
       if (!decision.apply) {
         // Replays and stale provider events never mutate the payment ledger.
         // Keep a dedicated reconciliation record for deterministic observability.
@@ -1192,7 +1214,7 @@ export class PaymentsService {
           version: checkout.subscription.version,
         },
         data: {
-          ...(preserveCanceledSubscription
+          ...(preserveCanceledSubscription || protectCurrentSubscription
             ? {}
             : this.subscriptionState(
                 status,
@@ -1200,8 +1222,12 @@ export class PaymentsService {
                 provider,
                 result,
               )),
-          lastPaymentState: status,
-          lastProviderEventAt: result.providerOccurredAt,
+          ...(!protectCurrentSubscription
+            ? {
+                lastPaymentState: status,
+                lastProviderEventAt: result.providerOccurredAt,
+              }
+            : {}),
           version: { increment: 1 },
         },
       });
@@ -1212,7 +1238,8 @@ export class PaymentsService {
       const periodEnd = this.periodEnd(periodStart, checkout.plan.interval);
       if (
         status === BillingPaymentStatus.APPROVED &&
-        !preserveCanceledSubscription
+        !preserveCanceledSubscription &&
+        !protectCurrentSubscription
       ) {
         await tx.subscription.update({
           where: { id: checkout.subscription.id },
@@ -1306,17 +1333,19 @@ export class PaymentsService {
         });
       }
 
-      await this.syncPartnerReferral(
-        tx,
-        checkout.tenantId,
-        status,
-        checkout.subscription.id,
-        `${provider}:${result.gatewayPaymentId}:${status}`,
-      );
+      if (!protectCurrentSubscription)
+        await this.syncPartnerReferral(
+          tx,
+          checkout.tenantId,
+          status,
+          checkout.subscription.id,
+          `${provider}:${result.gatewayPaymentId}:${status}`,
+        );
 
       if (
         status === BillingPaymentStatus.APPROVED &&
-        !preserveCanceledSubscription
+        !preserveCanceledSubscription &&
+        !protectCurrentSubscription
       ) {
         await this.convertPromotionReservation(
           tx,
@@ -1355,7 +1384,11 @@ export class PaymentsService {
         },
         tx,
       );
-      if (status === BillingPaymentStatus.APPROVED) {
+      if (
+        status === BillingPaymentStatus.APPROVED &&
+        !protectCurrentSubscription &&
+        !preserveCanceledSubscription
+      ) {
         await this.events.create(
           {
             tenantId: checkout.tenantId,
