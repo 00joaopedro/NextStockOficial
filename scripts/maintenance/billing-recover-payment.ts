@@ -23,6 +23,7 @@ async function main() {
     throw new RecoveryValidationError('INVALID_INPUT');
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
+    abortOnError: false,
   });
   try {
     const prisma = app.get(PrismaService);
