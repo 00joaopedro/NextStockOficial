@@ -231,3 +231,42 @@ describe('SubscriptionsService', () => {
     ).toBe(false);
   });
 });
+
+describe('cancelamento após nova contratação', () => {
+  it('não reutiliza o sucesso da assinatura antiga para cancelar a nova', async () => {
+    const subscription = {
+      id: 'sub', tenantId: 'tenant', status: SubscriptionStatus.active,
+      gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'nova-assinatura',
+      version: 4, cancelAtPeriodEnd: false, currentPeriodEndsAt: null,
+    };
+    const gateway = { cancelSubscription: jest.fn().mockResolvedValue(undefined) };
+    const tx = {
+      subscription: {
+        findUniqueOrThrow: jest.fn().mockResolvedValue(subscription),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      billingSubscriptionOperation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+    };
+    const prisma = {
+      subscription: {
+        findFirst: jest.fn().mockResolvedValue(subscription),
+        findUniqueOrThrow: jest.fn().mockResolvedValue(subscription),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      billingSubscriptionOperation: {
+        findUnique: jest.fn().mockImplementation(({ where }) =>
+          Promise.resolve(where.tenantId_subscriptionId_operation.operation === 'CANCEL'
+            ? { id: 'old', state: 'SUCCEEDED' } : null)),
+        create: jest.fn().mockResolvedValue({ id: 'new', state: 'CLAIMED' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $transaction: jest.fn((callback) => callback(tx)),
+    };
+    const service = new SubscriptionsService(
+      prisma as any, {} as any, { create: jest.fn() } as any,
+      { get: jest.fn().mockReturnValue(gateway) } as any,
+    );
+    await service.cancelForTenant('tenant');
+    expect(gateway.cancelSubscription).toHaveBeenCalledWith('nova-assinatura', expect.any(String));
+  });
+});
