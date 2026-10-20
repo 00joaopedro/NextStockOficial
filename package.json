@@ -65,7 +65,8 @@
     "ci:verify-supertokens-artifacts": "node scripts/ci/verify-supertokens-artifacts.mjs",
     "backup:verify": "ts-node scripts/backup/verify-backup.ts",
     "postinstall": "prisma generate",
-    "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts"
+    "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts",
+    "billing:payment:diagnostic": "node scripts/billing/payment-investigation.js"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
