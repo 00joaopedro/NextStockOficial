@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   AuditOutcome,
@@ -19,6 +20,7 @@ import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdminOperationService } from '../admin-operations/admin-operation.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import {
   CreateConnectionDto,
@@ -52,6 +54,7 @@ export class PaymentsService {
     private registry: PaymentProviderRegistry,
     private crypto: PaymentCredentialsCryptoService,
     private audit: AuditService,
+    private adminOperations?: AdminOperationService,
   ) {}
   private context(
     user: AuthenticatedUser | undefined,
@@ -257,38 +260,43 @@ export class PaymentsService {
   async revokeConnection(
     user: AuthenticatedUser | undefined,
     id: string,
+    confirmation: string,
+    idempotencyKey?: string,
     branch?: string,
   ) {
     const c = await this.context(user, branch, true);
-    const connection = await this.connection(c.tenantId, id);
-    if (connection.encryptedCredentials) {
-      const credentials = this.crypto.decrypt(
-        connection.encryptedCredentials,
-        c.tenantId,
-        id,
-        connection.version,
-      );
-      const adapter = this.registry.get(connection.providerCode);
-      if ('revokeConnection' in adapter)
-        await (adapter as unknown as OAuthPaymentProviderAdapter)
-          .revokeConnection(credentials)
-          .catch(() => undefined);
+    if (confirmation !== 'REVOGAR CREDENCIAIS') {
+      throw new BadRequestException('Digite REVOGAR CREDENCIAIS para confirmar.');
     }
-    await this.prisma.$transaction([
-      this.prisma.paymentRoutingPreference.deleteMany({
-        where: { tenantId: c.tenantId, connectionId: id },
-      }),
-      this.prisma.paymentConnection.updateMany({
-        where: { id, tenantId: c.tenantId },
-        data: {
-          status: 'REVOKED',
-          encryptedCredentials: null,
-          version: { increment: 1 },
-        },
-      }),
-    ]);
-    await this.record(c, 'payment.connection.revoked', id);
-    return { revoked: true };
+    if (!this.adminOperations) {
+      throw new ServiceUnavailableException('Proteção de operação administrativa indisponível.');
+    }
+    const connection = await this.connection(c.tenantId, id);
+    const credentials = connection.encryptedCredentials
+      ? this.crypto.decrypt(connection.encryptedCredentials, c.tenantId, id, connection.version)
+      : null;
+    const execution = await this.adminOperations.execute(
+      { tenantScope: c.tenantId, operation: 'PAYMENT_CONNECTION_REVOKE', targetId: id, idempotencyKey: idempotencyKey || '' },
+      async (tx) => {
+        const revoked = await tx.paymentConnection.updateMany({
+          where: { id, tenantId: c.tenantId, status: { not: PaymentConnectionStatus.REVOKED } },
+          data: { status: PaymentConnectionStatus.REVOKED, encryptedCredentials: null, version: { increment: 1 } },
+        });
+        if (revoked.count === 0) return { revoked: true, applied: false };
+        await tx.paymentRoutingPreference.deleteMany({ where: { tenantId: c.tenantId, connectionId: id } });
+        return { revoked: true, applied: true };
+      },
+    );
+    if (!execution.replayed && execution.result.applied) {
+      if (credentials) {
+        const adapter = this.registry.get(connection.providerCode);
+        if ('revokeConnection' in adapter) {
+          await (adapter as unknown as OAuthPaymentProviderAdapter).revokeConnection(credentials).catch(() => undefined);
+        }
+      }
+      await this.record(c, 'payment.connection.revoked', id);
+    }
+    return { revoked: true, replayed: execution.replayed, alreadyRevoked: !execution.result.applied };
   }
   async createTerminal(
     user: AuthenticatedUser | undefined,

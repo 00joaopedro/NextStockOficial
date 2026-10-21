@@ -38,6 +38,7 @@ import { FiscalService } from './fiscal.service';
 import { CertificateService } from './certificate.service';
 import { UploadCertificateDto } from './dto/upload-certificate.dto';
 import { ActivateProductionDto } from './dto/activate-production.dto';
+import { RemoveCertificateDto } from './dto/remove-certificate.dto';
 
 @Controller('fiscal')
 @UseGuards(JwtAuthGuard, RolesGuard, PreviewMutationGuard, BranchContextGuard)
@@ -160,10 +161,18 @@ export class FiscalController {
   @Roles(Role.Admin)
   removeCertificate(
     @Req() req: Request,
+    @Body() body: RemoveCertificateDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
     @Headers('x-nextstock-branch-id') branchId?: string,
     @Headers('x-nextstock-dev-context') devContext?: string,
   ) {
-    return this.certificateService.remove(req.user, branchId, devContext);
+    return this.certificateService.remove(
+      req.user,
+      body.confirmation,
+      idempotencyKey,
+      branchId,
+      devContext,
+    );
   }
 
   @Post('environment/production/activate')

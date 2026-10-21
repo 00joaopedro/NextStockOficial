@@ -17,6 +17,7 @@ import {
 } from '@prisma/client';
 import { basename, extname } from 'path';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdminOperationService } from '../admin-operations/admin-operation.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { CertificateCryptoService } from './certificate-crypto.service';
 import {
@@ -59,6 +60,7 @@ export class CertificateService {
     @Optional() private readonly sefazProvider?: SefazFiscalProvider,
     @Optional() private readonly auditOutbox?: AuditOutboxService,
     @Optional() private readonly cleanupJobs?: CertificateCleanupService,
+    private readonly adminOperations?: AdminOperationService,
   ) {
     if (
       !Number.isFinite(this.maxSizeBytes) ||
@@ -249,6 +251,8 @@ export class CertificateService {
 
   async remove(
     user: AuthenticatedUser | undefined,
+    confirmation: string,
+    idempotencyKey?: string,
     selectedBranchId?: string,
     devContextMode?: string,
   ) {
@@ -257,11 +261,29 @@ export class CertificateService {
       selectedBranchId,
       devContextMode,
     );
-    const config = await this.findConfig(context.tenantId, context.branchId!);
-    const oldPath = config.certificatePath;
-    await this.updateConfigWithAudit(context, {
-      where: { id: config.id },
-      data: {
+    if (confirmation !== 'REMOVER CERTIFICADO') {
+      throw new BadRequestException('Digite REMOVER CERTIFICADO para confirmar.');
+    }
+    if (!this.adminOperations) {
+      throw new ServiceUnavailableException('Proteção de operação administrativa indisponível.');
+    }
+    let oldPath: string | null = null;
+    const execution = await this.adminOperations.execute(
+      {
+        tenantScope: context.tenantId,
+        operation: 'FISCAL_CERTIFICATE_REMOVE',
+        targetId: context.branchId!,
+        idempotencyKey: idempotencyKey || '',
+      },
+      async (tx) => {
+        const config = await tx.companyFiscalConfig.findUniqueOrThrow({
+          where: { tenantId_branchId: { tenantId: context.tenantId, branchId: context.branchId! } },
+        });
+        oldPath = config.certificatePath;
+        if (!oldPath) return { removed: false };
+        await this.updateConfigWithAudit(context, {
+          where: { id: config.id },
+          data: {
         certificatePath: null,
         certificateOriginalName: null,
         certificateMimeType: null,
@@ -283,15 +305,19 @@ export class CertificateService {
         productionEnabledAt: null,
         productionEnabledById: null,
         activationStatus: FiscalActivationStatus.pendente,
+          },
+        }, 'fiscal.certificate.removed', AuditOutcome.SUCCESS, {},
+        { path: oldPath, reason: 'removed' }, tx);
+        return { removed: true };
       },
-    }, 'fiscal.certificate.removed', AuditOutcome.SUCCESS, {}, oldPath
-      ? { path: oldPath, reason: 'removed' }
-      : undefined);
-    if (oldPath) await this.cleanupPersisted(context, oldPath, 'removed');
+    );
+    if (!execution.replayed && execution.result.removed && oldPath) {
+      await this.cleanupPersisted(context, oldPath, 'removed');
+    }
     this.logger.log(
       `Fiscal credential removed for tenant ${context.tenantId}, branch ${context.branchId}. Sensitive fields redacted.`,
     );
-    return { ok: true, certificate: { present: false, status: 'absent' } };
+    return { ok: true, certificate: { present: false, status: 'absent' }, replayed: execution.replayed };
   }
 
   async activateProduction(
@@ -537,6 +563,7 @@ export class CertificateService {
     outcome: AuditOutcome,
     metadata: Record<string, unknown>,
     cleanup?: { path: string; reason: 'replaced' | 'removed' },
+    existingTx?: any,
   ) {
     const write = async (tx: any) => {
       const updated = await tx.companyFiscalConfig.update(update);
@@ -579,6 +606,7 @@ export class CertificateService {
       }
       return updated;
     };
+    if (existingTx) return write(existingTx);
     return this.auditOutbox || cleanup ? this.prisma.$transaction(write) : write(this.prisma);
   }
 

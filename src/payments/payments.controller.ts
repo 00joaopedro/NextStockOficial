@@ -23,6 +23,7 @@ import {
   CreateConnectionDto,
   CreatePixPaymentDto,
   CreateTerminalDto,
+  RevokeConnectionDto,
   SetRoutingDto,
 } from './dto/payment-admin.dto';
 import { PaymentsService } from './payments.service';
@@ -60,9 +61,11 @@ export class PaymentsController {
   @Delete('connections/:id') @Roles(Role.Admin) revoke(
     @Req() r: Request,
     @Param('id') id: string,
+    @Body() d: RevokeConnectionDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
     @Headers('x-nextstock-branch-id') b?: string,
   ) {
-    return this.service.revokeConnection(r.user, id, b);
+    return this.service.revokeConnection(r.user, id, d.confirmation, idempotencyKey, b);
   }
   @Post('terminals') @Roles(Role.Admin) terminal(
     @Req() r: Request,

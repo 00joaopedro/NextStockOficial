@@ -3,6 +3,7 @@ import {
   GoneException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   BillingPaymentStatus,
@@ -12,6 +13,7 @@ import {
   PromotionReservationStatus,
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { AdminOperationService } from '../admin-operations/admin-operation.service';
 import {
   getPromotionOffer,
   NORMAL_PAYMENT_LINKS,
@@ -46,7 +48,10 @@ type CampaignSnapshot = {
 
 @Injectable()
 export class PromotionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly adminOperations?: AdminOperationService,
+  ) {}
 
   async getPublicContext(slug: string, now = new Date()) {
     const campaign = await this.findCampaign(slug);
@@ -709,16 +714,41 @@ export class PromotionsService {
     });
   }
 
-  async close(slug: string, reason = 'MANUAL') {
+  async close(slug: string, reason = 'MANUAL', idempotencyKey?: string) {
+    if (!this.adminOperations) {
+      throw new ServiceUnavailableException('Proteção de operação administrativa indisponível.');
+    }
     const campaign = await this.findCampaign(slug);
-    return this.prisma.promotionCampaign.update({
-      where: { id: campaign.id },
-      data: {
-        status: PromotionCampaignStatus.CLOSED,
-        closedAt: new Date(),
-        closeReason: reason.slice(0, 120),
+    const execution = await this.adminOperations.execute(
+      {
+        tenantScope: 'global',
+        operation: 'PROMOTION_CAMPAIGN_CLOSE',
+        targetId: campaign.id,
+        idempotencyKey: idempotencyKey || '',
       },
-    });
+      async (tx) => {
+        const current = await tx.promotionCampaign.findUniqueOrThrow({
+          where: { id: campaign.id },
+        });
+        if (current.status === PromotionCampaignStatus.CLOSED) {
+          return { campaign: current, alreadyClosed: true };
+        }
+        const closed = await tx.promotionCampaign.update({
+          where: { id: campaign.id },
+          data: {
+            status: PromotionCampaignStatus.CLOSED,
+            closedAt: new Date(),
+            closeReason: reason.slice(0, 120),
+          },
+        });
+        return { campaign: closed, alreadyClosed: false };
+      },
+    );
+    return {
+      campaign: execution.result.campaign as CampaignSnapshot,
+      replayed: execution.replayed,
+      alreadyClosed: Boolean(execution.result.alreadyClosed),
+    };
   }
 
   private async setPromotionalTrial(

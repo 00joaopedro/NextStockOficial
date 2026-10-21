@@ -28,12 +28,12 @@
         `/api/promotions/admin/${encodeURIComponent(slug)}/${path}`,
         {
           credentials: 'same-origin',
+          ...options,
           headers: {
             Accept: 'application/json',
             ...(options.body ? { 'Content-Type': 'application/json' } : {}),
             ...(options.headers || {}),
           },
-          ...options,
           signal: options.signal || controller.signal,
         },
       );
@@ -276,6 +276,9 @@
     try {
       const campaign = await api(path, {
         method: 'POST',
+        headers: body?.idempotencyKey
+          ? { 'Idempotency-Key': body.idempotencyKey }
+          : undefined,
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
       applyCampaignResult(campaign, successMessage);
@@ -298,10 +301,18 @@
     void runAction('open', 'Campanha aberta com sucesso.');
   $('activateBtn').onclick = () =>
     void runAction('activate', 'Campanha ativada em produção.');
-  $('closeBtn').onclick = () =>
+  $('closeBtn').onclick = () => {
+    const confirmation = window.prompt(
+      'Esta ação encerra a promoção. Digite ENCERRAR PROMOÇÃO para confirmar:',
+      '',
+    );
+    if (confirmation === null) return;
     void runAction('close', 'Campanha encerrada com sucesso.', {
       reason: 'MANUAL_SUPERADMIN',
+      confirmation,
+      idempotencyKey: crypto.randomUUID(),
     });
+  };
   // Nenhuma ação de mutação pode ocorrer antes do primeiro status confiável.
   $('openBtn').disabled = true;
   $('activateBtn').disabled = true;

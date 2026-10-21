@@ -1,8 +1,10 @@
 import { AuditOutcome, AuditSeverity } from '@prisma/client';
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   Post,
   Req,
@@ -71,12 +73,18 @@ export class PromotionAdminController {
   async close(
     @Req() request: Request,
     @Param('slug') slug: string,
-    @Body() body: { reason?: string },
+    @Body() body: { reason?: string; confirmation?: string },
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
+    if (body?.confirmation !== 'ENCERRAR PROMOÇÃO') {
+      throw new BadRequestException('Digite ENCERRAR PROMOÇÃO para confirmar.');
+    }
     const reason = body?.reason || 'MANUAL';
-    const campaign = await this.promotions.close(slug, reason);
-    await this.recordTransition(request, campaign, 'CLOSE', reason);
-    return campaign;
+    const result = await this.promotions.close(slug, reason, idempotencyKey);
+    if (!result.replayed && !result.alreadyClosed) {
+      await this.recordTransition(request, result.campaign, 'CLOSE', reason);
+    }
+    return result.campaign;
   }
 
   private async recordTransition(

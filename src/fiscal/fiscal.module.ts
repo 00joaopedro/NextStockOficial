@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { AdminOperationsModule } from '../admin-operations/admin-operations.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StorageModule } from '../storage/storage.module';
 import { SystemModule } from '../system/system.module';
@@ -21,6 +22,7 @@ import { CertificateCleanupService } from './certificate-cleanup.service';
 @Module({
   imports: [
     PrismaModule,
+    AdminOperationsModule,
     AuthModule,
     TenancyModule,
     SystemModule,

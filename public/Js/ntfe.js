@@ -772,18 +772,20 @@
   }
 
   async function removeCertificate() {
-    if (
-      state.certificateBusy ||
-      !window.confirm(
-        'Remover o certificado desta filial? O ambiente voltará para homologação.',
-      )
-    ) {
-      return;
-    }
+    if (state.certificateBusy) return;
+    const confirmation = window.prompt(
+      'O certificado será removido e a filial voltará para homologação. Digite REMOVER CERTIFICADO para confirmar:',
+      '',
+    );
+    if (confirmation === null) return;
     setCertificateBusy(true);
     setCertificateMessage('Removendo o certificado...', 'warning');
     try {
-      await api('/api/fiscal/certificate', { method: 'DELETE' });
+      await api('/api/fiscal/certificate', {
+        method: 'DELETE',
+        headers: { 'Idempotency-Key': crypto.randomUUID() },
+        body: JSON.stringify({ confirmation }),
+      });
       await loadFiscalConfig();
       setCertificateMessage('Certificado removido.', 'success');
     } catch (error) {
