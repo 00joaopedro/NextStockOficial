@@ -55,3 +55,28 @@ test('invoice lookup uses the same subscription filter as the application and re
   assert.equal(paths[2], 'https://api.mercadopago.com/authorized_payments/search?preapproval_id=sub-1');
   assert.deepEqual(result.payments[0].local.providerInvoices, { ok: false, error: 'INVALID_INVOICE_RESPONSE' });
 });
+
+test('invoice truncation accounts for the displayed limit and unknown provider total', async () => {
+  const prisma = {
+    checkoutSession: { findFirst: async () => ({ id: 'c', subscriptionId: 's' }) },
+    billingPayment: { findMany: async () => [] },
+    subscription: { findFirst: async () => ({ gatewaySubscriptionId: 'sub-1' }) },
+    billingEvent: { findMany: async () => [] },
+    gatewayWebhookEvent: { findMany: async () => [] },
+  };
+  async function report(count, total) {
+    const result = await investigate(prisma, 'tenant', ['123'], 'secret', async url => {
+      if (url.includes('/v1/payments/')) return { ok: true, json: async () => ({ id: 123, external_reference: 'ref' }) };
+      if (url.includes('/preapproval/')) return { ok: true, json: async () => ({ id: 'sub-1' }) };
+      return { ok: true, json: async () => ({ results: Array.from({ length: count }, () => ({ preapproval_id: 'sub-1' })), ...(total === undefined ? {} : { paging: { total } }) }) };
+    });
+    return result.payments[0].local.providerInvoices;
+  }
+  const locallyTruncated = await report(21, 21);
+  assert.equal(locallyTruncated.truncated, true);
+  assert.equal(locallyTruncated.results.length, 20);
+  assert.equal((await report(21, undefined)).truncated, true);
+  assert.equal((await report(20, 21)).truncated, true);
+  assert.equal((await report(20, 20)).truncated, false);
+  assert.equal((await report(20, undefined)).truncated, null);
+});
