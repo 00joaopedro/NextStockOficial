@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { FiscalCertificateCleanupStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CertificateStorageService } from './certificate-storage.service';
 
@@ -27,14 +28,40 @@ export class CertificateCleanupService implements OnModuleInit {
     void this.runBatch();
   }
 
-  async enqueue(tenantId: string, branchId: string, storagePath: string, reason: string) {
-    return this.prisma.fiscalCertificateCleanupJob.upsert({
+  async enqueue(
+    tenantId: string,
+    branchId: string,
+    storagePath: string,
+    reason: string,
+  ) {
+    return this.enqueueInTransaction(this.prisma, tenantId, branchId, storagePath, reason);
+  }
+
+  async enqueueInTransaction(
+    tx: Prisma.TransactionClient | PrismaService,
+    tenantId: string,
+    branchId: string,
+    storagePath: string,
+    reason: string,
+  ) {
+    return tx.fiscalCertificateCleanupJob.upsert({
       where: { tenantId_storagePath: { tenantId, storagePath } },
       create: { tenantId, branchId, storagePath, reason },
       update: {
         reason,
         status: FiscalCertificateCleanupStatus.PENDING,
         availableAt: new Date(),
+        lastErrorCode: null,
+      },
+    });
+  }
+
+  async markDelivered(storagePath: string, tenantId: string) {
+    await this.prisma.fiscalCertificateCleanupJob.updateMany({
+      where: { tenantId, storagePath, status: { not: FiscalCertificateCleanupStatus.DELIVERED } },
+      data: {
+        status: FiscalCertificateCleanupStatus.DELIVERED,
+        deliveredAt: new Date(),
         lastErrorCode: null,
       },
     });
