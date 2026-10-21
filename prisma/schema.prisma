@@ -2722,3 +2722,19 @@ model PromotionReservation {
   @@index([status, expiresAt])
   @@map("promotion_reservations")
 }
+
+
+model AdministrativeOperationExecution {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantScope    String   @map("tenant_scope")
+  operation      String
+  targetId       String   @map("target_id")
+  idempotencyKey String   @map("idempotency_key")
+  result         Json
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantScope, operation, idempotencyKey])
+  @@index([tenantScope, operation, targetId])
+  @@map("administrative_operation_executions")
+}

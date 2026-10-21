@@ -6,6 +6,7 @@ import {
   PaymentTerminalIntegrationMode,
 } from '@prisma/client';
 import {
+  Equals,
   IsEnum,
   IsInt,
   IsOptional,
@@ -46,4 +47,10 @@ export class CreatePixPaymentDto {
   @IsInt() @Min(1) @Max(100000000) amountCents!: number;
   @IsString() @MinLength(8) @MaxLength(128) idempotencyKey!: string;
   @IsOptional() @IsString() @MaxLength(120) description?: string;
+}
+
+export class RevokeConnectionDto {
+  @IsString()
+  @Equals('REVOGAR CREDENCIAIS')
+  confirmation!: 'REVOGAR CREDENCIAIS';
 }

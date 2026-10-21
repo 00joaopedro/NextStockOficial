@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { AdminOperationsModule } from '../admin-operations/admin-operations.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { TenancyModule } from '../tenancy/tenancy.module';
 import { SystemModule } from '../system/system.module';
@@ -12,7 +13,7 @@ import { PaymentWebhookController } from './payment-webhook.controller';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 @Module({
-  imports: [PrismaModule, TenancyModule, SystemModule, AuditModule],
+  imports: [PrismaModule, TenancyModule, SystemModule, AuditModule, AdminOperationsModule],
   controllers: [PaymentsController, PaymentWebhookController],
   providers: [
     MercadoPagoAdapter,
