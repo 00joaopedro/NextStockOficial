@@ -21,3 +21,10 @@ CREATE UNIQUE INDEX "fiscal_certificate_cleanup_jobs_tenant_id_storage_path_key"
   ON "fiscal_certificate_cleanup_jobs"("tenant_id", "storage_path");
 CREATE INDEX "fiscal_certificate_cleanup_jobs_status_available_at_idx"
   ON "fiscal_certificate_cleanup_jobs"("status", "available_at");
+
+ALTER TABLE "fiscal_certificate_cleanup_jobs" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "fiscal_certificate_cleanup_jobs" FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON TABLE "fiscal_certificate_cleanup_jobs" TO service_role;
+CREATE POLICY "fiscal_certificate_cleanup_jobs_service_role"
+  ON "fiscal_certificate_cleanup_jobs"
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
