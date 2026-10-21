@@ -212,14 +212,19 @@ describe('CertificateService', () => {
   });
 
   it('persiste uma retentativa quando a limpeza do storage falha', async () => {
-    const cleanupJobs = { enqueue: jest.fn().mockResolvedValue({ id: 'job-a' }) };
+    const cleanupJobs = {
+      enqueue: jest.fn().mockResolvedValue({ id: 'job-a' }),
+      enqueueInTransaction: jest.fn().mockResolvedValue({ id: 'job-a' }),
+      markDelivered: jest.fn().mockResolvedValue(undefined),
+    };
     const { service, storage } = setup(
       { certificatePath: 'tenant-a/branch-a/old.pfx' },
       { cleanupJobs },
     );
     storage.cleanup.mockResolvedValue(false);
     await service.upload({ id: 'user-a' } as any, file, 'password');
-    expect(cleanupJobs.enqueue).toHaveBeenCalledWith(
+    expect(cleanupJobs.enqueueInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
       context.tenantId,
       context.branchId,
       'tenant-a/branch-a/old.pfx',
@@ -351,6 +356,29 @@ describe('CertificateService', () => {
     expect(sefaz.testCommunication).toHaveBeenCalledWith(
       expect.objectContaining({
         credentials: expect.objectContaining({ certificatePath: 'tenant-a/branch-a/cert.pfx' }),
+      }),
+    );
+  });
+
+  it('audita a falha da consulta segura de status SEFAZ', async () => {
+    const { prisma, tenantContext, crypto, parser, storage } = setup({
+      provider: 'sefaz',
+      providerConfig: { uf: 'PA', statusUrl: 'https://sefaz.example/status' },
+      certificatePath: 'tenant-a/branch-a/cert.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+    });
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const sefaz = { testCommunication: jest.fn().mockRejectedValue(new Error('timeout')) };
+    const service = new CertificateService(
+      prisma, tenantContext, crypto, parser, storage, audit as any, sefaz as any,
+    );
+
+    await expect(service.testCommunication({ id: 'user-a' } as any)).rejects.toThrow('timeout');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'fiscal.communication.tested',
+        outcome: 'FAILED',
+        metadata: expect.objectContaining({ reasonCode: 'SEFAZ_STATUS_REQUEST_FAILED' }),
       }),
     );
   });
