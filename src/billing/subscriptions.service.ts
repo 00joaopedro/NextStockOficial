@@ -86,13 +86,23 @@ export class SubscriptionsService {
     const retainAccessUntilPeriodEnd =
       this.hasPaidAccessRemaining(subscription);
 
+    // The local subscription row can be reused by a subsequent checkout. A
+    // cancellation belongs to the remote subscription, not just that row.
+    const operationKey = subscription.gatewaySubscriptionId
+      ? `CANCEL:${createHash('sha256')
+          .update(
+            `${subscription.gatewayProvider}:${subscription.gatewaySubscriptionId}`,
+          )
+          .digest('hex')}`
+      : 'CANCEL';
+
     const existingOperation =
       await this.prisma.billingSubscriptionOperation.findUnique({
         where: {
           tenantId_subscriptionId_operation: {
             tenantId,
             subscriptionId: subscription.id,
-            operation: 'CANCEL',
+            operation: operationKey,
           },
         },
       });
@@ -166,6 +176,27 @@ export class SubscriptionsService {
       throw new ConflictException('Gateway da assinatura não está disponível.');
     }
 
+    // Older operations did not record which remote subscription they targeted.
+    // An unfinished one cannot safely be associated with a new checkout.
+    const legacyOperation =
+      await this.prisma.billingSubscriptionOperation.findUnique({
+        where: {
+          tenantId_subscriptionId_operation: {
+            tenantId,
+            subscriptionId: subscription.id,
+            operation: 'CANCEL',
+          },
+        },
+      });
+    if (
+      legacyOperation &&
+      legacyOperation.state !== BillingSubscriptionOperationState.SUCCEEDED
+    ) {
+      throw new ConflictException(
+        'Cancelamento anterior requer reconciliação antes de uma nova tentativa.',
+      );
+    }
+
     const gateway = this.gateways.get(subscription.gatewayProvider);
     const claimToken = randomUUID();
     const leaseExpiresAt = new Date(Date.now() + 60_000);
@@ -184,7 +215,7 @@ export class SubscriptionsService {
             tenantId,
             subscriptionId: subscription.id,
             provider: subscription.gatewayProvider,
-            operation: 'CANCEL',
+            operation: operationKey,
             claimToken,
             leaseExpiresAt,
             state: BillingSubscriptionOperationState.CLAIMED,
@@ -208,7 +239,7 @@ export class SubscriptionsService {
             tenantId_subscriptionId_operation: {
               tenantId,
               subscriptionId: subscription.id,
-              operation: 'CANCEL',
+              operation: operationKey,
             },
           },
         }));
@@ -220,6 +251,8 @@ export class SubscriptionsService {
             id: subscription.id,
             tenantId,
             version: subscription.version,
+            gatewaySubscriptionId: subscription.gatewaySubscriptionId,
+            gatewayProvider: subscription.gatewayProvider,
             status: { not: SubscriptionStatus.canceled },
           },
           data: {
@@ -321,6 +354,16 @@ export class SubscriptionsService {
         const current = await tx.subscription.findUniqueOrThrow({
           where: { id: subscription.id },
         });
+        if (
+          current.tenantId !== tenantId ||
+          current.gatewaySubscriptionId !==
+            subscription.gatewaySubscriptionId ||
+          current.gatewayProvider !== subscription.gatewayProvider
+        ) {
+          throw new ConflictException(
+            'A assinatura remota foi alterada durante o cancelamento.',
+          );
+        }
         if (current.status === SubscriptionStatus.canceled) {
           await tx.billingSubscriptionOperation.updateMany({
             where: {
@@ -343,6 +386,8 @@ export class SubscriptionsService {
             id: subscription.id,
             tenantId,
             version: current.version,
+            gatewaySubscriptionId: subscription.gatewaySubscriptionId,
+            gatewayProvider: subscription.gatewayProvider,
             status: { not: SubscriptionStatus.canceled },
           },
           data: {
@@ -449,7 +494,7 @@ export class SubscriptionsService {
   }) {
     return Boolean(
       subscription.status === SubscriptionStatus.active &&
-        subscription.currentPeriodEndsAt &&
+      subscription.currentPeriodEndsAt &&
       subscription.currentPeriodEndsAt > new Date(),
     );
   }
