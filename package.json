@@ -58,6 +58,8 @@
     "billing:reconcile": "ts-node scripts/maintenance/billing-reconciliation.ts",
     "billing:production-test:seed": "node scripts/billing/seed-production-test.js",
     "billing:production-test:preflight": "node scripts/billing/production-test-preflight.js",
+    "billing:deploy-preflight": "node scripts/billing/deploy-preflight.js",
+    "test:billing-deploy-preflight": "node --test scripts/billing/deploy-preflight.test.js",
     "uploads:quota-report": "ts-node scripts/maintenance/upload-quota-report.ts",
     "privacy:report-pii": "ts-node scripts/privacy/report-pii.ts",
     "privacy:report-retention": "ts-node scripts/privacy/report-retention.ts",
