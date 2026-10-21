@@ -124,6 +124,12 @@ function service(
           ),
       } as any,
       audit as any,
+      {
+        execute: jest.fn().mockImplementation(async (_request, operation) => ({
+          replayed: false,
+          result: await operation(prisma),
+        })),
+      } as any,
     ),
   };
 }
@@ -191,7 +197,13 @@ describe('RC-011 payment connection validation CAS', () => {
         a.value.validateConnection(undefined, connection.id, branch.id),
       );
       await adapter.waitForCalls(size);
-      await b.value.revokeConnection(undefined, connection.id, branch.id);
+      await b.value.revokeConnection(
+        undefined,
+        connection.id,
+        'REVOGAR CREDENCIAIS',
+        undefined,
+        branch.id,
+      );
       const afterRevoke = await prismaB.paymentConnection.findUniqueOrThrow({
         where: { id: connection.id },
       });
