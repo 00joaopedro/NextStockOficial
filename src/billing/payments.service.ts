@@ -124,6 +124,29 @@ export class PaymentsService {
       },
     });
     if (!payment) {
+      // An approved payment disappears from the eligibility query after a
+      // refund. Report the local state without implying a provider lookup.
+      const refunded = await this.prisma.billingPayment.findFirst({
+        where: {
+          tenantId,
+          status: BillingPaymentStatus.REFUNDED,
+          plan: { slug: PRODUCTION_TEST_PLAN_SLUG },
+          subscription: { is: { plan: { slug: PRODUCTION_TEST_PLAN_SLUG } } },
+          amountCents: 100,
+          currency: 'BRL',
+        },
+        orderBy: { refundedAt: 'desc' },
+        select: { refundedAt: true },
+      });
+      if (refunded) {
+        return {
+          available: false,
+          stage: 'LOCAL_PAYMENT',
+          code: 'TECHNICAL_PAYMENT_REFUNDED',
+          localStatus: 'REFUNDED',
+          refundedAt: refunded.refundedAt,
+        };
+      }
       return this.productionTestDiagnosticFailure(
         'LOCAL_PAYMENT',
         'TECHNICAL_PAYMENT_NOT_FOUND',

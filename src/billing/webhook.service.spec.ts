@@ -93,9 +93,9 @@ describe('RC-010 webhook inbox policy', () => {
   it('recognizes only explicit payment topics as payment resources', () => {
     expect(service.isMercadoPagoPaymentEvent('payment')).toBe(true);
     expect(service.isMercadoPagoPaymentEvent('payment.updated')).toBe(true);
-    expect(service.isMercadoPagoPaymentEvent('subscription_authorized_payment')).toBe(
-      false,
-    );
+    expect(
+      service.isMercadoPagoPaymentEvent('subscription_authorized_payment'),
+    ).toBe(false);
     expect(service.isMercadoPagoPaymentEvent('subscription_preapproval')).toBe(
       false,
     );
@@ -103,8 +103,33 @@ describe('RC-010 webhook inbox policy', () => {
 
   it('sanitizes error codes', () => {
     expect(service.safeErrorCode({ name: 'Bad error: token=secret!' })).toBe(
-      'Baderrortokensecret',
+      'ERROR',
     );
+    expect(service.safeErrorCode({ code: 'P1001' })).toBe('P1001');
+    expect(service.safeErrorCode({ code: 'secret-token' })).toBe('ERROR');
     expect(service.safeErrorCode('secret text')).toBe('UNKNOWN');
+  });
+
+  it('permite nova entrega reclamar evento retryable e limpar a falha anterior', async () => {
+    const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const worker = new WebhookService(
+      { gatewayWebhookEvent: { updateMany } } as any,
+      {} as any,
+      {} as any,
+    ) as any;
+    await expect(
+      worker.claim({
+        id: 'event',
+        provider: PaymentGatewayProvider.MERCADO_PAGO,
+      }),
+    ).resolves.toMatchObject({ id: 'event' });
+    expect(updateMany.mock.calls[0][0].where.OR).toContainEqual({
+      processingStatus: 'FAILED_RETRYABLE',
+    });
+    expect(updateMany.mock.calls[0][0].data).toMatchObject({
+      processingStatus: 'PROCESSING',
+      failureCode: null,
+      attemptCount: { increment: 1 },
+    });
   });
 });
