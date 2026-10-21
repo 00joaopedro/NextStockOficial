@@ -138,14 +138,16 @@ export class CertificateService {
       }, 'fiscal.certificate.uploaded', AuditOutcome.SUCCESS, {
         certificateStatus: 'valid',
         certificateFingerprint: parsed.fingerprintSha256,
-      });
+      }, oldPath && oldPath !== newPath
+        ? { path: oldPath, reason: 'replaced' }
+        : undefined);
     } catch (error) {
       await this.cleanupOrQueue(context, newPath, 'rollback');
       throw error;
     }
 
     if (oldPath && oldPath !== newPath) {
-      await this.cleanupOrQueue(context, oldPath, 'replaced');
+      await this.cleanupPersisted(context, oldPath, 'replaced');
     }
     this.logger.log(
       `Fiscal credential updated for tenant ${context.tenantId}, branch ${context.branchId}. Sensitive fields redacted.`,
@@ -282,8 +284,10 @@ export class CertificateService {
         productionEnabledById: null,
         activationStatus: FiscalActivationStatus.pendente,
       },
-    }, 'fiscal.certificate.removed', AuditOutcome.SUCCESS, {});
-    if (oldPath) await this.cleanupOrQueue(context, oldPath, 'removed');
+    }, 'fiscal.certificate.removed', AuditOutcome.SUCCESS, {}, oldPath
+      ? { path: oldPath, reason: 'removed' }
+      : undefined);
+    if (oldPath) await this.cleanupPersisted(context, oldPath, 'removed');
     this.logger.log(
       `Fiscal credential removed for tenant ${context.tenantId}, branch ${context.branchId}. Sensitive fields redacted.`,
     );
@@ -410,8 +414,10 @@ export class CertificateService {
     if (realProvider && !this.sefazProvider) {
       throw new ServiceUnavailableException('Provider SEFAZ não está disponível no módulo fiscal.');
     }
-    const providerResult = realProvider
-      ? await this.sefazProvider!.testCommunication({
+    let providerResult: Awaited<ReturnType<SefazFiscalProvider['testCommunication']>> | null = null;
+    if (realProvider) {
+      try {
+        providerResult = await this.sefazProvider!.testCommunication({
           environment: config.environment,
           providerConfig: config.providerConfig as Record<string, unknown> | undefined,
           credentials: {
@@ -420,8 +426,16 @@ export class CertificateService {
             certificatePath: config.certificatePath!,
             certificatePasswordEncrypted: config.certificatePasswordEncrypted!,
           },
-        })
-      : null;
+        });
+      } catch (error) {
+        await this.recordAudit(context, 'fiscal.communication.tested', AuditOutcome.FAILED, {
+          communication: 'sefaz_status',
+          provider: config.provider,
+          reasonCode: 'SEFAZ_STATUS_REQUEST_FAILED',
+        });
+        throw error;
+      }
+    }
     const result = providerResult
       ? {
           ok: providerResult.ok,
@@ -522,9 +536,19 @@ export class CertificateService {
     eventType: string,
     outcome: AuditOutcome,
     metadata: Record<string, unknown>,
+    cleanup?: { path: string; reason: 'replaced' | 'removed' },
   ) {
     const write = async (tx: any) => {
       const updated = await tx.companyFiscalConfig.update(update);
+      if (cleanup && this.cleanupJobs && context.branchId) {
+        await this.cleanupJobs.enqueueInTransaction(
+          tx,
+          context.tenantId,
+          context.branchId,
+          cleanup.path,
+          cleanup.reason,
+        );
+      }
       if (this.auditOutbox) {
         await this.auditOutbox.enqueue(tx, {
           eventType,
@@ -555,7 +579,7 @@ export class CertificateService {
       }
       return updated;
     };
-    return this.auditOutbox ? this.prisma.$transaction(write) : write(this.prisma);
+    return this.auditOutbox || cleanup ? this.prisma.$transaction(write) : write(this.prisma);
   }
 
   private async cleanupOrQueue(
@@ -563,9 +587,23 @@ export class CertificateService {
     path: string,
     reason: 'rollback' | 'replaced' | 'removed',
   ) {
-    const cleaned = await this.storage.cleanup(path, reason);
-    if (!cleaned && this.cleanupJobs && context.branchId) {
+    if (this.cleanupJobs && context.branchId) {
       await this.cleanupJobs.enqueue(context.tenantId, context.branchId, path, reason);
+    }
+    const cleaned = await this.storage.cleanup(path, reason);
+    if (cleaned && this.cleanupJobs) {
+      await this.cleanupJobs.markDelivered(path, context.tenantId);
+    }
+  }
+
+  private async cleanupPersisted(
+    context: { tenantId: string; branchId?: string | null },
+    path: string,
+    reason: 'replaced' | 'removed',
+  ) {
+    const cleaned = await this.storage.cleanup(path, reason);
+    if (cleaned && this.cleanupJobs) {
+      await this.cleanupJobs.markDelivered(path, context.tenantId);
     }
   }
 
