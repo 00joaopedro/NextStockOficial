@@ -207,6 +207,33 @@ describe('RC-004 billing state policy', () => {
     });
   });
 
+  it('informa estorno local sem afirmar confirmação remota', async () => {
+    const refundedAt = new Date('2026-10-20T16:51:32Z');
+    const findFirst = jest
+      .fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ refundedAt });
+    const service = new PaymentsService(
+      { billingPayment: { findFirst } } as any,
+      {} as any,
+      {} as any,
+    );
+    await expect(
+      service.productionTestRefundDiagnostic('tenant'),
+    ).resolves.toEqual({
+      available: false,
+      stage: 'LOCAL_PAYMENT',
+      code: 'TECHNICAL_PAYMENT_REFUNDED',
+      localStatus: 'REFUNDED',
+      refundedAt,
+    });
+    expect(findFirst.mock.calls[1][0].where).toMatchObject({
+      tenantId: 'tenant',
+      status: 'REFUNDED',
+      amountCents: 100,
+    });
+  });
+
   it('diagnostica a cobrança recorrente sem cancelar, gravar ou estornar', async () => {
     const payment = {
       id: 'local-payment-id',

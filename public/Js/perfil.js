@@ -555,14 +555,13 @@
         loadProductionTestRefundCapability(),
       ]);
       permissions();
-      const failures = results
-        .filter((result) => result.status === "rejected")
-        .map((result) => result.reason);
-      const authFailure = failures.find((error) => error?.status === 401);
+      const sections = ["perfil", "empresa", "assinatura", "planos", "maquininhas", "configuração de pagamentos", "teste de pagamento", "teste de estorno"];
+      const failures = results.flatMap((result, index) => result.status === "rejected" ? [{ section: sections[index], error: result.reason }] : []);
+      const authFailure = failures.find(({ error }) => error?.status === 401)?.error;
       if (authFailure) throw authFailure;
       const returned = new URLSearchParams(location.search).has("billingReturn");
       if (returned || sessionStorage.getItem("nextstockBillingCheckoutId")) await pollCheckout();
-      else if (failures.length) message("Perfil carregado parcialmente; alguns dados estão temporariamente indisponíveis.", "error");
+      else if (failures.length) message(`Perfil carregado parcialmente. Dados indisponíveis: ${failures.map(({ section }) => section).join(", ")}. Atualize a página para tentar novamente.`, "error");
       else message(state.preview ? "Modo visualização." : "Dados carregados.");
     } catch (error) { message(error.message, "error"); permissions(); }
   })();

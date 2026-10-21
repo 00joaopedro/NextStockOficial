@@ -110,7 +110,7 @@ export class WebhookService {
       await this.finish(
         claim,
         Status.FAILED_RETRYABLE,
-        this.safeErrorCode(error),
+        `PROVIDER_${this.safeErrorCode(error)}`,
       );
       throw error;
     }
@@ -165,7 +165,7 @@ export class WebhookService {
       await this.finish(
         claim,
         Status.FAILED_RETRYABLE,
-        this.safeErrorCode(error),
+        `PROCESSING_${this.safeErrorCode(error)}`,
       );
       throw error;
     }
@@ -252,6 +252,10 @@ export class WebhookService {
     });
     if (result.count !== 1)
       this.logger.warn(`stale webhook attempt rejected event=${claim.id}`);
+    else if (status === Status.FAILED_RETRYABLE)
+      this.logger.warn(
+        `webhook processing failed event=${claim.id} code=${code}`,
+      );
     return result.count === 1;
   }
 
@@ -327,11 +331,15 @@ export class WebhookService {
 
   private safeErrorCode(error: unknown) {
     if (!error || typeof error !== 'object') return 'UNKNOWN';
-    const name =
-      'name' in error && typeof error.name === 'string'
-        ? error.name
-        : 'WebhookProcessingError';
-    return name.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) || 'UNKNOWN';
+    if (
+      'code' in error &&
+      typeof error.code === 'string' &&
+      /^P\d{4}$/.test(error.code)
+    )
+      return error.code;
+    if (error instanceof Prisma.PrismaClientInitializationError)
+      return 'DATABASE_UNAVAILABLE';
+    return 'ERROR';
   }
 
   private string(value: unknown) {
