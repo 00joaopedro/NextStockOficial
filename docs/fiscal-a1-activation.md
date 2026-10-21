@@ -38,7 +38,7 @@ Se o Storage não puder remover um A1 substituído, removido ou criado em um rol
 
 - `CERTIFICATE_CLEANUP_WORKER_ENABLED=false` para desabilitar o worker deliberadamente.
 - `CERTIFICATE_CLEANUP_POLL_MS` para definir o intervalo de consulta; padrão de 30 segundos.
-- `NEXTSTOCK_PROCESS_ROLE=api` para impedir que uma réplica somente de API execute tarefas em segundo plano.
+- `NEXTSTOCK_PROCESS_ROLE=api` para impedir que uma réplica somente de API execute tarefas em segundo plano. A réplica `audit-worker` processa tanto a auditoria quanto a limpeza pendente de certificados.
 
 O worker não registra o caminho do objeto nos logs. Falhas finais devem ser tratadas pelo time operacional por meio da tabela de tarefas de limpeza, sem copiar o certificado ou sua senha para tickets.
 
