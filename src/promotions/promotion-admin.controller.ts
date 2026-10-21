@@ -80,10 +80,12 @@ export class PromotionAdminController {
       throw new BadRequestException('Digite ENCERRAR PROMOÇÃO para confirmar.');
     }
     const reason = body?.reason || 'MANUAL';
-    const result = await this.promotions.close(slug, reason, idempotencyKey);
-    if (!result.replayed && !result.alreadyClosed) {
-      await this.recordTransition(request, result.campaign, 'CLOSE', reason);
-    }
+    const audit = this.audit.fromRequest(request);
+    const result = await this.promotions.close(slug, reason, idempotencyKey, {
+      ...audit,
+      ipHash: undefined,
+      userAgentHash: undefined,
+    });
     return result.campaign;
   }
 

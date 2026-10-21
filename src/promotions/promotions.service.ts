@@ -6,6 +6,9 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import {
+  AuditContextKind,
+  AuditOutcome,
+  AuditSeverity,
   BillingPaymentStatus,
   PaymentGatewayProvider,
   Prisma,
@@ -714,7 +717,19 @@ export class PromotionsService {
     });
   }
 
-  async close(slug: string, reason = 'MANUAL', idempotencyKey?: string) {
+  async close(
+    slug: string,
+    reason = 'MANUAL',
+    idempotencyKey?: string,
+    audit?: {
+      actorProfileId?: string | null;
+      actorRole?: string | null;
+      requestId?: string | null;
+      ipHash?: string | null;
+      userAgentHash?: string | null;
+      contextKind?: AuditContextKind;
+    },
+  ) {
     if (!this.adminOperations) {
       throw new ServiceUnavailableException('Proteção de operação administrativa indisponível.');
     }
@@ -739,6 +754,29 @@ export class PromotionsService {
             status: PromotionCampaignStatus.CLOSED,
             closedAt: new Date(),
             closeReason: reason.slice(0, 120),
+          },
+        });
+        await tx.securityAuditEvent.create({
+          data: {
+            eventType: 'promotion.campaign.transition',
+            severity: AuditSeverity.HIGH,
+            actorProfileId: audit?.actorProfileId ?? null,
+            actorRole: audit?.actorRole ?? null,
+            contextKind: audit?.contextKind ?? AuditContextKind.NORMAL,
+            requestId: audit?.requestId ?? null,
+            ipHash: audit?.ipHash ?? null,
+            userAgentHash: audit?.userAgentHash ?? null,
+            targetType: 'promotion_campaign',
+            targetId: closed.id,
+            action: 'PROMOTION_CAMPAIGN_CLOSE',
+            outcome: AuditOutcome.SUCCESS,
+            reasonCode: reason.slice(0, 120),
+            metadata: {
+              campaignSlug: closed.slug,
+              status: closed.status,
+              closeReason: closed.closeReason,
+            },
+            afterState: { status: closed.status, slug: closed.slug },
           },
         });
         return { campaign: closed, alreadyClosed: false };

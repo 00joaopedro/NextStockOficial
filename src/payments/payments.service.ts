@@ -275,6 +275,16 @@ export class PaymentsService {
     const credentials = connection.encryptedCredentials
       ? this.crypto.decrypt(connection.encryptedCredentials, c.tenantId, id, connection.version)
       : null;
+    // Revoke at the provider before discarding the only encrypted credential.
+    // If the database transaction does not commit, a retry can safely attempt it again.
+    if (credentials && connection.status !== PaymentConnectionStatus.REVOKED) {
+      const adapter = this.registry.get(connection.providerCode);
+      if ('revokeConnection' in adapter) {
+        await (adapter as unknown as OAuthPaymentProviderAdapter)
+          .revokeConnection(credentials)
+          .catch(() => undefined);
+      }
+    }
     const execution = await this.adminOperations.execute(
       { tenantScope: c.tenantId, operation: 'PAYMENT_CONNECTION_REVOKE', targetId: id, idempotencyKey: idempotencyKey || '' },
       async (tx) => {
@@ -288,12 +298,6 @@ export class PaymentsService {
       },
     );
     if (!execution.replayed && execution.result.applied) {
-      if (credentials) {
-        const adapter = this.registry.get(connection.providerCode);
-        if ('revokeConnection' in adapter) {
-          await (adapter as unknown as OAuthPaymentProviderAdapter).revokeConnection(credentials).catch(() => undefined);
-        }
-      }
       await this.record(c, 'payment.connection.revoked', id);
     }
     return { revoked: true, replayed: execution.replayed, alreadyRevoked: !execution.result.applied };
