@@ -378,6 +378,25 @@ model AuditOutboxEvent {
   @@map("audit_outbox_events")
 }
 
+model FiscalCertificateCleanupJob {
+  id            String                         @id @default(uuid()) @db.Uuid
+  tenantId      String                         @map("tenant_id") @db.Uuid
+  branchId      String                         @map("branch_id") @db.Uuid
+  storagePath   String                         @map("storage_path")
+  reason        String
+  status        FiscalCertificateCleanupStatus @default(PENDING)
+  attemptCount  Int                            @default(0) @map("attempt_count")
+  availableAt   DateTime                       @default(now()) @map("available_at")
+  deliveredAt   DateTime?                      @map("delivered_at")
+  lastErrorCode String?                        @map("last_error_code")
+  createdAt     DateTime                       @default(now()) @map("created_at")
+  updatedAt     DateTime                       @updatedAt @map("updated_at")
+
+  @@unique([tenantId, storagePath])
+  @@index([status, availableAt])
+  @@map("fiscal_certificate_cleanup_jobs")
+}
+
 model DevWorkspace {
   id                 String      @id @default(uuid()) @db.Uuid
   devUserId          String      @map("dev_user_id") @db.Uuid
@@ -2194,6 +2213,13 @@ enum AuditContextKind {
 enum AuditOutboxStatus {
   PENDING
   PROCESSING
+  DELIVERED
+  FAILED_RETRYABLE
+  FAILED_FINAL
+}
+
+enum FiscalCertificateCleanupStatus {
+  PENDING
   DELIVERED
   FAILED_RETRYABLE
   FAILED_FINAL

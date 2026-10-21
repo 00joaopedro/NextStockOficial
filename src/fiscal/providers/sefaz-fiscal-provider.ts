@@ -140,6 +140,35 @@ export class SefazFiscalProvider implements FiscalProvider {
     return renderMinimalPdf(document);
   }
 
+  /**
+   * Verifies the configured SEFAZ endpoint with the branch certificate without
+   * creating, numbering or transmitting a fiscal document.
+   */
+  async testCommunication(input: {
+    environment: string;
+    providerConfig?: Record<string, unknown>;
+    credentials: NonNullable<FiscalProviderDocument['credentials']>;
+  }) {
+    const config = this.config({ providerConfig: input.providerConfig } as FiscalProviderDocument);
+    if (!config.statusUrl) {
+      throw new ServiceUnavailableException(
+        'Provider SEFAZ sem statusUrl configurada para esta filial.',
+      );
+    }
+    const prepared = await this.prepareCertificate({ credentials: input.credentials } as FiscalProviderDocument);
+    const tpAmb = input.environment === 'producao' ? 1 : 2;
+    const body = `<consStatServ xmlns="http://www.portalfiscal.inf.br/nfe" versao="4.00"><tpAmb>${tpAmb}</tpAmb><cUF>${String(ufCode(config.uf || '')).padStart(2, '0')}</cUF><xServ>STATUS</xServ></consStatServ>`;
+    const response = await this.soap(config.statusUrl, body, config, prepared);
+    const code = Number(textTag(response, 'cStat') || '0');
+    const message = textTag(response, 'xMotivo') || 'Resposta SEFAZ sem motivo.';
+    return {
+      ok: code === 107,
+      code,
+      message,
+      environment: tpAmb === 1 ? 'producao' : 'homologacao',
+    };
+  }
+
   private async transmit(document: FiscalProviderDocument, model: 55 | 65) {
     const config = this.config(document);
     if (!config.authorizationUrl) {
@@ -245,6 +274,8 @@ export class SefazFiscalProvider implements FiscalProvider {
       ? 'nfeAutorizacaoLote4'
       : body.includes('<consSitNFe')
         ? 'nfeConsultaNF4'
+        : body.includes('<consStatServ')
+          ? 'nfeStatusServicoNF4'
         : 'nfeRecepcaoEvento4';
     const operationBody = `<${operation} xmlns="http://www.portalfiscal.inf.br/nfe">${body}</${operation}>`;
     const envelope = `<soap:Envelope xmlns:soap="${SOAP_NS}"><soap:Header/><soap:Body>${operationBody}</soap:Body></soap:Envelope>`;

@@ -25,7 +25,7 @@ describe('CertificateService', () => {
     contextKind: 'normal',
   };
 
-  function setup(overrides: Record<string, any> = {}) {
+  function setup(overrides: Record<string, any> = {}, dependencies: Record<string, any> = {}) {
     const config = {
       id: 'config-a',
       tenantId: context.tenantId,
@@ -46,6 +46,7 @@ describe('CertificateService', () => {
           ),
       },
     };
+    prisma.$transaction = jest.fn(async (callback) => callback(prisma));
     const tenantContext: any = {
       resolve: jest.fn().mockResolvedValue(context),
     };
@@ -81,6 +82,10 @@ describe('CertificateService', () => {
         crypto,
         parser,
         storage,
+        dependencies.audit,
+        dependencies.sefazProvider,
+        dependencies.auditOutbox,
+        dependencies.cleanupJobs,
       ),
       prisma,
       tenantContext,
@@ -206,6 +211,38 @@ describe('CertificateService', () => {
     );
   });
 
+  it('persiste uma retentativa quando a limpeza do storage falha', async () => {
+    const cleanupJobs = {
+      enqueue: jest.fn().mockResolvedValue({ id: 'job-a' }),
+      enqueueInTransaction: jest.fn().mockResolvedValue({ id: 'job-a' }),
+      markDelivered: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, storage } = setup(
+      { certificatePath: 'tenant-a/branch-a/old.pfx' },
+      { cleanupJobs },
+    );
+    storage.cleanup.mockResolvedValue(false);
+    await service.upload({ id: 'user-a' } as any, file, 'password');
+    expect(cleanupJobs.enqueueInTransaction).toHaveBeenCalledWith(
+      expect.anything(),
+      context.tenantId,
+      context.branchId,
+      'tenant-a/branch-a/old.pfx',
+      'replaced',
+    );
+  });
+
+  it('grava a auditoria na mesma transacao da alteracao critica', async () => {
+    const auditOutbox = { enqueue: jest.fn().mockResolvedValue({ id: 'audit-a' }) };
+    const { service, prisma } = setup({}, { auditOutbox });
+    await service.upload({ id: 'user-a' } as any, file, 'password');
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(auditOutbox.enqueue).toHaveBeenCalledWith(
+      prisma,
+      expect.objectContaining({ eventType: 'fiscal.certificate.uploaded' }),
+    );
+  });
+
   it('rejeita CNPJ divergente', async () => {
     const { service, parser } = setup();
     parser.parse.mockReturnValue({
@@ -291,6 +328,59 @@ describe('CertificateService', () => {
     await expect(
       service.testCommunication({ id: 'user-a' } as any),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  it('executa consulta segura de status na SEFAZ sem emitir documento', async () => {
+    const { prisma, tenantContext, crypto, parser, storage } = setup({
+      provider: 'sefaz',
+      providerConfig: { uf: 'PA', statusUrl: 'https://sefaz.example/status' },
+      certificatePath: 'tenant-a/branch-a/cert.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+    });
+    const sefaz: any = {
+      testCommunication: jest.fn().mockResolvedValue({
+        ok: true,
+        code: 107,
+        message: 'Servico em Operacao',
+      }),
+    };
+    const service = new CertificateService(
+      prisma, tenantContext, crypto, parser, storage, undefined, sefaz,
+    );
+
+    await expect(service.testCommunication({ id: 'user-a' } as any)).resolves.toMatchObject({
+      ok: true,
+      communication: 'sefaz_status',
+      statusCode: 107,
+    });
+    expect(sefaz.testCommunication).toHaveBeenCalledWith(
+      expect.objectContaining({
+        credentials: expect.objectContaining({ certificatePath: 'tenant-a/branch-a/cert.pfx' }),
+      }),
+    );
+  });
+
+  it('audita a falha da consulta segura de status SEFAZ', async () => {
+    const { prisma, tenantContext, crypto, parser, storage } = setup({
+      provider: 'sefaz',
+      providerConfig: { uf: 'PA', statusUrl: 'https://sefaz.example/status' },
+      certificatePath: 'tenant-a/branch-a/cert.pfx',
+      certificatePasswordEncrypted: 'encrypted',
+    });
+    const audit = { record: jest.fn().mockResolvedValue(undefined) };
+    const sefaz = { testCommunication: jest.fn().mockRejectedValue(new Error('timeout')) };
+    const service = new CertificateService(
+      prisma, tenantContext, crypto, parser, storage, audit as any, sefaz as any,
+    );
+
+    await expect(service.testCommunication({ id: 'user-a' } as any)).rejects.toThrow('timeout');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'fiscal.communication.tested',
+        outcome: 'FAILED',
+        metadata: expect.objectContaining({ reasonCode: 'SEFAZ_STATUS_REQUEST_FAILED' }),
+      }),
+    );
   });
 
 });
