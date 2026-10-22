@@ -79,3 +79,27 @@ test('blocks a public URL missing from CORS and a non-production mode', () => {
   assert.ok(result.errors.includes('CORS_PUBLIC_APP_URL_MISSING'));
   assert.ok(result.errors.includes('MERCADO_PAGO_PRODUCTION_MODE_REQUIRED'));
 });
+
+test('uses BILLING_MODE precedence and rejects conflicting gateway modes', () => {
+  const result = runDeployPreflight(
+    validEnv({ BILLING_MODE: 'sandbox' }),
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.billingMode, 'sandbox');
+  assert.ok(result.errors.includes('BILLING_MODE_CONFLICT'));
+  assert.ok(result.errors.includes('MERCADO_PAGO_PRODUCTION_MODE_REQUIRED'));
+});
+
+test('rejects loopback aliases even when HTTPS and CORS are otherwise valid', () => {
+  for (const host of ['127.0.0.1', '[::1]', 'localhost.', 'api.localhost']) {
+    const url = `https://${host}`;
+    const result = runDeployPreflight(
+      validEnv({
+        PUBLIC_APP_URL: url,
+        CORS_ALLOWED_ORIGINS: url,
+      }),
+    );
+    assert.equal(result.ok, false, host);
+    assert.ok(result.errors.includes('PUBLIC_APP_URL_HOST_INVALID'), host);
+  }
+});

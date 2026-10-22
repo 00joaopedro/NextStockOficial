@@ -9,8 +9,9 @@ não consulta o Mercado Pago e não cria cobrança, assinatura ou estorno.
    `https://SEU_DOMINIO/api/billing/webhooks/mercado-pago`.
 2. Na Railway, confira que `APP_ENV=production`, `PUBLIC_APP_URL` usa HTTPS e
    `CORS_ALLOWED_ORIGINS` contém a mesma origem de `PUBLIC_APP_URL`.
-3. Confira que `BILLING_WEBHOOK_ENABLED=true` e
-   `MERCADO_PAGO_MODE=production`.
+3. Confira que `BILLING_WEBHOOK_ENABLED=true`. `BILLING_MODE`, quando
+   definida, tem precedência sobre `MERCADO_PAGO_MODE`; as duas devem ser
+   `production` ou `BILLING_MODE` deve permanecer ausente.
 4. Confira a presença, sem copiar valores para logs, de:
    `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_WEBHOOK_SECRET`,
    `MERCADO_PAGO_COLLECTOR_ID` e `BILLING_EXTERNAL_REFERENCE_SECRET`.
@@ -29,7 +30,9 @@ O sucesso retorna JSON com `"ok":true` e a URL pública esperada do webhook.
 O resultado nunca inclui valores de tokens, segredos ou chaves. Em caso de erro,
 ele retorna apenas códigos seguros — por exemplo,
 `MERCADO_PAGO_WEBHOOK_URL_MISMATCH` ou
-`CORS_PUBLIC_APP_URL_MISSING` — e encerra com código diferente de zero.
+`CORS_PUBLIC_APP_URL_MISSING` ou `BILLING_MODE_CONFLICT` — e encerra com
+código diferente de zero. Hosts de loopback, inclusive `127.0.0.1`, `[::1]`
+e aliases `.localhost`, são bloqueados mesmo com HTTPS.
 
 Essa pré-validação não prova a entrega externa de um webhook; ela elimina
 inconsistências de ambiente e URL antes do deploy sem exigir novo teste financeiro.

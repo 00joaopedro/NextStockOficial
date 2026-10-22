@@ -10,6 +10,22 @@ function enabled(value) {
   return normalized(value).toLowerCase() === 'true';
 }
 
+function isLoopbackHost(hostname) {
+  const host = hostname.toLowerCase().replace(/\.$/, '').replace(/^\[|\]$/g, '');
+  return (
+    host === 'localhost' ||
+    host.endsWith('.localhost') ||
+    host === '::1' ||
+    host === '0.0.0.0' ||
+    host.startsWith('127.') ||
+    host.startsWith('::ffff:127.')
+  );
+}
+
+function effectiveBillingMode(env) {
+  return normalized(env.BILLING_MODE || env.MERCADO_PAGO_MODE).toLowerCase();
+}
+
 function safeHttpsUrl(raw, name, errors) {
   try {
     const url = new URL(raw);
@@ -17,7 +33,7 @@ function safeHttpsUrl(raw, name, errors) {
       errors.push(`${name}_HTTPS_REQUIRED`);
       return null;
     }
-    if (url.username || url.password || url.hostname.toLowerCase() === 'localhost') {
+    if (url.username || url.password || isLoopbackHost(url.hostname)) {
       errors.push(`${name}_HOST_INVALID`);
       return null;
     }
@@ -78,7 +94,12 @@ function runDeployPreflight(env = process.env) {
   if (!enabled(env.BILLING_WEBHOOK_ENABLED)) {
     errors.push('BILLING_WEBHOOK_ENABLED_REQUIRED');
   }
-  if (normalized(env.MERCADO_PAGO_MODE).toLowerCase() !== 'production') {
+  const billingMode = normalized(env.BILLING_MODE).toLowerCase();
+  const mercadoPagoMode = normalized(env.MERCADO_PAGO_MODE).toLowerCase();
+  if (billingMode && mercadoPagoMode && billingMode !== mercadoPagoMode) {
+    errors.push('BILLING_MODE_CONFLICT');
+  }
+  if (effectiveBillingMode(env) !== 'production') {
     errors.push('MERCADO_PAGO_PRODUCTION_MODE_REQUIRED');
   }
   required(env, 'MERCADO_PAGO_ACCESS_TOKEN', errors);
@@ -90,6 +111,7 @@ function runDeployPreflight(env = process.env) {
     ok: errors.length === 0,
     action: 'billing_deploy_preflight',
     appEnv: appEnv || 'missing',
+    billingMode: effectiveBillingMode(env) || 'missing',
     expectedWebhookUrl,
     configuredWebhookUrl: configuredWebhookUrl ? 'configured' : 'not_configured',
     errors,
