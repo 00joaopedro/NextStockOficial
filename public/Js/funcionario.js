@@ -22,6 +22,8 @@
   const emptyMessage = document.getElementById("emptyMessage");
   const searchInput = document.getElementById("searchEmployeeInput");
   const statusMessage = document.getElementById("statusMessage");
+  const resilience = window.NextStockPageResilience;
+  const employeeDirtyGuard = resilience?.createDirtyGuard(form);
 
   function setMessage(message, type) {
     statusMessage.textContent = message || "";
@@ -133,21 +135,41 @@
     return params.toString();
   }
 
+  function restoreUrlState() {
+    const query = resilience?.readUrlState(["employeeSearch"]) || {};
+    searchInput.value = query.employeeSearch || "";
+  }
+
+  function syncUrlState() {
+    resilience?.writeUrlState({ employeeSearch: searchInput.value.trim() });
+  }
+
   async function carregarFuncionarios() {
     state.loading = true;
+    syncUrlState();
     renderList();
+    let loadError = null;
 
     try {
       const data = await apiFetch(`/api/employees?${getQueryString()}`);
       state.employees = Array.isArray(data.items) ? data.items : [];
-      renderList();
     } catch (error) {
       state.employees = [];
-      renderList();
-      setMessage(error.message, "error");
+      loadError = error;
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar funcionarios.", "error");
     } finally {
       state.loading = false;
-      renderList();
+      if (loadError && resilience?.renderRetry) {
+        employeeList.innerHTML = "";
+        emptyMessage.style.display = "block";
+        resilience.renderRetry(
+          emptyMessage,
+          loadError instanceof Error ? loadError.message : "Nao foi possivel carregar funcionarios.",
+          carregarFuncionarios,
+        );
+      } else {
+        renderList();
+      }
     }
   }
 
@@ -249,6 +271,7 @@
       });
       setMessage("Funcionario cadastrado com sucesso.", "success");
       limparFormulario();
+      employeeDirtyGuard?.markClean();
       await carregarFuncionarios();
     } catch (error) {
       setMessage(error.message, "error");
@@ -274,6 +297,7 @@
       });
       passwordInput.value = "";
       setMessage("Funcionario atualizado com sucesso.", "success");
+      employeeDirtyGuard?.markClean();
       await carregarFuncionarios();
     } catch (error) {
       setMessage(error.message, "error");
@@ -348,6 +372,7 @@
     dismissalDateInput.value = formatDateForInput(employee.dismissalDate);
     statusInput.value = employee.status || "active";
     setMessage("");
+    employeeDirtyGuard?.markClean();
     renderList();
   }
 
@@ -357,6 +382,7 @@
     emailInput.disabled = false;
     statusInput.value = "active";
     setMessage("");
+    employeeDirtyGuard?.markClean();
     renderList();
   }
 
@@ -381,6 +407,7 @@
       return;
     }
     try {
+      restoreUrlState();
       const ok = await bootstrapContext();
       if (ok) {
         await carregarFuncionarios();
@@ -390,5 +417,10 @@
       emptyMessage.style.display = "block";
       emptyMessage.textContent = "Nao foi possivel carregar funcionarios.";
     }
+  });
+
+  window.addEventListener("popstate", () => {
+    restoreUrlState();
+    void carregarFuncionarios();
   });
 })();

@@ -130,6 +130,8 @@ const agendaCancellationReason = element<HTMLInputElement>(
 );
 const saveAgendaBtn = element<HTMLButtonElement>('saveAgendaBtn');
 const closeAgendaModalBtn = element<HTMLButtonElement>('closeAgendaModalBtn');
+const resilience = (window as any).NextStockPageResilience;
+const agendaDirtyGuard = resilience?.createDirtyGuard(agendaModal);
 
 function element<T extends HTMLElement>(id: string): T {
   const found = document.getElementById(id);
@@ -231,6 +233,8 @@ async function init(): Promise<void> {
 
     persistBackendContext(context);
     await loadClients();
+    restoreUrlState();
+    updateDateFields();
     await loadAppointments();
   } catch (error) {
     renderError(error);
@@ -295,6 +299,7 @@ async function loadClients(): Promise<void> {
 async function loadAppointments(): Promise<void> {
   setLoading('Carregando agenda...');
   const params = buildQueryParams();
+  syncUrlState();
   const response = await apiFetch<AppointmentListResponse>(
     `/api/agenda-pet?${params.toString()}`,
   );
@@ -495,11 +500,54 @@ async function changePage(page: number): Promise<void> {
   await loadAppointments();
 }
 
+function syncUrlState(): void {
+  resilience?.writeUrlState({
+    page: currentPage,
+    agendaSearch: atendenteSearch.value.trim(),
+    agendaStatus: statusFilter.value,
+    agendaClientId: clientFilter.value,
+    agendaPetId: petFilter.value,
+    agendaDateType: dateFilterType.value,
+    agendaDateDay: dateDay.value,
+    agendaDateWeek: dateWeek.value,
+    agendaDateMonth: dateMonth.value,
+    agendaDateYear: dateYear.value,
+    agendaStartFrom: startDateFrom.value,
+    agendaStartTo: startDateTo.value,
+  });
+}
+
+function restoreUrlState(): void {
+  const state = resilience?.readUrlState([
+    'page', 'agendaSearch', 'agendaStatus', 'agendaClientId', 'agendaPetId',
+    'agendaDateType', 'agendaDateDay', 'agendaDateWeek', 'agendaDateMonth',
+    'agendaDateYear', 'agendaStartFrom', 'agendaStartTo',
+  ]) || {};
+  const page = Number(state.page);
+  currentPage = Number.isInteger(page) && page > 0 ? page : 1;
+  atendenteSearch.value = state.agendaSearch || '';
+  statusFilter.value = state.agendaStatus || '';
+  const selectedPetId = state.agendaPetId || '';
+  clientFilter.value = state.agendaClientId || '';
+  // The available pets depend on the selected client. Rebuild first, then
+  // restore the pet so URL state survives initialization and browser history.
+  populatePetSelects();
+  petFilter.value = selectedPetId;
+  dateFilterType.value = state.agendaDateType || '';
+  dateDay.value = state.agendaDateDay || '';
+  dateWeek.value = state.agendaDateWeek || '';
+  dateMonth.value = state.agendaDateMonth || '';
+  dateYear.value = state.agendaDateYear || '';
+  startDateFrom.value = state.agendaStartFrom || '';
+  startDateTo.value = state.agendaStartTo || '';
+}
+
 function openCreateModal(): void {
   if (!ensureCanWrite()) return;
   editingAppointmentId = null;
   agendaModalTitle.textContent = 'Novo agendamento';
   resetForm();
+  agendaDirtyGuard?.markClean();
   agendaModal.classList.add('active');
 }
 
@@ -523,13 +571,17 @@ function openEditModal(id: string): void {
   agendaPrice.value = String(appointment.preco ?? '');
   agendaNotes.value = appointment.notes || appointment.descricao || '';
   agendaCancellationReason.value = appointment.cancellationReason || '';
+  agendaDirtyGuard?.markClean();
   agendaModal.classList.add('active');
 }
 
-function closeModal(): void {
+function closeModal(): boolean {
+  if (!agendaDirtyGuard?.confirmDiscard()) return false;
   agendaModal.classList.remove('active');
   editingAppointmentId = null;
   resetForm();
+  agendaDirtyGuard?.markClean();
+  return true;
 }
 
 function resetForm(): void {
@@ -606,6 +658,7 @@ async function saveAppointment(): Promise<void> {
     body: JSON.stringify(payload),
   });
 
+  agendaDirtyGuard?.markClean();
   closeModal();
   await loadAppointments();
   alert('Agendamento salvo com sucesso.');
@@ -673,6 +726,13 @@ function renderError(error: unknown): void {
   const message =
     error instanceof Error ? error.message : 'Erro ao carregar agenda.';
   sessionBadge.textContent = 'Erro';
+  if (resilience?.renderRetry) {
+    resilience.renderRetry(agendaContainer, message, () => {
+      void loadAppointments().catch(renderError);
+    });
+    pagination.innerHTML = '';
+    return;
+  }
   renderEmpty(message);
 }
 
@@ -770,6 +830,11 @@ agendaModal.addEventListener('click', (event) => {
 
 populateYearOptions();
 updateDateFields();
+window.addEventListener('popstate', () => {
+  restoreUrlState();
+  updateDateFields();
+  void loadAppointments().catch(renderError);
+});
 void init();
 
 export {};

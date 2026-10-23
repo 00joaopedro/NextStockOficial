@@ -34,6 +34,7 @@
   };
 
   const PRINT_AGENT_URL = "http://127.0.0.1:17890";
+  const resilience = window.NextStockPageResilience;
   if (els.printAgentToken) els.printAgentToken.value = sessionStorage.getItem(PRINT_AGENT_SESSION_KEY) || "";
 
   const DOCUMENT_LABELS = {
@@ -200,7 +201,32 @@
     return params.toString();
   }
 
+  function restoreUrlState() {
+    const query = resilience?.readUrlState([
+      "page", "seller", "date", "minValue", "documentType", "status",
+    ]) || {};
+    const page = Number(query.page);
+    state.page = Number.isInteger(page) && page > 0 ? page : 1;
+    els.searchSeller.value = query.seller || "";
+    els.filterDate.value = query.date || "";
+    els.filterMinValue.value = query.minValue || "";
+    els.filterDocumentType.value = query.documentType || "";
+    els.filterStatus.value = query.status || "";
+  }
+
+  function syncUrlState() {
+    resilience?.writeUrlState({
+      page: state.page,
+      seller: els.searchSeller.value.trim(),
+      date: els.filterDate.value,
+      minValue: els.filterMinValue.value,
+      documentType: els.filterDocumentType.value,
+      status: els.filterStatus.value,
+    });
+  }
+
   async function loadSales() {
+    syncUrlState();
     els.salesGrid.textContent = "";
     els.pagination.textContent = "";
     els.emptyMessage.style.display = "block";
@@ -215,7 +241,15 @@
     } catch (error) {
       state.sales = [];
       els.emptyMessage.style.display = "block";
-      els.emptyMessage.textContent = error.message;
+      if (resilience?.renderRetry) {
+        resilience.renderRetry(
+          els.emptyMessage,
+          error.message || "Nao foi possivel carregar o historico.",
+          loadSales,
+        );
+      } else {
+        els.emptyMessage.textContent = error.message;
+      }
     }
   }
 
@@ -654,6 +688,7 @@
   }
 
   async function init() {
+    restoreUrlState();
     bindEvents();
     if (window.isNextStockDemoMode?.()) return;
     try {
@@ -666,6 +701,11 @@
       els.emptyMessage.textContent = error.message;
     }
   }
+
+  window.addEventListener("popstate", () => {
+    restoreUrlState();
+    void loadSales();
+  });
 
   init();
 })();
