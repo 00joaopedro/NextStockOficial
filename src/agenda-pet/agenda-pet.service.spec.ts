@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { AgendaPetStatus } from '@prisma/client';
 import { AgendaPetService } from './agenda-pet.service';
 
@@ -47,6 +51,7 @@ const agenda = {
   petId: pet.id,
   canceledAt: null,
   cancellationReason: null,
+  version: 1,
   createdAt: new Date(),
   updatedAt: new Date(),
   client: { id: client.id, name: client.name },
@@ -61,6 +66,8 @@ function makeService() {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue(agenda),
       update: jest.fn().mockResolvedValue(agenda),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findFirstOrThrow: jest.fn().mockResolvedValue(agenda),
     },
     petClient: {
       findFirst: jest.fn().mockResolvedValue(client),
@@ -72,6 +79,9 @@ function makeService() {
   const petClientsService = {
     resolvePetShopContext: jest.fn().mockResolvedValue(context),
   };
+  (prisma as any).$transaction = jest.fn().mockImplementation(async (operation) =>
+    operation({ ...prisma, $executeRaw: jest.fn().mockResolvedValue(undefined) }),
+  );
 
   return {
     service: new AgendaPetService(prisma as any, petClientsService as any),
@@ -204,6 +214,63 @@ describe('AgendaPetService', () => {
         context.branchId,
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('bloqueia conflito de horario ativo para o mesmo atendente', async () => {
+    const { service, prisma } = makeService();
+    prisma.agendaPet.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'agenda-attendant-conflict' });
+
+    await expect(
+      service.create(
+        {
+          cliente: 'Maria', animal: 'Thor', atendente: 'Ana', servico: 'Banho',
+          data: '2026-06-10', hora: '10:00', preco: 80,
+          clientId: client.id, petId: pet.id,
+        }, user, context.branchId,
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('bloqueia edicao com versao desatualizada', async () => {
+    const { service, prisma } = makeService();
+    prisma.agendaPet.findFirst.mockResolvedValue(agenda);
+
+    await expect(
+      service.update(
+        agenda.id,
+        { expectedVersion: 2, servico: 'Tosa' },
+        user,
+        context.branchId,
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('atualiza somente a versao que a tela leu', async () => {
+    const { service, prisma } = makeService();
+    prisma.agendaPet.findFirst
+      .mockResolvedValueOnce(agenda)
+      .mockResolvedValueOnce(agenda)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    await service.update(
+      agenda.id,
+      { expectedVersion: 1, servico: 'Tosa' },
+      user,
+      context.branchId,
+    );
+
+    expect(prisma.agendaPet.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ version: 1 }),
+        data: expect.objectContaining({
+          servico: 'Tosa',
+          version: { increment: 1 },
+        }),
+      }),
+    );
   });
 
   it('apaga com soft delete dentro do escopo tenant/branch', async () => {

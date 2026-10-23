@@ -37,6 +37,7 @@
 
     return {
       id: item.id,
+      version: item.version,
       clientId,
       petId,
       cliente: item.cliente || item.client?.name || '',

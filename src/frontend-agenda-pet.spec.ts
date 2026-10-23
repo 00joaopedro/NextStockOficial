@@ -32,6 +32,7 @@ describe('agendaPet frontend production flow', () => {
     expect(script).toContain('/api/auth/profile');
     expect(script).toContain('/api/system/context');
     expect(script).toContain('/api/agenda-pet');
+    expect(script).toContain('expectedVersion');
     expect(script).toMatch(/tenantType !== ['"]PETSHOP['"]/);
     expect(script).toContain('Modo visualizacao: alteracao bloqueada.');
     expect(script).not.toContain('DEMO_ATENDIMENTOS');
@@ -48,7 +49,9 @@ describe('agendaPet frontend production flow', () => {
     expect(script).not.toContain('/api/pet-clients/${cliente.id}/appointments');
     expect(script).toContain('response.items || response.data || []');
     expect(script).toContain('statusLabel');
+    expect(script).toContain('expectedVersion: editingAgendamento.version');
     expect(helper).toContain('normalizeAppointment');
+    expect(helper).toContain('version: item.version');
     expect(helper).toContain('canceled:');
     expect(helper).toContain('completed:');
   });

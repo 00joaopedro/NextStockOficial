@@ -9,6 +9,7 @@ export type AgendaPetListMeta = {
 export function formatAgendaPet(agenda: any) {
   return {
     id: agenda.id,
+    version: agenda.version,
     clientId: agenda.clientId,
     petId: agenda.petId,
     cliente: agenda.cliente,

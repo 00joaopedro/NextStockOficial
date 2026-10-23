@@ -1151,6 +1151,7 @@ model AgendaPet {
   canceledAt         DateTime?       @map("canceled_at")
   cancellationReason String?         @map("cancellation_reason")
   deletedAt          DateTime?       @map("deleted_at")
+  version            Int             @default(1)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   tenantId           String          @db.Uuid
