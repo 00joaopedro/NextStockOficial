@@ -20,6 +20,7 @@
   const detailTitle = document.getElementById("detailTitle");
   const productsList = document.getElementById("productsList");
   const printArea = document.getElementById("printArea");
+  const resilience = window.NextStockPageResilience;
 
   const STATUS_LABELS = {
     pending: "Pendente",
@@ -160,6 +161,24 @@
     pagination.innerHTML = "";
   }
 
+  function restoreUrlState() {
+    const query = resilience?.readUrlState(["page", "orderSearch", "minTotal", "orderStatus"]) || {};
+    const page = Number(query.page);
+    currentPage = Number.isInteger(page) && page > 0 ? page : 1;
+    searchInput.value = query.orderSearch || "";
+    minPriceInput.value = query.minTotal || "";
+    statusFilter.value = query.orderStatus || "";
+  }
+
+  function syncUrlState() {
+    resilience?.writeUrlState({
+      page: currentPage,
+      orderSearch: searchInput.value.trim(),
+      minTotal: minPriceInput.value,
+      orderStatus: statusFilter.value,
+    });
+  }
+
   async function loadOrders() {
     const params = new URLSearchParams();
     const search = searchInput.value.trim();
@@ -171,6 +190,8 @@
     if (search) params.set("search", search);
     if (minTotal > 0) params.set("minTotal", String(minTotal));
     if (status) params.set("status", status);
+
+    syncUrlState();
 
     showMessage("Carregando pedidos...");
     const data = await apiFetch(`/orders?${params.toString()}`);
@@ -461,9 +482,17 @@
 
   function resetAndLoad() {
     currentPage = 1;
-    loadOrders().catch((error) =>
-      showMessage(error.message || "Não foi possível carregar pedidos."),
-    );
+    loadOrders().catch(retryOrders);
+  }
+
+  function retryOrders(error) {
+    const message = error?.message || "Não foi possível carregar pedidos.";
+    if (resilience?.renderRetry) {
+      resilience.renderRetry(emptyOrders, message, () => loadOrders().catch(retryOrders));
+      pagination.innerHTML = "";
+      return;
+    }
+    showMessage(message);
   }
 
   searchInput.addEventListener("input", resetAndLoad);
@@ -480,8 +509,14 @@
   });
 
   validateContext()
-    .then(loadOrders)
-    .catch((error) =>
-      showMessage(error.message || "Não foi possível validar a sessão."),
-    );
+    .then(() => {
+      restoreUrlState();
+      return loadOrders();
+    })
+    .catch(retryOrders);
+
+  window.addEventListener("popstate", () => {
+    restoreUrlState();
+    void loadOrders().catch(retryOrders);
+  });
 })();

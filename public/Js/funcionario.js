@@ -22,6 +22,8 @@
   const emptyMessage = document.getElementById("emptyMessage");
   const searchInput = document.getElementById("searchEmployeeInput");
   const statusMessage = document.getElementById("statusMessage");
+  const resilience = window.NextStockPageResilience;
+  const employeeDirtyGuard = resilience?.createDirtyGuard(form);
 
   function setMessage(message, type) {
     statusMessage.textContent = message || "";
@@ -133,8 +135,18 @@
     return params.toString();
   }
 
+  function restoreUrlState() {
+    const query = resilience?.readUrlState(["employeeSearch"]) || {};
+    searchInput.value = query.employeeSearch || "";
+  }
+
+  function syncUrlState() {
+    resilience?.writeUrlState({ employeeSearch: searchInput.value.trim() });
+  }
+
   async function carregarFuncionarios() {
     state.loading = true;
+    syncUrlState();
     renderList();
 
     try {
@@ -145,6 +157,9 @@
       state.employees = [];
       renderList();
       setMessage(error.message, "error");
+      if (resilience?.renderRetry) {
+        resilience.renderRetry(emptyMessage, error.message || "Nao foi possivel carregar funcionarios.", carregarFuncionarios);
+      }
     } finally {
       state.loading = false;
       renderList();
@@ -249,6 +264,7 @@
       });
       setMessage("Funcionario cadastrado com sucesso.", "success");
       limparFormulario();
+      employeeDirtyGuard?.markClean();
       await carregarFuncionarios();
     } catch (error) {
       setMessage(error.message, "error");
@@ -274,6 +290,7 @@
       });
       passwordInput.value = "";
       setMessage("Funcionario atualizado com sucesso.", "success");
+      employeeDirtyGuard?.markClean();
       await carregarFuncionarios();
     } catch (error) {
       setMessage(error.message, "error");
@@ -348,7 +365,9 @@
     dismissalDateInput.value = formatDateForInput(employee.dismissalDate);
     statusInput.value = employee.status || "active";
     setMessage("");
+    employeeDirtyGuard?.markClean();
     renderList();
+    employeeDirtyGuard?.markClean();
   }
 
   function limparFormulario() {
@@ -381,6 +400,7 @@
       return;
     }
     try {
+      restoreUrlState();
       const ok = await bootstrapContext();
       if (ok) {
         await carregarFuncionarios();
@@ -390,5 +410,10 @@
       emptyMessage.style.display = "block";
       emptyMessage.textContent = "Nao foi possivel carregar funcionarios.";
     }
+  });
+
+  window.addEventListener("popstate", () => {
+    restoreUrlState();
+    void carregarFuncionarios();
   });
 })();
