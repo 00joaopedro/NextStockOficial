@@ -148,21 +148,28 @@
     state.loading = true;
     syncUrlState();
     renderList();
+    let loadError = null;
 
     try {
       const data = await apiFetch(`/api/employees?${getQueryString()}`);
       state.employees = Array.isArray(data.items) ? data.items : [];
-      renderList();
     } catch (error) {
       state.employees = [];
-      renderList();
-      setMessage(error.message, "error");
-      if (resilience?.renderRetry) {
-        resilience.renderRetry(emptyMessage, error.message || "Nao foi possivel carregar funcionarios.", carregarFuncionarios);
-      }
+      loadError = error;
+      setMessage(error instanceof Error ? error.message : "Nao foi possivel carregar funcionarios.", "error");
     } finally {
       state.loading = false;
-      renderList();
+      if (loadError && resilience?.renderRetry) {
+        employeeList.innerHTML = "";
+        emptyMessage.style.display = "block";
+        resilience.renderRetry(
+          emptyMessage,
+          loadError instanceof Error ? loadError.message : "Nao foi possivel carregar funcionarios.",
+          carregarFuncionarios,
+        );
+      } else {
+        renderList();
+      }
     }
   }
 
@@ -367,7 +374,6 @@
     setMessage("");
     employeeDirtyGuard?.markClean();
     renderList();
-    employeeDirtyGuard?.markClean();
   }
 
   function limparFormulario() {
@@ -376,6 +382,7 @@
     emailInput.disabled = false;
     statusInput.value = "active";
     setMessage("");
+    employeeDirtyGuard?.markClean();
     renderList();
   }
 

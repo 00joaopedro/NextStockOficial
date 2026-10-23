@@ -33,11 +33,15 @@ describe('operational frontend resilience', () => {
     expect(agenda).toContain('syncUrlState');
     expect(agenda).toContain('agendaDirtyGuard');
     expect(agenda).toContain('renderRetry');
+    expect(agenda).toContain('populatePetSelects();\n  petFilter.value = selectedPetId;');
+    expect(agenda).toContain('loadAppointments().catch(renderError)');
     expect(history).toContain('syncUrlState');
     expect(history).toContain('renderRetry');
     expect(orders).toContain('syncUrlState');
     expect(orders).toContain('retryOrders');
     expect(employees).toContain('employeeDirtyGuard');
     expect(employees).toContain('renderRetry');
+    expect(employees).toContain('let loadError = null;');
+    expect(employees).toContain('employeeDirtyGuard?.markClean();');
   });
 });

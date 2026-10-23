@@ -135,7 +135,6 @@ async function init() {
         await loadClients();
         restoreUrlState();
         updateDateFields();
-        populatePetSelects();
         await loadAppointments();
     }
     catch (error) {
@@ -376,8 +375,10 @@ function restoreUrlState() {
     currentPage = Number.isInteger(page) && page > 0 ? page : 1;
     atendenteSearch.value = state.agendaSearch || '';
     statusFilter.value = state.agendaStatus || '';
+    const selectedPetId = state.agendaPetId || '';
     clientFilter.value = state.agendaClientId || '';
-    petFilter.value = state.agendaPetId || '';
+    populatePetSelects();
+    petFilter.value = selectedPetId;
     dateFilterType.value = state.agendaDateType || '';
     dateDay.value = state.agendaDateDay || '';
     dateWeek.value = state.agendaDateWeek || '';
@@ -556,7 +557,9 @@ function renderError(error) {
     const message = error instanceof Error ? error.message : 'Erro ao carregar agenda.';
     sessionBadge.textContent = 'Erro';
     if (resilience?.renderRetry) {
-        resilience.renderRetry(agendaContainer, message, () => void loadAppointments());
+        resilience.renderRetry(agendaContainer, message, () => {
+            void loadAppointments().catch(renderError);
+        });
         pagination.innerHTML = '';
         return;
     }
