@@ -22,6 +22,7 @@
     saveProfile: $("saveProfileBtn"), saveCompany: $("saveCompanyBtn"),
     currentPlan: $("currentPlanTitle"), currentBadge: $("currentPlanBadge"),
     details: $("subscriptionDetails"), plans: $("plansGrid"), promotion: $("promotionHandoff"),
+    trialExpiredAlert: $("trialExpiredAlert"),
     machineList: $("machineList"), addMachine: $("addMachineBtn"),
     saveMachine: $("saveMachineBtn"), deleteMachine: $("deleteMachineBtn"),
     machineName: $("machineName"), machineProvider: $("machineProvider"),
@@ -241,10 +242,23 @@
     if (subscription?.trialEndsAt) details.push(`Trial termina em ${date(subscription.trialEndsAt)} (${data.trialDaysRemaining || 0} dia(s) restante(s)).`);
     if (subscription?.currentPeriodEndsAt) details.push(`Período pago até ${date(subscription.currentPeriodEndsAt)}.`);
     if (subscription?.status === "canceled" && subscription?.cancelAtPeriodEnd && subscription?.currentPeriodEndsAt) details.push("A renovação foi cancelada; seu acesso permanece ativo até essa data.");
-    if (!entitlement.allowed) details.push("Seu período gratuito terminou. Escolha um plano para continuar usando o sistema.");
+    if (entitlement.reason === "TRIAL_EXPIRED") details.push("Seu período de teste terminou.");
     el.details.textContent = details.join(" ");
+    renderTrialExpiredAlert(entitlement);
     renderCancellation(subscription);
     updatePlanActionsForCancellation();
+  }
+  function renderTrialExpiredAlert(entitlement) {
+    if (!el.trialExpiredAlert) return;
+    const trialExpired = entitlement?.reason === "TRIAL_EXPIRED";
+    el.trialExpiredAlert.hidden = !trialExpired;
+    if (!trialExpired) {
+      el.trialExpiredAlert.textContent = "";
+      return;
+    }
+    el.trialExpiredAlert.textContent = state.canManage
+      ? "Seu período de teste terminou. Escolha um plano abaixo para continuar usando o NextStock."
+      : "O período de teste terminou. Peça a um administrador da empresa para escolher um plano e concluir a assinatura.";
   }
   function cancellationPeriodActive() {
     return Boolean(state.subscription?.status === "canceled" && state.subscription?.cancelAtPeriodEnd && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date());
