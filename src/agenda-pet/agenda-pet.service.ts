@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,7 +21,7 @@ const DEFAULT_PAGE = 1;
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const DEFAULT_DURATION_MINUTES = 60;
-const CONFLICT_IGNORED_STATUSES = [
+const CONFLICT_IGNORED_STATUSES: AgendaPetStatus[] = [
   AgendaPetStatus.canceled,
   AgendaPetStatus.completed,
   AgendaPetStatus.no_show,
@@ -71,6 +72,8 @@ type LinkedEntities = {
     clientId: string;
   };
 };
+
+type AgendaDbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class AgendaPetService {
@@ -132,54 +135,64 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    const linked = await this.assertLinkedEntities(
+    const schedule = this.resolveSchedule(dto);
+    const status = dto.status ?? AgendaPetStatus.scheduled;
+    const atendente = required(dto.atendente, 'Atendente');
+    const agenda = await this.withScheduleLocks(
       context.tenantId,
       context.branchId,
-      dto.clientId,
-      dto.petId,
+      [{ petId: dto.petId, atendente }],
+      async (tx) => {
+        const linked = await this.assertLinkedEntities(
+          context.tenantId,
+          context.branchId,
+          dto.clientId,
+          dto.petId,
+          tx,
+        );
+        await this.assertNoTimeConflict(
+          {
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+            petId: linked.pet.id,
+            atendente,
+            startAt: schedule.startAt,
+            endAt: schedule.endAt,
+            status,
+          },
+          tx,
+        );
+        return tx.agendaPet.create({
+          data: {
+            cliente: linked.client.name,
+            animal: linked.pet.name,
+            atendente,
+            servico: required(dto.servico, 'Servico'),
+            data: schedule.legacyDate,
+            hora: schedule.legacyTime,
+            preco: dto.preco,
+            descricao: clean(dto.descricao),
+            notes: clean(dto.notes),
+            status,
+            startAt: schedule.startAt,
+            endAt: schedule.endAt,
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+            clientId: linked.client.id,
+            petId: linked.pet.id,
+            createdById: user?.id,
+            updatedById: user?.id,
+            ...(status === AgendaPetStatus.canceled
+              ? { canceledAt: new Date(), canceledById: user?.id }
+              : {}),
+          },
+          include: {
+            client: { select: { id: true, name: true } },
+            pet: { select: { id: true, name: true, clientId: true } },
+          },
+        });
+      },
     );
-    const schedule = this.resolveSchedule(dto);
-    await this.assertNoTimeConflict({
-      tenantId: context.tenantId,
-      branchId: context.branchId,
-      petId: linked.pet.id,
-      startAt: schedule.startAt,
-      endAt: schedule.endAt,
-    });
-
-    const status = dto.status ?? AgendaPetStatus.scheduled;
-    const agenda = await this.prisma.agendaPet.create({
-      data: {
-        cliente: linked.client.name,
-        animal: linked.pet.name,
-        atendente: required(dto.atendente, 'Atendente'),
-        servico: required(dto.servico, 'Servico'),
-        data: schedule.legacyDate,
-        hora: schedule.legacyTime,
-        preco: dto.preco,
-        descricao: clean(dto.descricao),
-        notes: clean(dto.notes),
-        status,
-        startAt: schedule.startAt,
-        endAt: schedule.endAt,
-        tenantId: context.tenantId,
-        branchId: context.branchId,
-        clientId: linked.client.id,
-        petId: linked.pet.id,
-        createdById: user?.id,
-        updatedById: user?.id,
-        ...(status === AgendaPetStatus.canceled
-          ? {
-              canceledAt: new Date(),
-              canceledById: user?.id,
-            }
-          : {}),
-      },
-      include: {
-        client: { select: { id: true, name: true } },
-        pet: { select: { id: true, name: true, clientId: true } },
-      },
-    });
 
     return formatAgendaPet(agenda);
   }
@@ -195,67 +208,86 @@ export class AgendaPetService {
       selectedBranchId,
       true,
     );
-    const existing = await this.findScopedAgenda(id, context, false);
-    const finalClientId = dto.clientId ?? existing.clientId;
-    const finalPetId = dto.petId ?? existing.petId;
-    const linked = await this.assertLinkedEntities(
+    const beforeLock = await this.findScopedAgenda(id, context, false);
+    const nextAttendant = dto.atendente === undefined
+      ? beforeLock.atendente
+      : required(dto.atendente, 'Atendente');
+    const agenda = await this.withScheduleLocks(
       context.tenantId,
       context.branchId,
-      finalClientId,
-      finalPetId,
+      [
+        { petId: beforeLock.petId, atendente: beforeLock.atendente },
+        { petId: dto.petId ?? beforeLock.petId, atendente: nextAttendant },
+      ],
+      async (tx) => {
+        const existing = await this.findScopedAgenda(id, context, false, tx);
+        if (existing.version !== dto.expectedVersion) {
+          throw new ConflictException('Este agendamento foi alterado por outro usuario. Recarregue a agenda e tente novamente.');
+        }
+        const linked = await this.assertLinkedEntities(
+          context.tenantId,
+          context.branchId,
+          dto.clientId ?? existing.clientId,
+          dto.petId ?? existing.petId,
+          tx,
+        );
+        const schedule = this.resolveSchedule(dto, existing);
+        const status = dto.status ?? existing.status;
+        this.assertStatusTransition(existing.status, status);
+        await this.assertNoTimeConflict(
+          {
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+            petId: linked.pet.id,
+            atendente: nextAttendant,
+            startAt: schedule.startAt,
+            endAt: schedule.endAt,
+            status,
+            ignoreId: id,
+          },
+          tx,
+        );
+        const data: Prisma.AgendaPetUncheckedUpdateInput = {
+          cliente: linked.client.name,
+          animal: linked.pet.name,
+          clientId: linked.client.id,
+          petId: linked.pet.id,
+          data: schedule.legacyDate,
+          hora: schedule.legacyTime,
+          startAt: schedule.startAt,
+          endAt: schedule.endAt,
+          atendente: nextAttendant,
+          updatedById: user?.id,
+          version: { increment: 1 },
+        };
+        if (dto.servico !== undefined) data.servico = required(dto.servico, 'Servico');
+        if (dto.preco !== undefined) data.preco = dto.preco;
+        if (dto.descricao !== undefined) data.descricao = clean(dto.descricao);
+        if (dto.notes !== undefined) data.notes = clean(dto.notes);
+        if (dto.status !== undefined) {
+          data.status = dto.status;
+          if (dto.status === AgendaPetStatus.canceled) {
+            data.canceledAt = new Date();
+            data.canceledById = user?.id;
+            data.cancellationReason = clean(dto.cancellationReason);
+          }
+        }
+        const updated = await tx.agendaPet.updateMany({
+          where: { id, tenantId: context.tenantId, branchId: context.branchId, version: dto.expectedVersion, deletedAt: null },
+          data,
+        });
+        if (updated.count !== 1) {
+          throw new ConflictException('Este agendamento foi alterado por outro usuario. Recarregue a agenda e tente novamente.');
+        }
+        return tx.agendaPet.findFirstOrThrow({
+          where: { id, tenantId: context.tenantId, branchId: context.branchId, deletedAt: null },
+          include: {
+            client: { select: { id: true, name: true } },
+            pet: { select: { id: true, name: true, clientId: true } },
+          },
+        });
+      },
     );
-    const schedule = this.resolveSchedule(dto, existing);
-
-    await this.assertNoTimeConflict({
-      tenantId: context.tenantId,
-      branchId: context.branchId,
-      petId: linked.pet.id,
-      startAt: schedule.startAt,
-      endAt: schedule.endAt,
-      ignoreId: id,
-    });
-
-    const data: Prisma.AgendaPetUncheckedUpdateInput = {
-      cliente: linked.client.name,
-      animal: linked.pet.name,
-      clientId: linked.client.id,
-      petId: linked.pet.id,
-      data: schedule.legacyDate,
-      hora: schedule.legacyTime,
-      startAt: schedule.startAt,
-      endAt: schedule.endAt,
-      updatedById: user?.id,
-    };
-
-    if (dto.atendente !== undefined) data.atendente = required(dto.atendente, 'Atendente');
-    if (dto.servico !== undefined) data.servico = required(dto.servico, 'Servico');
-    if (dto.preco !== undefined) data.preco = dto.preco;
-    if (dto.descricao !== undefined) data.descricao = clean(dto.descricao);
-    if (dto.notes !== undefined) data.notes = clean(dto.notes);
-
-    if (dto.status !== undefined) {
-      this.assertStatusTransition(existing.status, dto.status);
-      data.status = dto.status;
-
-      if (dto.status === AgendaPetStatus.canceled) {
-        data.canceledAt = new Date();
-        data.canceledById = user?.id;
-        data.cancellationReason = clean(dto.cancellationReason);
-      }
-    }
-
-    const agenda = await this.prisma.agendaPet.update({
-      where: {
-        id,
-        tenantId: context.tenantId,
-        branchId: context.branchId,
-      },
-      data,
-      include: {
-        client: { select: { id: true, name: true } },
-        pet: { select: { id: true, name: true, clientId: true } },
-      },
-    });
 
     return formatAgendaPet(agenda);
   }
@@ -341,8 +373,9 @@ export class AgendaPetService {
     id: string,
     context: PetShopContext,
     includeRelations: boolean,
+    db: AgendaDbClient = this.prisma,
   ) {
-    const agenda = await this.prisma.agendaPet.findFirst({
+    const agenda = await db.agendaPet.findFirst({
       where: {
         id,
         tenantId: context.tenantId,
@@ -369,6 +402,7 @@ export class AgendaPetService {
     branchId: string | null,
     clientId?: string | null,
     petId?: string | null,
+    db: AgendaDbClient = this.prisma,
   ): Promise<LinkedEntities> {
     if (!clientId) {
       throw new BadRequestException('Cliente Pet e obrigatorio.');
@@ -378,7 +412,7 @@ export class AgendaPetService {
       throw new BadRequestException('Animal e obrigatorio.');
     }
 
-    const client = await this.prisma.petClient.findFirst({
+    const client = await db.petClient.findFirst({
       where: { id: clientId, tenantId, branchId, deletedAt: null },
       select: { id: true, name: true, tenantId: true, branchId: true },
     });
@@ -387,7 +421,7 @@ export class AgendaPetService {
       throw new BadRequestException('Cliente Pet vinculado nao encontrado.');
     }
 
-    const pet = await this.prisma.pet.findFirst({
+    const pet = await db.pet.findFirst({
       where: {
         id: petId,
         tenantId,
@@ -445,29 +479,64 @@ export class AgendaPetService {
     tenantId: string;
     branchId: string | null;
     petId: string;
+    atendente: string;
     startAt: Date;
     endAt: Date;
+    status: AgendaPetStatus;
     ignoreId?: string;
-  }) {
-    const conflict = await this.prisma.agendaPet.findFirst({
+  }, db: AgendaDbClient = this.prisma) {
+    if (CONFLICT_IGNORED_STATUSES.includes(input.status)) return;
+    const overlap: Prisma.AgendaPetWhereInput = {
+      tenantId: input.tenantId,
+      branchId: input.branchId,
+      deletedAt: null,
+      status: { notIn: CONFLICT_IGNORED_STATUSES },
+      ...(input.ignoreId ? { NOT: { id: input.ignoreId } } : {}),
+      startAt: { lt: input.endAt },
+      endAt: { gt: input.startAt },
+    };
+    const petConflict = await db.agendaPet.findFirst({
       where: {
-        tenantId: input.tenantId,
-        branchId: input.branchId,
+        ...overlap,
         petId: input.petId,
-        deletedAt: null,
-        status: { notIn: CONFLICT_IGNORED_STATUSES },
-        ...(input.ignoreId ? { NOT: { id: input.ignoreId } } : {}),
-        startAt: { lt: input.endAt },
-        endAt: { gt: input.startAt },
       },
       select: { id: true },
     });
-
-    if (conflict) {
+    if (petConflict) {
       throw new BadRequestException(
         'Ja existe agendamento ativo para este animal no horario informado.',
       );
     }
+    const attendantConflict = await db.agendaPet.findFirst({
+      where: {
+        ...overlap,
+        atendente: { equals: input.atendente.trim(), mode: 'insensitive' },
+      },
+      select: { id: true },
+    });
+    if (attendantConflict) {
+      throw new BadRequestException(
+        'Ja existe agendamento ativo para este atendente no horario informado.',
+      );
+    }
+  }
+
+  private async withScheduleLocks(
+    tenantId: string,
+    branchId: string | null,
+    resources: Array<{ petId?: string | null; atendente: string }>,
+    operation: (tx: Prisma.TransactionClient) => Promise<any>,
+  ) {
+    const lockKeys = Array.from(new Set(resources.flatMap((resource) => [
+      `agenda:pet:${tenantId}:${branchId ?? 'none'}:${resource.petId ?? 'none'}`,
+      `agenda:attendant:${tenantId}:${branchId ?? 'none'}:${resource.atendente.trim().toLocaleLowerCase('pt-BR')}`,
+    ]))).sort();
+    return this.prisma.$transaction(async (tx) => {
+      for (const key of lockKeys) {
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0::bigint))`);
+      }
+      return operation(tx);
+    });
   }
 
   private assertStatusTransition(

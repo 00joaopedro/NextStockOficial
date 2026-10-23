@@ -245,6 +245,8 @@ jobs:
         run: npx jest --config ./test/jest-security.json --runInBand test/security/dashboard-cache-coherence.security-spec.ts
       - name: RC-015 storefront order limit concurrency tests
         run: npx jest --config ./test/jest-security.json --runInBand test/security/storefront-order-limit-concurrency.security-spec.ts
+      - name: RC-016 agenda pet concurrency integration tests
+        run: npx jest --config ./test/jest-security.json --runInBand test/security/agenda-pet-concurrency.security-spec.ts
       - name: SEC-016 distributed auth rate limit integration tests
         env:
           NODE_OPTIONS: --experimental-vm-modules

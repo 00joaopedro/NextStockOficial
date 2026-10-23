@@ -1,6 +1,7 @@
 import {
 	IsDateString,
 	IsEnum,
+	IsInt,
 	IsNumber,
 	IsOptional,
 	IsString,
@@ -12,6 +13,10 @@ import {
 import { AgendaPetStatus } from '@prisma/client';
 
 export class UpdateAgendaPetDto {
+	@IsInt()
+	@Min(1)
+	expectedVersion!: number;
+
 	@IsString()
 	@IsOptional()
 	@MaxLength(120)

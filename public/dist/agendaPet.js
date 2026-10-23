@@ -405,8 +405,16 @@ async function saveAppointment() {
     const service = agendaService.value.trim();
     const attendant = agendaAttendant.value.trim();
     const price = Number(agendaPrice.value || 0);
+    const editingAppointment = editingAppointmentId
+        ? appointments.find((item) => item.id === editingAppointmentId)
+        : undefined;
     if (!service || !attendant || !Number.isFinite(price)) {
         alert('Preencha servico, atendente e valor.');
+        return;
+    }
+    if (editingAppointmentId && !Number.isInteger(editingAppointment?.version)) {
+        alert('Este agendamento foi atualizado. Recarregue a agenda antes de editar novamente.');
+        await loadAppointments();
         return;
     }
     const payload = {
@@ -425,6 +433,7 @@ async function saveAppointment() {
         descricao: agendaNotes.value.trim(),
         notes: agendaNotes.value.trim(),
         cancellationReason: agendaCancellationReason.value.trim() || undefined,
+        ...(editingAppointment ? { expectedVersion: editingAppointment.version } : {}),
     };
     const url = editingAppointmentId
         ? `/api/agenda-pet/${editingAppointmentId}`
