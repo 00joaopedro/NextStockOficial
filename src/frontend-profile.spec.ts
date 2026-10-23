@@ -44,6 +44,15 @@ describe('perfil frontend production contract', () => {
     expect(html).toContain('id="machineList"');
   });
 
+  it('mostra alerta de assinatura somente para o trial expirado', () => {
+    expect(html).toContain('id="trialExpiredAlert"');
+    expect(html).toContain('role="alert"');
+    expect(script).toContain('entitlement?.reason === "TRIAL_EXPIRED"');
+    expect(script).toContain('Escolha um plano abaixo para continuar usando o NextStock.');
+    expect(script).toContain('Peça a um administrador da empresa para escolher um plano e concluir a assinatura.');
+    expect(script).not.toContain('trialEndsAt < new Date');
+  });
+
   it('envia suporte Dev somente quando branch e modo conferem', () => {
     expect(script).toContain('support?.branchId === state.selectedBranch?.id');
     expect(script).toContain('support?.mode === "support"');
