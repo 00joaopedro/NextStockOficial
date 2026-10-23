@@ -54,7 +54,9 @@ describe('RC-016 agenda pet concurrency on PostgreSQL', () => {
 
   afterAll(async () => {
     try {
-      await prismaA.tenant.deleteMany({ where: { id: { in: [...tenantIds] } } });
+      await prismaA.tenant.deleteMany({
+        where: { id: { in: [...tenantIds] } },
+      });
     } finally {
       await Promise.all([prismaA?.$disconnect(), prismaB?.$disconnect()]);
     }
@@ -76,9 +78,7 @@ describe('RC-016 agenda pet concurrency on PostgreSQL', () => {
     const losers = results.filter((result) => result.status === 'rejected');
     expect(winners).toHaveLength(1);
     expect(losers).toHaveLength(1);
-    expect((losers[0] as PromiseRejectedResult).reason).toBeInstanceOf(
-      BadRequestException,
-    );
+    expect(losers[0].reason).toBeInstanceOf(BadRequestException);
   }
 
   it('allows only one overlapping appointment for the same pet', async () => {
@@ -87,14 +87,23 @@ describe('RC-016 agenda pet concurrency on PostgreSQL', () => {
     const startsAt = '2026-12-01T10:00:00.000Z';
     const calls = ['Ana', 'Bruna'].map((atendente, index) =>
       start(() =>
-        service(index ? prismaB : prismaA, data.tenant.id, data.branch.id).create(
-          {
-            cliente: 'ignored', animal: 'ignored', atendente, servico: 'Banho',
-            data: '2026-12-01', hora: '10:00', preco: 50,
-            clientId: data.client.id, petId: data.petA.id,
-            startAt: startsAt, endAt: '2026-12-01T11:00:00.000Z',
-          },
-        ),
+        service(
+          index ? prismaB : prismaA,
+          data.tenant.id,
+          data.branch.id,
+        ).create({
+          cliente: 'ignored',
+          animal: 'ignored',
+          atendente,
+          servico: 'Banho',
+          data: '2026-12-01',
+          hora: '10:00',
+          preco: 50,
+          clientId: data.client.id,
+          petId: data.petA.id,
+          startAt: startsAt,
+          endAt: '2026-12-01T11:00:00.000Z',
+        }),
       ),
     );
     await expectOneWinner(calls);
@@ -108,14 +117,23 @@ describe('RC-016 agenda pet concurrency on PostgreSQL', () => {
     const start = barrier(2);
     const calls = [data.petA.id, data.petB.id].map((petId, index) =>
       start(() =>
-        service(index ? prismaB : prismaA, data.tenant.id, data.branch.id).create(
-          {
-            cliente: 'ignored', animal: 'ignored', atendente: 'Ana', servico: 'Banho',
-            data: '2026-12-02', hora: '10:00', preco: 50,
-            clientId: data.client.id, petId,
-            startAt: '2026-12-02T10:00:00.000Z', endAt: '2026-12-02T11:00:00.000Z',
-          },
-        ),
+        service(
+          index ? prismaB : prismaA,
+          data.tenant.id,
+          data.branch.id,
+        ).create({
+          cliente: 'ignored',
+          animal: 'ignored',
+          atendente: 'Ana',
+          servico: 'Banho',
+          data: '2026-12-02',
+          hora: '10:00',
+          preco: 50,
+          clientId: data.client.id,
+          petId,
+          startAt: '2026-12-02T10:00:00.000Z',
+          endAt: '2026-12-02T11:00:00.000Z',
+        }),
       ),
     );
     await expectOneWinner(calls);

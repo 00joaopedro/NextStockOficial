@@ -864,6 +864,16 @@
     const data = `${ano}-${mes}-${dia}`;
     const hora = agHora.value.trim();
     const startDate = data && hora ? new Date(`${data}T${hora}:00`) : null;
+    const editingAgendamento = agendamentoMode === 'edit'
+      ? cliente.agendamentos.find((item) => item.id === editingScheduleId)
+      : null;
+
+    if (agendamentoMode === 'edit' && !Number.isInteger(editingAgendamento?.version)) {
+      showAlertPopup('Aviso', 'Este agendamento foi atualizado. Recarregue a lista antes de editar novamente.');
+      await loadAgendamentos();
+      return;
+    }
+
     const payload = {
       cliente: cliente.nomeCompleto,
       animal: agAnimal.options[agAnimal.selectedIndex]?.textContent || '',
@@ -877,6 +887,7 @@
       startAt: startDate && !Number.isNaN(startDate.getTime()) ? startDate.toISOString() : undefined,
       clientId: cliente.id,
       petId: agAnimal.value || undefined,
+      ...(editingAgendamento ? { expectedVersion: editingAgendamento.version } : {}),
     };
 
     if (!payload.data || !payload.hora || !Number.isFinite(payload.preco) || !payload.petId || !payload.descricao || !payload.atendente || !payload.startAt) {

@@ -49,7 +49,9 @@ describe('agendaPet frontend production flow', () => {
     expect(script).not.toContain('/api/pet-clients/${cliente.id}/appointments');
     expect(script).toContain('response.items || response.data || []');
     expect(script).toContain('statusLabel');
+    expect(script).toContain('expectedVersion: editingAgendamento.version');
     expect(helper).toContain('normalizeAppointment');
+    expect(helper).toContain('version: item.version');
     expect(helper).toContain('canceled:');
     expect(helper).toContain('completed:');
   });
