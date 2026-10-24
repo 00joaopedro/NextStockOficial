@@ -29,7 +29,14 @@ describe('perfil frontend production contract', () => {
     expect(script).toContain('/api/billing/subscription');
     expect(script).toContain('/api/billing/plans');
     expect(script).toContain('/api/billing/subscription/server-usage');
+    expect(script).toContain('/api/billing/subscription/plan-change');
     expect(script).toContain('/api/payment-machines');
+  });
+
+  it('programa troca de plano com confirmação explícita e chave idempotente', () => {
+    expect(script).toContain('Programar a mudança para');
+    expect(script).toContain('Idempotency-Key');
+    expect(script).toContain('próxima renovação');
   });
 
   it('exibe somente percentual de uso estimado para administradores', () => {

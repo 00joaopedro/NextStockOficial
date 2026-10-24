@@ -37,8 +37,18 @@ describe('RC-010 atomic webhook inbox claim (PostgreSQL)', () => {
   };
   const registry = { get: () => gateway };
   const services = [
-    new WebhookService(first as any, registry as any, processor as any),
-    new WebhookService(second as any, registry as any, processor as any),
+    new WebhookService(
+      first as any,
+      registry as any,
+      processor as any,
+      {} as any,
+    ),
+    new WebhookService(
+      second as any,
+      registry as any,
+      processor as any,
+      {} as any,
+    ),
   ];
   const input = (
     id: string | undefined,

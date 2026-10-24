@@ -18,6 +18,7 @@ import {
 } from './gateways/payment-gateway.interface';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { PaymentsService } from './payments.service';
+import { SubscriptionsService } from './subscriptions.service';
 
 const LEASE_MS = 60_000;
 
@@ -29,6 +30,7 @@ export class WebhookService {
     private readonly prisma: PrismaService,
     private readonly gateways: PaymentGatewayRegistry,
     private readonly payments: PaymentsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async handleMercadoPago(input: GatewayWebhookInput) {
@@ -97,6 +99,11 @@ export class WebhookService {
     // resource. Only Mercado Pago's explicit payment topic can be resolved
     // through /v1/payments/:id. Subscription state alone must never activate
     // a NextStock subscription.
+    if (this.isMercadoPagoSubscriptionEvent(eventType)) {
+      const confirmed = await this.subscriptions.confirmPlanChangeFromWebhook(provider, resourceId);
+      await this.finish(claim, confirmed ? Status.PROCESSED : Status.IGNORED, confirmed ? '' : 'NO_PENDING_PLAN_CHANGE');
+      return { received: true, processed: confirmed };
+    }
     if (!this.isMercadoPagoPaymentEvent(eventType)) {
       await this.finish(claim, Status.IGNORED, 'NON_PAYMENT_EVENT');
       return { received: true, processed: false };
@@ -290,6 +297,11 @@ export class WebhookService {
   private isMercadoPagoPaymentEvent(eventType: string | null) {
     const normalized = eventType?.trim().toLowerCase();
     return normalized === 'payment' || normalized?.startsWith('payment.');
+  }
+
+  private isMercadoPagoSubscriptionEvent(eventType: string | null) {
+    const normalized = eventType?.trim().toLowerCase() || '';
+    return normalized === 'subscription_preapproval' || normalized.startsWith('subscription_preapproval.');
   }
 
   private canonicalJson(value: unknown): string {

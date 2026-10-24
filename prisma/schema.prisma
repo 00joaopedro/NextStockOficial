@@ -489,6 +489,7 @@ model Plan {
   deletedAt        DateTime?               @map("deleted_at")
   tenants          Tenant[]                @relation("CurrentPlanTenants")
   subscriptions    Subscription[]
+  targetOperations BillingSubscriptionOperation[] @relation("BillingOperationTargetPlan")
   gatewayMappings  GatewayPlanMapping[]
   checkoutSessions CheckoutSession[]
   checkoutIntents  BillingCheckoutIntent[]
@@ -893,6 +894,7 @@ model BillingSubscriptionOperation {
   id             String                           @id @default(uuid()) @db.Uuid
   tenantId       String                           @map("tenant_id") @db.Uuid
   subscriptionId String                           @map("subscription_id") @db.Uuid
+  targetPlanId   String?                          @map("target_plan_id") @db.Uuid
   provider       PaymentGatewayProvider
   operation      String                           @default("CANCEL")
   state          BillingSubscriptionOperationState @default(CLAIMED)
@@ -905,9 +907,11 @@ model BillingSubscriptionOperation {
 
   tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Restrict)
   subscription Subscription @relation(fields: [tenantId, subscriptionId], references: [tenantId, id], onDelete: Restrict)
+  targetPlan    Plan?        @relation("BillingOperationTargetPlan", fields: [targetPlanId], references: [id], onDelete: Restrict)
 
   @@unique([tenantId, subscriptionId, operation])
   @@index([tenantId, state, leaseExpiresAt])
+  @@index([targetPlanId])
   @@map("billing_subscription_operations")
 }
 

@@ -7,6 +7,7 @@ import {
 import {
   BillingEventType,
   BillingInvoiceStatus,
+  BillingSubscriptionOperationState,
   BillingPaymentStatus,
   BillingRefundIntentState,
   PartnerPaymentSource,
@@ -1390,6 +1391,28 @@ export class PaymentsService {
           lastPaymentState: status,
         },
       });
+      if (
+        status === BillingPaymentStatus.APPROVED &&
+        !preserveCanceledSubscription &&
+        !protectCurrentSubscription
+      ) {
+        // The plan-change webhook only confirms remote terms. The effective
+        // local change occurs here, with the successful renewal payment.
+        await tx.billingSubscriptionOperation.updateMany({
+          where: {
+            tenantId: checkout.tenantId,
+            subscriptionId: checkout.subscription.id,
+            targetPlanId: checkout.planId,
+            operation: { startsWith: 'PLAN_CHANGE:' },
+            state: BillingSubscriptionOperationState.PROCESSING,
+          },
+          data: {
+            state: BillingSubscriptionOperationState.SUCCEEDED,
+            completedAt: new Date(),
+            failureCode: null,
+          },
+        });
+      }
       await this.events.create(
         {
           tenantId: checkout.tenantId,

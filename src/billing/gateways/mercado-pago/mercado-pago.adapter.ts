@@ -12,6 +12,8 @@ import {
   GatewayAuthorizedPaymentResult,
   GatewayCheckoutError,
   GatewayWebhookInput,
+  GatewaySubscriptionTerms,
+  UpdateGatewaySubscriptionInput,
   PaymentGateway,
 } from '../payment-gateway.interface';
 
@@ -82,6 +84,60 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
         body: JSON.stringify({ status: 'cancelled' }),
       },
     );
+  }
+
+  async updateSubscriptionForNextRenewal(
+    gatewaySubscriptionId: string,
+    input: UpdateGatewaySubscriptionInput,
+  ) {
+    await this.request(`/preapproval/${encodeURIComponent(gatewaySubscriptionId)}`, {
+      method: 'PUT',
+      headers: { 'X-Idempotency-Key': input.idempotencyKey },
+      // Mercado Pago applies the altered auto_recurring terms to the next
+      // charge. The local plan remains unchanged until a signed webhook.
+      body: JSON.stringify({
+        auto_recurring: {
+          frequency: input.frequency,
+          frequency_type: 'months',
+          transaction_amount: input.amountCents / 100,
+          currency_id: input.currency,
+        },
+      }),
+    });
+  }
+
+  async getSubscriptionTerms(
+    gatewaySubscriptionId: string,
+  ): Promise<GatewaySubscriptionTerms> {
+    const body = await this.request(
+      `/preapproval/${encodeURIComponent(gatewaySubscriptionId)}`,
+    );
+    const recurring = body.auto_recurring;
+    const amount = recurring?.transaction_amount;
+    const frequency = recurring?.frequency;
+    const currency = recurring?.currency_id;
+    if (
+      !recurring ||
+      !Number.isFinite(amount) ||
+      !Number.isInteger(frequency) ||
+      frequency < 1 ||
+      typeof currency !== 'string' ||
+      recurring.frequency_type !== 'months'
+    ) {
+      throw new GatewayCheckoutError(
+        'Resposta de assinatura inválida.',
+        true,
+        { code: 'SUBSCRIPTION_INVALID_RESPONSE', state: 'FAILED_RETRYABLE' },
+      );
+    }
+    return {
+      status: String(body.status || '').toLowerCase(),
+      amountCents: Math.round(amount * 100),
+      currency: currency.toUpperCase(),
+      frequency,
+      frequencyType: 'months',
+      updatedAt: this.date(body.date_last_updated),
+    };
   }
 
   async refundPayment(gatewayPaymentId: string, idempotencyKey: string) {
