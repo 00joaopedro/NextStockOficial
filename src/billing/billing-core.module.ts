@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { DevModule } from '../dev/dev.module';
+import { RailwayMetricsModule } from '../dev/railway-metrics.module';
 import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
 import { CheckoutService } from './checkout.service';
@@ -14,7 +14,7 @@ import { ServerUsageService } from './server-usage.service';
 import { WebhookService } from './webhook.service';
 
 @Module({
-  imports: [DevModule],
+  imports: [RailwayMetricsModule],
   providers: [
     BillingEntitlementService,
     BillingEventsService,

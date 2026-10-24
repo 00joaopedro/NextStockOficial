@@ -54,7 +54,8 @@ export class RailwayMetricsService {
 
   isUsageConfigured(): boolean {
     return Boolean(
-      this.isConfigured() &&
+      process.env.RAILWAY_API_TOKEN &&
+        process.env.RAILWAY_PROJECT_ID &&
         process.env.RAILWAY_WORKSPACE_ID &&
         this.usageServiceIds().length,
     );
@@ -99,18 +100,21 @@ export class RailwayMetricsService {
         },
       );
       const serviceIds = this.usageServiceIds();
-      const costUsd = (Array.isArray(payload?.usage) ? payload.usage : [])
+      const matchingMeasurements = ((Array.isArray(payload?.usage) ? payload.usage : [])
         .filter((row: RailwayUsageRow) =>
           row?.tags?.projectId === process.env.RAILWAY_PROJECT_ID &&
-          serviceIds.includes(String(row?.tags?.serviceId || '')),
-        )
-        .reduce((total: number, row: RailwayUsageRow) => {
-          const value = Number(row?.value);
-          const rate = COST_PER_MEASUREMENT[String(row?.measurement || '')];
-          return Number.isFinite(value) && Number.isFinite(rate)
-            ? total + value * rate
-            : total;
-        }, 0);
+          serviceIds.includes(String(row?.tags?.serviceId || '')) &&
+          Number.isFinite(Number(row?.value)) &&
+          Number.isFinite(COST_PER_MEASUREMENT[String(row?.measurement || '')]),
+        )) as RailwayUsageRow[];
+
+      // An empty match means that the configured IDs are stale or the provider
+      // did not return usable measurements. Do not turn that into a false 0%.
+      if (!matchingMeasurements.length) return unavailable();
+
+      const costUsd = matchingMeasurements.reduce((total: number, row) =>
+        total + Number(row.value) * COST_PER_MEASUREMENT[String(row.measurement)],
+      0);
 
       return {
         available: Number.isFinite(costUsd),
