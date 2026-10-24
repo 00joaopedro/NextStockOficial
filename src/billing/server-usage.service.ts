@@ -73,15 +73,18 @@ export class ServerUsageService {
     const railway = await this.railway.getServiceUsage();
     const periodStart = railway.periodStart || this.currentMonthStart();
     const periodEnd = railway.periodEnd || new Date().toISOString();
-    const hasRenderConfiguration = Boolean(this.render?.isUsageConfigured());
+    const railwayConfigured = this.railway.isUsageConfigured();
+    const hasRenderConfiguration = Boolean(this.render?.hasUsageConfigurationIntent());
     const render = hasRenderConfiguration
       ? await this.render!.getServiceUsage(periodStart, periodEnd)
       : null;
     // If a Render reserve is configured, we must obtain its instance-count
     // evidence. Returning an unavailable state is safer than understating a
     // hot standby during a Railway -> Render migration.
-    const available = Boolean(railway.available || render?.available) &&
-      (!hasRenderConfiguration || Boolean(render?.available));
+    const available =
+      (!railwayConfigured || railway.available) &&
+      (!hasRenderConfiguration || Boolean(render?.available)) &&
+      Boolean(railway.available || render?.available);
     const brlPerUsd = Number(process.env.RAILWAY_USAGE_BRL_PER_USD);
     const railwayCostCents = railway.available && railway.costUsd != null && Number.isFinite(brlPerUsd) && brlPerUsd > 0
       ? Math.round(railway.costUsd * brlPerUsd * 100)

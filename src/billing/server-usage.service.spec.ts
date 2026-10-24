@@ -3,10 +3,11 @@ import { ServerUsageService } from './server-usage.service';
 describe('ServerUsageService', () => {
   const originalRate = process.env.RAILWAY_USAGE_BRL_PER_USD;
   const prisma = { userUsageEvent: { groupBy: jest.fn() } } as any;
-  const railway = { getServiceUsage: jest.fn() } as any;
+  const railway = { getServiceUsage: jest.fn(), isUsageConfigured: jest.fn() } as any;
 
   beforeEach(() => {
     jest.resetAllMocks();
+    railway.isUsageConfigured.mockReturnValue(true);
     process.env.RAILWAY_USAGE_BRL_PER_USD = '5';
   });
 
@@ -43,6 +44,19 @@ describe('ServerUsageService', () => {
     const service = new ServerUsageService(prisma, railway);
     await expect(service.forTenant('tenant-a', 'novo-plano')).resolves.toMatchObject({
       available: false, code: 'PLAN_NOT_CONFIGURED',
+    });
+  });
+
+  it('não estima somente Render quando Railway configurada falha', async () => {
+    railway.getServiceUsage.mockResolvedValue({ available: false, periodStart: null, periodEnd: null });
+    const render = {
+      hasUsageConfigurationIntent: jest.fn().mockReturnValue(true),
+      getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 500, updatedAt: '2026-10-20T00:00:00.000Z' }),
+    };
+    const service = new ServerUsageService(prisma, railway, render as any);
+    await expect(service.forTenant('tenant-a', 'ouro')).resolves.toMatchObject({
+      available: false,
+      code: 'PROVIDER_USAGE_UNAVAILABLE',
     });
   });
 });

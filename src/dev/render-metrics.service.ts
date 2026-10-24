@@ -29,6 +29,14 @@ export class RenderMetricsService {
     );
   }
 
+  hasUsageConfigurationIntent() {
+    return Boolean(
+      process.env.RENDER_API_KEY?.trim() ||
+        process.env.RENDER_USAGE_SERVICE_IDS?.trim() ||
+        process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE?.trim(),
+    );
+  }
+
   async getServiceUsage(
     periodStart: string,
     periodEnd: string,
@@ -63,7 +71,12 @@ export class RenderMetricsService {
           });
           const body = (await response.json().catch(() => null)) as unknown;
           if (!response.ok || !Array.isArray(body)) throw new Error('metrics');
-          return this.costForService(body as MetricSeries[], rate);
+          return this.costForService(
+            body as MetricSeries[],
+            rate,
+            periodStart,
+            periodEnd,
+          );
         }),
       );
       return {
@@ -79,7 +92,12 @@ export class RenderMetricsService {
     }
   }
 
-  private costForService(series: MetricSeries[], centsPerHour: number) {
+  private costForService(
+    series: MetricSeries[],
+    centsPerHour: number,
+    periodStart: string,
+    periodEnd: string,
+  ) {
     // A service can return more than one series (for example per replica).
     // `instance-count` is already an aggregate; taking one maximum per time
     // bucket avoids charging the same replica twice when labels overlap.
@@ -93,10 +111,34 @@ export class RenderMetricsService {
         );
       }
     }
-    if (!byTimestamp.size) throw new Error('empty_metrics');
+    if (!this.hasFullCoverage(byTimestamp, periodStart, periodEnd)) {
+      throw new Error('incomplete_metrics');
+    }
     return [...byTimestamp.values()].reduce(
       (total, instances) => total + instances * centsPerHour,
       0,
+    );
+  }
+
+  private hasFullCoverage(
+    byTimestamp: Map<string, number>,
+    periodStart: string,
+    periodEnd: string,
+  ) {
+    const start = new Date(periodStart).getTime();
+    const end = Math.min(new Date(periodEnd).getTime(), Date.now());
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end < start)
+      return false;
+    const timestamps = [...byTimestamp.keys()]
+      .map((value) => new Date(value).getTime())
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+    const expectedBuckets = Math.max(1, Math.ceil((end - start) / 3_600_000));
+    const toleranceMs = 3_600_000;
+    return Boolean(
+      timestamps.length >= expectedBuckets &&
+        timestamps[0] <= start + toleranceMs &&
+        timestamps[timestamps.length - 1] >= end - toleranceMs,
     );
   }
 

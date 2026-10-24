@@ -34,6 +34,7 @@ describe('RenderMetricsService', () => {
       ] })
       .mockResolvedValueOnce({ ok: true, json: async () => [
         { values: [{ timestamp: '2026-10-01T00:00:00Z', value: 0 }] },
+        { values: [{ timestamp: '2026-10-01T01:00:00Z', value: 0 }] },
       ] });
 
     await expect(
@@ -42,6 +43,23 @@ describe('RenderMetricsService', () => {
         '2026-10-01T02:00:00Z',
       ),
     ).resolves.toMatchObject({ available: true, costCents: 30 });
+  });
+
+  it('não aceita uma janela parcial como se cobrisse todo o período', async () => {
+    process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot';
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":10}';
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { values: [{ timestamp: '2026-10-01T01:00:00Z', value: 1 }] },
+      ],
+    } as Response);
+    await expect(
+      new RenderMetricsService().getServiceUsage(
+        '2026-10-01T00:00:00Z',
+        '2026-10-01T03:00:00Z',
+      ),
+    ).resolves.toMatchObject({ available: false });
   });
 
   it('falha fechada quando uma reserva configurada não fornece métrica', async () => {
