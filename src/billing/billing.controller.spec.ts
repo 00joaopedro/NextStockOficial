@@ -43,6 +43,7 @@ describe('BillingController', () => {
       {} as any,
       payments as any,
       tenantContext as any,
+      {} as any,
     );
     const request = {
       user: { email: 'admin@example.com', role: Role.Admin },
@@ -83,6 +84,7 @@ describe('BillingController', () => {
       {} as any,
       payments as any,
       tenantContext as any,
+      {} as any,
     );
     const request = {
       requestId: 'diagnostic-request',
@@ -102,5 +104,45 @@ describe('BillingController', () => {
     expect(payments.productionTestRefundDiagnostic).toHaveBeenCalledWith(
       'tenant',
     );
+  });
+
+  it('retorna apenas o resumo de percentual do servidor para o tenant resolvido', async () => {
+    const subscriptions = {
+      getForTenant: jest.fn().mockResolvedValue({
+        subscription: { plan: { slug: 'ouro' } },
+      }),
+    };
+    const tenantContext = {
+      resolve: jest.fn().mockResolvedValue({ tenantId: 'tenant-a' }),
+    };
+    const serverUsage = {
+      forTenant: jest.fn().mockResolvedValue({
+        available: true,
+        percentage: 42,
+        actualPercentage: 42,
+        status: 'NORMAL',
+      }),
+    };
+    const controller = new BillingController(
+      {} as any,
+      subscriptions as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      tenantContext as any,
+      serverUsage as any,
+    );
+
+    await expect(
+      controller.subscriptionServerUsage({ user: { role: Role.Admin } } as any),
+    ).resolves.toEqual({
+      ok: true,
+      usage: expect.objectContaining({ percentage: 42 }),
+    });
+    expect(tenantContext.resolve).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ allowedRoles: [Role.Admin] }),
+    );
+    expect(serverUsage.forTenant).toHaveBeenCalledWith('tenant-a', 'ouro');
   });
 });

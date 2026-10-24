@@ -6,6 +6,39 @@ type RailwayDeployment = {
   createdAt?: string;
 };
 
+type RailwayUsageRow = {
+  measurement?: string;
+  value?: number;
+  tags?: { projectId?: string; serviceId?: string };
+};
+
+export type RailwayServiceUsage = {
+  available: boolean;
+  costUsd: number | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  updatedAt: string;
+  serviceIds: string[];
+};
+
+const USAGE_MEASUREMENTS = [
+  'MEMORY_USAGE_GB',
+  'CPU_USAGE',
+  'NETWORK_TX_GB',
+  'DISK_USAGE_GB',
+  'BACKUP_USAGE_GB',
+];
+
+// Railway publishes these standard container rates. Keep the calculation here
+// instead of exposing provider usage payloads to tenant-facing endpoints.
+const COST_PER_MEASUREMENT: Record<string, number> = {
+  MEMORY_USAGE_GB: 10 / 43_200,
+  CPU_USAGE: 20 / 43_200,
+  NETWORK_TX_GB: 0.05,
+  DISK_USAGE_GB: 0.15 / 43_200,
+  BACKUP_USAGE_GB: 0.15 / 43_200,
+};
+
 @Injectable()
 export class RailwayMetricsService {
   private readonly apiUrl = 'https://backboard.railway.com/graphql/v2';
@@ -17,6 +50,83 @@ export class RailwayMetricsService {
         process.env.RAILWAY_ENVIRONMENT_ID &&
         process.env.RAILWAY_SERVICE_ID,
     );
+  }
+
+  isUsageConfigured(): boolean {
+    return Boolean(
+      process.env.RAILWAY_API_TOKEN &&
+        process.env.RAILWAY_PROJECT_ID &&
+        process.env.RAILWAY_WORKSPACE_ID &&
+        this.usageServiceIds().length,
+    );
+  }
+
+  async getServiceUsage(): Promise<RailwayServiceUsage> {
+    const unavailable = (): RailwayServiceUsage => ({
+      available: false,
+      costUsd: null,
+      periodStart: null,
+      periodEnd: null,
+      updatedAt: new Date().toISOString(),
+      serviceIds: this.usageServiceIds(),
+    });
+
+    if (!this.isUsageConfigured()) return unavailable();
+
+    try {
+      const workspaceId = process.env.RAILWAY_WORKSPACE_ID!;
+      const context = await this.graphql(
+        `query UsageContext($workspaceId: String!) {
+          workspace(workspaceId: $workspaceId) {
+            customer { billingPeriod { start end } }
+          }
+        }`,
+        { workspaceId },
+      );
+      const period = context?.workspace?.customer?.billingPeriod;
+      if (!period?.start || !period?.end) return unavailable();
+
+      const payload = await this.graphql(
+        `query ServiceUsage($workspaceId: String!, $measurements: [MetricMeasurement!]!, $startDate: DateTime!, $endDate: DateTime!) {
+          usage(workspaceId: $workspaceId, measurements: $measurements, groupBy: [PROJECT_ID, SERVICE_ID], startDate: $startDate, endDate: $endDate, includeDeleted: true) {
+            measurement value tags { projectId serviceId }
+          }
+        }`,
+        {
+          workspaceId,
+          measurements: USAGE_MEASUREMENTS,
+          startDate: period.start,
+          endDate: period.end,
+        },
+      );
+      const serviceIds = this.usageServiceIds();
+      const matchingMeasurements = ((Array.isArray(payload?.usage) ? payload.usage : [])
+        .filter((row: RailwayUsageRow) =>
+          row?.tags?.projectId === process.env.RAILWAY_PROJECT_ID &&
+          serviceIds.includes(String(row?.tags?.serviceId || '')) &&
+          Number.isFinite(Number(row?.value)) &&
+          Number.isFinite(COST_PER_MEASUREMENT[String(row?.measurement || '')]),
+        )) as RailwayUsageRow[];
+
+      // An empty match means that the configured IDs are stale or the provider
+      // did not return usable measurements. Do not turn that into a false 0%.
+      if (!matchingMeasurements.length) return unavailable();
+
+      const costUsd = matchingMeasurements.reduce((total: number, row) =>
+        total + Number(row.value) * COST_PER_MEASUREMENT[String(row.measurement)],
+      0);
+
+      return {
+        available: Number.isFinite(costUsd),
+        costUsd: Number.isFinite(costUsd) ? costUsd : null,
+        periodStart: period.start,
+        periodEnd: period.end,
+        updatedAt: new Date().toISOString(),
+        serviceIds,
+      };
+    } catch {
+      return unavailable();
+    }
   }
 
   async getOverview() {
@@ -105,6 +215,11 @@ export class RailwayMetricsService {
     }
 
     return payload.data;
+  }
+
+  private usageServiceIds(): string[] {
+    const configured = process.env.RAILWAY_USAGE_SERVICE_IDS || process.env.RAILWAY_SERVICE_ID || '';
+    return [...new Set(configured.split(',').map((value) => value.trim()).filter(Boolean))];
   }
 
   private normalizeDeployments(data: any): RailwayDeployment[] {
