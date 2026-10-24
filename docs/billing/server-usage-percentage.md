@@ -28,6 +28,24 @@ Além de `RAILWAY_API_TOKEN`, `RAILWAY_PROJECT_ID`, `RAILWAY_ENVIRONMENT_ID` e
 O token deve ser restrito à leitura quando possível e nunca pode ser colocado
 em HTML, JavaScript público ou logs.
 
+## Reserva Render e migração entre provedores
+
+Não inclua IDs da Render em `RAILWAY_USAGE_SERVICE_IDS`. Para uma reserva
+Render, configure somente no backend:
+
+- `RENDER_API_KEY`: chave da API Render, mantida como segredo;
+- `RENDER_USAGE_SERVICE_IDS`: IDs Render separados por vírgula;
+- `RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE`: JSON com a estimativa em centavos
+  de BRL por hora de cada ID. Exemplo: `{"srv-principal":25,"srv-reserva":25}`.
+
+O backend consulta `instance-count` por serviço. Reserva fria (zero instâncias)
+contribui R$ 0; reserva quente soma o custo das instâncias ativas. Em uma
+migração Railway → Render, ambos os provedores são calculados no mesmo período
+e somados antes da divisão proporcional por tenant. Séries sobrepostas de uma
+mesma réplica não são somadas em duplicidade. Se a Render estiver configurada e
+suas métricas não puderem ser verificadas, o percentual fica indisponível em vez
+de reportar um valor artificialmente baixo.
+
 ## Leitura e indisponibilidade
 
 O backend consulta os medidores de CPU, memória, egress, disco e backup da
