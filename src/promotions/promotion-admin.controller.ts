@@ -16,6 +16,7 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CsrfOriginGuard } from '../security/csrf-origin.guard';
 import { BillingExempt } from '../billing/billing-exempt.decorator';
 import { AuditService } from '../audit/audit.service';
+import { UpdatePromotionCapacityDto } from './dto/update-promotion-capacity.dto';
 import { PromotionsService } from './promotions.service';
 
 @Controller('promotions/admin')
@@ -86,6 +87,31 @@ export class PromotionAdminController {
       ipHash: undefined,
       userAgentHash: undefined,
     });
+    return result.campaign;
+  }
+
+  @Post(':slug/capacity')
+  @UseGuards(CsrfOriginGuard)
+  async updateCapacity(
+    @Req() request: Request,
+    @Param('slug') slug: string,
+    @Body() body: UpdatePromotionCapacityDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    if (body.confirmation !== 'ATUALIZAR VAGAS') {
+      throw new BadRequestException('Digite ATUALIZAR VAGAS para confirmar.');
+    }
+    const audit = this.audit.fromRequest(request);
+    const result = await this.promotions.updateCapacity(
+      slug,
+      body.maxConversions,
+      idempotencyKey,
+      {
+        ...audit,
+        ipHash: undefined,
+        userAgentHash: undefined,
+      },
+    );
     return result.campaign;
   }
 

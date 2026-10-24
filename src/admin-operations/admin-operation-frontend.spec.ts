@@ -8,7 +8,9 @@ describe('administrative operation confirmations', () => {
     const fiscal = readFileSync(join(root, 'public/Js/ntfe.js'), 'utf8');
 
     expect(promotion).toContain('ENCERRAR PROMOÇÃO');
-    expect(promotion).toContain("'Idempotency-Key': body.idempotencyKey");
+    expect(promotion).toContain('ATUALIZAR VAGAS');
+    expect(promotion).toContain("'Idempotency-Key': idempotencyKey");
+    expect(promotion).not.toContain('idempotencyKey: crypto.randomUUID()');
     expect(fiscal).toContain('REMOVER CERTIFICADO');
     expect(fiscal).toContain("'Idempotency-Key': crypto.randomUUID()");
   });

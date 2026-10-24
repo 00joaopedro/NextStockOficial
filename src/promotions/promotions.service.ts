@@ -731,7 +731,9 @@ export class PromotionsService {
     },
   ) {
     if (!this.adminOperations) {
-      throw new ServiceUnavailableException('Proteção de operação administrativa indisponível.');
+      throw new ServiceUnavailableException(
+        'Proteção de operação administrativa indisponível.',
+      );
     }
     const campaign = await this.findCampaign(slug);
     const execution = await this.adminOperations.execute(
@@ -786,6 +788,138 @@ export class PromotionsService {
       campaign: execution.result.campaign as CampaignSnapshot,
       replayed: execution.replayed,
       alreadyClosed: Boolean(execution.result.alreadyClosed),
+    };
+  }
+
+  async updateCapacity(
+    slug: string,
+    maxConversions: number,
+    idempotencyKey?: string,
+    audit?: {
+      actorProfileId?: string | null;
+      actorRole?: string | null;
+      requestId?: string | null;
+      ipHash?: string | null;
+      userAgentHash?: string | null;
+      contextKind?: AuditContextKind;
+    },
+  ) {
+    if (!this.adminOperations) {
+      throw new ServiceUnavailableException(
+        'Proteção de operação administrativa indisponível.',
+      );
+    }
+
+    const campaign = await this.findCampaign(slug);
+    const execution = await this.adminOperations.execute(
+      {
+        tenantScope: 'global',
+        operation: 'PROMOTION_CAMPAIGN_CAPACITY_UPDATE',
+        targetId: campaign.id,
+        idempotencyKey: idempotencyKey || '',
+      },
+      async (tx) => {
+        // A reserva também atualiza esta mesma linha. O lock mantém o limite e
+        // a contagem de vagas consistentes quando uma reserva chega ao mesmo tempo.
+        const locked = await tx.$queryRaw<CampaignSnapshot[]>(
+          Prisma.sql`SELECT "id", "slug", "name", "status", "max_conversions" AS "maxConversions", "reserved_count" AS "reservedCount", "converted_count" AS "convertedCount", "trial_days" AS "trialDays", "starts_at" AS "startsAt", "ends_at" AS "endsAt", "closed_at" AS "closedAt", "close_reason" AS "closeReason"
+            FROM "promotion_campaigns"
+            WHERE "id" = ${campaign.id}
+            FOR UPDATE`,
+        );
+        const current = locked[0];
+        if (!current) {
+          throw new NotFoundException('Campanha promocional não encontrada.');
+        }
+
+        const occupied = current.convertedCount + current.reservedCount;
+        if (maxConversions < occupied) {
+          throw new ConflictException(
+            `O total de vagas não pode ser menor que as ${occupied} vaga(s) já convertidas ou reservadas.`,
+          );
+        }
+
+        const now = new Date();
+        const reactivated =
+          current.status === PromotionCampaignStatus.EXHAUSTED &&
+          maxConversions > occupied;
+        const exhausted =
+          current.status === PromotionCampaignStatus.ACTIVE &&
+          maxConversions <= current.convertedCount;
+        const nextStatus = reactivated
+          ? PromotionCampaignStatus.ACTIVE
+          : exhausted
+            ? PromotionCampaignStatus.EXHAUSTED
+            : current.status;
+        const nextClosedAt = reactivated
+          ? null
+          : exhausted
+            ? now
+            : current.closedAt;
+        const nextCloseReason = reactivated
+          ? null
+          : exhausted
+            ? 'LIMIT_REACHED'
+            : current.closeReason;
+
+        const updated = await tx.promotionCampaign.update({
+          where: { id: current.id },
+          data: {
+            maxConversions,
+            status: nextStatus,
+            closedAt: nextClosedAt,
+            closeReason: nextCloseReason,
+          },
+        });
+        await tx.securityAuditEvent.create({
+          data: {
+            eventType: 'promotion.campaign.capacity.updated',
+            severity: AuditSeverity.HIGH,
+            actorProfileId: audit?.actorProfileId ?? null,
+            actorRole: audit?.actorRole ?? null,
+            contextKind: audit?.contextKind ?? AuditContextKind.NORMAL,
+            requestId: audit?.requestId ?? null,
+            ipHash: audit?.ipHash ?? null,
+            userAgentHash: audit?.userAgentHash ?? null,
+            targetType: 'promotion_campaign',
+            targetId: updated.id,
+            action: 'PROMOTION_CAMPAIGN_CAPACITY_UPDATE',
+            outcome: AuditOutcome.SUCCESS,
+            reasonCode: reactivated
+              ? 'CAPACITY_INCREASED_AND_REOPENED'
+              : exhausted
+                ? 'CAPACITY_REACHED'
+                : 'CAPACITY_UPDATED',
+            metadata: {
+              campaignSlug: updated.slug,
+              previousMaxConversions: current.maxConversions,
+              maxConversions: updated.maxConversions,
+              reservedCount: current.reservedCount,
+              convertedCount: current.convertedCount,
+              reactivated,
+            },
+            beforeState: {
+              status: current.status,
+              maxConversions: current.maxConversions,
+              reservedCount: current.reservedCount,
+              convertedCount: current.convertedCount,
+            },
+            afterState: {
+              status: updated.status,
+              maxConversions: updated.maxConversions,
+              reservedCount: updated.reservedCount,
+              convertedCount: updated.convertedCount,
+            },
+          },
+        });
+        return { campaign: updated, reactivated };
+      },
+    );
+
+    return {
+      campaign: execution.result.campaign as CampaignSnapshot,
+      replayed: execution.replayed,
+      reactivated: Boolean(execution.result.reactivated),
     };
   }
 
