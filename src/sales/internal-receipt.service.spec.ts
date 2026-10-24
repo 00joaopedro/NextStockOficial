@@ -112,6 +112,29 @@ describe('InternalReceiptService RC-012', () => {
     },
   );
 
+  it('identifica item avulso pelo valor total informado', async () => {
+    const { service } = setup();
+    const result = await service.issueAndRender({
+      sale: {
+        ...sale,
+        items: [{
+          productNameSnapshot: 'Produto diverso',
+          quantity: 3,
+          isMiscellaneous: true,
+          unitPriceCents: 0,
+          totalPriceCents: 1000,
+        }],
+      },
+      context,
+      origin: 'cash_register',
+    });
+
+    expect(result.html).toContain('Produto diverso');
+    expect(result.html).toContain('Item avulso — valor total informado');
+    expect(result.html).toContain('R$\u00a010,00');
+    expect(result.html).toContain('RECIBO INTERNO — SEM VALIDADE FISCAL');
+  });
+
   it('numera recibo interno e previa fiscal de forma independente', async () => {
     const { service } = setup([1, 1, 2]);
     const internal = await service.issueAndRender({

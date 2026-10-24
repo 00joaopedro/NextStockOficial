@@ -7,8 +7,10 @@ import {
   IsInt,
   IsOptional,
   IsNumber,
+  IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -26,6 +28,18 @@ export class CreateSaleItemDto {
 }
 
 export class CreateMiscellaneousSaleItemDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  name?: string;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(999_999)
+  quantity?: number;
+
   @Type(() => Number)
   @IsInt()
   @Min(1)

@@ -406,9 +406,19 @@
     (sale.items || []).forEach((item) => {
       const row = document.createElement("div");
       row.className = "product-row";
-      appendText(row, "div", item.productNameSnapshot || item.name || "-");
+      appendText(
+        row,
+        "div",
+        item.isMiscellaneous
+          ? `${item.productNameSnapshot || item.name || "Produto diverso"} — item avulso`
+          : item.productNameSnapshot || item.name || "-",
+      );
       appendText(row, "div", `${item.quantity} ${item.quantityUnit || item.unitSnapshot || "UN"}`);
-      appendText(row, "div", formatMoneyCents(item.unitPriceCents));
+      appendText(
+        row,
+        "div",
+        item.isMiscellaneous ? "Valor total informado" : formatMoneyCents(item.unitPriceCents),
+      );
       appendText(row, "div", formatMoneyCents(item.totalPriceCents));
       els.productsList.appendChild(row);
     });

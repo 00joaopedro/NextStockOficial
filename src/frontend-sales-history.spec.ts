@@ -48,6 +48,11 @@ describe('historico.html production sales integration', () => {
     expect(html).toContain('Recibo interno — sem validade fiscal');
   });
 
+  it('identifica item avulso sem exibir preco unitario artificial', () => {
+    expect(script).toContain('item.isMiscellaneous ? "Valor total informado"');
+    expect(script).toContain('— item avulso');
+  });
+
   it('oferece reimpressão da prévia fiscal sem valor fiscal', () => {
     expect(html).toContain('Imprimir prévia fiscal');
     expect(script).toContain('fiscalPreviewBtn');

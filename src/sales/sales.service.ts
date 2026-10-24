@@ -179,7 +179,7 @@ export class SalesService {
           ...miscellaneousItems.map((item) => ({
             productId: null,
             isMiscellaneous: true,
-            productNameSnapshot: 'Produto diverso',
+            productNameSnapshot: item.name,
             skuSnapshot: null,
             barcodeSnapshot: null,
             ncmSnapshot: null,
@@ -193,10 +193,12 @@ export class SalesService {
             cofinsCodeSnapshot: null,
             originSnapshot: null,
             cestSnapshot: null,
-            quantity: 1,
-            quantityDecimal: null,
+            quantity: item.quantity,
+            quantityDecimal: new Prisma.Decimal(item.quantity),
             isWeighableSnapshot: false,
-            unitPriceCents: item.amountCents,
+            // An item avulso is sold by its manually informed total; it has
+            // no implied unit price and is never eligible for fiscal emission.
+            unitPriceCents: 0,
             totalPriceCents: item.amountCents,
             unitCostCentsSnapshot: null,
             totalCostCentsSnapshot: null,
@@ -1053,7 +1055,11 @@ export class SalesService {
   private normalizeMiscellaneousItems(
     items: CreateMiscellaneousSaleItemDto[],
   ) {
-    return items.map((item) => ({ amountCents: item.amountCents }));
+    return items.map((item) => ({
+      amountCents: item.amountCents,
+      quantity: item.quantity ?? 1,
+      name: item.name?.replace(/\s+/g, ' ').trim() || 'Produto diverso',
+    }));
   }
 
   private async loadPricedItems(
