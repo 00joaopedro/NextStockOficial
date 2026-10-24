@@ -83,6 +83,10 @@ export class SubscriptionsService {
     });
     if (!subscription)
       throw new NotFoundException('Subscription não encontrada.');
+    const pendingPlanChange = await this.prisma.billingSubscriptionOperation.findFirst?.({
+      where: { tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] } },
+    });
+    if (pendingPlanChange) throw new ConflictException('Há uma mudança de plano aguardando confirmação do Mercado Pago.');
     const retainAccessUntilPeriodEnd =
       this.hasPaidAccessRemaining(subscription);
 
@@ -456,6 +460,55 @@ export class SubscriptionsService {
       });
       throw error;
     }
+  }
+
+  async requestPlanChange(tenantId: string, planSlug: string, idempotencyKey?: string) {
+    if (!idempotencyKey?.trim()) throw new ConflictException('Idempotency-Key é obrigatória para mudar o plano.');
+    const [subscription, target] = await Promise.all([
+      this.prisma.subscription.findFirst({ where: { tenantId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.plan.findFirst({ where: { slug: planSlug, isActive: true, deletedAt: null } }),
+    ]);
+    if (!subscription || !target) throw new NotFoundException('Assinatura ou plano não encontrado.');
+    if (subscription.planId === target.id) throw new ConflictException('Este já é o plano atual.');
+    if (!subscription.gatewayProvider || !subscription.gatewaySubscriptionId || subscription.status !== SubscriptionStatus.active || subscription.cancelAtPeriodEnd)
+      throw new ConflictException('A mudança de plano requer uma assinatura ativa, sem cancelamento pendente.');
+    const activeCheckout = await this.prisma.billingCheckoutIntent.findFirst({ where: { tenantId, subscriptionId: subscription.id, state: { in: ['CLAIMED', 'PROCESSING'] } } });
+    if (activeCheckout) throw new ConflictException('Há um checkout em andamento para esta assinatura.');
+    const operationName = `PLAN_CHANGE:${target.id}`;
+    const existing = await this.prisma.billingSubscriptionOperation.findUnique({ where: { tenantId_subscriptionId_operation: { tenantId, subscriptionId: subscription.id, operation: operationName } } });
+    if (existing?.state === BillingSubscriptionOperationState.UNKNOWN) return { pending: true, targetPlan: target.slug };
+    const anyPending = await this.prisma.billingSubscriptionOperation.findFirst({ where: { tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] } } });
+    if (anyPending) throw new ConflictException('Já existe uma mudança de plano aguardando confirmação.');
+    const operation = await this.prisma.billingSubscriptionOperation.create({ data: { tenantId, subscriptionId: subscription.id, targetPlanId: target.id, provider: subscription.gatewayProvider, operation: operationName, claimToken: randomUUID(), leaseExpiresAt: new Date(Date.now() + 300_000), state: BillingSubscriptionOperationState.PROCESSING } });
+    const gateway = this.gateways?.get(subscription.gatewayProvider);
+    if (!gateway) throw new ConflictException('Gateway da assinatura não está disponível.');
+    try {
+      await gateway.updateSubscriptionForNextRenewal(subscription.gatewaySubscriptionId, { amountCents: target.priceCents, currency: target.currency, frequency: target.intervalCount, idempotencyKey: createHash('sha256').update(`${tenantId}:${subscription.id}:${target.id}:${idempotencyKey}`).digest('hex') });
+      await this.prisma.billingSubscriptionOperation.update({ where: { id: operation.id }, data: { state: BillingSubscriptionOperationState.UNKNOWN, claimToken: null, failureCode: null } });
+      await this.events.create({ tenantId, subscriptionId: subscription.id, type: BillingEventType.PLAN_CHANGED, source: 'api', previousState: { planId: subscription.planId }, nextState: { pendingPlanId: target.id }, metadata: { pendingConfirmation: true, effectiveAt: subscription.currentPeriodEndsAt?.toISOString() ?? null } });
+      return { pending: true, targetPlan: target.slug, effectiveAt: subscription.currentPeriodEndsAt };
+    } catch (error) {
+      await this.prisma.billingSubscriptionOperation.update({ where: { id: operation.id }, data: { state: BillingSubscriptionOperationState.UNKNOWN, claimToken: null, failureCode: 'GATEWAY_RESULT_UNKNOWN' } });
+      throw error;
+    }
+  }
+
+  async confirmPlanChangeFromWebhook(provider: any, gatewaySubscriptionId: string) {
+    const subscription = await this.prisma.subscription.findFirst({ where: { gatewayProvider: provider, gatewaySubscriptionId } });
+    if (!subscription) return false;
+    const operation = await this.prisma.billingSubscriptionOperation.findFirst({
+      where: { tenantId: subscription.tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: BillingSubscriptionOperationState.UNKNOWN },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!operation?.targetPlanId) return false;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.subscription.updateMany({ where: { id: subscription.id, tenantId: subscription.tenantId, version: subscription.version, gatewaySubscriptionId }, data: { planId: operation.targetPlanId!, version: { increment: 1 } } });
+      if (claimed.count !== 1) return false;
+      await tx.billingSubscriptionOperation.updateMany({ where: { id: operation.id, state: BillingSubscriptionOperationState.UNKNOWN }, data: { state: BillingSubscriptionOperationState.SUCCEEDED, completedAt: new Date(), failureCode: null } });
+      await this.events.create({ tenantId: subscription.tenantId, subscriptionId: subscription.id, type: BillingEventType.PLAN_CHANGED, source: 'gateway_webhook', previousState: { planId: subscription.planId }, nextState: { planId: operation.targetPlanId }, metadata: { providerConfirmed: true } }, tx);
+      return true;
+    });
+    return updated;
   }
 
   format(subscription: any | null) {

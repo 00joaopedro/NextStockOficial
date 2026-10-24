@@ -98,6 +98,13 @@ export type GatewayAuthorizedPaymentResult = {
   currency: string;
 };
 
+export type UpdateGatewaySubscriptionInput = {
+  amountCents: number;
+  currency: string;
+  frequency: number;
+  idempotencyKey: string;
+};
+
 export interface PaymentGateway {
   readonly provider: PaymentGatewayProvider;
   /** Replaying create with the same key is an authoritative provider lookup/recovery. */
@@ -118,6 +125,10 @@ export interface PaymentGateway {
   cancelSubscription(
     gatewaySubscriptionId: string,
     idempotencyKey?: string,
+  ): Promise<void>;
+  updateSubscriptionForNextRenewal(
+    gatewaySubscriptionId: string,
+    input: UpdateGatewaySubscriptionInput,
   ): Promise<void>;
   refundPayment(
     gatewayPaymentId: string,

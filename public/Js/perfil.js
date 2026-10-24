@@ -317,7 +317,10 @@
       const isPromotionPlan = selected?.planSlug === plan.slug;
       const promotionReady = !selected ||
         (isPromotionPlan && Boolean(reservation?.reservationId));
-      action.textContent = isPromotionPlan
+      const scheduledChangeAvailable = Boolean(state.subscription?.status === "active" && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
+      action.textContent = scheduledChangeAvailable
+        ? `Mudar para ${plan.name} na próxima renovação`
+        : isPromotionPlan
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
       action.dataset.billingPlanAction = "true";
@@ -325,10 +328,23 @@
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
-      action.addEventListener("click", () => startCheckout(plan.slug));
+      action.addEventListener("click", () => scheduledChangeAvailable ? requestPlanChange(plan.slug, plan.name) : startCheckout(plan.slug));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
     updatePlanActionsForCancellation();
+  }
+  async function requestPlanChange(planSlug, planName) {
+    const end = state.subscription?.currentPeriodEndsAt ? date(state.subscription.currentPeriodEndsAt) : "a próxima renovação";
+    if (!confirm(`Programar a mudança para ${planName} na próxima renovação? O plano atual continuará ativo até ${end}.`)) return;
+    busy(true);
+    try {
+      const key = idempotencyKeyFor(`nextstockPlanChange:${planSlug}`);
+      const result = await api("/api/billing/subscription/plan-change", { method: "POST", headers: { "Idempotency-Key": key }, body: JSON.stringify({ planSlug }) });
+      message(result.pending ? "Mudança solicitada. O plano será atualizado após a confirmação do Mercado Pago." : "Mudança de plano processada.", "success");
+      sessionStorage.removeItem(`nextstockPlanChange:${planSlug}`);
+      await loadBilling();
+      await loadPlans();
+    } finally { busy(false); }
   }
   function idempotencyKeyFor(storageKey) {
     let idempotencyKey = sessionStorage.getItem(storageKey);

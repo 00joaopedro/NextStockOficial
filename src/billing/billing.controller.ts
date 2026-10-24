@@ -24,6 +24,7 @@ import { BillingExempt } from './billing-exempt.decorator';
 import { CheckoutService } from './checkout.service';
 import { CreateCheckoutDto } from './dto/create-checkout.dto';
 import { CancelSubscriptionDto } from './dto/cancel-subscription.dto';
+import { RequestPlanChangeDto } from './dto/request-plan-change.dto';
 import { SyncBillingDto } from './dto/sync-billing.dto';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
@@ -116,6 +117,24 @@ export class BillingController {
       ok: true,
       subscription: await this.subscriptions.cancelForTenant(context.tenantId),
     };
+  }
+
+  @Post('subscription/plan-change')
+  @UseGuards(CsrfOriginGuard)
+  async requestPlanChange(
+    @Req() req: Request,
+    @Body() body: RequestPlanChangeDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      writable: true,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return { ok: true, ...(await this.subscriptions.requestPlanChange(context.tenantId, body.planSlug, idempotencyKey)) };
   }
 
   @Get('production-test-capability')

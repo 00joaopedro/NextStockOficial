@@ -12,6 +12,7 @@ import {
   GatewayAuthorizedPaymentResult,
   GatewayCheckoutError,
   GatewayWebhookInput,
+  UpdateGatewaySubscriptionInput,
   PaymentGateway,
 } from '../payment-gateway.interface';
 
@@ -82,6 +83,26 @@ export class MercadoPagoGatewayAdapter implements PaymentGateway {
         body: JSON.stringify({ status: 'cancelled' }),
       },
     );
+  }
+
+  async updateSubscriptionForNextRenewal(
+    gatewaySubscriptionId: string,
+    input: UpdateGatewaySubscriptionInput,
+  ) {
+    await this.request(`/preapproval/${encodeURIComponent(gatewaySubscriptionId)}`, {
+      method: 'PUT',
+      headers: { 'X-Idempotency-Key': input.idempotencyKey },
+      // Mercado Pago applies the altered auto_recurring terms to the next
+      // charge. The local plan remains unchanged until a signed webhook.
+      body: JSON.stringify({
+        auto_recurring: {
+          frequency: input.frequency,
+          frequency_type: 'months',
+          transaction_amount: input.amountCents / 100,
+          currency_id: input.currency,
+        },
+      }),
+    });
   }
 
   async refundPayment(gatewayPaymentId: string, idempotencyKey: string) {

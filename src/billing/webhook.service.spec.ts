@@ -2,7 +2,7 @@ import { PaymentGatewayProvider } from '@prisma/client';
 import { WebhookService } from './webhook.service';
 
 describe('RC-010 webhook inbox policy', () => {
-  const service = new WebhookService({} as any, {} as any, {} as any) as any;
+  const service = new WebhookService({} as any, {} as any, {} as any, {} as any) as any;
 
   it('canonicalizes object keys while preserving array order', () => {
     expect(service.canonicalJson({ b: 2, a: { d: 4, c: 3 } })).toBe(
@@ -101,6 +101,11 @@ describe('RC-010 webhook inbox policy', () => {
     );
   });
 
+  it('recognizes the explicit Mercado Pago subscription confirmation topic', () => {
+    expect(service.isMercadoPagoSubscriptionEvent('subscription_preapproval')).toBe(true);
+    expect(service.isMercadoPagoSubscriptionEvent('payment')).toBe(false);
+  });
+
   it('sanitizes error codes', () => {
     expect(service.safeErrorCode({ name: 'Bad error: token=secret!' })).toBe(
       'ERROR',
@@ -114,6 +119,7 @@ describe('RC-010 webhook inbox policy', () => {
     const updateMany = jest.fn().mockResolvedValue({ count: 1 });
     const worker = new WebhookService(
       { gatewayWebhookEvent: { updateMany } } as any,
+      {} as any,
       {} as any,
       {} as any,
     ) as any;
