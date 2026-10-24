@@ -134,6 +134,14 @@ export class BillingController {
       allowedRoles: [Role.Admin],
       allowDevSupport: devContext?.toLowerCase() === 'support',
     });
+    if (
+      body.planSlug === PRODUCTION_TEST_PLAN_SLUG &&
+      !canUseProductionTestCheckout(req.user)
+    ) {
+      throw new ForbiddenException(
+        'Teste de produção não autorizado para este administrador.',
+      );
+    }
     return { ok: true, ...(await this.subscriptions.requestPlanChange(context.tenantId, body.planSlug, idempotencyKey)) };
   }
 

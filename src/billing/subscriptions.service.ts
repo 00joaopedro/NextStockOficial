@@ -7,6 +7,7 @@ import {
 import {
   BillingEventType,
   BillingSubscriptionOperationState,
+  PlanInterval,
   Prisma,
   SubscriptionStatus,
 } from '@prisma/client';
@@ -14,6 +15,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
+import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
 
 export const TRIAL_DAYS = 7;
 
@@ -474,21 +476,29 @@ export class SubscriptionsService {
       throw new ConflictException('A mudança de plano requer uma assinatura ativa, sem cancelamento pendente.');
     const activeCheckout = await this.prisma.billingCheckoutIntent.findFirst({ where: { tenantId, subscriptionId: subscription.id, state: { in: ['CLAIMED', 'PROCESSING'] } } });
     if (activeCheckout) throw new ConflictException('Há um checkout em andamento para esta assinatura.');
-    const operationName = `PLAN_CHANGE:${target.id}`;
+    const operationName = `PLAN_CHANGE:${target.id}:${createHash('sha256').update(idempotencyKey).digest('hex')}`;
     const existing = await this.prisma.billingSubscriptionOperation.findUnique({ where: { tenantId_subscriptionId_operation: { tenantId, subscriptionId: subscription.id, operation: operationName } } });
-    if (existing?.state === BillingSubscriptionOperationState.UNKNOWN) return { pending: true, targetPlan: target.slug };
+    if (existing && (existing.state === BillingSubscriptionOperationState.CLAIMED || existing.state === BillingSubscriptionOperationState.PROCESSING || existing.state === BillingSubscriptionOperationState.UNKNOWN)) return { pending: true, targetPlan: target.slug, effectiveAt: subscription.currentPeriodEndsAt };
     const anyPending = await this.prisma.billingSubscriptionOperation.findFirst({ where: { tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] } } });
     if (anyPending) throw new ConflictException('Já existe uma mudança de plano aguardando confirmação.');
-    const operation = await this.prisma.billingSubscriptionOperation.create({ data: { tenantId, subscriptionId: subscription.id, targetPlanId: target.id, provider: subscription.gatewayProvider, operation: operationName, claimToken: randomUUID(), leaseExpiresAt: new Date(Date.now() + 300_000), state: BillingSubscriptionOperationState.PROCESSING } });
+    const recurrence = this.recurrence(target.interval, target.intervalCount);
+    // Persist UNKNOWN before making the network call: a webhook that races the
+    // response can then be retained and reconciled rather than discarded.
+    const operation = await this.prisma.billingSubscriptionOperation.create({ data: { tenantId, subscriptionId: subscription.id, targetPlanId: target.id, provider: subscription.gatewayProvider, operation: operationName, claimToken: null, leaseExpiresAt: new Date(), state: BillingSubscriptionOperationState.UNKNOWN } });
     const gateway = this.gateways?.get(subscription.gatewayProvider);
     if (!gateway) throw new ConflictException('Gateway da assinatura não está disponível.');
     try {
-      await gateway.updateSubscriptionForNextRenewal(subscription.gatewaySubscriptionId, { amountCents: target.priceCents, currency: target.currency, frequency: target.intervalCount, idempotencyKey: createHash('sha256').update(`${tenantId}:${subscription.id}:${target.id}:${idempotencyKey}`).digest('hex') });
-      await this.prisma.billingSubscriptionOperation.update({ where: { id: operation.id }, data: { state: BillingSubscriptionOperationState.UNKNOWN, claimToken: null, failureCode: null } });
+      await gateway.updateSubscriptionForNextRenewal(subscription.gatewaySubscriptionId, { amountCents: target.priceCents, currency: target.currency, frequency: recurrence.frequency, idempotencyKey: createHash('sha256').update(`${tenantId}:${subscription.id}:${target.id}:${idempotencyKey}`).digest('hex') });
       await this.events.create({ tenantId, subscriptionId: subscription.id, type: BillingEventType.PLAN_CHANGED, source: 'api', previousState: { planId: subscription.planId }, nextState: { pendingPlanId: target.id }, metadata: { pendingConfirmation: true, effectiveAt: subscription.currentPeriodEndsAt?.toISOString() ?? null } });
       return { pending: true, targetPlan: target.slug, effectiveAt: subscription.currentPeriodEndsAt };
     } catch (error) {
-      await this.prisma.billingSubscriptionOperation.update({ where: { id: operation.id }, data: { state: BillingSubscriptionOperationState.UNKNOWN, claimToken: null, failureCode: 'GATEWAY_RESULT_UNKNOWN' } });
+      const gatewayError = error instanceof GatewayCheckoutError ? error : null;
+      const state = gatewayError?.checkoutState === 'FAILED_FINAL'
+        ? BillingSubscriptionOperationState.FAILED_FINAL
+        : gatewayError?.checkoutState === 'FAILED_RETRYABLE'
+          ? BillingSubscriptionOperationState.FAILED_RETRYABLE
+          : BillingSubscriptionOperationState.UNKNOWN;
+      await this.prisma.billingSubscriptionOperation.update({ where: { id: operation.id }, data: { state, claimToken: null, failureCode: gatewayError?.failureCode ?? 'GATEWAY_RESULT_UNKNOWN' } });
       throw error;
     }
   }
@@ -500,15 +510,38 @@ export class SubscriptionsService {
       where: { tenantId: subscription.tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: BillingSubscriptionOperationState.UNKNOWN },
       orderBy: { createdAt: 'desc' },
     });
-    if (!operation?.targetPlanId) return false;
+    if (!operation?.targetPlanId || !this.gateways) return false;
+    const target = await this.prisma.plan.findUnique({ where: { id: operation.targetPlanId } });
+    if (!target) return false;
+    const terms = await this.gateways.get(provider).getSubscriptionTerms(gatewaySubscriptionId);
+    const recurrence = this.recurrence(target.interval, target.intervalCount);
+    if (
+      terms.status !== 'authorized' ||
+      terms.amountCents !== target.priceCents ||
+      terms.currency !== target.currency.toUpperCase() ||
+      terms.frequency !== recurrence.frequency ||
+      terms.frequencyType !== 'months'
+    ) return false;
     const updated = await this.prisma.$transaction(async (tx) => {
-      const claimed = await tx.subscription.updateMany({ where: { id: subscription.id, tenantId: subscription.tenantId, version: subscription.version, gatewaySubscriptionId }, data: { planId: operation.targetPlanId!, version: { increment: 1 } } });
+      // Keep the currently paid local plan until the renewal payment succeeds.
+      // Updating the existing recurring checkout makes the next payment pass
+      // amount validation and lets PaymentsService switch the plan atomically.
+      const checkout = await tx.checkoutSession.findFirst({ where: { tenantId: subscription.tenantId, subscriptionId: subscription.id, gatewayCheckoutId: gatewaySubscriptionId }, orderBy: { createdAt: 'desc' } });
+      if (!checkout) return false;
+      await tx.checkoutSession.update({ where: { id: checkout.id }, data: { planId: target.id, expectedAmountCents: target.priceCents, currency: target.currency } });
+      const claimed = await tx.billingSubscriptionOperation.updateMany({ where: { id: operation.id, state: BillingSubscriptionOperationState.UNKNOWN }, data: { state: BillingSubscriptionOperationState.PROCESSING, failureCode: null } });
       if (claimed.count !== 1) return false;
-      await tx.billingSubscriptionOperation.updateMany({ where: { id: operation.id, state: BillingSubscriptionOperationState.UNKNOWN }, data: { state: BillingSubscriptionOperationState.SUCCEEDED, completedAt: new Date(), failureCode: null } });
-      await this.events.create({ tenantId: subscription.tenantId, subscriptionId: subscription.id, type: BillingEventType.PLAN_CHANGED, source: 'gateway_webhook', previousState: { planId: subscription.planId }, nextState: { planId: operation.targetPlanId }, metadata: { providerConfirmed: true } }, tx);
+      await this.events.create({ tenantId: subscription.tenantId, subscriptionId: subscription.id, type: BillingEventType.PLAN_CHANGED, source: 'gateway_webhook', previousState: { planId: subscription.planId }, nextState: { pendingPlanId: operation.targetPlanId }, metadata: { providerTermsConfirmed: true, effectiveAt: subscription.currentPeriodEndsAt?.toISOString() ?? null, providerUpdatedAt: terms.updatedAt?.toISOString() ?? null } }, tx);
       return true;
     });
     return updated;
+  }
+
+  private recurrence(interval: PlanInterval, intervalCount: number) {
+    if (!Number.isInteger(intervalCount) || intervalCount < 1 || interval === PlanInterval.LIFETIME) {
+      throw new ConflictException('Plano sem recorrência elegível para assinatura.');
+    }
+    return { frequency: interval === PlanInterval.YEARLY ? intervalCount * 12 : intervalCount };
   }
 
   format(subscription: any | null) {

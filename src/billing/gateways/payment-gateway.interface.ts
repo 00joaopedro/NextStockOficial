@@ -105,6 +105,16 @@ export type UpdateGatewaySubscriptionInput = {
   idempotencyKey: string;
 };
 
+/** Authoritative recurring terms returned by the payment provider. */
+export type GatewaySubscriptionTerms = {
+  status: string;
+  amountCents: number;
+  currency: string;
+  frequency: number;
+  frequencyType: 'months';
+  updatedAt: Date | null;
+};
+
 export interface PaymentGateway {
   readonly provider: PaymentGatewayProvider;
   /** Replaying create with the same key is an authoritative provider lookup/recovery. */
@@ -130,6 +140,9 @@ export interface PaymentGateway {
     gatewaySubscriptionId: string,
     input: UpdateGatewaySubscriptionInput,
   ): Promise<void>;
+  getSubscriptionTerms(
+    gatewaySubscriptionId: string,
+  ): Promise<GatewaySubscriptionTerms>;
   refundPayment(
     gatewayPaymentId: string,
     idempotencyKey: string,

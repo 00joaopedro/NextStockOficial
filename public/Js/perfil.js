@@ -317,7 +317,7 @@
       const isPromotionPlan = selected?.planSlug === plan.slug;
       const promotionReady = !selected ||
         (isPromotionPlan && Boolean(reservation?.reservationId));
-      const scheduledChangeAvailable = Boolean(state.subscription?.status === "active" && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
+      const scheduledChangeAvailable = Boolean(isCurrentSubscriptionActive() && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
       action.textContent = scheduledChangeAvailable
         ? `Mudar para ${plan.name} na próxima renovação`
         : isPromotionPlan
@@ -332,6 +332,10 @@
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
     updatePlanActionsForCancellation();
+  }
+  function isCurrentSubscriptionActive() {
+    const current = state.subscription;
+    return current?.status === "active";
   }
   async function requestPlanChange(planSlug, planName) {
     const end = state.subscription?.currentPeriodEndsAt ? date(state.subscription.currentPeriodEndsAt) : "a próxima renovação";
