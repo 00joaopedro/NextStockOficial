@@ -23,6 +23,7 @@
     currentPlan: $("currentPlanTitle"), currentBadge: $("currentPlanBadge"),
     details: $("subscriptionDetails"), plans: $("plansGrid"), promotion: $("promotionHandoff"),
     trialExpiredAlert: $("trialExpiredAlert"),
+    serverUsagePanel: $("serverUsagePanel"), serverUsageDescription: $("serverUsageDescription"), serverUsageMeter: $("serverUsageMeter"),
     machineList: $("machineList"), addMachine: $("addMachineBtn"),
     saveMachine: $("saveMachineBtn"), deleteMachine: $("deleteMachineBtn"),
     machineName: $("machineName"), machineProvider: $("machineProvider"),
@@ -247,6 +248,24 @@
     renderTrialExpiredAlert(entitlement);
     renderCancellation(subscription);
     updatePlanActionsForCancellation();
+  }
+  async function loadServerUsage() {
+    if (!state.canManage || !el.serverUsagePanel) return;
+    const data = await api("/api/billing/subscription/server-usage");
+    const usage = data.usage || {};
+    el.serverUsagePanel.hidden = false;
+    if (!usage.available) {
+      el.serverUsageDescription.textContent = "Estimativa de uso do servidor temporariamente indisponível. Nenhum percentual é exibido até que a fonte de medição esteja configurada e atualizada.";
+      el.serverUsageMeter.className = "usage-meter";
+      el.serverUsageMeter.firstElementChild.style.width = "0%";
+      return;
+    }
+    const displayed = Math.max(0, Math.min(100, Number(usage.percentage || 0)));
+    const actual = Number(usage.actualPercentage || 0);
+    const label = actual > 100 ? `${actual}% do limite estimado` : `${displayed}% de uso estimado`;
+    el.serverUsageDescription.textContent = `Uso estimado do servidor: ${label}. Atualizado em ${date(usage.updatedAt)}.`;
+    el.serverUsageMeter.className = `usage-meter${usage.status === "LIMIT_REACHED" ? " limit" : usage.status === "ATTENTION" ? " attention" : ""}`;
+    el.serverUsageMeter.firstElementChild.style.width = `${displayed}%`;
   }
   function renderTrialExpiredAlert(entitlement) {
     if (!el.trialExpiredAlert) return;
@@ -558,7 +577,7 @@
     try {
       await bootstrap();
       renderPromotionHandoff();
-      const results = await Promise.allSettled([
+      const loaders = [
         loadProfile(),
         loadCompany(),
         loadBilling(),
@@ -567,9 +586,11 @@
         loadPaymentConfiguration(),
         loadProductionTestCapability(),
         loadProductionTestRefundCapability(),
-      ]);
-      permissions();
+      ];
       const sections = ["perfil", "empresa", "assinatura", "planos", "maquininhas", "configuração de pagamentos", "teste de pagamento", "teste de estorno"];
+      if (state.canManage) { loaders.push(loadServerUsage()); sections.push("uso do servidor"); }
+      const results = await Promise.allSettled(loaders);
+      permissions();
       const failures = results.flatMap((result, index) => result.status === "rejected" ? [{ section: sections[index], error: result.reason }] : []);
       const authFailure = failures.find(({ error }) => error?.status === 401)?.error;
       if (authFailure) throw authFailure;

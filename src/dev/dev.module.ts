@@ -19,6 +19,6 @@ import { SupabaseMetricsService } from './supabase-metrics.service';
     ResourceSnapshotsService,
     SupabaseMetricsService,
   ],
-  exports: [DevService],
+  exports: [DevService, RailwayMetricsService],
 })
 export class DevModule {}

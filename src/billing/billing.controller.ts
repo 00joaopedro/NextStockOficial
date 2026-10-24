@@ -29,6 +29,7 @@ import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
 import { PaymentsService } from './payments.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { ServerUsageService } from './server-usage.service';
 import {
   canUseProductionTestCheckout,
   PRODUCTION_TEST_PLAN_SLUG,
@@ -52,6 +53,7 @@ export class BillingController {
     private readonly reconciliation: ReconciliationService,
     private readonly payments: PaymentsService,
     private readonly tenantContext: TenantContextService,
+    private readonly serverUsage: ServerUsageService,
   ) {}
 
   @Get('plans')
@@ -72,6 +74,27 @@ export class BillingController {
     return {
       ok: true,
       ...(await this.subscriptions.getForTenant(context.tenantId)),
+    };
+  }
+
+  @Get('subscription/server-usage')
+  async subscriptionServerUsage(
+    @Req() req: Request,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      allowedRoles: [Role.Admin],
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    const billing = await this.subscriptions.getForTenant(context.tenantId);
+    return {
+      ok: true,
+      usage: await this.serverUsage.forTenant(
+        context.tenantId,
+        billing.subscription?.plan?.slug,
+      ),
     };
   }
 

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { DevModule } from '../dev/dev.module';
 import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
 import { CheckoutService } from './checkout.service';
@@ -9,9 +10,11 @@ import { PaymentsService } from './payments.service';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { ServerUsageService } from './server-usage.service';
 import { WebhookService } from './webhook.service';
 
 @Module({
+  imports: [DevModule],
   providers: [
     BillingEntitlementService,
     BillingEventsService,
@@ -23,6 +26,7 @@ import { WebhookService } from './webhook.service';
     PlansService,
     ReconciliationService,
     SubscriptionsService,
+    ServerUsageService,
     WebhookService,
   ],
   exports: [
@@ -33,6 +37,7 @@ import { WebhookService } from './webhook.service';
     PlansService,
     ReconciliationService,
     SubscriptionsService,
+    ServerUsageService,
     WebhookService,
   ],
 })

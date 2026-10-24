@@ -28,7 +28,15 @@ describe('perfil frontend production contract', () => {
     expect(script).toContain('/api/profile/company');
     expect(script).toContain('/api/billing/subscription');
     expect(script).toContain('/api/billing/plans');
+    expect(script).toContain('/api/billing/subscription/server-usage');
     expect(script).toContain('/api/payment-machines');
+  });
+
+  it('exibe somente percentual de uso estimado para administradores', () => {
+    expect(html).toContain('id="serverUsagePanel"');
+    expect(script).toContain('if (!state.canManage || !el.serverUsagePanel) return;');
+    expect(script).toContain('usage.percentage');
+    expect(script).not.toContain('estimatedCostCents');
   });
 
   it('nao usa innerHTML para dados de perfil, plano ou maquininha', () => {
