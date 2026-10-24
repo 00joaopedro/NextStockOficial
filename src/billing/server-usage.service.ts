@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RailwayMetricsService } from '../dev/railway-metrics.service';
+import { RenderMetricsService } from '../dev/render-metrics.service';
 import { serverUsageLimitCents } from './server-usage-policy';
 
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -12,6 +13,7 @@ export class ServerUsageService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly railway: RailwayMetricsService,
+    private readonly render?: RenderMetricsService,
   ) {}
 
   async forTenant(tenantId: string, planSlug?: string | null) {
@@ -20,10 +22,10 @@ export class ServerUsageService {
 
     const provider = await this.providerUsage();
     const brlPerUsd = Number(process.env.RAILWAY_USAGE_BRL_PER_USD);
-    if (!provider.available || provider.costUsd == null) {
+    if (!provider.available || provider.costCents == null) {
       return this.unavailable('PROVIDER_USAGE_UNAVAILABLE');
     }
-    if (!Number.isFinite(brlPerUsd) || brlPerUsd <= 0) {
+    if (provider.railwayCostUsd != null && (!Number.isFinite(brlPerUsd) || brlPerUsd <= 0)) {
       return this.unavailable('CURRENCY_RATE_NOT_CONFIGURED');
     }
 
@@ -50,7 +52,7 @@ export class ServerUsageService {
 
       const estimatedCostCents = Math.max(
         0,
-        Math.round(provider.costUsd * brlPerUsd * 100 * (tenantWeight / totalWeight)),
+        Math.round(provider.costCents * (tenantWeight / totalWeight)),
       );
       const actualPercent = Number(((estimatedCostCents / limitCents) * 100).toFixed(2));
       return {
@@ -68,9 +70,40 @@ export class ServerUsageService {
 
   private async providerUsage() {
     if (this.cache && this.cache.expiresAt > Date.now()) return this.cache.value;
-    const value = await this.railway.getServiceUsage();
+    const railway = await this.railway.getServiceUsage();
+    const periodStart = railway.periodStart || this.currentMonthStart();
+    const periodEnd = railway.periodEnd || new Date().toISOString();
+    const railwayConfigured = this.railway.isUsageConfigured();
+    const hasRenderConfiguration = Boolean(this.render?.hasUsageConfigurationIntent());
+    const render = hasRenderConfiguration
+      ? await this.render!.getServiceUsage(periodStart, periodEnd)
+      : null;
+    // If a Render reserve is configured, we must obtain its instance-count
+    // evidence. Returning an unavailable state is safer than understating a
+    // hot standby during a Railway -> Render migration.
+    const available =
+      (!railwayConfigured || railway.available) &&
+      (!hasRenderConfiguration || Boolean(render?.available)) &&
+      Boolean(railway.available || render?.available);
+    const brlPerUsd = Number(process.env.RAILWAY_USAGE_BRL_PER_USD);
+    const railwayCostCents = railway.available && railway.costUsd != null && Number.isFinite(brlPerUsd) && brlPerUsd > 0
+      ? Math.round(railway.costUsd * brlPerUsd * 100)
+      : 0;
+    const value = {
+      available,
+      costCents: available ? railwayCostCents + (render?.costCents || 0) : null,
+      railwayCostUsd: railway.available ? railway.costUsd : null,
+      periodStart,
+      periodEnd,
+      updatedAt: render?.updatedAt || railway.updatedAt,
+    };
     this.cache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
     return value;
+  }
+
+  private currentMonthStart() {
+    const now = new Date();
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   }
 
   private unavailable(code: string) {
