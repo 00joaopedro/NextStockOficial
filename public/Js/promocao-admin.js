@@ -273,7 +273,7 @@
     }
   }
 
-  async function runAction(path, successMessage, body) {
+  async function runAction(path, successMessage, body, idempotencyKey) {
     if (loading) return;
     loading = true;
     updateActionState();
@@ -281,8 +281,8 @@
     try {
       const campaign = await api(path, {
         method: 'POST',
-        headers: body?.idempotencyKey
-          ? { 'Idempotency-Key': body.idempotencyKey }
+        headers: idempotencyKey
+          ? { 'Idempotency-Key': idempotencyKey }
           : undefined,
         ...(body ? { body: JSON.stringify(body) } : {}),
       });
@@ -315,8 +315,7 @@
     void runAction('close', 'Campanha encerrada com sucesso.', {
       reason: 'MANUAL_SUPERADMIN',
       confirmation,
-      idempotencyKey: crypto.randomUUID(),
-    });
+    }, crypto.randomUUID());
   };
   $('saveCapacityBtn').onclick = () => {
     const maxConversions = Number($('maxConversionsInput').value);
@@ -339,8 +338,7 @@
     void runAction('capacity', 'Quantidade de vagas atualizada com sucesso.', {
       maxConversions,
       confirmation,
-      idempotencyKey: crypto.randomUUID(),
-    });
+    }, crypto.randomUUID());
   };
   // Nenhuma ação de mutação pode ocorrer antes do primeiro status confiável.
   $('openBtn').disabled = true;

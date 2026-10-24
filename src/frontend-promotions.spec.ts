@@ -65,6 +65,10 @@ describe('promotion campaign frontend', () => {
     expect(adminHtml).toContain('id="saveCapacityBtn"');
     expect(adminScript).toContain("runAction('capacity'");
     expect(adminScript).toContain('ATUALIZAR VAGAS');
+    expect(adminScript).toContain(
+      "headers: idempotencyKey\n          ? { 'Idempotency-Key': idempotencyKey }",
+    );
+    expect(adminScript).not.toContain('idempotencyKey: crypto.randomUUID()');
   });
 
   it('exibe a oferta no perfil e encaminha ao checkout existente', () => {
