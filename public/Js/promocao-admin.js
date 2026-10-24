@@ -61,6 +61,10 @@
 
   function renderMetrics(c) {
     const campaign = c || {};
+    const capacityInput = $('maxConversionsInput');
+    if (document.activeElement !== capacityInput) {
+      capacityInput.value = String(campaign.maxConversions || '');
+    }
     $('metrics').innerHTML = [
       ['Status', campaign.status || '-'],
       [
@@ -132,6 +136,7 @@
       loading || !productionReady || active || exhausted;
     $('closeBtn').disabled = loading || !active;
     $('refreshBtn').disabled = loading;
+    $('saveCapacityBtn').disabled = loading || !current.status;
     $('openBtn').title =
       'Abre uma campanha DRAFT ou CLOSED após validar a configuração.';
     $('activateBtn').title =
@@ -313,10 +318,35 @@
       idempotencyKey: crypto.randomUUID(),
     });
   };
+  $('saveCapacityBtn').onclick = () => {
+    const maxConversions = Number($('maxConversionsInput').value);
+    if (!Number.isInteger(maxConversions) || maxConversions < 1 || maxConversions > 10000) {
+      setStatus('Informe um total inteiro entre 1 e 10.000 vagas.', true);
+      $('maxConversionsInput').focus();
+      return;
+    }
+    const campaign = lastDashboard?.campaign || {};
+    const occupied = Number(campaign.convertedConversions || 0) + Number(campaign.reservedConversions || 0);
+    if (maxConversions < occupied) {
+      setStatus(`O total não pode ser menor que as ${occupied} vaga(s) já convertidas ou reservadas.`, true);
+      return;
+    }
+    const confirmation = window.prompt(
+      'Esta ação atualiza o total de vagas. Digite ATUALIZAR VAGAS para confirmar:',
+      '',
+    );
+    if (confirmation === null) return;
+    void runAction('capacity', 'Quantidade de vagas atualizada com sucesso.', {
+      maxConversions,
+      confirmation,
+      idempotencyKey: crypto.randomUUID(),
+    });
+  };
   // Nenhuma ação de mutação pode ocorrer antes do primeiro status confiável.
   $('openBtn').disabled = true;
   $('activateBtn').disabled = true;
   $('closeBtn').disabled = true;
+  $('saveCapacityBtn').disabled = true;
   // Aguarda a inicialização da sessão/sidebar e repete falhas transitórias do primeiro GET.
   window.setTimeout(() => void load({ initial: true }), 250);
 })();

@@ -106,7 +106,7 @@
           context?.status === 'DRAFT'
             ? 'A promoção ainda não foi aberta.'
             : context?.status === 'EXHAUSTED'
-              ? 'As 30 vagas promocionais já foram preenchidas.'
+              ? `As ${Number(context?.maxConversions || 0)} vagas promocionais já foram preenchidas.`
               : 'A promoção está encerrada no momento.';
         setStatus(`${reason} Os botões foram bloqueados.`, 'error');
         return;

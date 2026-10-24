@@ -104,6 +104,170 @@ describe('PromotionsService', () => {
     ).rejects.toThrow('Campanha esgotada');
   });
 
+  it('updates capacity atomically and records the administrative operation', async () => {
+    const campaign = {
+      id: 'campaign-1',
+      slug: 'lancamento-2026',
+      name: 'Lançamento NextStock',
+      status: PromotionCampaignStatus.ACTIVE,
+      maxConversions: 30,
+      reservedCount: 2,
+      convertedCount: 3,
+      trialDays: 1,
+      startsAt: null,
+      endsAt: null,
+      closedAt: null,
+      closeReason: null,
+    };
+    const updated = { ...campaign, maxConversions: 50 };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([campaign]),
+      promotionCampaign: { update: jest.fn().mockResolvedValue(updated) },
+      securityAuditEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const adminOperations = {
+      execute: jest.fn(async (_input: unknown, action: any) => ({
+        result: await action(tx),
+        replayed: false,
+      })),
+    };
+    const prisma = {
+      promotionCampaign: { findUnique: jest.fn().mockResolvedValue(campaign) },
+    } as any;
+
+    const result = await new PromotionsService(
+      prisma,
+      adminOperations as any,
+    ).updateCapacity('lancamento-2026', 50, 'capacity-update-0001', {
+      requestId: 'request-1',
+      actorRole: 'DEV_SUPERADMIN',
+    });
+
+    expect(result).toMatchObject({
+      replayed: false,
+      reactivated: false,
+      campaign: { maxConversions: 50 },
+    });
+    expect(adminOperations.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'PROMOTION_CAMPAIGN_CAPACITY_UPDATE',
+        idempotencyKey: 'capacity-update-0001',
+      }),
+      expect.any(Function),
+    );
+    expect(tx.promotionCampaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ maxConversions: 50 }),
+      }),
+    );
+    expect(tx.securityAuditEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: 'PROMOTION_CAMPAIGN_CAPACITY_UPDATE',
+          requestId: 'request-1',
+          metadata: expect.objectContaining({
+            previousMaxConversions: 30,
+            maxConversions: 50,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('rejects capacity below existing reservations and conversions', async () => {
+    const campaign = {
+      id: 'campaign-1',
+      slug: 'lancamento-2026',
+      name: 'Lançamento NextStock',
+      status: PromotionCampaignStatus.ACTIVE,
+      maxConversions: 30,
+      reservedCount: 2,
+      convertedCount: 3,
+      trialDays: 1,
+      startsAt: null,
+      endsAt: null,
+      closedAt: null,
+      closeReason: null,
+    };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([campaign]),
+      promotionCampaign: { update: jest.fn() },
+      securityAuditEvent: { create: jest.fn() },
+    };
+    const adminOperations = {
+      execute: jest.fn(async (_input: unknown, action: any) => ({
+        result: await action(tx),
+        replayed: false,
+      })),
+    };
+    const prisma = {
+      promotionCampaign: { findUnique: jest.fn().mockResolvedValue(campaign) },
+    } as any;
+
+    await expect(
+      new PromotionsService(prisma, adminOperations as any).updateCapacity(
+        'lancamento-2026',
+        4,
+        'capacity-update-0002',
+      ),
+    ).rejects.toThrow('não pode ser menor que as 5 vaga');
+    expect(tx.promotionCampaign.update).not.toHaveBeenCalled();
+  });
+
+  it('reopens an exhausted campaign only when increased capacity creates a vacancy', async () => {
+    const campaign = {
+      id: 'campaign-1',
+      slug: 'lancamento-2026',
+      name: 'Lançamento NextStock',
+      status: PromotionCampaignStatus.EXHAUSTED,
+      maxConversions: 30,
+      reservedCount: 0,
+      convertedCount: 30,
+      trialDays: 1,
+      startsAt: null,
+      endsAt: null,
+      closedAt: new Date(),
+      closeReason: 'LIMIT_REACHED',
+    };
+    const updated = {
+      ...campaign,
+      status: PromotionCampaignStatus.ACTIVE,
+      maxConversions: 31,
+      closedAt: null,
+      closeReason: null,
+    };
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([campaign]),
+      promotionCampaign: { update: jest.fn().mockResolvedValue(updated) },
+      securityAuditEvent: { create: jest.fn().mockResolvedValue({}) },
+    };
+    const adminOperations = {
+      execute: jest.fn(async (_input: unknown, action: any) => ({
+        result: await action(tx),
+        replayed: false,
+      })),
+    };
+    const prisma = {
+      promotionCampaign: { findUnique: jest.fn().mockResolvedValue(campaign) },
+    } as any;
+
+    const result = await new PromotionsService(
+      prisma,
+      adminOperations as any,
+    ).updateCapacity('lancamento-2026', 31, 'capacity-update-0003');
+
+    expect(result.reactivated).toBe(true);
+    expect(tx.promotionCampaign.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: PromotionCampaignStatus.ACTIVE,
+          closedAt: null,
+          closeReason: null,
+        }),
+      }),
+    );
+  });
+
   it('exposes reservation states for the next billing PR', () => {
     expect(PromotionReservationStatus.RESERVED).toBe('RESERVED');
     expect(PromotionReservationStatus.CONVERTED).toBe('CONVERTED');
