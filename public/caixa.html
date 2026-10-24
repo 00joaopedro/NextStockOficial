@@ -375,7 +375,8 @@
     }
 
     .misc-product-entry {
-      display: flex;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(90px, 120px) minmax(115px, 150px) auto;
       gap: 8px;
       align-items: center;
     }
@@ -402,6 +403,16 @@
       color: var(--text-dark);
       font-size: 0.96rem;
       font-weight: 700;
+    }
+
+    @media (max-width: 760px) {
+      .misc-product-entry {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .misc-product-entry .misc-product-name {
+        grid-column: 1 / -1;
+      }
     }
 
     .search-product-box {
@@ -929,11 +940,31 @@
         </div>
 
         <div class="misc-product-box">
-          <label for="openMiscProductBtn">Produto diverso por valor</label>
+          <label for="openMiscProductBtn">Item avulso</label>
           <button class="btn btn-diverso" id="openMiscProductBtn" type="button">
-            ADICIONAR PRODUTO DIVERSO
+            ADICIONAR ITEM AVULSO
           </button>
           <div class="misc-product-entry" id="miscProductEntry" hidden>
+            <input
+              type="text"
+              id="miscProductName"
+              class="misc-product-input misc-product-name"
+              maxlength="120"
+              value="Produto diverso"
+              placeholder="Nome do item"
+              aria-label="Nome do item avulso"
+            >
+            <input
+              type="number"
+              id="miscProductQuantity"
+              class="misc-product-input"
+              min="1"
+              max="999999"
+              step="1"
+              value="1"
+              inputmode="numeric"
+              aria-label="Quantidade do item avulso"
+            >
             <input
               type="number"
               id="miscProductValue"
@@ -941,8 +972,8 @@
               min="0.01"
               step="0.01"
               inputmode="decimal"
-              placeholder="Informe o valor (R$)"
-              aria-label="Valor do produto diverso"
+              placeholder="Valor total (R$)"
+              aria-label="Valor total do item avulso"
             >
             <button class="btn btn-finalizar misc-product-ok" id="addMiscProductBtn" type="button">OK</button>
           </div>

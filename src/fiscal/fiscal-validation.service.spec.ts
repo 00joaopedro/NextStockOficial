@@ -43,6 +43,17 @@ describe('FiscalValidationService', () => {
     ).toThrow(BadRequestException);
   });
 
+  it('rejeita item avulso para emissao fiscal', () => {
+    expect(() =>
+      service.assertItems([
+        {
+          productNameSnapshot: 'Produto diverso',
+          isMiscellaneous: true,
+        },
+      ]),
+    ).toThrow(/Produto diverso por valor/);
+  });
+
   it('rejeita venda nao paga', () => {
     expect(() =>
       service.assertSaleEligible({

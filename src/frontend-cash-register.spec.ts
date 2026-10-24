@@ -103,6 +103,17 @@ describe('caixa.html production PDV integration', () => {
     expect(script).toContain('Recibo interno gerado');
   });
 
+  it('permite item avulso com nome editavel, quantidade e valor total manual', () => {
+    expect(html).toContain('id="miscProductName"');
+    expect(html).toContain('value="Produto diverso"');
+    expect(html).toContain('id="miscProductQuantity"');
+    expect(html).toContain('id="miscProductValue"');
+    expect(script).toContain('totalPriceCents: amountCents');
+    expect(script).toContain('quantity,');
+    expect(script).toContain('name: item.name');
+    expect(script).toContain('amountCents: item.totalPriceCents');
+  });
+
   it('renderiza dados de API com DOM seguro e bloqueia granel', () => {
     expect(script).toContain('textContent');
     expect(script).toContain('replaceChildren');

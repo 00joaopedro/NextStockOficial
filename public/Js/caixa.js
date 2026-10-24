@@ -34,6 +34,8 @@
     searchResults: document.getElementById("searchResults"),
     openMiscProduct: document.getElementById("openMiscProductBtn"),
     miscProductEntry: document.getElementById("miscProductEntry"),
+    miscProductName: document.getElementById("miscProductName"),
+    miscProductQuantity: document.getElementById("miscProductQuantity"),
     miscProductValue: document.getElementById("miscProductValue"),
     addMiscProduct: document.getElementById("addMiscProductBtn"),
     total: document.getElementById("totalVenda"),
@@ -161,7 +163,10 @@
 
   function subtotalCents() {
     return state.cart.reduce(
-      (sum, item) => sum + Math.round(item.salePriceCents * item.quantity),
+      (sum, item) =>
+        sum + (item.kind === "miscellaneous"
+          ? item.totalPriceCents
+          : Math.round(item.salePriceCents * item.quantity)),
       0,
     );
   }
@@ -195,6 +200,8 @@
       els.searchInput,
       els.openMiscProduct,
       els.addMiscProduct,
+      els.miscProductName,
+      els.miscProductQuantity,
       els.miscProductValue,
       els.fiscalPreview,
     ].forEach((element) => {
@@ -307,7 +314,7 @@
       const price = document.createElement("div");
       price.className = "precoUnidade";
       price.textContent = isMiscellaneous
-        ? `${money(product.salePriceCents)}`
+        ? "Valor total informado"
         : `${money(product.salePriceCents)} / un.`;
 
       const controls = document.createElement("div");
@@ -344,7 +351,11 @@
       const lineTotal = document.createElement("input");
       lineTotal.className = "totalLinha";
       lineTotal.readOnly = true;
-      lineTotal.value = money(Math.round(product.salePriceCents * product.quantity));
+      lineTotal.value = money(
+        isMiscellaneous
+          ? product.totalPriceCents
+          : Math.round(product.salePriceCents * product.quantity),
+      );
 
       row.append(info, price, controls, lineTotal);
       fragment.appendChild(row);
@@ -409,24 +420,32 @@
   }
 
   function addMiscellaneousItem() {
-    const entered = Number(els.miscProductValue.value);
+    const entered = Number(String(els.miscProductValue.value).replace(",", "."));
     if (!Number.isFinite(entered) || entered <= 0) {
       toast("Informe um valor maior que zero.", "warning");
       els.miscProductValue.focus();
+      return;
+    }
+    const quantity = Number(els.miscProductQuantity.value);
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > 999999) {
+      toast("Informe uma quantidade inteira maior que zero.", "warning");
+      els.miscProductQuantity.focus();
       return;
     }
     const amountCents = Math.round(entered * 100);
     state.cart.push({
       id: `misc-${uuid()}`,
       kind: "miscellaneous",
-      name: "Produto diverso",
-      salePriceCents: amountCents,
-      quantity: 1,
-      availableQuantity: 1,
+      name: els.miscProductName.value.trim() || "Produto diverso",
+      totalPriceCents: amountCents,
+      quantity,
+      availableQuantity: quantity,
     });
+    els.miscProductName.value = "Produto diverso";
+    els.miscProductQuantity.value = "1";
     els.miscProductValue.value = "";
     els.miscProductEntry.hidden = true;
-    els.openMiscProduct.textContent = "ADICIONAR OUTRO PRODUTO DIVERSO";
+    els.openMiscProduct.textContent = "ADICIONAR OUTRO ITEM AVULSO";
     resetCheckoutIntent();
     renderCart();
     els.searchInput.focus();
@@ -693,7 +712,11 @@
         })),
       miscellaneousItems: state.cart
         .filter((item) => item.kind === "miscellaneous")
-        .map((item) => ({ amountCents: item.salePriceCents })),
+        .map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          amountCents: item.totalPriceCents,
+        })),
       paymentMethod: method,
       paidCents: totals.paid,
     };
@@ -1098,15 +1121,17 @@
   els.openMiscProduct.addEventListener("click", () => {
     els.miscProductEntry.hidden = !els.miscProductEntry.hidden;
     els.openMiscProduct.textContent = els.miscProductEntry.hidden
-      ? "ADICIONAR PRODUTO DIVERSO"
-      : "FECHAR PRODUTO DIVERSO";
-    if (!els.miscProductEntry.hidden) els.miscProductValue.focus();
+      ? "ADICIONAR ITEM AVULSO"
+      : "FECHAR ITEM AVULSO";
+    if (!els.miscProductEntry.hidden) els.miscProductName.focus();
   });
   els.addMiscProduct.addEventListener("click", addMiscellaneousItem);
-  els.miscProductValue.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    addMiscellaneousItem();
+  [els.miscProductName, els.miscProductQuantity, els.miscProductValue].forEach((input) => {
+    input.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      addMiscellaneousItem();
+    });
   });
   els.searchInput.addEventListener("keydown", (event) => {
     if (event.key === "ArrowDown") {

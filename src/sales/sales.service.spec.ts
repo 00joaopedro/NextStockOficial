@@ -288,14 +288,16 @@ describe('SalesService', () => {
     });
   });
 
-  it('cria produto diverso sem consultar ou baixar estoque', async () => {
+  it('cria item avulso com total manual sem consultar ou baixar estoque', async () => {
     const { service, tx } = makeService();
 
     await expect(
       service.create(user, {
         idempotencyKey: '12121212-1212-4121-8121-121212121212',
         paymentMethod: OrderPaymentMethod.pix,
-        miscellaneousItems: [{ amountCents: 4250 }],
+        miscellaneousItems: [
+          { name: 'Servico avulso', quantity: 3, amountCents: 4250 },
+        ],
       }),
     ).resolves.toMatchObject({ ok: true });
 
@@ -311,9 +313,9 @@ describe('SalesService', () => {
               expect.objectContaining({
                 productId: null,
                 isMiscellaneous: true,
-                productNameSnapshot: 'Produto diverso',
-                quantity: 1,
-                unitPriceCents: 4250,
+                productNameSnapshot: 'Servico avulso',
+                quantity: 3,
+                unitPriceCents: 0,
                 totalPriceCents: 4250,
               }),
             ],
