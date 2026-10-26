@@ -1,0 +1,25 @@
+# Render Blueprint generated from the existing NextStock production service.
+# Secret values remain managed by Render; this file only preserves their references.
+version: "1"
+projects:
+  - name: NextStock
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: NextStockOficial
+            runtime: node
+            repo: https://github.com/00joaopedro/NextStockOficial
+            plan: free
+            envVars:
+              - key: RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE
+                sync: false
+              - key: RENDER_USAGE_SERVICE_IDS
+                sync: false
+              - fromGroup: Variável
+            region: oregon
+            buildCommand: npm ci --include=dev && npm run build
+            startCommand: npm run start:prod
+            autoDeployTrigger: commit
+            previews:
+              generation: automatic
