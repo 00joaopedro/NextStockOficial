@@ -9,10 +9,10 @@ describe('Railway deploy configuration', () => {
       any
     >;
 
-  it('runs the guarded migration phase before starting the release', () => {
+  it('keeps migrations out of the Railway deployment configuration', () => {
     const railway = readJson('railway.json');
 
-    expect(railway.deploy.preDeployCommand).toBe('npm run railway:migrate');
+    expect(railway.deploy.preDeployCommand).toBeUndefined();
     expect(railway.deploy.startCommand).toBe('npm run start:railway');
     expect(railway.build.preDeployCommand).toBeUndefined();
   });
