@@ -20,7 +20,8 @@ describe('Railway deploy configuration', () => {
   it('keeps migrations out of the application start command', () => {
     const packageJson = readJson('package.json');
 
-    expect(packageJson.scripts['railway:migrate']).toBe(
+    expect(packageJson.scripts['railway:migrate']).toBe('npm run production:migrate');
+    expect(packageJson.scripts['production:migrate']).toBe(
       'node dist/scripts/migrations/validate-target.js && prisma migrate deploy',
     );
     expect(packageJson.scripts['start:railway']).toBe('npm run start:prod');
