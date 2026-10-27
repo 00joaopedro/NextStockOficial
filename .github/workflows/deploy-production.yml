@@ -1,0 +1,150 @@
+name: Deploy production
+
+on:
+  workflow_run:
+    workflows: ["CI security"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-release
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply approved production migrations
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.revision.outputs.value }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - id: revision
+        name: Record approved revision
+        run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - run: npm ci
+      - run: npm run build:scripts
+      - name: Run guarded provider-neutral migration
+        env:
+          APP_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          ADMIN_DATABASE_URL: ${{ secrets.ADMIN_DATABASE_URL }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          PRODUCTION_SUPABASE_PROJECT_REF: ${{ secrets.PRODUCTION_SUPABASE_PROJECT_REF }}
+        run: npm run production:migrate
+
+  railway:
+    name: Deploy Railway
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.migrate.outputs.revision }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Deploy the approved revision
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          npm exec --yes --package=@railway/cli@4.20.0 railway up --service "$RAILWAY_SERVICE_ID" --ci >/tmp/railway-deploy.log 2>&1 || {
+            echo "Railway deployment command failed."
+            exit 1
+          }
+          echo "Railway deployment completed for approved revision."
+      - name: Verify readiness
+        env:
+          DEPLOY_HEALTHCHECK_URL: ${{ secrets.RAILWAY_HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 10 "$DEPLOY_HEALTHCHECK_URL" >/dev/null; then
+              echo "Railway readiness check passed."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Railway readiness check did not pass."
+          exit 1
+
+  render:
+    name: Deploy Render
+    needs: migrate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request deploy for the approved revision
+        id: deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          REVISION: ${{ needs.migrate.outputs.revision }}
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --silent --show-error --request POST             --header "Authorization: Bearer $RENDER_API_KEY"             --header "Content-Type: application/json"             --data "{\"clearCache\":\"do_not_clear\",\"commitId\":\"$REVISION\"}"             "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys")"
+          deployment_id="$(printf '%s' "$response" | node -e 'let input="";process.stdin.on("data",c=>input+=c);process.stdin.on("end",()=>{const value=JSON.parse(input);if(!value.id)process.exit(1);process.stdout.write(value.id);})')"
+          echo "id=$deployment_id" >> "$GITHUB_OUTPUT"
+          echo "Render deploy requested."
+      - name: Wait for deployment
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+          DEPLOYMENT_ID: ${{ steps.deploy.outputs.id }}
+          REVISION: ${{ needs.migrate.outputs.revision }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            response="$(curl --fail --silent --show-error               --header "Authorization: Bearer $RENDER_API_KEY"               "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$DEPLOYMENT_ID")"
+            status="$(printf '%s' "$response" | node -e 'let input="";process.stdin.on("data",c=>input+=c);process.stdin.on("end",()=>{const value=JSON.parse(input);process.stdout.write(value.status || "unknown");})')"
+            commit="$(printf '%s' "$response" | node -e 'let input="";process.stdin.on("data",c=>input+=c);process.stdin.on("end",()=>{const value=JSON.parse(input);process.stdout.write(value.commit?.id || value.commitId || "");})')"
+            if [ -n "$commit" ] && [ "$commit" != "$REVISION" ]; then
+              echo "Render returned a deployment for a different revision."
+              exit 1
+            fi
+            case "$status" in
+              live)
+                echo "Render deployment is live."
+                exit 0
+                ;;
+              build_failed|update_failed|canceled|deactivated)
+                echo "Render deployment finished unsuccessfully: $status"
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo "Render deployment timed out."
+          exit 1
+      - name: Verify readiness
+        env:
+          DEPLOY_HEALTHCHECK_URL: ${{ secrets.RENDER_HEALTHCHECK_URL }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error --max-time 10 "$DEPLOY_HEALTHCHECK_URL" >/dev/null; then
+              echo "Render readiness check passed."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Render readiness check did not pass."
+          exit 1
