@@ -20,6 +20,6 @@ projects:
             region: oregon
             buildCommand: npm ci --include=dev && npm run build
             startCommand: npm run start:prod
-            autoDeployTrigger: commit
+            autoDeployTrigger: off
             previews:
               generation: automatic

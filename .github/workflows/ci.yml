@@ -170,6 +170,8 @@ jobs:
       - run: npm ci
       - name: Verify Dockerfile packaging order
         run: node scripts/ci/verify-dockerfile.mjs
+      - name: Verify production deployment workflow contract
+        run: node scripts/ci/verify-production-deploy-workflow.mjs
       - name: Build reproducible runtime container
         run: docker build --file Dockerfile --tag nextstock:ci --no-cache .
       - name: Verify migration artifacts in runtime container
