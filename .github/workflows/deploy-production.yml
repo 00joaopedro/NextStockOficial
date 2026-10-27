@@ -30,6 +30,17 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
+      - name: Reject superseded automatic releases
+        if: github.event_name == 'workflow_run'
+        env:
+          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
+          if [ "$(git rev-parse refs/remotes/origin/main)" != "$APPROVED_SHA" ]; then
+            echo "Release superseded by a newer main revision."
+            exit 1
+          fi
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 22
@@ -69,11 +80,26 @@ jobs:
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           set -euo pipefail
-          npm exec --yes --package=@railway/cli@4.20.0 railway up --service "$RAILWAY_SERVICE_ID" --ci >/tmp/railway-deploy.log 2>&1 || {
-            echo "Railway deployment command failed."
+          if ! npm exec --yes --package=@railway/cli@5.49.3 -- railway up --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT_ID" --service "$RAILWAY_SERVICE_ID" --detach --json > /tmp/railway-result.json 2>/tmp/railway-error.log; then
+            echo "Railway upload failed; inspect the provider dashboard."
             exit 1
-          }
-          echo "Railway deployment completed for approved revision."
+          fi
+          deployment_id="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync("/tmp/railway-result.json","utf8"));if(typeof d.deploymentId!=="string" || !/^[a-zA-Z0-9-]+$/.test(d.deploymentId))process.exit(1);process.stdout.write(d.deploymentId)')"
+          echo "Railway deployment ID: $deployment_id"
+          for attempt in {1..90}; do
+            if ! npm exec --yes --package=@railway/cli@5.49.3 -- railway deployment list --project "$RAILWAY_PROJECT_ID" --environment "$RAILWAY_ENVIRONMENT_ID" --service "$RAILWAY_SERVICE_ID" --limit 100 --json > /tmp/railway-list.json 2>/tmp/railway-error.log; then
+              echo "Could not query Railway deployment."
+              exit 1
+            fi
+            status="$(node -e 'const fs=require("fs");const d=JSON.parse(fs.readFileSync("/tmp/railway-list.json","utf8"));const item=d.find(x=>x.id===process.argv[1]);process.stdout.write(item?.status || "NOT_FOUND")' "$deployment_id")"
+            case "$status" in
+              SUCCESS) echo "Railway deployment succeeded."; exit 0 ;;
+              FAILED|CRASHED|REMOVED|REMOVING) echo "Railway deployment failed: $status"; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "Railway deployment timed out."
+          exit 1
       - name: Verify readiness
         env:
           DEPLOY_HEALTHCHECK_URL: ${{ secrets.RAILWAY_HEALTHCHECK_URL }}
