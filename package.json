@@ -51,7 +51,7 @@
     "platform:cutover:preflight": "node dist/scripts/platform/postgres-cutover/cli.js preflight",
     "platform:cutover:dump-plan": "node dist/scripts/platform/postgres-cutover/cli.js dump-plan",
     "platform:cutover:restore-plan": "node dist/scripts/platform/postgres-cutover/cli.js restore-plan",
-    "railway:migrate": "node dist/scripts/migrations/validate-target.js && prisma migrate deploy",
+    "railway:migrate": "npm run production:migrate",
     "sessions:cleanup": "ts-node scripts/maintenance/session-cleanup.ts",
     "audit:retention-report": "ts-node scripts/maintenance/audit-retention-report.ts",
     "storage:orphan-report": "ts-node scripts/maintenance/storage-orphan-report.ts",
@@ -70,7 +70,8 @@
     "storefront:cleanup": "ts-node scripts/maintenance/storefront-cleanup.ts",
     "billing:payment:diagnostic": "node scripts/billing/payment-investigation.js",
     "test:billing-diagnostic": "node --test test/billing/payment-investigation.test.js",
-    "billing:recover-payment": "node dist/scripts/maintenance/billing-recover-payment.js"
+    "billing:recover-payment": "node dist/scripts/maintenance/billing-recover-payment.js",
+    "production:migrate": "node dist/scripts/migrations/validate-target.js && prisma migrate deploy"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
