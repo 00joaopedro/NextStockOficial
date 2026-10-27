@@ -11,8 +11,14 @@ for (const file of required) {
   if (!existsSync(file)) throw new Error(`Missing compiled migration artifact: ${file}`);
 }
 const packageJson = JSON.parse(readFileSync('package.json', 'utf8'));
-if (packageJson.scripts['railway:migrate'] !== 'node dist/scripts/migrations/validate-target.js && prisma migrate deploy') {
-  throw new Error('railway:migrate must execute the compiled validator before Prisma');
+if (
+  packageJson.scripts['production:migrate'] !==
+  'node dist/scripts/migrations/validate-target.js && prisma migrate deploy'
+) {
+  throw new Error('production:migrate must execute the compiled validator before Prisma');
+}
+if (packageJson.scripts['railway:migrate'] !== 'npm run production:migrate') {
+  throw new Error('railway:migrate must delegate to the provider-neutral command');
 }
 const result = spawnSync(process.execPath, ['dist/scripts/migrations/validate-target.js'], {
   env: { ...process.env, APP_ENV: 'production', DATABASE_URL: 'not-a-database-url', DIRECT_URL: '' },
