@@ -10,6 +10,10 @@ O workflow `Deploy production` é a fonte única de orquestração de produção
 4. inicia Railway e Render em paralelo, ambos para o mesmo SHA;
 5. aguarda cada provedor e exige `GET /api/health/ready`.
 
+Antes de ativar este fluxo, remova também qualquer Pre-deploy Command configurado no painel da Railway e desative o deploy automático por GitHub na Railway. A ausência do comando em railway.json pode deixar prevalecer uma configuração do painel. Confirme no painel que o Blueprint da Render está conectado e sincronizado com autoDeployTrigger off. Essas mudanças externas não são feitas pelo PR.
+
+Uma execução automática cujo SHA já não é o último da main é rejeitada antes da migration; uma execução em andamento não é interrompida se surgir um novo commit. O dispatch manual usa a main atual e exige verificação operacional prévia de seu CI.
+
 A migration é neutra ao provedor. `railway:migrate` permanece apenas como alias de compatibilidade para `production:migrate`. Nem o build nem o start da Render executam migrations.
 
 ## Segredos exigidos no GitHub Actions
