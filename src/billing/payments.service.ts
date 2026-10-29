@@ -1135,7 +1135,7 @@ export class PaymentsService {
     transaction?: Prisma.TransactionClient,
   ) {
     const apply = async (tx: Prisma.TransactionClient) => {
-      const checkout = await tx.checkoutSession.findUnique({
+      let checkout = await tx.checkoutSession.findUnique({
         where: { externalReference: result.externalReference! },
         include: { plan: true, subscription: true },
       });
@@ -1143,14 +1143,6 @@ export class PaymentsService {
         return { processed: false, reason: 'CHECKOUT_NOT_FOUND' } as const;
       if (!checkout.subscription)
         return { processed: false, reason: 'SUBSCRIPTION_NOT_FOUND' } as const;
-      if (
-        result.amountCents !== checkout.expectedAmountCents ||
-        result.currency !== checkout.currency
-      )
-        throw new ConflictException(
-          'Pagamento diverge do valor ou moeda esperados.',
-        );
-
       const status = BillingPaymentStatus[result.normalizedStatus];
       const preserveCanceledSubscription =
         status === BillingPaymentStatus.APPROVED &&
@@ -1166,6 +1158,19 @@ export class PaymentsService {
       if (existing && existing.checkoutSessionId !== checkout.id) {
         throw new ConflictException('Pagamento vinculado a outro checkout.');
       }
+      // A checkout may already contain the next renewal's terms. Previously
+      // recorded payments retain their own immutable amount, currency and plan.
+      const expectedAmount = existing?.amountCents ?? checkout.expectedAmountCents;
+      const expectedCurrency = existing?.currency ?? checkout.currency;
+      if (result.amountCents !== expectedAmount || result.currency !== expectedCurrency)
+        throw new ConflictException('Pagamento diverge do valor ou moeda esperados.');
+      const recordedPlanDiffers = Boolean(existing && existing.planId !== checkout.planId);
+      if (existing && recordedPlanDiffers) {
+        const recordedPlan = await tx.plan.findUnique({ where: { id: existing.planId } });
+        if (!recordedPlan) throw new ConflictException('Plano do pagamento anterior não encontrado.');
+        checkout = { ...checkout, planId: existing.planId, plan: recordedPlan };
+      }
+      if (!checkout.subscription) return { processed: false, reason: 'SUBSCRIPTION_NOT_FOUND' } as const;
       // Lifecycle ordering is per gateway payment, not per subscription:
       // a new charge can be approved after an older charge was refunded.
       const currentState = existing?.status ?? null;
@@ -1195,7 +1200,8 @@ export class PaymentsService {
         Boolean(checkout.subscription.lastPaymentAt) &&
         !paymentPeriodStart;
       const protectCurrentSubscription =
-        supersededCheckout || supersededPeriod || ambiguousReversal;
+        supersededCheckout || supersededPeriod || ambiguousReversal ||
+        Boolean(recordedPlanDiffers && checkout.subscription.planId !== existing?.planId);
       if (!decision.apply) {
         // Replays and stale provider events never mutate the payment ledger.
         // Keep a dedicated reconciliation record for deterministic observability.

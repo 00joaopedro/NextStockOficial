@@ -111,4 +111,18 @@ describe('plan change recovery', () => {
     expect((service as any).periodEnd(new Date('2026-01-31T12:00:00Z'), PlanInterval.MONTHLY, 3).toISOString()).toBe('2026-04-30T12:00:00.000Z');
     expect((service as any).periodEnd(new Date('2024-02-29T12:00:00Z'), PlanInterval.YEARLY, 1).toISOString()).toBe('2025-02-28T12:00:00.000Z');
   });
+  it('validates replayed old payments against their recorded amount and plan', async () => {
+    const oldPayment = { id: 'p', checkoutSessionId: 'checkout', planId: 'old', amountCents: 100, currency: 'BRL', status: 'APPROVED', providerOccurredAt: new Date('2026-01-01T00:00:00Z') };
+    const tx = {
+      checkoutSession: { findUnique: jest.fn().mockResolvedValue({ id: 'checkout', tenantId: 'tenant', planId: 'new', expectedAmountCents: 200, currency: 'BRL', provider: 'MERCADO_PAGO', plan: { id: 'new' }, subscription: { id: 'sub', planId: 'old', status: 'active' } }) },
+      billingPayment: { findFirst: jest.fn().mockResolvedValue(oldPayment) },
+      plan: { findUnique: jest.fn().mockResolvedValue({ id: 'old', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      subscription: { updateMany: jest.fn() },
+    };
+    const service = new PaymentsService({} as any, { create: jest.fn() } as any);
+    const result = await (service as any).applyWithCas('MERCADO_PAGO', { externalReference: 'ref', gatewayPaymentId: 'p', amountCents: 100, currency: 'BRL', normalizedStatus: 'APPROVED', providerOccurredAt: new Date('2026-01-01T00:00:00Z') }, 'test', tx);
+    expect(result).toMatchObject({ processed: true, applied: false });
+    expect(tx.plan.findUnique).toHaveBeenCalledWith({ where: { id: 'old' } });
+    expect(tx.subscription.updateMany).not.toHaveBeenCalled();
+  });
 });
