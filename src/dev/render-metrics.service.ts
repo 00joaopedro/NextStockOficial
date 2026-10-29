@@ -23,6 +23,7 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RenderMetricsService.name);
   private timer: ReturnType<typeof setInterval> | undefined;
   private collecting: Promise<void> | undefined;
+  private lastAttemptAt = 0;
   constructor(@Optional() private readonly prisma?: PrismaService) {}
 
   onModuleInit() {
@@ -38,6 +39,8 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
   async collectRecent(): Promise<void> {
     if (!this.prisma || !this.isUsageConfigured()) return;
     if (this.collecting) return this.collecting;
+    if (Date.now() - this.lastAttemptAt < 5 * 60 * 1000) return;
+    this.lastAttemptAt = Date.now();
     this.collecting = this.collectRecentOnce().finally(() => { this.collecting = undefined; });
     return this.collecting;
   }
