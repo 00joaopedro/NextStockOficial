@@ -138,8 +138,9 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
         void this.collectRecent().catch(() => this.logger.warn('Render metrics collection failed.'));
         const costCents = await this.durableCost(periodStart, periodEnd);
         if (costCents == null) return unavailable();
-        return { available: true, costCents, periodStart, periodEnd,
-          updatedAt: new Date(Math.floor(Date.now() / 3_600_000) * 3_600_000).toISOString(), serviceIds: this.serviceIds() };
+        const effectiveEnd = new Date(Math.min(new Date(periodEnd).getTime(), Math.floor(Date.now() / 3_600_000) * 3_600_000)).toISOString();
+        return { available: true, costCents, periodStart, periodEnd: effectiveEnd,
+          updatedAt: effectiveEnd, serviceIds: this.serviceIds() };
       } catch { return unavailable(); }
     }
 

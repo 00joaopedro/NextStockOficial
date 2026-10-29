@@ -48,12 +48,25 @@ export class ServerUsageService {
           grouped.some((row: any) => row.provider === 'render') && !provider.renderConfigured) {
         return this.unavailable('PROVIDER_USAGE_UNAVAILABLE');
       }
+      let renderRows: any[] = [];
+      if (provider.renderConfigured) {
+        const renderEnd = new Date(provider.renderEnd);
+        if (!Number.isFinite(renderEnd.getTime()) || renderEnd <= start || renderEnd > end) {
+          return this.unavailable('PROVIDER_USAGE_UNAVAILABLE');
+        }
+        renderRows = await (this.prisma as any).userUsageEvent.groupBy({
+          by: ['tenantId', 'provider'],
+          where: { provider: 'render', createdAt: { gte: start, lt: renderEnd } },
+          _sum: { weight: true },
+        });
+        if (renderRows.some((row: any) => !row.tenantId)) return this.unavailable('USAGE_ORIGIN_INCOMPLETE');
+      }
       let estimatedCostCents = 0;
       for (const name of ['railway', 'render'] as const) {
         const cost = provider.costByProvider[name];
         if (cost == null || !Number.isFinite(cost) || cost < 0) return this.unavailable('PROVIDER_USAGE_UNAVAILABLE');
         if (cost === 0) continue;
-        const rows = grouped.filter((row: any) => row.provider === name);
+        const rows = (name === 'render' ? renderRows : grouped).filter((row: any) => row.provider === name);
         const total = rows.reduce((sum: number, row: any) => sum + Math.max(0, Number(row._sum?.weight || 0)), 0);
         if (total <= 0) return this.unavailable('NO_PROVIDER_USAGE_RECORDED');
         const tenant = rows.filter((row: any) => row.tenantId === tenantId)
@@ -100,6 +113,7 @@ export class ServerUsageService {
       available,
       railwayConfigured,
       renderConfigured: hasRenderConfiguration,
+      renderEnd: render?.periodEnd ?? null,
       costCents: available ? railwayCostCents + (render?.costCents ?? 0) : null,
       costByProvider: {
         railway: railwayConfigured ? (railway.available ? railwayCostCents : null) : 0,

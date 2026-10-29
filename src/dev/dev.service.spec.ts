@@ -170,12 +170,15 @@ describe('DevService', () => {
 
   it('rateia custo Render somente entre eventos da Render', async () => {
     const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true),
-      getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1200 }) };
+      getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1200, periodEnd: new Date(Date.now() - 1000).toISOString() }) };
     service = new DevService(prisma, railwayMetrics, supabaseMetrics, undefined, undefined, render as any);
-    prisma.userUsageEvent.groupBy.mockResolvedValue([
-      { userId: 'u1', provider: 'render', _sum: { weight: 1 }, _count: { _all: 1 } },
+    prisma.userUsageEvent.groupBy.mockResolvedValueOnce([
+      { userId: 'u1', provider: 'render', _sum: { weight: 4 }, _count: { _all: 1 } },
       { userId: 'u2', provider: 'render', _sum: { weight: 3 }, _count: { _all: 1 } },
       { userId: 'u3', provider: 'railway', _sum: { weight: 20 }, _count: { _all: 1 } },
+    ]).mockResolvedValueOnce([
+      { userId: 'u1', _sum: { weight: 1 } },
+      { userId: 'u2', _sum: { weight: 3 } },
     ]);
     prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }, { id: 'u2', memberships: [] }]);
     prisma.userProfile.count.mockResolvedValue(2);

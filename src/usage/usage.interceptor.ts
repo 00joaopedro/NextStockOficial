@@ -17,7 +17,7 @@ export class UsageInterceptor implements NestInterceptor {
 
     return next.handle().pipe(
       tap(() => {
-        const path = request.route?.path;
+        const path = request.routeOptions?.url || request.route?.path;
         if (!request.user?.id || !request.tenantContext?.tenantId || !path ||
             (request.originalUrl || request.url || '').split('?')[0].endsWith('/usage/page-view')) return;
         void this.usageService.record({

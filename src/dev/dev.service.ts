@@ -162,6 +162,26 @@ export class DevService {
     const render = this.renderMetrics?.hasUsageConfigurationIntent()
       ? await this.renderMetrics.getServiceUsage(range.start.toISOString(), range.end.toISOString())
       : null;
+    const renderWeights = new Map<string, number>();
+    let renderWeightTotal = 0;
+    let renderWindowAvailable = false;
+    const renderEnd = new Date(render?.periodEnd || '');
+    if (render?.available && Number.isFinite(renderEnd.getTime()) && renderEnd > range.start && renderEnd <= range.end) {
+      try {
+        const rows = await (this.prisma as any).userUsageEvent.groupBy({
+          by: ['userId', 'tenantId', 'branchId', 'systemType'],
+          where: { provider: 'render', createdAt: { gte: range.start, lt: renderEnd } },
+          _sum: { weight: true },
+        });
+        for (const row of rows) {
+          const key = JSON.stringify([row.userId, row.tenantId, row.branchId, row.systemType]);
+          const weight = Math.max(0, Number(row._sum?.weight || 0));
+          renderWeights.set(key, weight);
+          renderWeightTotal += weight;
+        }
+        renderWindowAvailable = true;
+      } catch { /* Fail closed if Render-window weights cannot be read. */ }
+    }
     // Unknown origin makes allocating a provider bill unsafe; do not silently
     // shift historical or unidentified activity onto the identified providers.
     let collectionGap = true;
@@ -207,11 +227,14 @@ export class DevService {
           supabaseCostCents,
         });
         const origin = event?.provider === 'railway' || event?.provider === 'render' ? event.provider : 'unknown';
-        const denominator = origin === 'unknown' ? 0 : providerWeights[origin];
+        const denominator = origin === 'render' ? renderWeightTotal : origin === 'railway' ? providerWeights.railway : 0;
+        const allocationWeight = origin === 'render'
+          ? renderWeights.get(JSON.stringify([event?.userId, event?.tenantId, event?.branchId, event?.systemType])) ?? 0
+          : eventWeight;
         const providerCost = origin === 'railway' ? railwayCostCents : origin === 'render' ? render?.costCents : null;
         const providerEstimate = canAllocate && denominator > 0 && providerCost != null &&
-          (origin !== 'render' || render?.available)
-          ? Math.round(providerCost * eventWeight / denominator) : null;
+          (origin !== 'render' || (render?.available && renderWindowAvailable))
+          ? Math.round(providerCost * allocationWeight / denominator) : null;
         const membership = profile.memberships[0];
         const branchName =
           event?.branchId

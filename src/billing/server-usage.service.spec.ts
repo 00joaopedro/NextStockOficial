@@ -35,7 +35,7 @@ describe('ServerUsageService', () => {
 
   it('rateia cada provedor apenas pela atividade da sua origem', async () => {
     railway.getServiceUsage.mockResolvedValue({ available: true, costUsd: 10, periodStart: '2026-10-01T00:00:00Z', periodEnd: '2026-11-01T00:00:00Z' });
-    const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true), getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1000 }) };
+    const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true), getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1000, periodEnd: '2026-10-20T03:00:00Z' }) };
     prisma.userUsageEvent.groupBy.mockResolvedValue([
       { tenantId: 'a', provider: 'railway', _sum: { weight: 1 } },
       { tenantId: 'b', provider: 'railway', _sum: { weight: 3 } },
@@ -43,6 +43,17 @@ describe('ServerUsageService', () => {
       { tenantId: 'b', provider: 'render', _sum: { weight: 1 } },
     ]);
     await expect(new ServerUsageService(prisma, railway, render as any).forTenant('a', 'ouro')).resolves.toMatchObject({ available: true, percentage: 80 });
+    expect(prisma.userUsageEvent.groupBy).toHaveBeenLastCalledWith(expect.objectContaining({ where: { provider: 'render', createdAt: { gte: new Date('2026-10-01T00:00:00Z'), lt: new Date('2026-10-20T03:00:00Z') } } }));
+  });
+
+  it('exclui do rateio Render atividade posterior ao último intervalo medido', async () => {
+    railway.getServiceUsage.mockResolvedValue({ available: true, costUsd: 0, periodStart: '2026-10-01T00:00:00Z', periodEnd: '2026-11-01T00:00:00Z' });
+    const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true), getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1000, periodEnd: '2026-10-20T03:00:00Z' }) };
+    prisma.userUsageEvent.groupBy.mockResolvedValueOnce([
+      { tenantId: 'a', provider: 'render', _sum: { weight: 99 } },
+      { tenantId: 'b', provider: 'render', _sum: { weight: 1 } },
+    ]).mockResolvedValueOnce([{ tenantId: 'b', provider: 'render', _sum: { weight: 1 } }]);
+    await expect(new ServerUsageService(prisma, railway, render as any).forTenant('a', 'ouro')).resolves.toMatchObject({ available: true, percentage: 0 });
   });
 
   it('não estima com eventos de origem desconhecida ou lacuna de coleta', async () => {
