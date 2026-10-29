@@ -235,6 +235,7 @@
     const data = await api("/api/billing/subscription");
     const subscription = data.subscription;
     state.subscription = subscription || null;
+    state.pendingPlanChange = data.pendingPlanChange || null;
     const entitlement = data.entitlement || {};
     const plan = subscription?.plan;
     el.currentPlan.textContent = plan ? `Plano atual: ${plan.name}` : "Período gratuito";
@@ -242,6 +243,11 @@
     const details = [];
     if (subscription?.trialEndsAt) details.push(`Trial termina em ${date(subscription.trialEndsAt)} (${data.trialDaysRemaining || 0} dia(s) restante(s)).`);
     if (subscription?.currentPeriodEndsAt) details.push(`Período pago até ${date(subscription.currentPeriodEndsAt)}.`);
+    if (state.pendingPlanChange) {
+      const change = state.pendingPlanChange;
+      const when = change.effectiveAt ? date(change.effectiveAt) : "a próxima renovação";
+      details.push(`Mudança para ${change.planName} (${money(change.priceCents, change.currency)}) solicitada para ${when}. ${change.state === "awaiting_payment" ? "Aguardando pagamento da renovação." : "Aguardando confirmação do Mercado Pago."}`);
+    }
     if (subscription?.status === "canceled" && subscription?.cancelAtPeriodEnd && subscription?.currentPeriodEndsAt) details.push("A renovação foi cancelada; seu acesso permanece ativo até essa data.");
     if (entitlement.reason === "TRIAL_EXPIRED") details.push("Seu período de teste terminou.");
     el.details.textContent = details.join(" ");
@@ -324,7 +330,7 @@
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
       action.dataset.billingPlanAction = "true";
-      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive();
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive() || Boolean(state.pendingPlanChange);
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";

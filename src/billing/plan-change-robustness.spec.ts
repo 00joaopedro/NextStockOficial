@@ -4,6 +4,15 @@ import { ReconciliationService } from './reconciliation.service';
 import { SubscriptionsService } from './subscriptions.service';
 
 describe('plan change recovery', () => {
+  it('exposes the pending target and confirmation state to the tenant', async () => {
+    const end = new Date('2027-01-01T00:00:00Z');
+    const prisma = { billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue({ state: 'PROCESSING', targetPlan: { slug: 'ouro', name: 'Ouro', priceCents: 10000, currency: 'BRL' } }) } };
+    const entitlement = { forTenant: jest.fn().mockResolvedValue({ allowed: true, reason: 'SUBSCRIPTION_ACTIVE', subscription: { id: 'sub', currentPeriodEndsAt: end } }) };
+    const service = new SubscriptionsService(prisma as any, entitlement as any, {} as any);
+    const result = await service.getForTenant('tenant');
+    expect(result.pendingPlanChange).toMatchObject({ planSlug: 'ouro', priceCents: 10000, state: 'awaiting_payment', effectiveAt: end });
+    expect(prisma.billingSubscriptionOperation.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: 'tenant', subscriptionId: 'sub' }) }));
+  });
   it('confirms provider terms after an update without waiting for a webhook', async () => {
     const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
     const prisma = {
@@ -32,6 +41,17 @@ describe('plan change recovery', () => {
     expect(await service.requestPlanChange('tenant', 'ouro', 'key')).toMatchObject({ pending: true });
     expect(gateway.updateSubscriptionForNextRenewal).toHaveBeenCalledTimes(1);
     expect(prisma.billingSubscriptionOperation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('never modifies checkout when another confirmation has already claimed the operation', async () => {
+    const subscription = { id: 'sub', tenantId: 'tenant', planId: 'old', currentPeriodEndsAt: new Date('2027-01-01T00:00:00Z') };
+    const target = { id: 'new', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 };
+    const tx = { checkoutSession: { findFirst: jest.fn().mockResolvedValue({ id: 'checkout' }), update: jest.fn() }, billingSubscriptionOperation: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) } };
+    const prisma = { subscription: { findFirst: jest.fn().mockResolvedValue(subscription) }, billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue({ id: 'op', targetPlanId: 'new' }) }, plan: { findUnique: jest.fn().mockResolvedValue(target) }, $transaction: jest.fn((fn) => fn(tx)) };
+    const gateway = { getSubscriptionTerms: jest.fn().mockResolvedValue({ status: 'authorized', amountCents: 100, currency: 'BRL', frequency: 1, frequencyType: 'months' }) };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
+    expect(await service.confirmPlanChangeFromWebhook('MERCADO_PAGO', 'remote')).toBe(false);
+    expect(tx.checkoutSession.update).not.toHaveBeenCalled();
   });
 
   it('reconciles terms before looking for payments', async () => {

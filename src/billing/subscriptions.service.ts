@@ -30,8 +30,28 @@ export class SubscriptionsService {
 
   async getForTenant(tenantId: string) {
     const entitlement = await this.entitlement.forTenant(tenantId);
+    const pending = entitlement.subscription
+      ? await this.prisma.billingSubscriptionOperation.findFirst({
+          where: {
+            tenantId,
+            subscriptionId: entitlement.subscription.id,
+            operation: { startsWith: 'PLAN_CHANGE:' },
+            state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] },
+          },
+          include: { targetPlan: true },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
     return {
       subscription: this.format(entitlement.subscription),
+      pendingPlanChange: pending?.targetPlan ? {
+        planName: pending.targetPlan.name,
+        planSlug: pending.targetPlan.slug,
+        priceCents: pending.targetPlan.priceCents,
+        currency: pending.targetPlan.currency,
+        state: pending.state === BillingSubscriptionOperationState.PROCESSING ? 'awaiting_payment' : 'awaiting_confirmation',
+        effectiveAt: entitlement.subscription?.currentPeriodEndsAt ?? null,
+      } : null,
       entitlement: {
         allowed: entitlement.allowed,
         reason: entitlement.reason,
