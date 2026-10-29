@@ -347,9 +347,10 @@
       </div>
 
       <div class="estimate-note">
-        Os valores de Railway e Supabase s&atilde;o estimativas por usu&aacute;rio, calculadas por rateio proporcional de atividade interna. As plataformas fornecem m&eacute;tricas globais do projeto, n&atilde;o custo real por usu&aacute;rio.
+        Estimativas por atividade registrada, n&atilde;o medi&ccedil;&atilde;o real por usu&aacute;rio. A coleta &eacute; parcial; eventos antigos podem ter origem desconhecida. Cada linha representa usu&aacute;rio, contexto e origem. Dados incompletos n&atilde;o s&atilde;o zero. O custo da Railway usa estimativa mensal informada e a Render usa m&eacute;trica de inst&acirc;ncias e pre&ccedil;o informado.
       </div>
 
+      <div class="estimate-note" id="usageConfiguration">Verificando configura&ccedil;&atilde;o...</div>
       <div class="status" id="statusBox">Carregando dados do backend...</div>
 
       <section class="usage-box">
@@ -366,7 +367,9 @@
                 <th>Acessos/eventos</th>
                 <th>A&ccedil;&otilde;es ponderadas</th>
                 <th>&Uacute;ltimo acesso</th>
+                <th>Origem do evento</th>
                 <th>Railway estimado</th>
+                <th>Render estimado</th>
                 <th>Supabase estimado</th>
                 <th>Custo estimado</th>
                 <th>Per&iacute;odo</th>

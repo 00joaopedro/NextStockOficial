@@ -45,6 +45,18 @@ describe('RailwayMetricsService', () => {
     });
   });
 
+  it('não ignora serviço configurado sem medição nem aceita valores nulos', async () => {
+    process.env.RAILWAY_USAGE_SERVICE_IDS = 'service-a,service-b';
+    const service = new RailwayMetricsService() as any;
+    jest.spyOn(service, 'graphql')
+      .mockResolvedValueOnce({ workspace: { customer: { billingPeriod: { start: '2026-10-01T00:00:00Z', end: '2026-11-01T00:00:00Z' } } } })
+      .mockResolvedValueOnce({ usage: [
+        { measurement: 'CPU_USAGE', value: 1, tags: { projectId: 'project-a', serviceId: 'service-a' } },
+        { measurement: 'CPU_USAGE', value: null, tags: { projectId: 'project-a', serviceId: 'service-b' } },
+      ] });
+    await expect(service.getServiceUsage()).resolves.toMatchObject({ available: false, costUsd: null });
+  });
+
   it('keeps an actual zero measurement available', async () => {
     const service = new RailwayMetricsService() as any;
     jest.spyOn(service, 'graphql')

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type UsageEventType =
@@ -47,19 +47,20 @@ export const USAGE_EVENT_WEIGHTS: Record<string, number> = {
   product_image_upload: 10,
 };
 
-function shouldIgnoreUsageWriteError(error: unknown): boolean {
-  const candidate = error as { code?: string; message?: string; meta?: unknown };
-  const message = `${candidate?.message ?? ''} ${JSON.stringify(candidate?.meta ?? {})}`.toLowerCase();
-
-  return (
-    candidate?.code === 'P2021' ||
-    candidate?.code === 'P2022' ||
-    message.includes('user_usage_events')
-  );
+export function usageProvider(env: NodeJS.ProcessEnv = process.env): string | null {
+  const render = Boolean(env.RENDER_INSTANCE_ID);
+  const railway = Boolean(env.RAILWAY_REPLICA_ID || env.RAILWAY_DEPLOYMENT_ID);
+  if (render === railway) return null;
+  return render ? 'render' : 'railway';
 }
 
 @Injectable()
 export class UsageService {
+  private readonly logger = new Logger(UsageService.name);
+  private lastWarningAt = 0;
+  private gapStartedAt: Date | null = null;
+  private gapFlush: Promise<void> | null = null;
+  private failureVersion = 0;
   constructor(private readonly prisma: PrismaService) {}
 
   getWeight(eventType: UsageEventType, override?: number | null) {
@@ -79,7 +80,7 @@ export class UsageService {
     }
 
     try {
-      return await (this.prisma as any).userUsageEvent.create({
+      const event = await (this.prisma as any).userUsageEvent.create({
         data: {
           userId,
           tenantId: input.tenantId ?? user?.tenantId ?? null,
@@ -89,6 +90,7 @@ export class UsageService {
           systemType: input.systemType ?? user?.systemType ?? null,
           branchName: input.branchName ?? user?.branch?.name ?? null,
           eventType: input.eventType,
+          provider: usageProvider(),
           page: input.page ?? null,
           route: input.route ?? null,
           method: input.method ?? null,
@@ -101,12 +103,33 @@ export class UsageService {
           metadata: input.metadata ?? undefined,
         },
       });
-    } catch (error) {
-      if (shouldIgnoreUsageWriteError(error)) {
-        return null;
+      await this.flushGap();
+      return event;
+    } catch {
+      this.gapStartedAt ??= new Date();
+      this.failureVersion++;
+      if (Date.now() - this.lastWarningAt >= 60_000) {
+        this.logger.warn('Usage event could not be recorded.');
+        this.lastWarningAt = Date.now();
       }
-
       return null;
     }
+  }
+
+  private async flushGap(): Promise<void> {
+    if (!this.gapStartedAt || this.gapFlush) return;
+    const startedAt = this.gapStartedAt;
+    const version = this.failureVersion;
+    this.gapFlush = (async () => {
+      try {
+        await (this.prisma as any).usageCaptureGap.create({ data: {
+          provider: usageProvider(), startedAt, endedAt: new Date(),
+        } });
+        if (this.gapStartedAt === startedAt && this.failureVersion === version) this.gapStartedAt = null;
+      } catch {
+        this.logger.warn('Usage collection gap could not be persisted.');
+      }
+    })();
+    try { await this.gapFlush; } finally { this.gapFlush = null; }
   }
 }

@@ -1,7 +1,15 @@
-import { UsageService } from './usage.service';
+import { UsageService, usageProvider } from './usage.service';
 
 describe('UsageService', () => {
+  it('identifica a origem somente por variáveis de instância do provedor', () => {
+    expect(usageProvider({ RENDER_INSTANCE_ID: 'instance' })).toBe('render');
+    expect(usageProvider({ RAILWAY_REPLICA_ID: 'instance' })).toBe('railway');
+    expect(usageProvider({ RENDER_SERVICE_ID: 'configured-api-id' })).toBeNull();
+    expect(usageProvider({})).toBeNull();
+    expect(usageProvider({ RENDER_INSTANCE_ID: 'r', RAILWAY_REPLICA_ID: 'w' })).toBeNull();
+  });
   const prisma = {
+    usageCaptureGap: { create: jest.fn() },
     userUsageEvent: {
       create: jest.fn(),
     },
@@ -33,6 +41,14 @@ describe('UsageService', () => {
         dbWriteCount: 1,
       }),
     });
+  });
+
+  it('registra lacuna após falha quando o banco volta', async () => {
+    prisma.userUsageEvent.create.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ id: 'ok' });
+    prisma.usageCaptureGap.create.mockResolvedValue({ id: 'gap' });
+    await service.record({ userId: 'u', eventType: 'login' });
+    await service.record({ userId: 'u', eventType: 'login' });
+    expect(prisma.usageCaptureGap.create).toHaveBeenCalledWith({ data: expect.objectContaining({ startedAt: expect.any(Date), endedAt: expect.any(Date) }) });
   });
 
   it('record nao quebra fluxo se tabela estiver indisponivel', async () => {
