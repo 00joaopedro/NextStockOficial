@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 30840)
-Total output lines: 2747
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -1106,7 +1103,69 @@ model UserProvisioning {
   compensationState String?                 @map("compensation_state")
   actorProfileId    String                  @map("actor_profile_id") @db.Uuid
   requestedName     String                  @map("requested_name")
-  requestedRole     Role          …840 tokens truncated… references: [id], onDelete: SetNull)
+  requestedRole     Role                    @map("requested_role")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  completedAt       DateTime?               @map("completed_at")
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  branch            Branch?                 @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  profile           UserProfile?            @relation("ProvisionedProfile", fields: [profileId], references: [id], onDelete: Restrict)
+  membership        TenantMember?           @relation("ProvisionedMembership", fields: [membershipId], references: [id], onDelete: Restrict)
+  events            UserProvisioningEvent[]
+
+  @@index([state, leaseExpiresAt])
+  @@index([tenantId, branchId])
+  @@map("user_provisionings")
+}
+
+model UserProvisioningEvent {
+  id             BigInt                 @id @default(autoincrement())
+  provisioningId String                 @map("provisioning_id") @db.Uuid
+  tenantId       String                 @map("tenant_id") @db.Uuid
+  branchId       String?                @map("branch_id") @db.Uuid
+  decision       String
+  fromState      UserProvisioningState? @map("from_state")
+  toState        UserProvisioningState  @map("to_state")
+  errorCode      String?                @map("error_code")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  provisioning   UserProvisioning       @relation(fields: [provisioningId], references: [id], onDelete: Restrict)
+
+  @@index([provisioningId, createdAt])
+  @@index([tenantId, branchId, createdAt])
+  @@map("user_provisioning_events")
+}
+
+model AgendaPet {
+  id                 String          @id @default(uuid()) @db.Uuid
+  cliente            String
+  animal             String
+  atendente          String
+  servico            String
+  data               DateTime
+  hora               String
+  preco              Float
+  descricao          String?
+  status             AgendaPetStatus @default(scheduled)
+  startAt            DateTime?       @map("start_at")
+  endAt              DateTime?       @map("end_at")
+  notes              String?
+  createdById        String?         @map("created_by_id") @db.Uuid
+  updatedById        String?         @map("updated_by_id") @db.Uuid
+  canceledById       String?         @map("canceled_by_id") @db.Uuid
+  canceledAt         DateTime?       @map("canceled_at")
+  cancellationReason String?         @map("cancellation_reason")
+  deletedAt          DateTime?       @map("deleted_at")
+  version            Int             @default(1)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  tenantId           String          @db.Uuid
+  branchId           String?         @map("branch_id") @db.Uuid
+  clientId           String?         @map("client_id") @db.Uuid
+  petId              String?         @map("pet_id") @db.Uuid
+  tenant             Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch             Branch?         @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  client             PetClient?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  pet                Pet?            @relation(fields: [petId], references: [id], onDelete: SetNull)
   createdBy          UserProfile?    @relation("AgendaPetCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy          UserProfile?    @relation("AgendaPetUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   canceledBy         UserProfile?    @relation("AgendaPetCanceledBy", fields: [canceledById], references: [id], onDelete: SetNull)
