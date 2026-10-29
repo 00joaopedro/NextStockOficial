@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manualCiApproved, renderStatus, readiness } from './production-release-safety.mjs';
+import { manualCiApproved, verifyManualCi, renderStatus, readiness } from './production-release-safety.mjs';
 
 const sha = 'a'.repeat(40);
 const repository = 'owner/repo';
@@ -13,6 +13,17 @@ test('manual release requires successful push CI for the exact revision and repo
   }
   assert.equal(manualCiApproved({ workflow_runs: [success, { ...success, run_number: 5, conclusion: 'failure' }] }, sha, repository), false);
   assert.equal(manualCiApproved({}, sha, repository), false);
+});
+
+test('manual release fails closed when GitHub CI lookup fails', async () => {
+  const args = { token: 'synthetic-token', sha, repository };
+  await assert.rejects(verifyManualCi(args, async () => ({ ok: false })));
+  await assert.rejects(verifyManualCi(args, async () => { throw new Error('offline'); }));
+  await assert.rejects(verifyManualCi(args, async () => ({ ok: true, json: async () => ({ workflow_runs: [] }) })));
+  await verifyManualCi(args, async (url) => {
+    assert.match(url, /actions\/workflows\/ci\.yml\/runs\?branch=main&event=push/);
+    return { ok: true, json: async () => ({ workflow_runs: [success] }) };
+  });
 });
 
 test('Render live deployment requires matching commit', () => {
