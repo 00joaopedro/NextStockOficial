@@ -1,18 +1,20 @@
 # Deploy de produção pelo GitHub Actions
 
-O workflow `Deploy production` é a fonte única de orquestração de produção. Ele é iniciado automaticamente somente quando o workflow `CI security` termina com sucesso na branch `main`; também pode ser iniciado manualmente em **Actions → Deploy production → Run workflow**.
+O workflow `Deploy production` é a fonte de orquestração de produção. Ele é iniciado automaticamente somente quando o workflow `CI security` termina com sucesso na branch `main`; também pode ser iniciado manualmente em **Actions → Deploy production → Run workflow**, desde que o CI de push mais recente desse mesmo commit tenha terminado com sucesso. O lookup usa a API do GitHub e falha fechado quando não consegue confirmar o CI.
 
 ## Ordem garantida
 
-1. bloqueia outra execução concorrente;
-2. faz checkout do SHA aprovado pelo CI;
+1. serializa execuções com fila de até 100 pendentes, sem cancelar a execução ativa;
+2. faz checkout do SHA aprovado pelo CI e rejeita um commit que já não é a `main` atual;
 3. executa `npm run production:migrate` contra o banco de produção;
 4. inicia Railway e Render em paralelo, ambos para o mesmo SHA;
-5. aguarda cada provedor e exige `GET /api/health/ready`.
+5. aguarda cada provedor; na Render exige que o commit `live` seja o SHA aprovado; em ambas as origens exige HTTP 200 e JSON `status: ready`, sem seguir redirecionamentos.
 
 Antes de ativar este fluxo, remova também qualquer Pre-deploy Command configurado no painel da Railway e desative o deploy automático por GitHub na Railway. A ausência do comando em railway.json pode deixar prevalecer uma configuração do painel. Confirme no painel que o Blueprint da Render está conectado e sincronizado com autoDeployTrigger off. Essas mudanças externas não são feitas pelo PR.
 
-Uma execução automática cujo SHA já não é o último da main é rejeitada antes da migration; uma execução em andamento não é interrompida se surgir um novo commit. O dispatch manual usa a main atual e exige verificação operacional prévia de seu CI.
+**Antes de fazer merge de alterações em `render.yaml`, desative Auto Sync do Blueprint no painel da Render.** Auto Deploy off não impede uma sincronização do Blueprint de modificar o serviço e iniciar um deploy. Depois do CI e da migration da versão aprovada, revise e sincronize manualmente a configuração; isso pode causar outro deploy. Um sync de configuração fora desse procedimento pode contornar a ordem do workflow. O código não consegue verificar nem desligar Auto Sync sem uma API e permissões adicionais; o painel precisa ser conferido pelo operador.
+
+Uma execução cujo SHA já não é o último da main é rejeitada antes da migration; uma execução em andamento não é interrompida se surgir um novo commit. Um CI que chegue fora de ordem para um SHA antigo será rejeitado ao sair da fila. A fila é limitada pelo GitHub e deve ser monitorada; não há garantia de processamento infinito. Migrations precisam manter compatibilidade com as duas versões durante o rollout.
 
 A migration é neutra ao provedor. `railway:migrate` permanece apenas como alias de compatibilidade para `production:migrate`. Nem o build nem o start da Render executam migrations.
 
@@ -30,6 +32,6 @@ Os dois secrets de healthcheck devem apontar para `/api/health/ready`. O workflo
 - **Railway falhou e Render passou:** o sistema pode continuar disponível pela Render; corrija Railway e faça um novo dispatch somente depois de confirmar o SHA na main.
 - **Render falhou e Railway passou:** o sistema pode continuar disponível pela Railway; corrija Render e rode novamente depois de confirmar o SHA na main.
 - **Readiness falhou:** trate o provedor como não pronto. Consulte os logs diretamente no provedor, sem copiar secrets para o GitHub Actions.
-- **Execução interrompida:** a concorrência não cancela releases em andamento. Aguarde o fim e então use o dispatch manual, que sempre usa a main atual.
+- **Execução interrompida:** a concorrência não cancela releases em andamento. Verifique o estado da migration e de cada deploy antes de repetir; o dispatch manual exige CI de push verde do SHA atual.
 
 Quando o Cloudflare Load Balancer for adotado, troque ambos os healthchecks por uma estratégia coerente de origem/rota. Não é necessário alterar a ordem de migrations ou o gatilho do workflow.
