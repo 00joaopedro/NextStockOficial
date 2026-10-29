@@ -79,11 +79,18 @@ export class ReconciliationService {
       failed: 0,
     };
     for (const checkout of checkouts) {
+      let checkoutFailed = false;
       try {
         // Re-read authoritative subscription terms before looking for renewal
         // payments, including when a subscription webhook was never delivered.
         if (checkout.gatewayCheckoutId) {
-          await this.subscriptions.confirmPlanChangeFromWebhook(checkout.provider, checkout.gatewayCheckoutId);
+          try {
+            await this.subscriptions.confirmPlanChangeFromWebhook(checkout.provider, checkout.gatewayCheckoutId);
+          } catch {
+            // Subscription terms and payments are independent provider reads.
+            // Still reconcile payments and report the incomplete checkout.
+            checkoutFailed = true;
+          }
         }
         const results = await this.gateways
           .get(checkout.provider)
@@ -100,8 +107,9 @@ export class ReconciliationService {
           if (processed.processed) summary.processed += 1;
         }
       } catch {
-        summary.failed += 1;
+        checkoutFailed = true;
       } finally {
+        if (checkoutFailed) summary.failed += 1;
         await this.prisma.checkoutSession.update({
           where: { id: checkout.id },
           data: { lastReconciledAt: new Date() },

@@ -44,6 +44,19 @@ describe('plan change recovery', () => {
     expect(calls).toEqual(['terms', 'payments']);
   });
 
+  it('continues processing payments when provider terms cannot be retrieved', async () => {
+    const checkout = { id: 'checkout', provider: 'MERCADO_PAGO', gatewayCheckoutId: 'remote', externalReference: 'ref' };
+    const prisma = { checkoutSession: { findMany: jest.fn().mockResolvedValue([checkout]), update: jest.fn() } };
+    const subscriptions = { confirmPlanChangeFromWebhook: jest.fn().mockRejectedValue(new Error('terms unavailable')) };
+    const payment = { gatewayPaymentId: 'payment' };
+    const gateways = { get: () => ({ findPayments: jest.fn().mockResolvedValue([payment]) }) };
+    const payments = { processVerifiedPayment: jest.fn().mockResolvedValue({ processed: true }) };
+    const service = new ReconciliationService(prisma as any, {} as any, gateways as any, payments as any, subscriptions as any);
+    const result = await service.reconcilePendingBatch();
+    expect(payments.processVerifiedPayment).toHaveBeenCalledWith('MERCADO_PAGO', payment);
+    expect(result).toMatchObject({ checked: 1, processed: 1, failed: 1 });
+  });
+
   it('uses the full interval and clamps month-end dates', () => {
     const service = new PaymentsService({} as any, {} as any);
     expect((service as any).periodEnd(new Date('2026-01-31T12:00:00Z'), PlanInterval.MONTHLY, 1).toISOString()).toBe('2026-02-28T12:00:00.000Z');
