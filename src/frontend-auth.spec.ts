@@ -29,11 +29,13 @@ describe('frontend auth pages', () => {
     expect(html).toContain("await requestJson('/dev/health')");
     expect(html).toContain('Acesso restrito ao Dev SuperAdmin.');
     expect(html).toContain(
-      'Os valores de Railway e Supabase s&atilde;o estimativas',
+      'Estimativas por atividade registrada, n&atilde;o medi&ccedil;&atilde;o real por usu&aacute;rio',
     );
     expect(html).toContain(
       '<option value="day">Dia atual at&eacute; agora</option>',
     );
+    expect(html).toContain('<th>Render estimado</th>');
+    expect(html).toContain('<th>Origem do evento</th>');
     expect(html).toContain('<option value="week">Semana</option>');
     expect(html).toContain('<option value="month">M&ecirc;s</option>');
     expect(html).toContain('Carregando uso estimado dos usuarios');
