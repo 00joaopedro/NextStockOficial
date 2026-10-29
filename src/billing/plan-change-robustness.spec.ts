@@ -19,6 +19,17 @@ describe('plan change recovery', () => {
     await expect(service.requestPlanChange('tenant', 'ouro', 'key')).rejects.toThrow('uso completo do último ciclo');
     expect(gateways.get).not.toHaveBeenCalled();
   });
+  it('does not silently replace promotional terms during an upgrade', async () => {
+    const prisma = {
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', plan: { slug: 'ouro' }, status: SubscriptionStatus.active, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote' }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda' }) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: { id: 'promo' } }) },
+    };
+    const gateways = { get: jest.fn() };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, gateways as any);
+    await expect(service.requestPlanChange('tenant', 'esmeralda', 'key')).rejects.toThrow('plano promocional');
+    expect(gateways.get).not.toHaveBeenCalled();
+  });
   it('exposes the pending target and confirmation state to the tenant', async () => {
     const end = new Date('2027-01-01T00:00:00Z');
     const prisma = { billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue({ state: 'PROCESSING', targetPlan: { slug: 'ouro', name: 'Ouro', priceCents: 10000, currency: 'BRL' } }) } };
@@ -34,6 +45,7 @@ describe('plan change recovery', () => {
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', tenantId: 'tenant', planId: 'old', plan: { slug: 'ouro' }, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active, cancelAtPeriodEnd: false }) },
       plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }) },
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
@@ -49,6 +61,7 @@ describe('plan change recovery', () => {
       subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', plan: { slug: 'ouro' }, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active }) },
       plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }), updateMany: jest.fn() },
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);

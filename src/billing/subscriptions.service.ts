@@ -255,6 +255,10 @@ export class SubscriptionsService {
           error.code !== 'P2002'
         )
           throw error;
+        const conflicting = await this.prisma.billingSubscriptionOperation.findFirst({
+          where: { tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] } },
+        });
+        if (conflicting) throw new ConflictException('Há uma mudança de plano aguardando confirmação do Mercado Pago.');
       }
     }
 
@@ -501,6 +505,12 @@ export class SubscriptionsService {
     if (eligibility === 'DOWNGRADE_LIMIT_EXCEEDED') throw new ConflictException({ code: eligibility, message: 'O uso do último ciclo deve ser inferior ao limite do plano escolhido.' });
     if (!subscription.gatewayProvider || !subscription.gatewaySubscriptionId || subscription.status !== SubscriptionStatus.active || subscription.cancelAtPeriodEnd)
       throw new ConflictException('A mudança de plano requer uma assinatura ativa, sem cancelamento pendente.');
+    const currentCheckout = await this.prisma.checkoutSession.findFirst({
+      where: { tenantId, subscriptionId: subscription.id, gatewayCheckoutId: subscription.gatewaySubscriptionId },
+      include: { promotionReservation: true },
+    });
+    if (!currentCheckout) throw new ConflictException('Checkout da assinatura atual não encontrado.');
+    if (currentCheckout.promotionReservation) throw new ConflictException('Mudança de plano promocional indisponível até a validação das condições da promoção.');
     const activeCheckout = await this.prisma.billingCheckoutIntent.findFirst({ where: { tenantId, subscriptionId: subscription.id, state: { in: ['CLAIMED', 'PROCESSING'] } } });
     if (activeCheckout) throw new ConflictException('Há um checkout em andamento para esta assinatura.');
     const operationName = `PLAN_CHANGE:${target.id}:${createHash('sha256').update(idempotencyKey).digest('hex')}`;
