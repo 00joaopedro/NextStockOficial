@@ -11,6 +11,20 @@ export function manualCiApproved(payload, sha, repository) {
   return runs[0].status === 'completed' && runs[0].conclusion === 'success';
 }
 
+export async function verifyManualCi({ token, sha, repository }, request = fetch) {
+  if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repository || '') || !/^[a-f0-9]{40}$/.test(sha || '')) {
+    throw new Error('CI lookup configuration missing.');
+  }
+  const url = `https://api.github.com/repos/${repository}/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=${sha}&per_page=100`;
+  const response = await request(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!response.ok || !manualCiApproved(await response.json(), sha, repository)) {
+    throw new Error('No successful trusted main CI for this revision.');
+  }
+}
+
 export function renderStatus(payload, sha) {
   if (!/^[a-f0-9]{40}$/.test(sha) || typeof payload?.status !== 'string') {
     throw new Error('Invalid Render deployment status.');
@@ -36,13 +50,7 @@ async function main() {
   const command = process.argv[2];
   if (command === 'check-ci') {
     const { GH_TOKEN: token, RELEASE_SHA: sha, RELEASE_REPOSITORY: repository } = process.env;
-    if (!token || !/^[\w.-]+\/[\w.-]+$/.test(repository || '')) throw new Error('CI lookup configuration missing.');
-    const url = `https://api.github.com/repos/${repository}/actions/workflows/ci.yml/runs?branch=main&event=push&head_sha=${encodeURIComponent(sha || '')}&per_page=100`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok || !manualCiApproved(await response.json(), sha, repository)) throw new Error('No successful trusted main CI for this revision.');
+    await verifyManualCi({ token, sha, repository });
     console.log('Manual release CI verified.');
   } else if (command === 'render-status') {
     let input = '';
