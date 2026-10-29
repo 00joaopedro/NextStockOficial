@@ -2,8 +2,23 @@ import { PlanInterval, SubscriptionStatus } from '@prisma/client';
 import { PaymentsService } from './payments.service';
 import { ReconciliationService } from './reconciliation.service';
 import { SubscriptionsService } from './subscriptions.service';
+import { checkPlanChangeEligibility } from './plan-change-eligibility';
 
 describe('plan change recovery', () => {
+  it('allows downgrade only strictly below the target limit and with a complete cycle', () => {
+    expect(checkPlanChangeEligibility({ currentSlug: 'esmeralda', targetSlug: 'ouro', lastCompleteCycleCostCents: 2499 })).toBe('ELIGIBLE');
+    expect(checkPlanChangeEligibility({ currentSlug: 'esmeralda', targetSlug: 'ouro', lastCompleteCycleCostCents: 2500 })).toBe('DOWNGRADE_LIMIT_EXCEEDED');
+    expect(checkPlanChangeEligibility({ currentSlug: 'esmeralda', targetSlug: 'ouro', lastCompleteCycleCostCents: null })).toBe('LAST_CYCLE_USAGE_UNAVAILABLE');
+    expect(checkPlanChangeEligibility({ currentSlug: 'ouro', targetSlug: 'esmeralda', lastCompleteCycleCostCents: null })).toBe('ELIGIBLE');
+    expect(checkPlanChangeEligibility({ currentSlug: 'desconhecido', targetSlug: 'ouro', lastCompleteCycleCostCents: 0 })).toBe('PLAN_LIMIT_UNAVAILABLE');
+  });
+  it('blocks a downgrade before touching the gateway when last-cycle evidence is unavailable', async () => {
+    const prisma = { subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', plan: { slug: 'esmeralda' } }) }, plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'ouro' }) } };
+    const gateways = { get: jest.fn() };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, gateways as any);
+    await expect(service.requestPlanChange('tenant', 'ouro', 'key')).rejects.toThrow('uso completo do último ciclo');
+    expect(gateways.get).not.toHaveBeenCalled();
+  });
   it('exposes the pending target and confirmation state to the tenant', async () => {
     const end = new Date('2027-01-01T00:00:00Z');
     const prisma = { billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue({ state: 'PROCESSING', targetPlan: { slug: 'ouro', name: 'Ouro', priceCents: 10000, currency: 'BRL' } }) } };
@@ -16,14 +31,14 @@ describe('plan change recovery', () => {
   it('confirms provider terms after an update without waiting for a webhook', async () => {
     const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
     const prisma = {
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', tenantId: 'tenant', planId: 'old', gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active, cancelAtPeriodEnd: false }) },
-      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'ouro', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', tenantId: 'tenant', planId: 'old', plan: { slug: 'ouro' }, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active, cancelAtPeriodEnd: false }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }) },
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
     const confirm = jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockResolvedValue(true);
-    await service.requestPlanChange('tenant', 'ouro', 'request-1');
+    await service.requestPlanChange('tenant', 'esmeralda', 'request-1');
     expect(gateway.updateSubscriptionForNextRenewal).toHaveBeenCalledTimes(1);
     expect(confirm).toHaveBeenCalledWith('MERCADO_PAGO', 'remote');
   });
@@ -31,14 +46,14 @@ describe('plan change recovery', () => {
   it('does not repeat an update if confirming provider terms fails', async () => {
     const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
     const prisma = {
-      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active }) },
-      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'ouro', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', plan: { slug: 'ouro' }, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }), updateMany: jest.fn() },
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
     jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockRejectedValue(new Error('timeout'));
-    expect(await service.requestPlanChange('tenant', 'ouro', 'key')).toMatchObject({ pending: true });
+    expect(await service.requestPlanChange('tenant', 'esmeralda', 'key')).toMatchObject({ pending: true });
     expect(gateway.updateSubscriptionForNextRenewal).toHaveBeenCalledTimes(1);
     expect(prisma.billingSubscriptionOperation.updateMany).not.toHaveBeenCalled();
   });

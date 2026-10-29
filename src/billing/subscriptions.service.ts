@@ -16,6 +16,7 @@ import { BillingEntitlementService } from './billing-entitlement.service';
 import { BillingEventsService } from './billing-events.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { GatewayCheckoutError } from './gateways/payment-gateway.interface';
+import { checkPlanChangeEligibility } from './plan-change-eligibility';
 
 export const TRIAL_DAYS = 7;
 
@@ -487,11 +488,17 @@ export class SubscriptionsService {
   async requestPlanChange(tenantId: string, planSlug: string, idempotencyKey?: string) {
     if (!idempotencyKey?.trim()) throw new ConflictException('Idempotency-Key é obrigatória para mudar o plano.');
     const [subscription, target] = await Promise.all([
-      this.prisma.subscription.findFirst({ where: { tenantId }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.subscription.findFirst({ where: { tenantId }, orderBy: { createdAt: 'desc' }, include: { plan: true } }),
       this.prisma.plan.findFirst({ where: { slug: planSlug, isActive: true, deletedAt: null } }),
     ]);
     if (!subscription || !target) throw new NotFoundException('Assinatura ou plano não encontrado.');
     if (subscription.planId === target.id) throw new ConflictException('Este já é o plano atual.');
+    // Provider billing periods do not represent a tenant's last completed
+    // cycle. Until an authoritative complete-cycle cost exists, fail closed.
+    const eligibility = checkPlanChangeEligibility({ currentSlug: subscription.plan?.slug, targetSlug: target.slug, lastCompleteCycleCostCents: null });
+    if (eligibility === 'PLAN_LIMIT_UNAVAILABLE') throw new ConflictException({ code: eligibility, message: 'Não foi possível verificar os limites dos planos.' });
+    if (eligibility === 'LAST_CYCLE_USAGE_UNAVAILABLE') throw new ConflictException({ code: eligibility, message: 'Não foi possível confirmar o uso completo do último ciclo para este downgrade.' });
+    if (eligibility === 'DOWNGRADE_LIMIT_EXCEEDED') throw new ConflictException({ code: eligibility, message: 'O uso do último ciclo deve ser inferior ao limite do plano escolhido.' });
     if (!subscription.gatewayProvider || !subscription.gatewaySubscriptionId || subscription.status !== SubscriptionStatus.active || subscription.cancelAtPeriodEnd)
       throw new ConflictException('A mudança de plano requer uma assinatura ativa, sem cancelamento pendente.');
     const activeCheckout = await this.prisma.billingCheckoutIntent.findFirst({ where: { tenantId, subscriptionId: subscription.id, state: { in: ['CLAIMED', 'PROCESSING'] } } });
