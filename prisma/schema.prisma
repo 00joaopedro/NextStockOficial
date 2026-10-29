@@ -2745,3 +2745,24 @@ model AdministrativeOperationExecution {
   @@index([tenantScope, operation, targetId])
   @@map("administrative_operation_executions")
 }
+
+model ProviderUsageSample {
+  provider      String
+  serviceId     String   @map("service_id")
+  hourStart     DateTime @map("hour_start")
+  instanceCount Float    @map("instance_count")
+  collectedAt   DateTime @default(now()) @map("collected_at")
+
+  @@id([provider, serviceId, hourStart])
+  @@map("provider_usage_samples")
+}
+
+model UsageCaptureGap {
+  id        String   @id @default(uuid()) @db.Uuid
+  provider  String?
+  startedAt DateTime @map("started_at")
+  endedAt   DateTime @map("ended_at")
+
+  @@index([startedAt, endedAt], map: "usage_capture_gaps_time_idx")
+  @@map("usage_capture_gaps")
+}

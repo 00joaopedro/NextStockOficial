@@ -310,7 +310,12 @@
       const data = await requestJson(`/dev/users-usage?${params.toString()}`);
 
       renderUsersUsage(data.users || [], getPeriodLabel(period));
-      setStatus('Uso estimado carregado. A coleta é parcial; dados ausentes não significam consumo zero.');
+      const totals = data.totals || {};
+      if (totals.collectionGap || totals.providerWeights?.unknown > 0) {
+        setStatus('Dados incompletos: há lacunas de coleta ou eventos de origem desconhecida; custos por servidor indisponíveis.');
+      } else {
+        setStatus('Uso estimado carregado. A coleta é parcial; dados ausentes não significam consumo zero.');
+      }
     }
 
     function recordDevPageView() {

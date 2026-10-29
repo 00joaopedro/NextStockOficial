@@ -164,7 +164,13 @@ export class DevService {
       : null;
     // Unknown origin makes allocating a provider bill unsafe; do not silently
     // shift historical or unidentified activity onto the identified providers.
-    const canAllocate = providerWeights.unknown === 0;
+    let collectionGap = true;
+    try {
+      collectionGap = Boolean(await (this.prisma as any).usageCaptureGap.findFirst({
+        where: { startedAt: { lt: range.end }, endedAt: { gte: range.start } }, select: { id: true },
+      }));
+    } catch { /* Report unavailable if gap tracking is not readable. */ }
+    const canAllocate = providerWeights.unknown === 0 && !collectionGap;
 
 
     return {
@@ -183,6 +189,7 @@ export class DevService {
         totalEvents,
         totalWeight,
         providerWeights,
+        collectionGap,
         renderAvailable: Boolean(render?.available),
         railwayGlobalUsage: globalUsage.railway,
         supabaseGlobalUsage: globalUsage.supabase,

@@ -6,6 +6,7 @@ describe('DevService', () => {
       count: jest.fn(),
       findMany: jest.fn(),
     },
+    usageCaptureGap: { findFirst: jest.fn() },
     userUsageEvent: {
       aggregate: jest.fn(),
       count: jest.fn(),
@@ -29,6 +30,7 @@ describe('DevService', () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    prisma.usageCaptureGap.findFirst.mockResolvedValue(null);
     service = new DevService(prisma, railwayMetrics, supabaseMetrics);
   });
 

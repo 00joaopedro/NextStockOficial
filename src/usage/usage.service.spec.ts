@@ -9,6 +9,7 @@ describe('UsageService', () => {
     expect(usageProvider({ RENDER_INSTANCE_ID: 'r', RAILWAY_REPLICA_ID: 'w' })).toBeNull();
   });
   const prisma = {
+    usageCaptureGap: { create: jest.fn() },
     userUsageEvent: {
       create: jest.fn(),
     },
@@ -40,6 +41,14 @@ describe('UsageService', () => {
         dbWriteCount: 1,
       }),
     });
+  });
+
+  it('registra lacuna após falha quando o banco volta', async () => {
+    prisma.userUsageEvent.create.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ id: 'ok' });
+    prisma.usageCaptureGap.create.mockResolvedValue({ id: 'gap' });
+    await service.record({ userId: 'u', eventType: 'login' });
+    await service.record({ userId: 'u', eventType: 'login' });
+    expect(prisma.usageCaptureGap.create).toHaveBeenCalledWith({ data: expect.objectContaining({ startedAt: expect.any(Date), endedAt: expect.any(Date) }) });
   });
 
   it('record nao quebra fluxo se tabela estiver indisponivel', async () => {

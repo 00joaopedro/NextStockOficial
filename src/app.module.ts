@@ -43,6 +43,8 @@ import { ObservabilityInterceptor } from './observability/observability.intercep
 import { PrivacyModule } from './privacy/privacy.module';
 import { PreviewMutationInterceptor } from './system/interceptors/preview-mutation.interceptor';
 import { StorefrontModule } from './storefront/storefront.module';
+import { UsageModule } from './usage/usage.module';
+import { UsageInterceptor } from './usage/usage.interceptor';
 import { processRole, startsApi } from './config/process-role';
 
 @Module({
@@ -51,6 +53,7 @@ import { processRole, startsApi } from './config/process-role';
       isGlobal: true,
       validate: validateEnvironment,
     }),
+    UsageModule,
     PerformanceModule,
     AuditModule,
     SessionsModule,
@@ -87,6 +90,7 @@ import { processRole, startsApi } from './config/process-role';
   controllers: [AppController],
   providers: [
     AppService,
+    ...(startsApi(processRole()) ? [{ provide: APP_INTERCEPTOR, useExisting: UsageInterceptor }] : []),
     {
       provide: APP_GUARD,
       useClass: CsrfOriginGuard,

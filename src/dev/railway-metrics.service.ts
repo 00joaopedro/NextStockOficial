@@ -104,13 +104,13 @@ export class RailwayMetricsService {
         .filter((row: RailwayUsageRow) =>
           row?.tags?.projectId === process.env.RAILWAY_PROJECT_ID &&
           serviceIds.includes(String(row?.tags?.serviceId || '')) &&
-          Number.isFinite(Number(row?.value)) &&
+          typeof row?.value === 'number' && Number.isFinite(row.value) && row.value >= 0 &&
           Number.isFinite(COST_PER_MEASUREMENT[String(row?.measurement || '')]),
         )) as RailwayUsageRow[];
 
       // An empty match means that the configured IDs are stale or the provider
       // did not return usable measurements. Do not turn that into a false 0%.
-      if (!matchingMeasurements.length) return unavailable();
+      if (serviceIds.some((id) => !matchingMeasurements.some((row) => row.tags?.serviceId === id))) return unavailable();
 
       const costUsd = matchingMeasurements.reduce((total: number, row) =>
         total + Number(row.value) * COST_PER_MEASUREMENT[String(row.measurement)],
