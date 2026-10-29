@@ -172,6 +172,8 @@ jobs:
         run: node scripts/ci/verify-dockerfile.mjs
       - name: Verify production deployment workflow contract
         run: node scripts/ci/verify-production-deploy-workflow.mjs
+      - name: Test production release safety decisions
+        run: node --test scripts/ci/production-release-safety.test.mjs
       - name: Build reproducible runtime container
         run: docker build --file Dockerfile --tag nextstock:ci --no-cache .
       - name: Verify migration artifacts in runtime container

@@ -9,10 +9,12 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: production-release
   cancel-in-progress: false
+  queue: max
 
 jobs:
   migrate:
@@ -30,10 +32,9 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
-      - name: Reject superseded automatic releases
-        if: github.event_name == 'workflow_run'
+      - name: Reject superseded releases
         env:
-          APPROVED_SHA: ${{ github.event.workflow_run.head_sha }}
+          APPROVED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main
@@ -48,6 +49,13 @@ jobs:
       - id: revision
         name: Record approved revision
         run: echo "value=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Verify CI for a manual release
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.revision.outputs.value }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/production-release-safety.mjs check-ci
       - run: npm ci
       - run: npm run build:scripts
       - name: Run guarded provider-neutral migration
@@ -106,7 +114,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in {1..30}; do
-            if curl --fail --silent --show-error --max-time 10 "$DEPLOY_HEALTHCHECK_URL" >/dev/null; then
+            if node scripts/ci/production-release-safety.mjs ready; then
               echo "Railway readiness check passed."
               exit 0
             fi
@@ -120,6 +128,9 @@ jobs:
     needs: migrate
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.migrate.outputs.revision }}
       - name: Request deploy for the approved revision
         id: deploy
         env:
@@ -140,20 +151,15 @@ jobs:
           REVISION: ${{ needs.migrate.outputs.revision }}
         run: |
           set -euo pipefail
-          for attempt in {1..60}; do
+          for attempt in {1..90}; do
             response="$(curl --fail --silent --show-error               --header "Authorization: Bearer $RENDER_API_KEY"               "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys/$DEPLOYMENT_ID")"
-            status="$(printf '%s' "$response" | node -e 'let input="";process.stdin.on("data",c=>input+=c);process.stdin.on("end",()=>{const value=JSON.parse(input);process.stdout.write(value.status || "unknown");})')"
-            commit="$(printf '%s' "$response" | node -e 'let input="";process.stdin.on("data",c=>input+=c);process.stdin.on("end",()=>{const value=JSON.parse(input);process.stdout.write(value.commit?.id || value.commitId || "");})')"
-            if [ -n "$commit" ] && [ "$commit" != "$REVISION" ]; then
-              echo "Render returned a deployment for a different revision."
-              exit 1
-            fi
+            status="$(printf '%s' "$response" | node scripts/ci/production-release-safety.mjs render-status)"
             case "$status" in
               live)
                 echo "Render deployment is live."
                 exit 0
                 ;;
-              build_failed|update_failed|canceled|deactivated)
+              build_failed|update_failed|pre_deploy_failed|canceled|deactivated)
                 echo "Render deployment finished unsuccessfully: $status"
                 exit 1
                 ;;
@@ -168,7 +174,7 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in {1..30}; do
-            if curl --fail --silent --show-error --max-time 10 "$DEPLOY_HEALTHCHECK_URL" >/dev/null; then
+            if node scripts/ci/production-release-safety.mjs ready; then
               echo "Render readiness check passed."
               exit 0
             fi

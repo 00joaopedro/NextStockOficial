@@ -21,6 +21,12 @@ const requiredWorkflowFragments = [
   'SUCCESS) echo "Railway deployment succeeded."',
   'group: production-release',
   'cancel-in-progress: false',
+  'queue: max',
+  'actions: read',
+  'production-release-safety.mjs check-ci',
+  'production-release-safety.mjs render-status',
+  'production-release-safety.mjs ready',
+  'pre_deploy_failed',
   'npm run production:migrate',
   'RAILWAY_HEALTHCHECK_URL',
   'RENDER_HEALTHCHECK_URL',
@@ -41,5 +47,8 @@ if (packageJson.scripts['railway:migrate'] !== 'npm run production:migrate') {
 }
 if (!/^\s*autoDeployTrigger:\s*off\s*$/m.test(renderBlueprint)) {
   throw new Error('Render auto deploy must be disabled in the Blueprint');
+}
+if (!renderBlueprint.includes('npm run build && npm run build:frontend')) {
+  throw new Error('Render must build frontend assets');
 }
 console.log('Production deployment workflow contract verified');
