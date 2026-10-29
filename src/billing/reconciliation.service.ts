@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { PaymentsService } from './payments.service';
+import { SubscriptionsService } from './subscriptions.service';
 
 @Injectable()
 export class ReconciliationService {
@@ -12,6 +13,7 @@ export class ReconciliationService {
     private readonly tenantContext: TenantContextService,
     private readonly gateways: PaymentGatewayRegistry,
     private readonly payments: PaymentsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async sync(
@@ -78,6 +80,11 @@ export class ReconciliationService {
     };
     for (const checkout of checkouts) {
       try {
+        // Re-read authoritative subscription terms before looking for renewal
+        // payments, including when a subscription webhook was never delivered.
+        if (checkout.gatewayCheckoutId) {
+          await this.subscriptions.confirmPlanChangeFromWebhook(checkout.provider, checkout.gatewayCheckoutId);
+        }
         const results = await this.gateways
           .get(checkout.provider)
           .findPayments(checkout.externalReference);

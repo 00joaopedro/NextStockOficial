@@ -1,0 +1,53 @@
+import { PlanInterval, SubscriptionStatus } from '@prisma/client';
+import { PaymentsService } from './payments.service';
+import { ReconciliationService } from './reconciliation.service';
+import { SubscriptionsService } from './subscriptions.service';
+
+describe('plan change recovery', () => {
+  it('confirms provider terms after an update without waiting for a webhook', async () => {
+    const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
+    const prisma = {
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', tenantId: 'tenant', planId: 'old', gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active, cancelAtPeriodEnd: false }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'ouro', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }) },
+    };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
+    const confirm = jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockResolvedValue(true);
+    await service.requestPlanChange('tenant', 'ouro', 'request-1');
+    expect(gateway.updateSubscriptionForNextRenewal).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith('MERCADO_PAGO', 'remote');
+  });
+
+  it('does not repeat an update if confirming provider terms fails', async () => {
+    const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
+    const prisma = {
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'ouro', priceCents: 100, currency: 'BRL', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }), updateMany: jest.fn() },
+    };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
+    jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockRejectedValue(new Error('timeout'));
+    expect(await service.requestPlanChange('tenant', 'ouro', 'key')).toMatchObject({ pending: true });
+    expect(gateway.updateSubscriptionForNextRenewal).toHaveBeenCalledTimes(1);
+    expect(prisma.billingSubscriptionOperation.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('reconciles terms before looking for payments', async () => {
+    const calls: string[] = [];
+    const prisma = { checkoutSession: { findMany: jest.fn().mockResolvedValue([{ id: 'checkout', provider: 'MERCADO_PAGO', gatewayCheckoutId: 'remote', externalReference: 'ref' }]), update: jest.fn() } };
+    const subscriptions = { confirmPlanChangeFromWebhook: jest.fn(async () => { calls.push('terms'); return true; }) };
+    const gateways = { get: () => ({ findPayments: async () => { calls.push('payments'); return []; } }) };
+    const service = new ReconciliationService(prisma as any, {} as any, gateways as any, {} as any, subscriptions as any);
+    await service.reconcilePendingBatch();
+    expect(calls).toEqual(['terms', 'payments']);
+  });
+
+  it('uses the full interval and clamps month-end dates', () => {
+    const service = new PaymentsService({} as any, {} as any);
+    expect((service as any).periodEnd(new Date('2026-01-31T12:00:00Z'), PlanInterval.MONTHLY, 1).toISOString()).toBe('2026-02-28T12:00:00.000Z');
+    expect((service as any).periodEnd(new Date('2026-01-31T12:00:00Z'), PlanInterval.MONTHLY, 3).toISOString()).toBe('2026-04-30T12:00:00.000Z');
+    expect((service as any).periodEnd(new Date('2024-02-29T12:00:00Z'), PlanInterval.YEARLY, 1).toISOString()).toBe('2025-02-28T12:00:00.000Z');
+  });
+});

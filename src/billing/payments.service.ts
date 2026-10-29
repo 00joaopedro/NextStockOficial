@@ -1259,7 +1259,7 @@ export class PaymentsService {
 
       const periodStart =
         result.paidAt ?? result.providerOccurredAt ?? new Date();
-      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval);
+      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval, checkout.plan.intervalCount);
       if (
         status === BillingPaymentStatus.APPROVED &&
         !preserveCanceledSubscription &&
@@ -1624,12 +1624,16 @@ export class PaymentsService {
     );
   }
 
-  private periodEnd(start: Date, interval: PlanInterval) {
+  private periodEnd(start: Date, interval: PlanInterval, intervalCount = 1) {
     if (interval === PlanInterval.LIFETIME) return null;
+    if (!Number.isInteger(intervalCount) || intervalCount < 1) throw new ConflictException('Período do plano inválido.');
     const end = new Date(start);
-    if (interval === PlanInterval.YEARLY)
-      end.setUTCFullYear(end.getUTCFullYear() + 1);
-    else end.setUTCMonth(end.getUTCMonth() + 1);
+    const months = intervalCount * (interval === PlanInterval.YEARLY ? 12 : 1);
+    const day = end.getUTCDate();
+    end.setUTCDate(1);
+    end.setUTCMonth(end.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+    end.setUTCDate(Math.min(day, lastDay));
     return end;
   }
 

@@ -112,3 +112,16 @@ assinatura de `perfil.html`.
 O pagamento deve ser iniciado pelo botão do NextStock, não pelo link público do
 Mercado Pago, para que a `external_reference` identifique o tenant. Após o
 teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false`.
+
+## Mudanças de plano: validação pendente
+
+A mudança é planejada para a próxima renovação. Após atualizar a assinatura,
+consulta-se os termos do provedor; o lote de reconciliação também tenta confirmar
+operações desconhecidas antes de processar pagamentos. O lote só é automático se
+estiver agendado no ambiente. A migração que limita alterações simultâneas falha
+se já houver alterações pendentes conflitantes; concilie-as antes de aplicá-la.
+
+Esta alteração não valida automaticamente mudanças de período promocional,
+webhooks atrasados de cobranças antigas ou conflito com cancelamento concorrente.
+A política de limites no downgrade e o comportamento real do Mercado Pago precisam
+ser definidos e verificados antes de habilitar a funcionalidade para clientes.
