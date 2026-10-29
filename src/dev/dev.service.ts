@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DevUsageCalculatorService } from './dev-usage-calculator.service';
 import { RailwayMetricsService } from './railway-metrics.service';
+import { RenderMetricsService } from './render-metrics.service';
 import { ResourceSnapshotsService } from './resource-snapshots.service';
 import { SupabaseMetricsService } from './supabase-metrics.service';
 import type { DevPeriod } from './dto/dev-query.dto';
@@ -37,6 +38,7 @@ export class DevService {
     private readonly supabaseMetrics: SupabaseMetricsService,
     @Optional() private readonly usageCalculator?: DevUsageCalculatorService,
     @Optional() private readonly resourceSnapshots?: ResourceSnapshotsService,
+    @Optional() private readonly renderMetrics?: RenderMetricsService,
   ) {}
 
   calculatePeriod(period: DevPeriod = 'day') {
@@ -118,7 +120,7 @@ export class DevService {
     }
 
     const eventRows = (await this.safeUserUsageGroupBy({
-      by: ['userId', 'tenantId', 'branchId', 'systemType'],
+      by: ['userId', 'tenantId', 'branchId', 'systemType', 'provider'],
       where: {
         createdAt: where.createdAt,
       },
@@ -138,6 +140,11 @@ export class DevService {
       (total, event) => total + (event._sum?.weight || event._count?._all || 0),
       0,
     );
+    const providerWeights = { railway: 0, render: 0, unknown: 0 };
+    for (const event of eventRows) {
+      const provider = event.provider === 'railway' || event.provider === 'render' ? event.provider : 'unknown';
+      providerWeights[provider] += event._sum?.weight || event._count?._all || 0;
+    }
     const totalEvents = eventRows.reduce(
       (total, event) => total + (event._count?._all || 0),
       0,
@@ -152,6 +159,13 @@ export class DevService {
     const globalUsage = await this.getGlobalUsage(range.start, range.end, railway, supabase);
     const railwayCostCents = this.getPeriodCostCents('railway', range.start, range.end);
     const supabaseCostCents = this.getPeriodCostCents('supabase', range.start, range.end);
+    const render = this.renderMetrics?.hasUsageConfigurationIntent()
+      ? await this.renderMetrics.getServiceUsage(range.start.toISOString(), range.end.toISOString())
+      : null;
+    // Unknown origin makes allocating a provider bill unsafe; do not silently
+    // shift historical or unidentified activity onto the identified providers.
+    const canAllocate = providerWeights.unknown === 0;
+
 
     return {
       period: range.period,
@@ -168,6 +182,8 @@ export class DevService {
       totals: {
         totalEvents,
         totalWeight,
+        providerWeights,
+        renderAvailable: Boolean(render?.available),
         railwayGlobalUsage: globalUsage.railway,
         supabaseGlobalUsage: globalUsage.supabase,
       },
@@ -183,6 +199,12 @@ export class DevService {
           railwayCostCents,
           supabaseCostCents,
         });
+        const origin = event?.provider === 'railway' || event?.provider === 'render' ? event.provider : 'unknown';
+        const denominator = origin === 'unknown' ? 0 : providerWeights[origin];
+        const providerCost = origin === 'railway' ? railwayCostCents : origin === 'render' ? render?.costCents : null;
+        const providerEstimate = canAllocate && denominator > 0 && providerCost != null &&
+          (origin !== 'render' || render?.available)
+          ? Math.round(providerCost * eventWeight / denominator) : null;
         const membership = profile.memberships[0];
         const branchName =
           event?.branchId
@@ -191,7 +213,7 @@ export class DevService {
 
         return {
           id: event
-            ? [profile.id, event.tenantId || 'no-tenant', event.branchId || 'no-branch', event.systemType || 'no-system'].join(':')
+            ? [profile.id, event.tenantId || 'no-tenant', event.branchId || 'no-branch', event.systemType || 'no-system', event.provider || 'unknown'].join(':')
             : profile.id,
           userId: profile.id,
           name: profile.name || profile.fullName || '',
@@ -203,12 +225,15 @@ export class DevService {
           tenantName: membership?.tenant?.name || '',
           accessCount: event?._count?._all || 0,
           eventWeight,
+          provider: event?.provider || 'unknown',
           dbReadCount: event?._sum?.dbReadCount || 0,
           dbWriteCount: event?._sum?.dbWriteCount || 0,
           lastAccessAt: event?._max?.createdAt?.toISOString?.() || null,
-          serverUsage: estimate.railway,
+          serverUsage: { units: null, costCents: origin === 'railway' ? providerEstimate : null },
+          renderUsage: { costCents: origin === 'render' ? providerEstimate : null },
           databaseUsage: estimate.supabase,
-          estimatedCostCents: estimate.estimatedCostCents,
+          estimatedCostCents: providerEstimate == null || estimate.supabase.costCents == null
+            ? null : providerEstimate + estimate.supabase.costCents,
           usageSharePercent: estimate.sharePercent,
           period: range.period,
           isEstimated: true,
@@ -219,11 +244,20 @@ export class DevService {
   }
 
   async getHealth() {
+    const present = (name: string) => Boolean(process.env[name]?.trim());
+    const missing = (names: string[]) => names.filter((name) => !present(name));
     return {
       ok: true,
       railwayConfigured: this.railwayMetrics.isConfigured(),
       supabaseConfigured: this.supabaseMetrics.isConfigured(),
       databaseConnected: await this.supabaseMetrics.isDatabaseConnected(),
+      usageConfiguration: {
+        railwayMissing: missing(['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_WORKSPACE_ID', 'RAILWAY_USAGE_BRL_PER_USD']).concat(
+          present('RAILWAY_USAGE_SERVICE_IDS') || present('RAILWAY_SERVICE_ID') ? [] : ['RAILWAY_USAGE_SERVICE_IDS ou RAILWAY_SERVICE_ID'],
+        ),
+        renderMissing: missing(['RENDER_API_KEY', 'RENDER_USAGE_SERVICE_IDS', 'RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE']),
+        note: 'A presença não confirma permissões, valores ou acesso à API.',
+      },
     };
   }
 

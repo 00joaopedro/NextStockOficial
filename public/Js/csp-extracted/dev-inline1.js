@@ -17,6 +17,7 @@
 
     const els = {
       statusBox: document.getElementById('statusBox'),
+      usageConfiguration: document.getElementById('usageConfiguration'),
       sidebarPages: document.getElementById('sidebarPages'),
       pageGrid: document.getElementById('pageGrid'),
       logoutBtn: document.getElementById('logoutBtn'),
@@ -227,7 +228,7 @@
 
     function formatUsageEstimate(value) {
       if (!value || typeof value !== 'object') {
-        return '0 unidades estimadas';
+        return 'Indisponível';
       }
 
       const units = Number(value.units || 0).toLocaleString('pt-BR', {
@@ -279,7 +280,9 @@
           <td>${escapeHtml(user.accessCount || 0)}</td>
           <td>${escapeHtml(user.eventWeight || 0)}</td>
           <td>${escapeHtml(formatDate(user.lastAccessAt))}</td>
-          <td>${escapeHtml(formatUsageEstimate(user.serverUsage))}</td>
+          <td>${escapeHtml(({ railway: 'Railway', render: 'Render', unknown: 'Desconhecida' })[user.provider] || 'Desconhecida')}</td>
+          <td>${escapeHtml(formatMoneyCents(user.serverUsage?.costCents))}</td>
+          <td>${escapeHtml(formatMoneyCents(user.renderUsage?.costCents))}</td>
           <td>${escapeHtml(formatUsageEstimate(user.databaseUsage))}</td>
           <td>${escapeHtml(formatMoneyCents(user.estimatedCostCents))}</td>
           <td>${escapeHtml(periodLabel)}</td>
@@ -307,7 +310,7 @@
       const data = await requestJson(`/dev/users-usage?${params.toString()}`);
 
       renderUsersUsage(data.users || [], getPeriodLabel(period));
-      setStatus('Uso estimado carregado. Valores calculados por atividade interna ponderada.');
+      setStatus('Uso estimado carregado. A coleta é parcial; dados ausentes não significam consumo zero.');
     }
 
     function recordDevPageView() {
@@ -322,7 +325,13 @@
 
     async function loadDevMode() {
       try {
-        await requestJson('/dev/health');
+        const health = await requestJson('/dev/health');
+        const config = health.usageConfiguration;
+        if (config && els.usageConfiguration) {
+          const railway = config.railwayMissing.length ? config.railwayMissing.join(', ') : 'nenhuma variável ausente';
+          const render = config.renderMissing.length ? config.renderMissing.join(', ') : 'nenhuma variável ausente';
+          els.usageConfiguration.textContent = `Configuração neste servidor — Railway: ${railway}; Render: ${render}. A presença não confirma valores ou permissões.`;
+        }
         document.body.classList.remove('dev-access-pending', 'dev-access-denied');
         recordDevPageView();
         renderPages(PUBLIC_PAGES);

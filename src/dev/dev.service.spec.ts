@@ -143,11 +143,57 @@ describe('DevService', () => {
           id: 'user-1',
           accessCount: 0,
           eventWeight: 0,
-          serverUsage: { units: 0 },
+          serverUsage: { units: null },
           databaseUsage: { units: 0 },
         },
       ],
     });
+  });
+
+
+  it('não atribui custos quando há eventos de origem desconhecida', async () => {
+    prisma.userUsageEvent.groupBy.mockResolvedValue([
+      { userId: 'u1', provider: 'railway', _sum: { weight: 2 }, _count: { _all: 1 } },
+      { userId: 'u1', provider: null, _sum: { weight: 1 }, _count: { _all: 1 } },
+    ]);
+    prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }]);
+    prisma.userProfile.count.mockResolvedValue(1);
+    railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    const result = await service.getUsersUsage('today');
+    expect(result.totals.providerWeights).toEqual({ railway: 2, render: 0, unknown: 1 });
+    expect(result.users.map((user) => user.provider)).toEqual(['railway', 'unknown']);
+    expect(result.users[0].serverUsage.costCents).toBeNull();
+  });
+
+  it('rateia custo Render somente entre eventos da Render', async () => {
+    const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true),
+      getServiceUsage: jest.fn().mockResolvedValue({ available: true, costCents: 1200 }) };
+    service = new DevService(prisma, railwayMetrics, supabaseMetrics, undefined, undefined, render as any);
+    prisma.userUsageEvent.groupBy.mockResolvedValue([
+      { userId: 'u1', provider: 'render', _sum: { weight: 1 }, _count: { _all: 1 } },
+      { userId: 'u2', provider: 'render', _sum: { weight: 3 }, _count: { _all: 1 } },
+      { userId: 'u3', provider: 'railway', _sum: { weight: 20 }, _count: { _all: 1 } },
+    ]);
+    prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }, { id: 'u2', memberships: [] }]);
+    prisma.userProfile.count.mockResolvedValue(2);
+    railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    const result = await service.getUsersUsage('today');
+    expect(result.users.map((user) => user.renderUsage.costCents)).toEqual([300, 900]);
+  });
+
+  it('mantém custo Render indisponível quando a API falha', async () => {
+    const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true),
+      getServiceUsage: jest.fn().mockResolvedValue({ available: false, costCents: null }) };
+    service = new DevService(prisma, railwayMetrics, supabaseMetrics, undefined, undefined, render as any);
+    prisma.userUsageEvent.groupBy.mockResolvedValue([{ userId: 'u1', provider: 'render', _sum: { weight: 1 }, _count: { _all: 1 } }]);
+    prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }]);
+    prisma.userProfile.count.mockResolvedValue(1);
+    railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+    const result = await service.getUsersUsage('today');
+    expect(result.users[0].renderUsage.costCents).toBeNull();
   });
 
   it('aceita aliases de periodo day/week/month e today/weekly/monthly', () => {

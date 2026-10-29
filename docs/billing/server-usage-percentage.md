@@ -55,3 +55,21 @@ tenant. Não é uma medida física isolada de CPU/RAM.
 
 Sem configuração válida, acesso à Railway, cotação ou eventos suficientes, a
 API responde como indisponível. A página não converte isso em 0%.
+
+## Origem e painel Dev
+
+Eventos novos registram a origem a partir das variáveis de instância fornecidas
+pelo provedor. Eventos antigos e ambientes cuja origem não possa ser identificada
+permanecem como desconhecidos; não há backfill especulativo. O painel Dev exibe
+uma linha por usuário, contexto e origem. A coleta cobre somente os eventos já
+instrumentados, portanto as estimativas não são medição completa ou cobrança.
+
+Para a Railway, o painel Dev continua usando `DEV_RAILWAY_MONTHLY_COST_CENTS`
+como base manual por período, enquanto a Render usa a configuração documentada
+acima. Nenhum valor é inferido quando existem eventos sem origem no período ou
+quando a fonte de custo não está disponível. `GET /api/dev/health`, restrito ao
+Dev SuperAdmin, informa nomes de variáveis ausentes no servidor que responde à
+requisição; não revela valores e não valida credenciais. A configuração deve
+ser conferida separadamente nos dois serviços. A atualização não cria coleta
+contínua das métricas da Render, portanto períodos fora da retenção continuarão
+indisponíveis. Não use estas estimativas como base de cobrança.
