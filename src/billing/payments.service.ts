@@ -1171,6 +1171,12 @@ export class PaymentsService {
         checkout = { ...checkout, planId: existing.planId, plan: recordedPlan };
       }
       if (!checkout.subscription) return { processed: false, reason: 'SUBSCRIPTION_NOT_FOUND' } as const;
+      // An unrecorded payment from the already-paid period must not be used
+      // to activate a pending plan simply because its amount happens to match.
+      if (!existing && checkout.subscription.planId && checkout.planId !== checkout.subscription.planId &&
+          (!result.paidAt || !checkout.subscription.currentPeriodEndsAt || result.paidAt < checkout.subscription.currentPeriodEndsAt)) {
+        throw new ConflictException('Pagamento anterior à renovação requer reconciliação antes de alterar o plano.');
+      }
       // Lifecycle ordering is per gateway payment, not per subscription:
       // a new charge can be approved after an older charge was refunded.
       const currentState = existing?.status ?? null;

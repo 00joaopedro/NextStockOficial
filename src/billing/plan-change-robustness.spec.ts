@@ -47,6 +47,7 @@ describe('plan change recovery', () => {
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
       checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }) },
+      $transaction: jest.fn((fn) => fn({ subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, billingSubscriptionOperation: { create: jest.fn().mockResolvedValue({ id: 'op' }) } })),
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
     const confirm = jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockResolvedValue(true);
@@ -63,6 +64,7 @@ describe('plan change recovery', () => {
       billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
       checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
       billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null), create: jest.fn().mockResolvedValue({ id: 'op' }), updateMany: jest.fn() },
+      $transaction: jest.fn((fn) => fn({ subscription: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) }, billingSubscriptionOperation: { create: jest.fn().mockResolvedValue({ id: 'op' }) } })),
     };
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
     jest.spyOn(service, 'confirmPlanChangeFromWebhook').mockRejectedValue(new Error('timeout'));
@@ -80,6 +82,23 @@ describe('plan change recovery', () => {
     const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
     expect(await service.confirmPlanChangeFromWebhook('MERCADO_PAGO', 'remote')).toBe(false);
     expect(tx.checkoutSession.update).not.toHaveBeenCalled();
+  });
+
+  it('does not update the gateway if subscription changed during the request', async () => {
+    const create = jest.fn();
+    const gateway = { updateSubscriptionForNextRenewal: jest.fn() };
+    const prisma = {
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', tenantId: 'tenant', version: 1, planId: 'old', plan: { slug: 'ouro' }, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote', status: SubscriptionStatus.active }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
+      billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn((fn) => fn({ subscription: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) }, billingSubscriptionOperation: { create } })),
+    };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => gateway } as any);
+    await expect(service.requestPlanChange('tenant', 'esmeralda', 'key')).rejects.toThrow('assinatura foi alterada');
+    expect(create).not.toHaveBeenCalled();
+    expect(gateway.updateSubscriptionForNextRenewal).not.toHaveBeenCalled();
   });
 
   it('reconciles terms before looking for payments', async () => {
@@ -123,6 +142,16 @@ describe('plan change recovery', () => {
     const result = await (service as any).applyWithCas('MERCADO_PAGO', { externalReference: 'ref', gatewayPaymentId: 'p', amountCents: 100, currency: 'BRL', normalizedStatus: 'APPROVED', providerOccurredAt: new Date('2026-01-01T00:00:00Z') }, 'test', tx);
     expect(result).toMatchObject({ processed: true, applied: false });
     expect(tx.plan.findUnique).toHaveBeenCalledWith({ where: { id: 'old' } });
+    expect(tx.subscription.updateMany).not.toHaveBeenCalled();
+  });
+  it('does not activate a new plan with an unrecorded charge from before the renewal', async () => {
+    const tx = {
+      checkoutSession: { findUnique: jest.fn().mockResolvedValue({ id: 'checkout', tenantId: 'tenant', planId: 'new', expectedAmountCents: 100, currency: 'BRL', provider: 'MERCADO_PAGO', plan: { id: 'new' }, subscription: { id: 'sub', planId: 'old', status: 'active', currentPeriodEndsAt: new Date('2026-02-01T00:00:00Z') } }) },
+      billingPayment: { findFirst: jest.fn().mockResolvedValue(null) },
+      subscription: { updateMany: jest.fn() },
+    };
+    const service = new PaymentsService({} as any, { create: jest.fn() } as any);
+    await expect((service as any).applyWithCas('MERCADO_PAGO', { externalReference: 'ref', gatewayPaymentId: 'p', amountCents: 100, currency: 'BRL', normalizedStatus: 'APPROVED', paidAt: new Date('2026-01-15T00:00:00Z') }, 'test', tx)).rejects.toThrow('anterior à renovação');
     expect(tx.subscription.updateMany).not.toHaveBeenCalled();
   });
 });

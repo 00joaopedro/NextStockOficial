@@ -524,7 +524,14 @@ export class SubscriptionsService {
     // response can then be retained and reconciled rather than discarded.
     let operation: { id: string };
     try {
-      operation = await this.prisma.billingSubscriptionOperation.create({ data: { tenantId, subscriptionId: subscription.id, targetPlanId: target.id, provider: subscription.gatewayProvider, operation: operationName, claimToken: null, leaseExpiresAt: new Date(), state: BillingSubscriptionOperationState.UNKNOWN } });
+      operation = await this.prisma.$transaction(async (tx) => {
+        const claim = await tx.subscription.updateMany({
+          where: { id: subscription.id, tenantId, version: subscription.version, status: SubscriptionStatus.active, cancelAtPeriodEnd: false, gatewayProvider: subscription.gatewayProvider, gatewaySubscriptionId: subscription.gatewaySubscriptionId },
+          data: { version: { increment: 1 } },
+        });
+        if (claim.count !== 1) throw new ConflictException('A assinatura foi alterada durante a solicitação. Atualize a página.');
+        return tx.billingSubscriptionOperation.create({ data: { tenantId, subscriptionId: subscription.id, targetPlanId: target.id, provider: subscription.gatewayProvider!, operation: operationName, claimToken: null, leaseExpiresAt: new Date(), state: BillingSubscriptionOperationState.UNKNOWN } });
+      });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new ConflictException('Já existe uma mudança de plano aguardando confirmação.');
