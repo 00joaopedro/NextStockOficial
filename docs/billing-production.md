@@ -24,9 +24,10 @@ compartilhados não ativam assinaturas.
 4. Provider, recebedor, ambiente, referência, valor e moeda são verificados.
 5. Fatura, pagamento, assinatura e auditoria são atualizados em transação
    idempotente.
-6. `npm run billing:reconcile` consulta novamente checkouts abertos para cobrir
-   webhooks atrasados ou perdidos. Agende o comando a cada 5-15 minutos em um
-   Railway Cron separado do processo web.
+6. A reconciliação automática consulta novamente checkouts em lotes para cobrir
+   webhooks atrasados ou perdidos. O processo de API em produção a executa a
+   cada 15 minutos quando existe `MERCADO_PAGO_ACCESS_TOKEN`. Um lease no banco
+   limita concorrência entre instâncias; a execução precisa ser validada após o deploy.
 
 ## Provisionamento no Mercado Pago
 
@@ -68,7 +69,7 @@ O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamento
 3. Executar o seed controlado para gravar os mapeamentos em `gateway_plan_mappings`.
 4. Usar o painel `/promocao-admin.html` para conferir as seis ofertas, abrir a campanha e validar a configuração; depois habilitar webhook e checkout em staging/sandbox e validar pagamento,
    reenvio de webhook, reconciliação, reembolso e chargeback.
-5. Agendar `npm run billing:reconcile`.
+5. Confirmar, após o deploy, a execução automática da reconciliação nos logs e no banco.
 6. Auditar subscriptions, invoices, payments e events.
 7. Somente então definir `BILLING_ENFORCEMENT_ENABLED=true` em produção.
 
@@ -117,8 +118,7 @@ teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false`.
 
 A mudança é planejada para a próxima renovação. Após atualizar a assinatura,
 consulta-se os termos do provedor; o lote de reconciliação também tenta confirmar
-operações desconhecidas antes de processar pagamentos. O lote só é automático se
-estiver agendado no ambiente. A migração que limita alterações simultâneas falha
+operações desconhecidas antes de processar pagamentos. O lote é chamado periodicamente pelo processo de API em produção, sujeito à disponibilidade do serviço e do banco. A migração que limita alterações simultâneas falha
 se já houver alterações pendentes conflitantes; concilie-as antes de aplicá-la.
 
 Esta alteração não valida automaticamente mudanças de período promocional,
