@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenancy/tenant-context.service';
 import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { PaymentsService } from './payments.service';
+import { SubscriptionsService } from './subscriptions.service';
 
 @Injectable()
 export class ReconciliationService {
@@ -12,6 +13,7 @@ export class ReconciliationService {
     private readonly tenantContext: TenantContextService,
     private readonly gateways: PaymentGatewayRegistry,
     private readonly payments: PaymentsService,
+    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   async sync(
@@ -77,7 +79,19 @@ export class ReconciliationService {
       failed: 0,
     };
     for (const checkout of checkouts) {
+      let checkoutFailed = false;
       try {
+        // Re-read authoritative subscription terms before looking for renewal
+        // payments, including when a subscription webhook was never delivered.
+        if (checkout.gatewayCheckoutId) {
+          try {
+            await this.subscriptions.confirmPlanChangeFromWebhook(checkout.provider, checkout.gatewayCheckoutId);
+          } catch {
+            // Subscription terms and payments are independent provider reads.
+            // Still reconcile payments and report the incomplete checkout.
+            checkoutFailed = true;
+          }
+        }
         const results = await this.gateways
           .get(checkout.provider)
           .findPayments(checkout.externalReference);
@@ -93,12 +107,18 @@ export class ReconciliationService {
           if (processed.processed) summary.processed += 1;
         }
       } catch {
-        summary.failed += 1;
+        checkoutFailed = true;
       } finally {
-        await this.prisma.checkoutSession.update({
-          where: { id: checkout.id },
-          data: { lastReconciledAt: new Date() },
-        });
+        if (checkoutFailed) summary.failed += 1;
+        try {
+          await this.prisma.checkoutSession.update({
+            where: { id: checkout.id },
+            data: { lastReconciledAt: new Date() },
+          });
+        } catch {
+          // A single failed bookkeeping write must not skip other checkouts.
+          if (!checkoutFailed) summary.failed += 1;
+        }
       }
     }
     return summary;

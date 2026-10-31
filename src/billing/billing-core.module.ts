@@ -10,6 +10,7 @@ import { PaymentGatewayRegistry } from './gateways/payment-gateway.registry';
 import { PaymentsService } from './payments.service';
 import { PlansService } from './plans.service';
 import { ReconciliationService } from './reconciliation.service';
+import { ReconciliationSchedulerService } from './reconciliation-scheduler.service';
 import { SubscriptionsService } from './subscriptions.service';
 import { ServerUsageService } from './server-usage.service';
 import { WebhookService } from './webhook.service';
@@ -26,6 +27,7 @@ import { WebhookService } from './webhook.service';
     PaymentsService,
     PlansService,
     ReconciliationService,
+    ReconciliationSchedulerService,
     SubscriptionsService,
     ServerUsageService,
     WebhookService,

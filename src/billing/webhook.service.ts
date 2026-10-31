@@ -100,9 +100,14 @@ export class WebhookService {
     // through /v1/payments/:id. Subscription state alone must never activate
     // a NextStock subscription.
     if (this.isMercadoPagoSubscriptionEvent(eventType)) {
-      const confirmed = await this.subscriptions.confirmPlanChangeFromWebhook(provider, resourceId);
-      await this.finish(claim, confirmed ? Status.PROCESSED : Status.IGNORED, confirmed ? '' : 'NO_PENDING_PLAN_CHANGE');
-      return { received: true, processed: confirmed };
+      try {
+        const confirmed = await this.subscriptions.confirmPlanChangeFromWebhook(provider, resourceId);
+        await this.finish(claim, confirmed ? Status.PROCESSED : Status.IGNORED, confirmed ? '' : 'NO_PENDING_PLAN_CHANGE');
+        return { received: true, processed: confirmed };
+      } catch (error) {
+        await this.finish(claim, Status.FAILED_RETRYABLE, `PROVIDER_${this.safeErrorCode(error)}`);
+        throw error;
+      }
     }
     if (!this.isMercadoPagoPaymentEvent(eventType)) {
       await this.finish(claim, Status.IGNORED, 'NON_PAYMENT_EVENT');

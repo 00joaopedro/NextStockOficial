@@ -1135,7 +1135,7 @@ export class PaymentsService {
     transaction?: Prisma.TransactionClient,
   ) {
     const apply = async (tx: Prisma.TransactionClient) => {
-      const checkout = await tx.checkoutSession.findUnique({
+      let checkout = await tx.checkoutSession.findUnique({
         where: { externalReference: result.externalReference! },
         include: { plan: true, subscription: true },
       });
@@ -1143,14 +1143,6 @@ export class PaymentsService {
         return { processed: false, reason: 'CHECKOUT_NOT_FOUND' } as const;
       if (!checkout.subscription)
         return { processed: false, reason: 'SUBSCRIPTION_NOT_FOUND' } as const;
-      if (
-        result.amountCents !== checkout.expectedAmountCents ||
-        result.currency !== checkout.currency
-      )
-        throw new ConflictException(
-          'Pagamento diverge do valor ou moeda esperados.',
-        );
-
       const status = BillingPaymentStatus[result.normalizedStatus];
       const preserveCanceledSubscription =
         status === BillingPaymentStatus.APPROVED &&
@@ -1165,6 +1157,25 @@ export class PaymentsService {
       });
       if (existing && existing.checkoutSessionId !== checkout.id) {
         throw new ConflictException('Pagamento vinculado a outro checkout.');
+      }
+      // A checkout may already contain the next renewal's terms. Previously
+      // recorded payments retain their own immutable amount, currency and plan.
+      const expectedAmount = existing?.amountCents ?? checkout.expectedAmountCents;
+      const expectedCurrency = existing?.currency ?? checkout.currency;
+      if (result.amountCents !== expectedAmount || result.currency !== expectedCurrency)
+        throw new ConflictException('Pagamento diverge do valor ou moeda esperados.');
+      const recordedPlanDiffers = Boolean(existing && existing.planId !== checkout.planId);
+      if (existing && recordedPlanDiffers) {
+        const recordedPlan = await tx.plan.findUnique({ where: { id: existing.planId } });
+        if (!recordedPlan) throw new ConflictException('Plano do pagamento anterior não encontrado.');
+        checkout = { ...checkout, planId: existing.planId, plan: recordedPlan };
+      }
+      if (!checkout.subscription) return { processed: false, reason: 'SUBSCRIPTION_NOT_FOUND' } as const;
+      // An unrecorded payment from the already-paid period must not be used
+      // to activate a pending plan simply because its amount happens to match.
+      if (!existing && checkout.subscription.planId && checkout.planId !== checkout.subscription.planId &&
+          (!result.paidAt || !checkout.subscription.currentPeriodEndsAt || result.paidAt < checkout.subscription.currentPeriodEndsAt)) {
+        throw new ConflictException('Pagamento anterior à renovação requer reconciliação antes de alterar o plano.');
       }
       // Lifecycle ordering is per gateway payment, not per subscription:
       // a new charge can be approved after an older charge was refunded.
@@ -1195,7 +1206,8 @@ export class PaymentsService {
         Boolean(checkout.subscription.lastPaymentAt) &&
         !paymentPeriodStart;
       const protectCurrentSubscription =
-        supersededCheckout || supersededPeriod || ambiguousReversal;
+        supersededCheckout || supersededPeriod || ambiguousReversal ||
+        Boolean(recordedPlanDiffers && checkout.subscription.planId !== existing?.planId);
       if (!decision.apply) {
         // Replays and stale provider events never mutate the payment ledger.
         // Keep a dedicated reconciliation record for deterministic observability.
@@ -1259,7 +1271,7 @@ export class PaymentsService {
 
       const periodStart =
         result.paidAt ?? result.providerOccurredAt ?? new Date();
-      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval);
+      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval, checkout.plan.intervalCount);
       if (
         status === BillingPaymentStatus.APPROVED &&
         !preserveCanceledSubscription &&
@@ -1624,12 +1636,16 @@ export class PaymentsService {
     );
   }
 
-  private periodEnd(start: Date, interval: PlanInterval) {
+  private periodEnd(start: Date, interval: PlanInterval, intervalCount = 1) {
     if (interval === PlanInterval.LIFETIME) return null;
+    if (!Number.isInteger(intervalCount) || intervalCount < 1) throw new ConflictException('Período do plano inválido.');
     const end = new Date(start);
-    if (interval === PlanInterval.YEARLY)
-      end.setUTCFullYear(end.getUTCFullYear() + 1);
-    else end.setUTCMonth(end.getUTCMonth() + 1);
+    const months = intervalCount * (interval === PlanInterval.YEARLY ? 12 : 1);
+    const day = end.getUTCDate();
+    end.setUTCDate(1);
+    end.setUTCMonth(end.getUTCMonth() + months);
+    const lastDay = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() + 1, 0)).getUTCDate();
+    end.setUTCDate(Math.min(day, lastDay));
     return end;
   }
 

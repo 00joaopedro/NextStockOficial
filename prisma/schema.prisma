@@ -915,6 +915,14 @@ model BillingSubscriptionOperation {
   @@map("billing_subscription_operations")
 }
 
+model BillingReconciliationLease {
+  key       String   @id
+  token     String   @db.Uuid
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+
+  @@map("billing_reconciliation_lease")
+}
+
 model BillingInvoice {
   id                  String                 @id @default(uuid()) @db.Uuid
   tenantId            String                 @map("tenant_id") @db.Uuid

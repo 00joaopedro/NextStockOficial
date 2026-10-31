@@ -354,13 +354,13 @@ jobs:
           set -euo pipefail
           export PGPASSWORD=postgres
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE IF NOT EXISTS phase4_fixture (id integer PRIMARY KEY, value text NOT NULL); INSERT INTO phase4_fixture VALUES (1, 'synthetic') ON CONFLICT DO NOTHING;"
-          pg_dump --format=custom --no-owner --no-acl --file=phase4.dump "$DATABASE_URL"
+          docker exec -e PGPASSWORD=postgres ${{ job.services.source.id }} pg_dump --host=localhost --username=postgres --dbname=nextstock_source --format=custom --no-owner --no-acl > phase4.dump
           test -s phase4.dump
           sha256sum phase4.dump
           test "$(psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -tAc "SELECT COUNT(*) FROM pg_catalog.pg_class WHERE relkind IN ('r','p') AND relnamespace = 'public'::regnamespace")" -eq 0
-          pg_restore --no-owner --no-acl --exit-on-error --dbname="$CUTOVER_TARGET_ADMIN_DATABASE_URL" phase4.dump
+          docker exec -i -e PGPASSWORD=postgres ${{ job.services.target.id }} pg_restore --host=localhost --username=postgres --dbname=nextstock_target --no-owner --no-acl --exit-on-error < phase4.dump
           test "$(psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -tAc "SELECT COUNT(*) FROM phase4_fixture WHERE id=1 AND value='synthetic'")" -eq 1
           if psql "$CUTOVER_TARGET_ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE TABLE phase4_fixture_blocker (id integer);" >/dev/null; then
-            if pg_restore --no-owner --no-acl --exit-on-error --dbname="$CUTOVER_TARGET_ADMIN_DATABASE_URL" phase4.dump >/dev/null 2>&1; then exit 1; fi
+            if docker exec -i -e PGPASSWORD=postgres ${{ job.services.target.id }} pg_restore --host=localhost --username=postgres --dbname=nextstock_target --no-owner --no-acl --exit-on-error < phase4.dump >/dev/null 2>&1; then exit 1; fi
           fi
           rm -f phase4.dump
