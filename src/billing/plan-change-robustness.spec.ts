@@ -42,6 +42,20 @@ describe('plan change recovery', () => {
     await expect(service.requestPlanChange('tenant', 'esmeralda', 'key')).rejects.toThrow('plano promocional');
     expect(gateways.get).not.toHaveBeenCalled();
   });
+  it('does not claim an operation when the gateway cannot be resolved', async () => {
+    const transaction = jest.fn();
+    const prisma = {
+      subscription: { findFirst: jest.fn().mockResolvedValue({ id: 'sub', planId: 'old', plan: { slug: 'ouro' }, status: SubscriptionStatus.active, gatewayProvider: 'MERCADO_PAGO', gatewaySubscriptionId: 'remote' }) },
+      plan: { findFirst: jest.fn().mockResolvedValue({ id: 'new', slug: 'esmeralda', interval: PlanInterval.MONTHLY, intervalCount: 1 }) },
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ promotionReservation: null }) },
+      billingCheckoutIntent: { findFirst: jest.fn().mockResolvedValue(null) },
+      billingSubscriptionOperation: { findUnique: jest.fn().mockResolvedValue(null), findFirst: jest.fn().mockResolvedValue(null) },
+      $transaction: transaction,
+    };
+    const service = new SubscriptionsService(prisma as any, {} as any, {} as any, { get: () => { throw new Error('gateway unavailable'); } } as any);
+    await expect(service.requestPlanChange('tenant', 'esmeralda', 'key')).rejects.toThrow('gateway unavailable');
+    expect(transaction).not.toHaveBeenCalled();
+  });
   it('exposes the pending target and confirmation state to the tenant', async () => {
     const end = new Date('2027-01-01T00:00:00Z');
     const prisma = { billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue({ state: 'PROCESSING', targetPlan: { slug: 'ouro', name: 'Ouro', priceCents: 10000, currency: 'BRL' } }) } };
