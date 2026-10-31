@@ -57,6 +57,8 @@ pagamento. O retorno visual é
 
 ## Campanha promocional
 
+O limite de consumo é associado ao plano, não ao preço: Ouro e Esmeralda têm o mesmo limite nas modalidades promocional e normal. Para downgrade, o consumo do último ciclo completo do cliente deve ser estritamente inferior ao limite do plano de destino; igualdade bloqueia. A medição atual não comprova esse ciclo individual, portanto o downgrade permanece bloqueado. A troca de assinaturas promocionais também permanece bloqueada até a integração das condições, do preço e da confirmação de pagamento. Nenhuma mudança automática deve ser inferida a partir do alerta de consumo.
+
 A campanha `lancamento-2026` usa um catálogo server-side de seis ofertas. A reserva válida aplica trial de 1 dia; o fluxo normal continua com 7 dias. O checkout promocional só é liberado quando a reserva contém plano/período válidos e há mapeamento ativo do gateway. Nunca confie no preço enviado pelo navegador.
 
 O primeiro pagamento aprovado converte a reserva e contabiliza a vaga. Pagamentos pendentes ou rejeitados não convertem a vaga. Reembolso e chargeback suspendem a assinatura e permanecem registrados no ledger e na auditoria.
