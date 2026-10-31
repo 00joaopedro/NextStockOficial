@@ -65,6 +65,18 @@ describe('plan change recovery', () => {
     expect(result.pendingPlanChange).toMatchObject({ planSlug: 'ouro', priceCents: 10000, state: 'awaiting_payment', effectiveAt: end });
     expect(prisma.billingSubscriptionOperation.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ tenantId: 'tenant', subscriptionId: 'sub' }) }));
   });
+  it('tells the client when the active subscription uses a promotional checkout', async () => {
+    const prisma = {
+      checkoutSession: { findFirst: jest.fn().mockResolvedValue({ id: 'checkout' }) },
+      billingSubscriptionOperation: { findFirst: jest.fn().mockResolvedValue(null) },
+    };
+    const entitlement = { forTenant: jest.fn().mockResolvedValue({ allowed: true, reason: 'SUBSCRIPTION_ACTIVE', subscription: { id: 'sub', tenantId: 'tenant', gatewaySubscriptionId: 'remote' } }) };
+    const service = new SubscriptionsService(prisma as any, entitlement as any, {} as any);
+    await expect(service.getForTenant('tenant')).resolves.toMatchObject({ promotionalPlanChangeUnavailable: true });
+    expect(prisma.checkoutSession.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ tenantId: 'tenant', subscriptionId: 'sub', gatewayCheckoutId: 'remote', promotionReservation: { isNot: null } }),
+    }));
+  });
   it('confirms provider terms after an update without waiting for a webhook', async () => {
     const gateway = { updateSubscriptionForNextRenewal: jest.fn().mockResolvedValue(undefined) };
     const prisma = {
