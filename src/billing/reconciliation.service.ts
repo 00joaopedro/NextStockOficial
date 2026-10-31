@@ -110,10 +110,15 @@ export class ReconciliationService {
         checkoutFailed = true;
       } finally {
         if (checkoutFailed) summary.failed += 1;
-        await this.prisma.checkoutSession.update({
-          where: { id: checkout.id },
-          data: { lastReconciledAt: new Date() },
-        });
+        try {
+          await this.prisma.checkoutSession.update({
+            where: { id: checkout.id },
+            data: { lastReconciledAt: new Date() },
+          });
+        } catch {
+          // A single failed bookkeeping write must not skip other checkouts.
+          if (!checkoutFailed) summary.failed += 1;
+        }
       }
     }
     return summary;
