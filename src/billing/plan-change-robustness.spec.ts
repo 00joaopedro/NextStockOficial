@@ -5,6 +5,18 @@ import { SubscriptionsService } from './subscriptions.service';
 import { checkPlanChangeEligibility } from './plan-change-eligibility';
 
 describe('plan change recovery', () => {
+  it.each([
+    ['esmeralda', 'ouro', 2500],
+    ['diamante', 'ouro', 2500],
+    ['diamante', 'esmeralda', 5000],
+  ])('requires usage strictly below the %s to %s target limit', (currentSlug, targetSlug, limit) => {
+    const check = (lastCompleteCycleCostCents: number | null) =>
+      checkPlanChangeEligibility({ currentSlug, targetSlug, lastCompleteCycleCostCents });
+    expect(check(limit - 1)).toBe('ELIGIBLE');
+    expect(check(limit)).toBe('DOWNGRADE_LIMIT_EXCEEDED');
+    expect(check(limit + 1)).toBe('DOWNGRADE_LIMIT_EXCEEDED');
+    expect(check(null)).toBe('LAST_CYCLE_USAGE_UNAVAILABLE');
+  });
   it('allows downgrade only strictly below the target limit and with a complete cycle', () => {
     expect(checkPlanChangeEligibility({ currentSlug: 'esmeralda', targetSlug: 'ouro', lastCompleteCycleCostCents: 2499 })).toBe('ELIGIBLE');
     expect(checkPlanChangeEligibility({ currentSlug: 'esmeralda', targetSlug: 'ouro', lastCompleteCycleCostCents: 2500 })).toBe('DOWNGRADE_LIMIT_EXCEEDED');
