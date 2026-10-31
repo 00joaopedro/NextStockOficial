@@ -31,6 +31,17 @@ export class SubscriptionsService {
 
   async getForTenant(tenantId: string) {
     const entitlement = await this.entitlement.forTenant(tenantId);
+    const promotionalCheckout = entitlement.subscription?.gatewaySubscriptionId
+      ? await this.prisma.checkoutSession.findFirst({
+          where: {
+            tenantId,
+            subscriptionId: entitlement.subscription.id,
+            gatewayCheckoutId: entitlement.subscription.gatewaySubscriptionId,
+            promotionReservation: { isNot: null },
+          },
+          select: { id: true },
+        })
+      : null;
     const pending = entitlement.subscription
       ? await this.prisma.billingSubscriptionOperation.findFirst({
           where: {
@@ -45,6 +56,7 @@ export class SubscriptionsService {
       : null;
     return {
       subscription: this.format(entitlement.subscription),
+      promotionalPlanChangeUnavailable: Boolean(promotionalCheckout),
       pendingPlanChange: pending?.targetPlan ? {
         planName: pending.targetPlan.name,
         planSlug: pending.targetPlan.slug,
