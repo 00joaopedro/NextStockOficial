@@ -2,12 +2,17 @@ import { promotionChangeOptions } from './promotion-plan-change-policy';
 
 describe('promotion change selection', () => {
   const end = new Date('2027-05-01T12:00:00Z');
-  it('blocks during the current promotional commitment', () => {
+  const base = {
+    promotionalPeriodEndsAt: end,
+    currentPlan: 'ouro' as const,
+    esmeraldaUsageCents: null,
+    esmeraldaLimitCents: 5000,
+  };
+  it('blocks before the agreed promotional period ends', () => {
     expect(
       promotionChangeOptions({
-        promotionalPeriodEndsAt: end,
+        ...base,
         now: new Date('2027-05-01T11:59:59Z'),
-        esmeraldaPromotionAvailable: true,
       }),
     ).toMatchObject({
       available: false,
@@ -15,38 +20,41 @@ describe('promotion change selection', () => {
       options: [],
     });
   });
-  it('offers Esmeralda if capacity is verified at the end', () => {
-    expect(
-      promotionChangeOptions({
-        promotionalPeriodEndsAt: end,
-        now: end,
-        esmeraldaPromotionAvailable: true,
-      }),
-    ).toMatchObject({ available: true, options: ['esmeralda_promocional'] });
+  it('allows an existing promotional customer to select Esmeralda without checking campaign capacity', () => {
+    expect(promotionChangeOptions({ ...base, now: end })).toMatchObject({
+      available: true,
+      options: ['esmeralda_promocional'],
+    });
   });
-  it('presents Diamante as a choice when the promotional capacity is exhausted', () => {
+  it('offers normal Diamante when Esmeralda reaches the usage limit', () => {
     expect(
       promotionChangeOptions({
-        promotionalPeriodEndsAt: end,
+        ...base,
         now: end,
-        esmeraldaPromotionAvailable: false,
+        currentPlan: 'esmeralda',
+        esmeraldaUsageCents: 5000,
       }),
     ).toMatchObject({ available: true, options: ['diamante_normal'] });
-  });
-  it('fails closed for unknown end or capacity', () => {
     expect(
       promotionChangeOptions({
+        ...base,
+        now: end,
+        currentPlan: 'esmeralda',
+        esmeraldaUsageCents: 4999,
+      }).available,
+    ).toBe(false);
+  });
+  it('does not infer an unavailable period or usage', () => {
+    expect(
+      promotionChangeOptions({
+        ...base,
         promotionalPeriodEndsAt: null,
         now: end,
-        esmeraldaPromotionAvailable: true,
       }).available,
     ).toBe(false);
     expect(
-      promotionChangeOptions({
-        promotionalPeriodEndsAt: end,
-        now: end,
-        esmeraldaPromotionAvailable: null,
-      }).available,
-    ).toBe(false);
+      promotionChangeOptions({ ...base, now: end, currentPlan: 'esmeralda' })
+        .code,
+    ).toBe('USAGE_UNAVAILABLE');
   });
 });

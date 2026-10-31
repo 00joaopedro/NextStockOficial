@@ -91,7 +91,7 @@
     "bcryptjs": "^3.0.3",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.0",
-    "joi": "^18.2.9",
+    "joi": "^18.3.1",
     "jwks-rsa": "^4.0.1",
     "node-forge": "^1.4.1",
     "passport": "^0.7.0",
