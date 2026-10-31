@@ -1,4 +1,5 @@
 import { promotionChangeOptions } from './promotion-plan-change-policy';
+import { serverUsageLimitCents } from '../billing/server-usage-policy';
 
 describe('promotion change selection', () => {
   const end = new Date('2027-05-01T12:00:00Z');
@@ -6,7 +7,6 @@ describe('promotion change selection', () => {
     promotionalPeriodEndsAt: end,
     currentPlan: 'ouro' as const,
     esmeraldaUsageCents: null,
-    esmeraldaLimitCents: 5000,
   };
   it('blocks before the agreed promotional period ends', () => {
     expect(
@@ -27,12 +27,13 @@ describe('promotion change selection', () => {
     });
   });
   it('offers normal Diamante when Esmeralda reaches the usage limit', () => {
+    const limit = serverUsageLimitCents('esmeralda')!;
     expect(
       promotionChangeOptions({
         ...base,
         now: end,
         currentPlan: 'esmeralda',
-        esmeraldaUsageCents: 5000,
+        esmeraldaUsageCents: limit,
       }),
     ).toMatchObject({ available: true, options: ['diamante_normal'] });
     expect(
@@ -40,7 +41,7 @@ describe('promotion change selection', () => {
         ...base,
         now: end,
         currentPlan: 'esmeralda',
-        esmeraldaUsageCents: 4999,
+        esmeraldaUsageCents: limit - 1,
       }).available,
     ).toBe(false);
   });
