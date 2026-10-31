@@ -7,6 +7,11 @@ import {
 import { CheckoutService } from './checkout.service';
 
 describe('CheckoutService', () => {
+  it('clamps promotional deadlines at the end of short months', () => {
+    const service = new CheckoutService({} as any, {} as any, {} as any, {} as any);
+    expect((service as any).addUtcMonths(new Date('2027-01-31T12:34:56Z'), 1).toISOString()).toBe('2027-02-28T12:34:56.000Z');
+    expect((service as any).addUtcMonths(new Date('2027-08-31T12:34:56Z'), 6).toISOString()).toBe('2028-02-29T12:34:56.000Z');
+  });
   it('cria assinatura recorrente e externalReference opaca', async () => {
     process.env.PUBLIC_APP_URL = 'https://app.nextstock.test';
     const plan = {
