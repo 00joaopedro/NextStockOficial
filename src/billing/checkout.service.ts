@@ -583,8 +583,12 @@ export class CheckoutService {
   }
 
   private addUtcMonths(start: Date, months: number) {
+    const year = start.getUTCFullYear();
+    const month = start.getUTCMonth() + months;
+    const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
     const end = new Date(start);
-    end.setUTCMonth(end.getUTCMonth() + months);
+    end.setUTCDate(1);
+    end.setUTCFullYear(year, month, Math.min(start.getUTCDate(), lastDay));
     return end;
   }
 
