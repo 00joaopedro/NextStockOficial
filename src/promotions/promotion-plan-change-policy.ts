@@ -1,10 +1,11 @@
+import { serverUsageLimitCents } from '../billing/server-usage-policy';
+
 /** Selection only; it does not reserve a slot, change a subscription or charge. */
 export function promotionChangeOptions(input: {
   promotionalPeriodEndsAt: Date | null;
   now: Date;
   currentPlan: 'ouro' | 'esmeralda';
   esmeraldaUsageCents: number | null;
-  esmeraldaLimitCents: number;
 }) {
   const end = input.promotionalPeriodEndsAt;
   if (
@@ -32,12 +33,14 @@ export function promotionChangeOptions(input: {
       options: ['esmeralda_promocional'],
     };
   }
+  const esmeraldaLimitCents = serverUsageLimitCents('esmeralda');
   if (
     input.esmeraldaUsageCents === null ||
     !Number.isFinite(input.esmeraldaUsageCents) ||
     input.esmeraldaUsageCents < 0 ||
-    !Number.isFinite(input.esmeraldaLimitCents) ||
-    input.esmeraldaLimitCents <= 0
+    esmeraldaLimitCents === null ||
+    !Number.isFinite(esmeraldaLimitCents) ||
+    esmeraldaLimitCents <= 0
   ) {
     return {
       available: false,
@@ -45,7 +48,7 @@ export function promotionChangeOptions(input: {
       options: [] as string[],
     };
   }
-  return input.esmeraldaUsageCents >= input.esmeraldaLimitCents
+  return input.esmeraldaUsageCents >= esmeraldaLimitCents
     ? {
         available: true,
         code: 'ESMERALDA_USAGE_LIMIT_REACHED',
