@@ -520,6 +520,11 @@ export class SubscriptionsService {
     const anyPending = await this.prisma.billingSubscriptionOperation.findFirst({ where: { tenantId, subscriptionId: subscription.id, operation: { startsWith: 'PLAN_CHANGE:' }, state: { in: [BillingSubscriptionOperationState.CLAIMED, BillingSubscriptionOperationState.PROCESSING, BillingSubscriptionOperationState.UNKNOWN] } } });
     if (anyPending) throw new ConflictException('Já existe uma mudança de plano aguardando confirmação.');
     const recurrence = this.recurrence(target.interval, target.intervalCount);
+    // Resolve the gateway before claiming the operation. A configuration or
+    // adapter failure here cannot have changed remote terms and must not leave
+    // a permanent UNKNOWN operation that blocks future changes.
+    const gateway = this.gateways?.get(subscription.gatewayProvider);
+    if (!gateway) throw new ConflictException('Gateway da assinatura não está disponível.');
     // Persist UNKNOWN before making the network call: a webhook that races the
     // response can then be retained and reconciled rather than discarded.
     let operation: { id: string };
@@ -538,8 +543,6 @@ export class SubscriptionsService {
       }
       throw error;
     }
-    const gateway = this.gateways?.get(subscription.gatewayProvider);
-    if (!gateway) throw new ConflictException('Gateway da assinatura não está disponível.');
     try {
       await gateway.updateSubscriptionForNextRenewal(subscription.gatewaySubscriptionId, { amountCents: target.priceCents, currency: target.currency, frequency: recurrence.frequency, idempotencyKey: createHash('sha256').update(`${tenantId}:${subscription.id}:${target.id}:${idempotencyKey}`).digest('hex') });
     } catch (error) {
