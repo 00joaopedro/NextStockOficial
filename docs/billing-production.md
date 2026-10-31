@@ -118,6 +118,8 @@ teste, defina `BILLING_PRODUCTION_TEST_ENABLED=false`.
 
 ## Mudanças de plano: validação pendente
 
+Uma assinatura originada de checkout promocional permanece bloqueada para mudança de plano. O checkout promocional envia `endDate` ao Mercado Pago; alterar `auto_recurring` da assinatura antiga não autoriza uma nova assinatura quando essa data encerra o contrato. Para permitir Ouro promocional → Esmeralda promocional ao fim do prazo contratado, é necessário criar e confirmar um novo checkout autorizado pelo cliente, com preço e prazo da oferta selecionada, sem consumir nova vaga da campanha. O mesmo cuidado vale ao escolher Diamante normal. Nenhuma mudança ou cobrança automática pode ser presumida a partir do limite de consumo estimado. O cliente deve ver a opção efetivamente disponível e seus termos antes de consentir.
+
 A mudança é planejada para a próxima renovação. Após atualizar a assinatura,
 consulta-se os termos do provedor; o lote de reconciliação também tenta confirmar
 operações desconhecidas antes de processar pagamentos. O lote é chamado periodicamente pelo processo de API em produção, sujeito à disponibilidade do serviço e do banco. A migração que limita alterações simultâneas falha
