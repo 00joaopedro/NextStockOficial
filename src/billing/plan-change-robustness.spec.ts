@@ -150,6 +150,18 @@ describe('plan change recovery', () => {
     expect(result).toMatchObject({ checked: 1, processed: 1, failed: 1 });
   });
 
+  it('continues reconciling other checkouts when recording progress fails', async () => {
+    const checkouts = ['a', 'b'].map((id) => ({ id, provider: 'MERCADO_PAGO', gatewayCheckoutId: id, externalReference: id }));
+    const update = jest.fn().mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({});
+    const prisma = { checkoutSession: { findMany: jest.fn().mockResolvedValue(checkouts), update } };
+    const findPayments = jest.fn().mockResolvedValue([]);
+    const subscriptions = { confirmPlanChangeFromWebhook: jest.fn().mockResolvedValue(false) };
+    const service = new ReconciliationService(prisma as any, {} as any, { get: () => ({ findPayments }) } as any, {} as any, subscriptions as any);
+    await expect(service.reconcilePendingBatch()).resolves.toMatchObject({ checked: 2, missing: 2, failed: 1 });
+    expect(findPayments).toHaveBeenCalledTimes(2);
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
   it('uses the full interval and clamps month-end dates', () => {
     const service = new PaymentsService({} as any, {} as any);
     expect((service as any).periodEnd(new Date('2026-01-31T12:00:00Z'), PlanInterval.MONTHLY, 1).toISOString()).toBe('2026-02-28T12:00:00.000Z');
