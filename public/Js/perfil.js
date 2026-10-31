@@ -14,6 +14,7 @@
     productionTestRefundAction: "NONE",
     productionTestRefundDiagnostic: "",
     subscription: null,
+    promotionalPlanChangeUnavailable: false,
   };
   const $ = (id) => document.getElementById(id);
   const el = {
@@ -235,6 +236,7 @@
     const data = await api("/api/billing/subscription");
     const subscription = data.subscription;
     state.subscription = subscription || null;
+    state.promotionalPlanChangeUnavailable = Boolean(data.promotionalPlanChangeUnavailable);
     state.pendingPlanChange = data.pendingPlanChange || null;
     const entitlement = data.entitlement || {};
     const plan = subscription?.plan;
@@ -323,14 +325,15 @@
       const isPromotionPlan = selected?.planSlug === plan.slug;
       const promotionReady = !selected ||
         (isPromotionPlan && Boolean(reservation?.reservationId));
-      const scheduledChangeAvailable = Boolean(isCurrentSubscriptionActive() && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
+      const scheduledChangeAvailable = Boolean(isCurrentSubscriptionActive() && !state.promotionalPlanChangeUnavailable && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
       action.textContent = scheduledChangeAvailable
         ? `Mudar para ${plan.name} na próxima renovação`
         : isPromotionPlan
         ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
         : "Escolher plano";
       action.dataset.billingPlanAction = "true";
-      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive() || Boolean(state.pendingPlanChange);
+      action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive() || Boolean(state.pendingPlanChange) || Boolean(state.promotionalPlanChangeUnavailable && isCurrentSubscriptionActive());
+      if (state.promotionalPlanChangeUnavailable && isCurrentSubscriptionActive()) action.title = "A troca de assinatura promocional ainda não está disponível. O plano atual permanece ativo conforme contratado.";
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
