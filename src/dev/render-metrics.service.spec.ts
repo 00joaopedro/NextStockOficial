@@ -32,6 +32,14 @@ describe('RenderMetricsService', () => {
     expect(new RenderMetricsService().isUsageConfigured()).toBe(true);
   });
 
+  it('exige taxa para cada serviço e aceita explicitamente um serviço gratuito', () => {
+    process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot,srv-cold';
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":0}';
+    expect(new RenderMetricsService().isUsageConfigured()).toBe(false);
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":0,"srv-cold":0}';
+    expect(new RenderMetricsService().isUsageConfigured()).toBe(true);
+  });
+
   it('não cobra reserva fria e soma réplicas quentes sem duplicar séries', async () => {
     const fetchMock = jest.spyOn(global, 'fetch') as jest.Mock;
     fetchMock
