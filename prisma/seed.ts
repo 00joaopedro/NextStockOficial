@@ -19,7 +19,6 @@ async function main() {
       description:
         'Plano ideal para operacoes essenciais com praticidade no dia a dia.',
       sortOrder: 1,
-      gatewayPlanId: 'hosted-pending',
     },
     {
       name: 'Esmeralda',
@@ -28,7 +27,6 @@ async function main() {
       description:
         'Mais recursos para gestao e crescimento, indicado para negocios em expansao.',
       sortOrder: 2,
-      gatewayPlanId: 'hosted-pending',
     },
     {
       name: 'Diamante',
@@ -37,7 +35,6 @@ async function main() {
       description:
         'Plano completo para maxima performance, controle e escalabilidade.',
       sortOrder: 3,
-      gatewayPlanId: 'hosted-pending',
     },
   ];
 
@@ -51,7 +48,6 @@ async function main() {
       description:
         'Plano técnico temporário para validar o webhook e a ativação de billing.',
       sortOrder: 999,
-      gatewayPlanId: 'hosted-pending',
     });
   }
 
@@ -91,8 +87,6 @@ async function main() {
         },
       },
       update: {
-        gatewayPlanId: plan.gatewayPlanId,
-        paymentLinkUrl: null,
         isActive: true,
         metadata: {
           correlationMode: 'recurring_preapproval',
@@ -102,7 +96,7 @@ async function main() {
         planId: savedPlan.id,
         provider: PaymentGatewayProvider.MERCADO_PAGO,
         mode: gatewayMode,
-        gatewayPlanId: plan.gatewayPlanId,
+        gatewayPlanId: null,
         paymentLinkUrl: null,
         isActive: true,
         metadata: {

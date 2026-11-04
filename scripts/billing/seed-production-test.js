@@ -159,8 +159,6 @@ async function main() {
         },
       },
       update: {
-        gatewayPlanId: 'hosted-pending',
-        paymentLinkUrl: null,
         isActive: true,
         metadata: {
           correlationMode: 'recurring_preapproval',
@@ -171,7 +169,7 @@ async function main() {
         planId: plan.id,
         provider: PaymentGatewayProvider.MERCADO_PAGO,
         mode,
-        gatewayPlanId: 'hosted-pending',
+        gatewayPlanId: null,
         paymentLinkUrl: null,
         isActive: true,
         metadata: {
