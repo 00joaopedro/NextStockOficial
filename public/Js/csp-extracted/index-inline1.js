@@ -233,7 +233,11 @@
       const data = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(extractApiErrorMessage(res.status, data));
+        const error = new Error(extractApiErrorMessage(res.status, data));
+        error.status = res.status;
+        error.code = data && typeof data.code === 'string' ? data.code : null;
+        error.requestId = data && typeof data.requestId === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(data.requestId) ? data.requestId : null;
+        throw error;
       }
 
       return { res, data };
@@ -318,8 +322,10 @@
       }
     }
 
+    let registrationInFlight = false;
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (registrationInFlight) return;
 
       if (!referralReady) {
         setStatus('Link de indicação inválido ou indisponível.', true);
@@ -341,6 +347,9 @@
         return;
       }
 
+      registrationInFlight = true;
+      const registerButton = document.querySelector('#registerForm button[type="submit"]');
+      if (registerButton) registerButton.disabled = true;
       try {
         setStatus('Realizando cadastro...');
         const { data } = await apiRequest('/auth/register', {
@@ -378,7 +387,12 @@
         setStatus('Cadastro realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
-        setStatus('Erro no cadastro:\n\n' + error.message, true);
+        const diagnostic = error.requestId ? '\nReferência para suporte: ' + error.requestId : '';
+        const recoveryHint = error.status >= 500 ? '\nSe sua conta já tiver sido criada, tente entrar com o mesmo e-mail antes de repetir o cadastro.' : '';
+        setStatus('Erro no cadastro:\n\n' + error.message + recoveryHint + diagnostic, true);
+      } finally {
+        registrationInFlight = false;
+        if (registerButton) registerButton.disabled = false;
       }
     });
 
