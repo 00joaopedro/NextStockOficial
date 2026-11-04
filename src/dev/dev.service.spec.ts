@@ -17,6 +17,8 @@ describe('DevService', () => {
 
   const railwayMetrics = {
     isConfigured: jest.fn(),
+    isUsageConfigured: jest.fn(),
+    getServiceUsage: jest.fn(),
     getOverview: jest.fn(),
   } as any;
 
@@ -166,6 +168,28 @@ describe('DevService', () => {
     expect(result.totals.providerWeights).toEqual({ railway: 2, render: 0, unknown: 1 });
     expect(result.users.map((user) => user.provider)).toEqual(['railway', 'unknown']);
     expect(result.users[0].serverUsage.costCents).toBeNull();
+  });
+
+  it('usa o custo Railway consultado para a janela e converte USD para BRL', async () => {
+    const original = process.env.RAILWAY_USAGE_BRL_PER_USD;
+    process.env.RAILWAY_USAGE_BRL_PER_USD = '6';
+    try {
+      railwayMetrics.isUsageConfigured.mockReturnValue(true);
+      railwayMetrics.getServiceUsage.mockImplementation(({ start, end }: { start: Date; end: Date }) => Promise.resolve({ available: true, costUsd: 1, periodStart: start.toISOString(), periodEnd: end.toISOString() }));
+      prisma.userUsageEvent.groupBy.mockResolvedValue([{ userId: 'u1', tenantId: 't1', provider: 'railway', _sum: { weight: 1 }, _count: { _all: 1 } }]);
+      prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }]);
+      prisma.userProfile.count.mockResolvedValue(1);
+      railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+      supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+      const result = await service.getUsersUsage('today');
+      expect(result.users[0].serverUsage.costCents).toBe(600);
+      railwayMetrics.getServiceUsage.mockResolvedValue({ available: false });
+      const unavailable = await service.getUsersUsage('today');
+      expect(unavailable.users[0].serverUsage.costCents).toBeNull();
+    } finally {
+      if (original === undefined) delete process.env.RAILWAY_USAGE_BRL_PER_USD;
+      else process.env.RAILWAY_USAGE_BRL_PER_USD = original;
+    }
   });
 
   it('rateia custo Render somente entre eventos da Render', async () => {

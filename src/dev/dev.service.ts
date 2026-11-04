@@ -157,7 +157,21 @@ export class DevService {
     ]);
     const profiles = rawProfiles as any[];
     const globalUsage = await this.getGlobalUsage(range.start, range.end, railway, supabase);
-    const railwayCostCents = this.getPeriodCostCents('railway', range.start, range.end);
+    let railwayCostCents = this.getPeriodCostCents('railway', range.start, range.end);
+    if (this.railwayMetrics.isUsageConfigured()) {
+      // The live provider estimate replaces the optional manual monthly base.
+      // A failed configured provider must not silently fall back to a price.
+      railwayCostCents = null;
+      const fx = Number(process.env.RAILWAY_USAGE_BRL_PER_USD);
+      if (Number.isFinite(fx) && fx > 0) {
+        try {
+          const usage = await this.railwayMetrics.getServiceUsage({ start: range.start, end: range.end });
+          if (usage.available && usage.costUsd != null && Number.isFinite(usage.costUsd) && usage.costUsd >= 0 && usage.periodStart === range.start.toISOString() && usage.periodEnd === range.end.toISOString()) {
+            railwayCostCents = Math.round(usage.costUsd * fx * 100);
+          }
+        } catch { /* Preserve unavailable instead of inventing a cost. */ }
+      }
+    }
     const supabaseCostCents = this.getPeriodCostCents('supabase', range.start, range.end);
     const render = this.renderMetrics?.hasUsageConfigurationIntent()
       ? await this.renderMetrics.getServiceUsage(range.start.toISOString(), range.end.toISOString())

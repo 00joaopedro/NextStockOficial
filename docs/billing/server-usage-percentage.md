@@ -84,8 +84,12 @@ antes de recuperar o banco, a lacuna em memória pode não ser persistida; porta
 a ausência de alerta não prova coleta completa. O sistema permanece operacional
 caso a coleta falhe.
 
-Para Railway, o painel Dev usa `DEV_RAILWAY_MONTHLY_COST_CENTS` como base
-administrativa estimada; o percentual no perfil usa a consulta de uso da Railway.
+Para Railway, o painel Dev consulta o uso da janela selecionada quando a API
+de consumo está configurada e converte USD para BRL com a cotação administrativa.
+Uma falha dessa consulta mantém o custo indisponível. A base opcional
+`DEV_RAILWAY_MONTHLY_COST_CENTS` só é usada quando a API de consumo não está
+configurada; ela continua sendo uma estimativa administrativa, não uma fatura.
+O percentual no perfil usa a consulta de uso da Railway.
 O cartão de status da Railway exige também `RAILWAY_ENVIRONMENT_ID` e
 `RAILWAY_SERVICE_ID`, mesmo quando a estimativa de uso está configurada com
 `RAILWAY_USAGE_SERVICE_IDS`. O aviso de variáveis da estimativa e o cartão
