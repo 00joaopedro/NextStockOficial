@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
+import { UsageCyclesService } from './usage-cycles.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RailwayMetricsService } from '../dev/railway-metrics.service';
 import { RenderMetricsService } from '../dev/render-metrics.service';
@@ -14,7 +15,20 @@ export class ServerUsageService {
     private readonly prisma: PrismaService,
     private readonly railway: RailwayMetricsService,
     private readonly render?: RenderMetricsService,
+    @Optional() private readonly cycles?: UsageCyclesService,
   ) {}
+
+  async lastCompletedCycle(tenantId: string) {
+    const result = await this.cycles?.lastCompletedForTenant(tenantId);
+    return {
+      status: result?.status ?? 'UNAVAILABLE',
+      reason: result?.reason ?? null,
+      periodStart: result && 'periodStart' in result ? result.periodStart : null,
+      periodEnd: result && 'periodEnd' in result ? result.periodEnd : null,
+      isEstimated: true,
+      eligibleForDowngrade: false,
+    };
+  }
 
   async forTenant(tenantId: string, planSlug?: string | null) {
     const limitCents = serverUsageLimitCents(planSlug);

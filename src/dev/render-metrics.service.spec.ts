@@ -32,6 +32,24 @@ describe('RenderMetricsService', () => {
     expect(new RenderMetricsService().isUsageConfigured()).toBe(true);
   });
 
+  it('reports a safe HTTP diagnostic without logging the provider body', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 401, json: async () => ({ detail: 'sensitive-provider-body' }) } as Response);
+    const service = new RenderMetricsService({} as any);
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    await service.collectRecent().catch((error: unknown) => (service as any).warnCollectionFailure(error));
+    expect(warn).toHaveBeenCalledWith('Render metrics collection failed: HTTP_401.');
+    expect(service.collectionStatus()).toMatchObject({ configured: true, lastFailureCode: 'HTTP_401', lastSuccessAt: null, collecting: false });
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive-provider-body');
+  });
+
+  it('exige taxa para cada serviço e aceita explicitamente um serviço gratuito', () => {
+    process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot,srv-cold';
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":0}';
+    expect(new RenderMetricsService().isUsageConfigured()).toBe(false);
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":0,"srv-cold":0}';
+    expect(new RenderMetricsService().isUsageConfigured()).toBe(true);
+  });
+
   it('não cobra reserva fria e soma réplicas quentes sem duplicar séries', async () => {
     const fetchMock = jest.spyOn(global, 'fetch') as jest.Mock;
     fetchMock
@@ -107,7 +125,19 @@ describe('RenderMetricsService', () => {
     ] } as Response);
     const createMany = jest.fn().mockResolvedValue({ count: 1 });
     await new RenderMetricsService({ providerUsageSample: { createMany } } as any).collectRecent();
-    expect(createMany).toHaveBeenCalledWith({ skipDuplicates: true, data: [{ provider: 'render', serviceId: 'srv-hot', hourStart: new Date('2026-10-03T02:00:00Z'), instanceCount: 1 }] });
+    expect(createMany).toHaveBeenCalledWith({ skipDuplicates: true, data: [{ provider: 'render', serviceId: 'srv-hot', hourStart: new Date('2026-10-03T02:00:00Z'), instanceCount: 1, rateCentsBrl: 10 }] });
+  });
+
+  it('requires recorded historical prices for completed cycles', async () => {
+    process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot';
+    const findMany = jest.fn().mockResolvedValue([{ serviceId: 'srv-hot', hourStart: new Date('2026-10-01T00:00:00Z'), instanceCount: 1, rateCentsBrl: null }]);
+    const service = new RenderMetricsService({ providerUsageSample: { findMany } } as any);
+    const start = new Date('2026-10-01T00:00:00Z');
+    const end = new Date('2026-10-01T01:00:00Z');
+    await expect(service.getRecordedCycleCost(start, end)).resolves.toBeNull();
+    findMany.mockResolvedValue([{ serviceId: 'srv-hot', hourStart: start, instanceCount: 1, rateCentsBrl: 2 }]);
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":500}';
+    await expect(service.getRecordedCycleCost(start, end)).resolves.toBe(2);
   });
 
 });

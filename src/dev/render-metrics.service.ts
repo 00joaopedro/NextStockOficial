@@ -13,6 +13,10 @@ export type RenderServiceUsage = {
 type MetricPoint = { timestamp?: string; value?: number };
 type MetricSeries = { values?: MetricPoint[] };
 
+class RenderCollectionError extends Error {
+  constructor(readonly diagnostic: string) { super('Render collection unavailable'); }
+}
+
 /**
  * Render exposes resource metrics, not a billing ledger. Cost is therefore an
  * estimate based on the configured hourly price of each reserved service. A
@@ -24,11 +28,13 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | undefined;
   private collecting: Promise<void> | undefined;
   private lastAttemptAt = 0;
+  private lastSuccessAt: string | null = null;
+  private lastFailureCode: string | null = null;
   constructor(@Optional() private readonly prisma?: PrismaService) {}
 
   onModuleInit() {
     if (!this.prisma) return;
-    const run = () => { void this.collectRecent().catch(() => this.logger.warn('Render metrics collection failed.')); };
+    const run = () => { void this.collectRecent().catch((error: unknown) => this.warnCollectionFailure(error)); };
     run();
     this.timer = setInterval(run, 30 * 60 * 1000);
     this.timer.unref?.();
@@ -36,12 +42,34 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
 
+  private warnCollectionFailure(error: unknown) {
+    const code = error instanceof RenderCollectionError ? error.diagnostic : 'NETWORK_OR_STORAGE_FAILURE';
+    this.lastFailureCode = code;
+    this.logger.warn(`Render metrics collection failed: ${code}.`);
+  }
+
+  collectionStatus() {
+    return {
+      configured: this.isUsageConfigured(),
+      lastAttemptAt: this.lastAttemptAt ? new Date(this.lastAttemptAt).toISOString() : null,
+      lastSuccessAt: this.lastSuccessAt,
+      lastFailureCode: this.lastFailureCode,
+      collecting: Boolean(this.collecting),
+    };
+  }
+
   async collectRecent(): Promise<void> {
     if (!this.prisma || !this.isUsageConfigured()) return;
     if (this.collecting) return this.collecting;
     if (Date.now() - this.lastAttemptAt < 5 * 60 * 1000) return;
     this.lastAttemptAt = Date.now();
-    this.collecting = this.collectRecentOnce().finally(() => { this.collecting = undefined; });
+    this.collecting = this.collectRecentOnce().then(() => {
+      this.lastSuccessAt = new Date().toISOString();
+      this.lastFailureCode = null;
+    }).catch((error: unknown) => {
+      this.lastFailureCode = error instanceof RenderCollectionError ? error.diagnostic : 'NETWORK_OR_STORAGE_FAILURE';
+      throw error;
+    }).finally(() => { this.collecting = undefined; });
     return this.collecting;
   }
 
@@ -51,14 +79,15 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
     const start = end - 6 * 24 * hour;
     const rates = this.hourlyRateByService();
     for (const serviceId of this.serviceIds()) {
-      if (!Number.isFinite(rates[serviceId]) || rates[serviceId] < 0) throw new Error('rate');
+      if (!Number.isFinite(rates[serviceId]) || rates[serviceId] < 0) throw new RenderCollectionError('RATE_INVALID');
       const query = new URLSearchParams({ startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), resolutionSeconds: '3600', resource: serviceId });
       const response = await fetch(`${this.apiUrl}?${query}`, {
         headers: { Accept: 'application/json', Authorization: `Bearer ${process.env.RENDER_API_KEY}` },
         signal: AbortSignal.timeout(15000),
       });
       const series = await response.json().catch(() => null) as MetricSeries[] | null;
-      if (!response.ok || !Array.isArray(series)) throw new Error('metrics');
+      if (!response.ok) throw new RenderCollectionError(`HTTP_${response.status}`);
+      if (!Array.isArray(series)) throw new RenderCollectionError('RESPONSE_INVALID');
       const samples = new Map<number, number>();
       for (const item of series) for (const point of item.values || []) {
         const time = new Date(point.timestamp || '').getTime();
@@ -67,15 +96,15 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
             typeof count !== 'number' || !Number.isFinite(count) || count < 0) continue;
         samples.set(time, Math.max(samples.get(time) ?? 0, count));
       }
-      if (!samples.size) throw new Error('metrics_empty');
+      if (!samples.size) throw new RenderCollectionError('SAMPLES_UNAVAILABLE');
       await (this.prisma as any).providerUsageSample.createMany({
-        data: [...samples].map(([time, instanceCount]) => ({ provider: 'render', serviceId, hourStart: new Date(time), instanceCount })),
+        data: [...samples].map(([time, instanceCount]) => ({ provider: 'render', serviceId, hourStart: new Date(time), instanceCount, rateCentsBrl: rates[serviceId] })),
         skipDuplicates: true,
       });
     }
   }
 
-  private async durableCost(startIso: string, endIso: string): Promise<number | null> {
+  private async durableCost(startIso: string, endIso: string, requireRecordedRate = false): Promise<number | null> {
     const hour = 3_600_000;
     const start = new Date(startIso).getTime();
     const end = Math.min(new Date(endIso).getTime(), Math.floor(Date.now() / hour) * hour);
@@ -87,15 +116,18 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
       where: { provider: 'render', serviceId: { in: ids }, hourStart: { gte: new Date(first), lt: new Date(end) } },
     });
     const values = new Map(rows.map((row: any) => [`${row.serviceId}:${new Date(row.hourStart).getTime()}`, Number(row.instanceCount)]));
+    const recordedRates = new Map(rows.map((row: any) => [`${row.serviceId}:${new Date(row.hourStart).getTime()}`, row.rateCentsBrl == null ? null : Number(row.rateCentsBrl)]));
     let total = 0;
     for (const id of ids) {
       const rate = rates[id];
       if (!Number.isFinite(rate) || rate < 0) return null;
       for (let time = first; time < end; time += hour) {
         const count = values.get(`${id}:${time}`);
+        const recordedRate = recordedRates.get(`${id}:${time}`);
+        if (requireRecordedRate && (typeof recordedRate !== 'number' || !Number.isFinite(recordedRate) || recordedRate < 0)) return null;
         if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) return null;
         const overlap = Math.min(end, time + hour) - Math.max(start, time);
-        total += count * rate * overlap / hour;
+        total += count * (typeof recordedRate === 'number' ? recordedRate : rate) * overlap / hour;
       }
     }
     return Math.round(total);
@@ -103,11 +135,18 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
   private readonly apiUrl = 'https://api.render.com/v1/metrics/instance-count';
 
+  async getRecordedCycleCost(start: Date, end: Date): Promise<number | null> {
+    if (!this.prisma || !this.isUsageConfigured() || end.getTime() > Math.floor(Date.now() / 3_600_000) * 3_600_000) return null;
+    return this.durableCost(start.toISOString(), end.toISOString(), true);
+  }
+
   isUsageConfigured() {
+    const ids = this.serviceIds();
+    const rates = this.hourlyRateByService();
     return Boolean(
       process.env.RENDER_API_KEY?.trim() &&
-        this.serviceIds().length &&
-        Object.keys(this.hourlyRateByService()).length,
+        ids.length &&
+        ids.every((id) => Object.prototype.hasOwnProperty.call(rates, id)),
     );
   }
 
@@ -135,7 +174,7 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
     if (this.prisma) {
       try {
-        void this.collectRecent().catch(() => this.logger.warn('Render metrics collection failed.'));
+        void this.collectRecent().catch((error: unknown) => this.warnCollectionFailure(error));
         const costCents = await this.durableCost(periodStart, periodEnd);
         if (costCents == null) return unavailable();
         const effectiveEnd = new Date(Math.min(new Date(periodEnd).getTime(), Math.floor(Date.now() / 3_600_000) * 3_600_000)).toISOString();

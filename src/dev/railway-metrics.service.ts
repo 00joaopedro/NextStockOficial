@@ -45,10 +45,10 @@ export class RailwayMetricsService {
 
   isConfigured(): boolean {
     return Boolean(
-      process.env.RAILWAY_API_TOKEN &&
-        process.env.RAILWAY_PROJECT_ID &&
-        process.env.RAILWAY_ENVIRONMENT_ID &&
-        process.env.RAILWAY_SERVICE_ID,
+      process.env.RAILWAY_API_TOKEN?.trim() &&
+        process.env.RAILWAY_PROJECT_ID?.trim() &&
+        process.env.RAILWAY_ENVIRONMENT_ID?.trim() &&
+        process.env.RAILWAY_SERVICE_ID?.trim(),
     );
   }
 
@@ -61,7 +61,7 @@ export class RailwayMetricsService {
     );
   }
 
-  async getServiceUsage(): Promise<RailwayServiceUsage> {
+  async getServiceUsage(window?: { start: Date; end: Date }): Promise<RailwayServiceUsage> {
     const unavailable = (): RailwayServiceUsage => ({
       available: false,
       costUsd: null,
@@ -72,10 +72,11 @@ export class RailwayMetricsService {
     });
 
     if (!this.isUsageConfigured()) return unavailable();
+    if (window && (!Number.isFinite(window.start.getTime()) || !Number.isFinite(window.end.getTime()) || window.start >= window.end || window.end.getTime() > Date.now())) return unavailable();
 
     try {
       const workspaceId = process.env.RAILWAY_WORKSPACE_ID!;
-      const context = await this.graphql(
+      const context = window ? null : await this.graphql(
         `query UsageContext($workspaceId: String!) {
           workspace(workspaceId: $workspaceId) {
             customer { billingPeriod { start end } }
@@ -83,7 +84,7 @@ export class RailwayMetricsService {
         }`,
         { workspaceId },
       );
-      const period = context?.workspace?.customer?.billingPeriod;
+      const period = window ? { start: window.start.toISOString(), end: window.end.toISOString() } : context?.workspace?.customer?.billingPeriod;
       if (!period?.start || !period?.end) return unavailable();
 
       const payload = await this.graphql(
@@ -134,6 +135,8 @@ export class RailwayMetricsService {
     const serviceId = process.env.RAILWAY_SERVICE_ID || '';
 
     if (!this.isConfigured()) {
+      const required = ['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT_ID', 'RAILWAY_SERVICE_ID'];
+      const missing = required.filter((key) => !process.env[key]?.trim());
       return {
         status: 'unavailable',
         projectId,
@@ -142,7 +145,9 @@ export class RailwayMetricsService {
         memory: null,
         network: null,
         deployments: [],
-        message: 'Railway nao configurado no backend.',
+        message: missing.length
+          ? `Status Railway indisponível. Variáveis ausentes: ${missing.join(', ')}. A configuração de custos é verificada separadamente.`
+          : 'Status Railway indisponível: verifique a configuração do backend.',
       };
     }
 
@@ -206,6 +211,7 @@ export class RailwayMetricsService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(15000),
     });
 
     const payload = await response.json().catch(() => ({}));

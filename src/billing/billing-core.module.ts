@@ -14,6 +14,7 @@ import { ReconciliationSchedulerService } from './reconciliation-scheduler.servi
 import { SubscriptionsService } from './subscriptions.service';
 import { ServerUsageService } from './server-usage.service';
 import { WebhookService } from './webhook.service';
+import { UsageCyclesService } from './usage-cycles.service';
 
 @Module({
   imports: [RailwayMetricsModule, RenderMetricsModule],
@@ -30,6 +31,7 @@ import { WebhookService } from './webhook.service';
     ReconciliationSchedulerService,
     SubscriptionsService,
     ServerUsageService,
+    UsageCyclesService,
     WebhookService,
   ],
   exports: [

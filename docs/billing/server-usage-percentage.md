@@ -84,12 +84,27 @@ antes de recuperar o banco, a lacuna em memória pode não ser persistida; porta
 a ausência de alerta não prova coleta completa. O sistema permanece operacional
 caso a coleta falhe.
 
-Para Railway, o painel Dev usa `DEV_RAILWAY_MONTHLY_COST_CENTS` como base
-administrativa estimada; o percentual no perfil usa a consulta de uso da Railway.
+Para Railway, o painel Dev consulta o uso da janela selecionada quando a API
+de consumo está configurada e converte USD para BRL com a cotação administrativa.
+Uma falha dessa consulta mantém o custo indisponível. A base opcional
+`DEV_RAILWAY_MONTHLY_COST_CENTS` só é usada quando a API de consumo não está
+configurada; ela continua sendo uma estimativa administrativa, não uma fatura.
+O percentual no perfil usa a consulta de uso da Railway.
+O cartão de status da Railway exige também `RAILWAY_ENVIRONMENT_ID` e
+`RAILWAY_SERVICE_ID`, mesmo quando a estimativa de uso está configurada com
+`RAILWAY_USAGE_SERVICE_IDS`. O aviso de variáveis da estimativa e o cartão
+verificam configurações distintas; a presença de nomes não prova autorização.
 Para Render, configure a API, IDs e taxas nos **dois serviços de aplicação**;
 segredos do GitHub Actions não são variáveis de runtime. `GET /api/dev/health`,
 restrito ao Dev SuperAdmin, informa apenas nomes ausentes no servidor que atende
 a requisição. Presença de nomes não prova que valores ou permissões estão corretos.
+O campo `usageConfiguration.renderCollection` também informa a última tentativa,
+o último sucesso e o último código seguro de falha da coleta nesta instância.
+`HTTP_401` é uma resposta de autenticação recusada pela API; não é sinônimo de
+qualquer falha de coleta. `SAMPLES_UNAVAILABLE` indica ausência de amostras
+utilizáveis, enquanto `NETWORK_OR_STORAGE_FAILURE` ainda exige investigação.
+Esses diagnósticos são locais ao processo, reiniciam após deploy e não atestam
+cobertura histórica completa. Nenhum corpo de resposta ou token é incluído.
 Os totais por usuário são estimativas por linha, período e origem. Não os use
 para cobrança ou como medição exata do uso individual.
 
