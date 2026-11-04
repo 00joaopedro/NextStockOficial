@@ -116,6 +116,7 @@ describe('BillingController', () => {
       resolve: jest.fn().mockResolvedValue({ tenantId: 'tenant-a' }),
     };
     const serverUsage = {
+      lastCompletedCycle: jest.fn().mockResolvedValue({ status: 'UNAVAILABLE', eligibleForDowngrade: false }),
       forTenant: jest.fn().mockResolvedValue({
         available: true,
         percentage: 42,
@@ -138,11 +139,13 @@ describe('BillingController', () => {
     ).resolves.toEqual({
       ok: true,
       usage: expect.objectContaining({ percentage: 42 }),
+      lastCompletedCycle: { status: 'UNAVAILABLE', eligibleForDowngrade: false },
     });
     expect(tenantContext.resolve).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ allowedRoles: [Role.Admin] }),
     );
     expect(serverUsage.forTenant).toHaveBeenCalledWith('tenant-a', 'ouro');
+    expect(serverUsage.lastCompletedCycle).toHaveBeenCalledWith('tenant-a');
   });
 });

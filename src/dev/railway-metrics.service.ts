@@ -61,7 +61,7 @@ export class RailwayMetricsService {
     );
   }
 
-  async getServiceUsage(): Promise<RailwayServiceUsage> {
+  async getServiceUsage(window?: { start: Date; end: Date }): Promise<RailwayServiceUsage> {
     const unavailable = (): RailwayServiceUsage => ({
       available: false,
       costUsd: null,
@@ -72,10 +72,11 @@ export class RailwayMetricsService {
     });
 
     if (!this.isUsageConfigured()) return unavailable();
+    if (window && (!Number.isFinite(window.start.getTime()) || !Number.isFinite(window.end.getTime()) || window.start >= window.end || window.end.getTime() > Date.now())) return unavailable();
 
     try {
       const workspaceId = process.env.RAILWAY_WORKSPACE_ID!;
-      const context = await this.graphql(
+      const context = window ? null : await this.graphql(
         `query UsageContext($workspaceId: String!) {
           workspace(workspaceId: $workspaceId) {
             customer { billingPeriod { start end } }
@@ -83,7 +84,7 @@ export class RailwayMetricsService {
         }`,
         { workspaceId },
       );
-      const period = context?.workspace?.customer?.billingPeriod;
+      const period = window ? { start: window.start.toISOString(), end: window.end.toISOString() } : context?.workspace?.customer?.billingPeriod;
       if (!period?.start || !period?.end) return unavailable();
 
       const payload = await this.graphql(
@@ -210,6 +211,7 @@ export class RailwayMetricsService {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ query, variables }),
+      signal: AbortSignal.timeout(15000),
     });
 
     const payload = await response.json().catch(() => ({}));

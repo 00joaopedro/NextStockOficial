@@ -948,8 +948,10 @@ model BillingInvoice {
   subscription Subscription     @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
   plan         Plan             @relation(fields: [planId], references: [id], onDelete: Restrict)
   payments     BillingPayment[]
+  usageCycle   BillingUsageCycle?
 
   @@unique([subscriptionId, periodStartedAt])
+  @@unique([tenantId, id], map: "billing_invoices_tenant_id_id_key")
   @@unique([provider, gatewayInvoiceId])
   @@index([tenantId, status, dueAt])
   @@map("billing_invoices")
@@ -2759,6 +2761,7 @@ model ProviderUsageSample {
   serviceId     String   @map("service_id")
   hourStart     DateTime @map("hour_start")
   instanceCount Float    @map("instance_count")
+  rateCentsBrl   Decimal? @map("rate_cents_brl") @db.Decimal(18, 6)
   collectedAt   DateTime @default(now()) @map("collected_at")
 
   @@id([provider, serviceId, hourStart])
@@ -2773,4 +2776,28 @@ model UsageCaptureGap {
 
   @@index([startedAt, endedAt], map: "usage_capture_gaps_time_idx")
   @@map("usage_capture_gaps")
+}
+
+model UsageMeteringState {
+  key       String   @id
+  startedAt DateTime @map("started_at") @db.Timestamptz(6)
+
+  @@map("usage_metering_state")
+}
+
+model BillingUsageCycle {
+  invoiceId   String   @id @map("invoice_id") @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  status      String
+  costCents   Int?     @map("cost_cents")
+  reason      String?
+  evidence    Json?
+  assessedAt  DateTime @default(now()) @map("assessed_at")
+  invoice     BillingInvoice @relation(fields: [tenantId, invoiceId], references: [tenantId, id], onDelete: Restrict)
+
+  @@unique([tenantId, invoiceId])
+  @@index([tenantId, periodEnd])
+  @@map("billing_usage_cycles")
 }

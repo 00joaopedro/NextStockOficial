@@ -98,13 +98,13 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
       }
       if (!samples.size) throw new RenderCollectionError('SAMPLES_UNAVAILABLE');
       await (this.prisma as any).providerUsageSample.createMany({
-        data: [...samples].map(([time, instanceCount]) => ({ provider: 'render', serviceId, hourStart: new Date(time), instanceCount })),
+        data: [...samples].map(([time, instanceCount]) => ({ provider: 'render', serviceId, hourStart: new Date(time), instanceCount, rateCentsBrl: rates[serviceId] })),
         skipDuplicates: true,
       });
     }
   }
 
-  private async durableCost(startIso: string, endIso: string): Promise<number | null> {
+  private async durableCost(startIso: string, endIso: string, requireRecordedRate = false): Promise<number | null> {
     const hour = 3_600_000;
     const start = new Date(startIso).getTime();
     const end = Math.min(new Date(endIso).getTime(), Math.floor(Date.now() / hour) * hour);
@@ -116,21 +116,29 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
       where: { provider: 'render', serviceId: { in: ids }, hourStart: { gte: new Date(first), lt: new Date(end) } },
     });
     const values = new Map(rows.map((row: any) => [`${row.serviceId}:${new Date(row.hourStart).getTime()}`, Number(row.instanceCount)]));
+    const recordedRates = new Map(rows.map((row: any) => [`${row.serviceId}:${new Date(row.hourStart).getTime()}`, row.rateCentsBrl == null ? null : Number(row.rateCentsBrl)]));
     let total = 0;
     for (const id of ids) {
       const rate = rates[id];
       if (!Number.isFinite(rate) || rate < 0) return null;
       for (let time = first; time < end; time += hour) {
         const count = values.get(`${id}:${time}`);
+        const recordedRate = recordedRates.get(`${id}:${time}`);
+        if (requireRecordedRate && (typeof recordedRate !== 'number' || !Number.isFinite(recordedRate) || recordedRate < 0)) return null;
         if (typeof count !== 'number' || !Number.isFinite(count) || count < 0) return null;
         const overlap = Math.min(end, time + hour) - Math.max(start, time);
-        total += count * rate * overlap / hour;
+        total += count * (typeof recordedRate === 'number' ? recordedRate : rate) * overlap / hour;
       }
     }
     return Math.round(total);
   }
 
   private readonly apiUrl = 'https://api.render.com/v1/metrics/instance-count';
+
+  async getRecordedCycleCost(start: Date, end: Date): Promise<number | null> {
+    if (!this.prisma || !this.isUsageConfigured() || end.getTime() > Math.floor(Date.now() / 3_600_000) * 3_600_000) return null;
+    return this.durableCost(start.toISOString(), end.toISOString(), true);
+  }
 
   isUsageConfigured() {
     const ids = this.serviceIds();

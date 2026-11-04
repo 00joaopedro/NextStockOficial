@@ -30,6 +30,16 @@ describe('RailwayMetricsService', () => {
     expect(new RailwayMetricsService().isUsageConfigured()).toBe(true);
   });
 
+  it('queries an explicit completed client window without using the workspace cycle', async () => {
+    const service = new RailwayMetricsService() as any;
+    const graphql = jest.spyOn(service, 'graphql').mockResolvedValue({ usage: [{ measurement: 'CPU_USAGE', value: 0, tags: { projectId: 'project-a', serviceId: 'service-a' } }] });
+    const start = new Date('2026-09-10T12:00:00Z');
+    const end = new Date('2026-10-10T12:00:00Z');
+    await expect(service.getServiceUsage({ start, end })).resolves.toMatchObject({ available: true, periodStart: start.toISOString(), periodEnd: end.toISOString() });
+    expect(graphql).toHaveBeenCalledTimes(1);
+    expect(graphql).toHaveBeenCalledWith(expect.stringContaining('ServiceUsage'), expect.objectContaining({ startDate: start.toISOString(), endDate: end.toISOString() }));
+  });
+
   it('explains which overview variables are missing without exposing their values', async () => {
     delete process.env.RAILWAY_ENVIRONMENT_ID;
     delete process.env.RAILWAY_SERVICE_ID;

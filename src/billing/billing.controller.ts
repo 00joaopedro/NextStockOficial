@@ -96,6 +96,7 @@ export class BillingController {
         context.tenantId,
         billing.subscription?.plan?.slug,
       ),
+      lastCompletedCycle: await this.serverUsage.lastCompletedCycle(context.tenantId),
     };
   }
 

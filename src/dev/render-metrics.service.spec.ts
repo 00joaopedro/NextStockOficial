@@ -125,7 +125,19 @@ describe('RenderMetricsService', () => {
     ] } as Response);
     const createMany = jest.fn().mockResolvedValue({ count: 1 });
     await new RenderMetricsService({ providerUsageSample: { createMany } } as any).collectRecent();
-    expect(createMany).toHaveBeenCalledWith({ skipDuplicates: true, data: [{ provider: 'render', serviceId: 'srv-hot', hourStart: new Date('2026-10-03T02:00:00Z'), instanceCount: 1 }] });
+    expect(createMany).toHaveBeenCalledWith({ skipDuplicates: true, data: [{ provider: 'render', serviceId: 'srv-hot', hourStart: new Date('2026-10-03T02:00:00Z'), instanceCount: 1, rateCentsBrl: 10 }] });
+  });
+
+  it('requires recorded historical prices for completed cycles', async () => {
+    process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot';
+    const findMany = jest.fn().mockResolvedValue([{ serviceId: 'srv-hot', hourStart: new Date('2026-10-01T00:00:00Z'), instanceCount: 1, rateCentsBrl: null }]);
+    const service = new RenderMetricsService({ providerUsageSample: { findMany } } as any);
+    const start = new Date('2026-10-01T00:00:00Z');
+    const end = new Date('2026-10-01T01:00:00Z');
+    await expect(service.getRecordedCycleCost(start, end)).resolves.toBeNull();
+    findMany.mockResolvedValue([{ serviceId: 'srv-hot', hourStart: start, instanceCount: 1, rateCentsBrl: 2 }]);
+    process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":500}';
+    await expect(service.getRecordedCycleCost(start, end)).resolves.toBe(2);
   });
 
 });
