@@ -49,6 +49,7 @@ export type CreateGatewayCheckoutInput = {
   recurrence: {
     frequency: number;
     frequencyType: 'months';
+    startDate?: string;
     endDate?: string;
   };
   payerEmail: string;

@@ -10,7 +10,7 @@ import {
 const prisma = new PrismaClient();
 
 async function main() {
-  const gatewayMode = process.env.MERCADO_PAGO_MODE || 'production';
+  const gatewayMode = (process.env.BILLING_MODE?.trim() || process.env.MERCADO_PAGO_MODE?.trim() || 'production').toLowerCase();
   const plans = [
     {
       name: 'Ouro',

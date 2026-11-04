@@ -155,11 +155,6 @@ export class CheckoutService {
       throw new ConflictException(
         'Plano sem checkout Mercado Pago configurado.',
       );
-    const recurrence = this.recurrence(
-      plan.interval,
-      plan.intervalCount,
-      promotionOffer?.periodMonths,
-    );
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -170,6 +165,14 @@ export class CheckoutService {
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
       );
     }
+    const recurrence = this.recurrence(
+      plan.interval,
+      plan.intervalCount,
+      promotionOffer?.periodMonths,
+      !isProductionTestCheckout && subscription.status === 'trialing'
+        ? subscription.trialEndsAt
+        : undefined,
+    );
     if (
       subscription.status === 'canceled' &&
       subscription.cancelAtPeriodEnd &&
@@ -556,6 +559,7 @@ export class CheckoutService {
     interval: PlanInterval,
     intervalCount: number,
     promotionPeriodMonths?: number,
+    trialEndsAt?: Date | null,
   ) {
     if (!Number.isInteger(intervalCount) || intervalCount < 1) {
       throw new ConflictException('Plano com recorrência inválida.');
@@ -571,13 +575,16 @@ export class CheckoutService {
     ) {
       throw new ConflictException('Oferta promocional com duração inválida.');
     }
+    const now = new Date();
+    const start = trialEndsAt && trialEndsAt > now ? trialEndsAt : now;
     const endDate = promotionPeriodMonths
-      ? this.addUtcMonths(new Date(), promotionPeriodMonths).toISOString()
+      ? this.addUtcMonths(start, promotionPeriodMonths).toISOString()
       : undefined;
     return {
       frequency:
         interval === PlanInterval.YEARLY ? intervalCount * 12 : intervalCount,
       frequencyType: 'months' as const,
+      ...(start > now ? { startDate: start.toISOString() } : {}),
       ...(endDate ? { endDate } : {}),
     };
   }

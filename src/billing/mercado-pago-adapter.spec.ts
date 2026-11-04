@@ -210,6 +210,7 @@ describe('MercadoPagoGatewayAdapter', () => {
       recurrence: {
         frequency: 1,
         frequencyType: 'months',
+        startDate: '2025-10-01T00:00:00.000Z',
         endDate: '2026-01-01T00:00:00.000Z',
       },
       payerEmail: 'admin@example.com',
@@ -220,6 +221,7 @@ describe('MercadoPagoGatewayAdapter', () => {
     expect(JSON.parse(request.body).auto_recurring).toMatchObject({
       frequency: 1,
       frequency_type: 'months',
+      start_date: '2025-10-01T00:00:00.000Z',
       end_date: '2026-01-01T00:00:00.000Z',
       transaction_amount: 66.67,
       currency_id: 'BRL',
