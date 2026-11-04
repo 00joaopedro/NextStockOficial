@@ -104,10 +104,12 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
   private readonly apiUrl = 'https://api.render.com/v1/metrics/instance-count';
 
   isUsageConfigured() {
+    const ids = this.serviceIds();
+    const rates = this.hourlyRateByService();
     return Boolean(
       process.env.RENDER_API_KEY?.trim() &&
-        this.serviceIds().length &&
-        Object.keys(this.hourlyRateByService()).length,
+        ids.length &&
+        ids.every((id) => Object.prototype.hasOwnProperty.call(rates, id)),
     );
   }
 
