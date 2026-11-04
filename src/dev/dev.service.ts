@@ -282,6 +282,7 @@ export class DevService {
       supabaseConfigured: this.supabaseMetrics.isConfigured(),
       databaseConnected: await this.supabaseMetrics.isDatabaseConnected(),
       usageConfiguration: {
+        renderCollection: this.renderMetrics?.collectionStatus() ?? null,
         railwayMissing: missing(['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_WORKSPACE_ID', 'RAILWAY_USAGE_BRL_PER_USD']).concat(
           present('RAILWAY_USAGE_SERVICE_IDS') || present('RAILWAY_SERVICE_ID') ? [] : ['RAILWAY_USAGE_SERVICE_IDS ou RAILWAY_SERVICE_ID'],
         ),
