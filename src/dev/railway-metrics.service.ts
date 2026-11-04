@@ -45,10 +45,10 @@ export class RailwayMetricsService {
 
   isConfigured(): boolean {
     return Boolean(
-      process.env.RAILWAY_API_TOKEN &&
-        process.env.RAILWAY_PROJECT_ID &&
-        process.env.RAILWAY_ENVIRONMENT_ID &&
-        process.env.RAILWAY_SERVICE_ID,
+      process.env.RAILWAY_API_TOKEN?.trim() &&
+        process.env.RAILWAY_PROJECT_ID?.trim() &&
+        process.env.RAILWAY_ENVIRONMENT_ID?.trim() &&
+        process.env.RAILWAY_SERVICE_ID?.trim(),
     );
   }
 
@@ -134,6 +134,8 @@ export class RailwayMetricsService {
     const serviceId = process.env.RAILWAY_SERVICE_ID || '';
 
     if (!this.isConfigured()) {
+      const required = ['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT_ID', 'RAILWAY_SERVICE_ID'];
+      const missing = required.filter((key) => !process.env[key]?.trim());
       return {
         status: 'unavailable',
         projectId,
@@ -142,7 +144,9 @@ export class RailwayMetricsService {
         memory: null,
         network: null,
         deployments: [],
-        message: 'Railway nao configurado no backend.',
+        message: missing.length
+          ? `Status Railway indisponível. Variáveis ausentes: ${missing.join(', ')}. A configuração de custos é verificada separadamente.`
+          : 'Status Railway indisponível: verifique a configuração do backend.',
       };
     }
 
