@@ -29,9 +29,19 @@ Se a conta foi criada mas a sessão falhou, entrar com e-mail e senha é o camin
 de recuperação; editar os dados e repetir o cadastro não deve criar outra conta.
 Não se renova a sessão com base apenas na posse de uma chave de idempotência.
 
-Esta etapa não muda a reserva promocional, suas vagas, seus preços, o identificador
-da reserva no navegador ou a comparação da oferta com uma reserva existente.
-Esses dois ajustes ficam para uma etapa posterior no mesmo PR.
+A tentativa de reserva promocional no navegador fica vinculada ao ID da conta,
+ao tenant e à campanha, plano e período selecionados. A mesma tentativa pode ser
+repetida após falha temporária; trocar conta, tenant ou oferta gera outra chave.
+Chaves antigas sem esse escopo são descartadas. A limpeza do contexto de sessão
+preserva somente a tentativa cujo escopo corresponda à resposta autenticada do
+cadastro; nenhuma senha ou credencial é persistida.
+
+No backend, uma reserva válida ou convertida só é reaproveitada quando plano e
+período correspondem à oferta solicitada. Oferta diferente ou metadados ausentes
+retornam conflito `PROMOTION_RESERVATION_OFFER_MISMATCH`, sem substituir a reserva
+nem consumir outra vaga. A verificação também cobre o vencedor de corridas de
+reciclagem e de criação concorrente. A resposta de reserva mantém seu formato,
+e preços, vagas e regras de elegibilidade continuam definidos no backend.
 
 Sem migração nova e sem alteração automática de contas existentes. Os testes usam
 provedores simulados e PostgreSQL de teste; não é necessário efetuar pagamento

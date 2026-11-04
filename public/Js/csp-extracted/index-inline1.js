@@ -292,13 +292,25 @@
       persistPreviewContext('petshop');
     });
 
-    async function reservePromotionSelection(selection) {
-      const idempotencyKey =
-        sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY) ||
-        crypto.randomUUID();
-      sessionStorage.setItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY, idempotencyKey);
-
+    async function reservePromotionSelection(selection, authContext, previousAttempt) {
       try {
+        const userId = authContext.user?.id;
+        const tenantId = authContext.selectedBranch?.tenantId;
+        if (!userId || !tenantId) {
+          throw new Error('Não foi possível identificar a conta da reserva. Entre novamente.');
+        }
+        const scope = JSON.stringify([
+          userId, tenantId, selection.campaignSlug, selection.planSlug, selection.periodMonths,
+        ]);
+        let attempt;
+        try { attempt = JSON.parse(previousAttempt || 'null'); } catch { attempt = null; }
+        const idempotencyKey = attempt?.scope === scope &&
+          typeof attempt.key === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(attempt.key)
+          ? attempt.key : crypto.randomUUID();
+        sessionStorage.setItem(
+          PROMOTION_RESERVATION_IDEMPOTENCY_KEY,
+          JSON.stringify({ scope, key: idempotencyKey }),
+        );
         const { data } = await apiRequest(
           '/promotions/' + encodeURIComponent(selection.campaignSlug) + '/reservation',
           {
@@ -365,13 +377,14 @@
         });
 
         const promotionSelection = readPromotionSelection();
+        const promotionAttempt = sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
         persistAuthContext(data);
         if (promotionSelection) {
           sessionStorage.setItem(
             PROMOTION_SELECTION_KEY,
             JSON.stringify(promotionSelection),
           );
-          const reserved = await reservePromotionSelection(promotionSelection);
+          const reserved = await reservePromotionSelection(promotionSelection, data, promotionAttempt);
           if (!reserved) {
             setStatus(
               'Cadastro concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter encerrado; verifique o perfil.',

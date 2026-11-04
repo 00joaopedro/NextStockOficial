@@ -164,6 +164,7 @@ export class PromotionsService {
         (existing.status === PromotionReservationStatus.RESERVED &&
           existing.expiresAt > new Date()))
     ) {
+      this.assertReservationOffer(existing, offer);
       return this.formatReservation(existing, campaign);
     }
 
@@ -247,6 +248,7 @@ export class PromotionsService {
                 (current.status === PromotionReservationStatus.RESERVED &&
                   current.expiresAt > reservedAt))
             ) {
+              this.assertReservationOffer(current, offer);
               return current;
             }
             throw new ConflictException(
@@ -315,9 +317,38 @@ export class PromotionsService {
             },
           },
         });
-        if (duplicate) return this.formatReservation(duplicate, campaign);
+        if (duplicate) {
+          this.assertReservationOffer(duplicate, offer);
+          if (
+            duplicate.status === PromotionReservationStatus.CONVERTED ||
+            (duplicate.status === PromotionReservationStatus.RESERVED &&
+              duplicate.expiresAt > new Date())
+          ) {
+            return this.formatReservation(duplicate, campaign);
+          }
+        }
       }
       throw error;
+    }
+  }
+
+  private assertReservationOffer(
+    reservation: { metadata: Prisma.JsonValue },
+    offer: { planSlug: string; periodMonths: number },
+  ) {
+    const metadata = reservation.metadata;
+    if (
+      !metadata ||
+      typeof metadata !== 'object' ||
+      Array.isArray(metadata) ||
+      metadata.planSlug !== offer.planSlug ||
+      metadata.periodMonths !== offer.periodMonths
+    ) {
+      throw new ConflictException({
+        code: 'PROMOTION_RESERVATION_OFFER_MISMATCH',
+        message:
+          'A reserva existente não corresponde à oferta selecionada. Verifique sua reserva no perfil antes de continuar.',
+      });
     }
   }
 

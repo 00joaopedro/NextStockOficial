@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 describe('public registration retry UI', () => {
-  function fixture() {
+  function fixture(search = '') {
     type Element = {
       value: string;
       textContent: string;
@@ -36,6 +36,7 @@ describe('public registration retry UI', () => {
     get('registerSystemType').value = 'padrao';
     const stored = new Map<string, string>();
     const fetch = jest.fn();
+    let sequence = 0;
     runInNewContext(
       readFileSync(
         join(__dirname, '../public/Js/csp-extracted/index-inline1.js'),
@@ -43,8 +44,9 @@ describe('public registration retry UI', () => {
       ),
       {
         URLSearchParams,
+        crypto: { randomUUID: jest.fn(() => `attempt-${++sequence}`) },
         window: {
-          location: { search: '', href: '' },
+          location: { search, href: '' },
           addEventListener: () => undefined,
         },
         document: {
@@ -131,5 +133,94 @@ describe('public registration retry UI', () => {
       { email: 'second@example.test' },
     );
     expect(f.get('submitButton').disabled).toBe(false);
+  });
+  const attemptKey = 'nextstockPromotionReservationIdempotency';
+  const selectionKey = 'nextstockPromotionSelection';
+  const response = (data: unknown, ok = true) => ({
+    ok,
+    status: ok ? 200 : 503,
+    text: () => Promise.resolve(JSON.stringify(data)),
+  });
+  const account = (user = 'user-1', tenant = 'tenant-1') => ({
+    user: { id: user },
+    selectedBranch: { id: 'branch-1', tenantId: tenant },
+  });
+  const promo = '?promo=lancamento-2026&plan=ouro&period=6';
+  function reservationKey(f: ReturnType<typeof fixture>, call: number) {
+    return (
+      f.fetch.mock.calls[call] as [string, { headers: Record<string, string> }]
+    )[1].headers['Idempotency-Key'];
+  }
+  async function failReservation(
+    f: ReturnType<typeof fixture>,
+    auth = account(),
+  ) {
+    f.fetch
+      .mockResolvedValueOnce(response(auth))
+      .mockResolvedValueOnce(response({}, false));
+    await f.submit();
+  }
+
+  it('reuses a failed attempt only for the same account, tenant and offer', async () => {
+    const f = fixture(promo);
+    await failReservation(f);
+    const first = reservationKey(f, 1);
+    await failReservation(f);
+    expect(reservationKey(f, 3)).toBe(first);
+    await failReservation(f, account('user-2', 'tenant-2'));
+    expect(reservationKey(f, 5)).not.toBe(first);
+    expect(JSON.stringify([...f.stored])).not.toContain('Secret123');
+  });
+
+  it.each([
+    { planSlug: 'esmeralda', periodMonths: 6 },
+    { planSlug: 'ouro', periodMonths: 3 },
+  ])('starts a new attempt when the offer changes to %j', async (offer) => {
+    const f = fixture(promo);
+    await failReservation(f);
+    const first = reservationKey(f, 1);
+    f.stored.set(
+      selectionKey,
+      JSON.stringify({ campaignSlug: 'lancamento-2026', ...offer }),
+    );
+    await failReservation(f);
+    expect(reservationKey(f, 3)).not.toBe(first);
+  });
+
+  it.each([
+    'legacy-key-12345',
+    '{invalid',
+    JSON.stringify({ scope: 'another-account', key: 'old-key-123' }),
+  ])(
+    'does not reuse an unscoped or invalid stored attempt: %s',
+    async (stored) => {
+      const f = fixture(promo);
+      f.stored.set(attemptKey, stored);
+      await failReservation(f);
+      expect(reservationKey(f, 1)).toBe('attempt-1');
+    },
+  );
+
+  it('clears the attempt after a successful reservation and keeps the response format', async () => {
+    const f = fixture(promo);
+    f.fetch
+      .mockResolvedValueOnce(response(account()))
+      .mockResolvedValueOnce(
+        response({ reservationId: 'reservation-1', status: 'RESERVED' }),
+      );
+    await f.submit();
+    expect(f.stored.has(attemptKey)).toBe(false);
+    expect(JSON.parse(f.stored.get('nextstockPromotionReservation')!)).toEqual({
+      reservationId: 'reservation-1',
+      status: 'RESERVED',
+    });
+  });
+
+  it('does not reserve without an authenticated tenant context', async () => {
+    const f = fixture(promo);
+    f.fetch.mockResolvedValueOnce(response({ user: { id: 'user-1' } }));
+    await f.submit();
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+    expect(f.stored.has(attemptKey)).toBe(false);
   });
 });
