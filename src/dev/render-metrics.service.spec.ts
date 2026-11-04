@@ -32,6 +32,15 @@ describe('RenderMetricsService', () => {
     expect(new RenderMetricsService().isUsageConfigured()).toBe(true);
   });
 
+  it('reports a safe HTTP diagnostic without logging the provider body', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 401, json: async () => ({ detail: 'sensitive-provider-body' }) } as Response);
+    const service = new RenderMetricsService({} as any);
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
+    await service.collectRecent().catch((error: unknown) => (service as any).warnCollectionFailure(error));
+    expect(warn).toHaveBeenCalledWith('Render metrics collection failed: HTTP_401.');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive-provider-body');
+  });
+
   it('exige taxa para cada serviço e aceita explicitamente um serviço gratuito', () => {
     process.env.RENDER_USAGE_SERVICE_IDS = 'srv-hot,srv-cold';
     process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE = '{"srv-hot":0}';
