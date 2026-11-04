@@ -13,6 +13,10 @@ export type RenderServiceUsage = {
 type MetricPoint = { timestamp?: string; value?: number };
 type MetricSeries = { values?: MetricPoint[] };
 
+class RenderCollectionError extends Error {
+  constructor(readonly diagnostic: string) { super('Render collection unavailable'); }
+}
+
 /**
  * Render exposes resource metrics, not a billing ledger. Cost is therefore an
  * estimate based on the configured hourly price of each reserved service. A
@@ -28,13 +32,18 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     if (!this.prisma) return;
-    const run = () => { void this.collectRecent().catch(() => this.logger.warn('Render metrics collection failed.')); };
+    const run = () => { void this.collectRecent().catch((error: unknown) => this.warnCollectionFailure(error)); };
     run();
     this.timer = setInterval(run, 30 * 60 * 1000);
     this.timer.unref?.();
   }
 
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
+
+  private warnCollectionFailure(error: unknown) {
+    const code = error instanceof RenderCollectionError ? error.diagnostic : 'NETWORK_OR_STORAGE_FAILURE';
+    this.logger.warn(`Render metrics collection failed: ${code}.`);
+  }
 
   async collectRecent(): Promise<void> {
     if (!this.prisma || !this.isUsageConfigured()) return;
@@ -51,14 +60,15 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
     const start = end - 6 * 24 * hour;
     const rates = this.hourlyRateByService();
     for (const serviceId of this.serviceIds()) {
-      if (!Number.isFinite(rates[serviceId]) || rates[serviceId] < 0) throw new Error('rate');
+      if (!Number.isFinite(rates[serviceId]) || rates[serviceId] < 0) throw new RenderCollectionError('RATE_INVALID');
       const query = new URLSearchParams({ startTime: new Date(start).toISOString(), endTime: new Date(end).toISOString(), resolutionSeconds: '3600', resource: serviceId });
       const response = await fetch(`${this.apiUrl}?${query}`, {
         headers: { Accept: 'application/json', Authorization: `Bearer ${process.env.RENDER_API_KEY}` },
         signal: AbortSignal.timeout(15000),
       });
       const series = await response.json().catch(() => null) as MetricSeries[] | null;
-      if (!response.ok || !Array.isArray(series)) throw new Error('metrics');
+      if (!response.ok) throw new RenderCollectionError(`HTTP_${response.status}`);
+      if (!Array.isArray(series)) throw new RenderCollectionError('RESPONSE_INVALID');
       const samples = new Map<number, number>();
       for (const item of series) for (const point of item.values || []) {
         const time = new Date(point.timestamp || '').getTime();
@@ -67,7 +77,7 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
             typeof count !== 'number' || !Number.isFinite(count) || count < 0) continue;
         samples.set(time, Math.max(samples.get(time) ?? 0, count));
       }
-      if (!samples.size) throw new Error('metrics_empty');
+      if (!samples.size) throw new RenderCollectionError('SAMPLES_UNAVAILABLE');
       await (this.prisma as any).providerUsageSample.createMany({
         data: [...samples].map(([time, instanceCount]) => ({ provider: 'render', serviceId, hourStart: new Date(time), instanceCount })),
         skipDuplicates: true,
@@ -137,7 +147,7 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
     if (this.prisma) {
       try {
-        void this.collectRecent().catch(() => this.logger.warn('Render metrics collection failed.'));
+        void this.collectRecent().catch((error: unknown) => this.warnCollectionFailure(error));
         const costCents = await this.durableCost(periodStart, periodEnd);
         if (costCents == null) return unavailable();
         const effectiveEnd = new Date(Math.min(new Date(periodEnd).getTime(), Math.floor(Date.now() / 3_600_000) * 3_600_000)).toISOString();
