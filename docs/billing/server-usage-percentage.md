@@ -94,6 +94,13 @@ Para Render, configure a API, IDs e taxas nos **dois serviços de aplicação**;
 segredos do GitHub Actions não são variáveis de runtime. `GET /api/dev/health`,
 restrito ao Dev SuperAdmin, informa apenas nomes ausentes no servidor que atende
 a requisição. Presença de nomes não prova que valores ou permissões estão corretos.
+O campo `usageConfiguration.renderCollection` também informa a última tentativa,
+o último sucesso e o último código seguro de falha da coleta nesta instância.
+`HTTP_401` é uma resposta de autenticação recusada pela API; não é sinônimo de
+qualquer falha de coleta. `SAMPLES_UNAVAILABLE` indica ausência de amostras
+utilizáveis, enquanto `NETWORK_OR_STORAGE_FAILURE` ainda exige investigação.
+Esses diagnósticos são locais ao processo, reiniciam após deploy e não atestam
+cobertura histórica completa. Nenhum corpo de resposta ou token é incluído.
 Os totais por usuário são estimativas por linha, período e origem. Não os use
 para cobrança ou como medição exata do uso individual.
 
