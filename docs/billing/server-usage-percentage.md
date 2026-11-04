@@ -86,6 +86,10 @@ caso a coleta falhe.
 
 Para Railway, o painel Dev usa `DEV_RAILWAY_MONTHLY_COST_CENTS` como base
 administrativa estimada; o percentual no perfil usa a consulta de uso da Railway.
+O cartão de status da Railway exige também `RAILWAY_ENVIRONMENT_ID` e
+`RAILWAY_SERVICE_ID`, mesmo quando a estimativa de uso está configurada com
+`RAILWAY_USAGE_SERVICE_IDS`. O aviso de variáveis da estimativa e o cartão
+verificam configurações distintas; a presença de nomes não prova autorização.
 Para Render, configure a API, IDs e taxas nos **dois serviços de aplicação**;
 segredos do GitHub Actions não são variáveis de runtime. `GET /api/dev/health`,
 restrito ao Dev SuperAdmin, informa apenas nomes ausentes no servidor que atende
