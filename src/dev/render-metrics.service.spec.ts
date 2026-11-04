@@ -38,6 +38,7 @@ describe('RenderMetricsService', () => {
     const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation(() => undefined);
     await service.collectRecent().catch((error: unknown) => (service as any).warnCollectionFailure(error));
     expect(warn).toHaveBeenCalledWith('Render metrics collection failed: HTTP_401.');
+    expect(service.collectionStatus()).toMatchObject({ configured: true, lastFailureCode: 'HTTP_401', lastSuccessAt: null, collecting: false });
     expect(JSON.stringify(warn.mock.calls)).not.toContain('sensitive-provider-body');
   });
 
