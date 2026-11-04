@@ -7,6 +7,7 @@ describe('RailwayMetricsService', () => {
     RAILWAY_WORKSPACE_ID: process.env.RAILWAY_WORKSPACE_ID,
     RAILWAY_USAGE_SERVICE_IDS: process.env.RAILWAY_USAGE_SERVICE_IDS,
     RAILWAY_ENVIRONMENT_ID: process.env.RAILWAY_ENVIRONMENT_ID,
+    RAILWAY_SERVICE_ID: process.env.RAILWAY_SERVICE_ID,
   };
 
   beforeEach(() => {
@@ -26,6 +27,17 @@ describe('RailwayMetricsService', () => {
   });
 
   it('does not require a deployment environment to query workspace usage', () => {
+    expect(new RailwayMetricsService().isUsageConfigured()).toBe(true);
+  });
+
+  it('explains which overview variables are missing without exposing their values', async () => {
+    delete process.env.RAILWAY_ENVIRONMENT_ID;
+    delete process.env.RAILWAY_SERVICE_ID;
+    const result = await new RailwayMetricsService().getOverview();
+    expect(result.status).toBe('unavailable');
+    expect(result.message).toContain('RAILWAY_ENVIRONMENT_ID');
+    expect(result.message).toContain('RAILWAY_SERVICE_ID');
+    expect(result.message).not.toContain('test-token');
     expect(new RailwayMetricsService().isUsageConfigured()).toBe(true);
   });
 
