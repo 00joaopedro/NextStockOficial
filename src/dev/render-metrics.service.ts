@@ -28,6 +28,8 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
   private timer: ReturnType<typeof setInterval> | undefined;
   private collecting: Promise<void> | undefined;
   private lastAttemptAt = 0;
+  private lastSuccessAt: string | null = null;
+  private lastFailureCode: string | null = null;
   constructor(@Optional() private readonly prisma?: PrismaService) {}
 
   onModuleInit() {
@@ -42,7 +44,18 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
 
   private warnCollectionFailure(error: unknown) {
     const code = error instanceof RenderCollectionError ? error.diagnostic : 'NETWORK_OR_STORAGE_FAILURE';
+    this.lastFailureCode = code;
     this.logger.warn(`Render metrics collection failed: ${code}.`);
+  }
+
+  collectionStatus() {
+    return {
+      configured: this.isUsageConfigured(),
+      lastAttemptAt: this.lastAttemptAt ? new Date(this.lastAttemptAt).toISOString() : null,
+      lastSuccessAt: this.lastSuccessAt,
+      lastFailureCode: this.lastFailureCode,
+      collecting: Boolean(this.collecting),
+    };
   }
 
   async collectRecent(): Promise<void> {
@@ -50,7 +63,13 @@ export class RenderMetricsService implements OnModuleInit, OnModuleDestroy {
     if (this.collecting) return this.collecting;
     if (Date.now() - this.lastAttemptAt < 5 * 60 * 1000) return;
     this.lastAttemptAt = Date.now();
-    this.collecting = this.collectRecentOnce().finally(() => { this.collecting = undefined; });
+    this.collecting = this.collectRecentOnce().then(() => {
+      this.lastSuccessAt = new Date().toISOString();
+      this.lastFailureCode = null;
+    }).catch((error: unknown) => {
+      this.lastFailureCode = error instanceof RenderCollectionError ? error.diagnostic : 'NETWORK_OR_STORAGE_FAILURE';
+      throw error;
+    }).finally(() => { this.collecting = undefined; });
     return this.collecting;
   }
 
