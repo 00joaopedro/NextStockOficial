@@ -713,7 +713,7 @@ export class AuthService {
         throw new ConflictException({ code: 'REGISTRATION_ACCOUNT_REQUIRES_RECONCILIATION', message: 'A tentativa anterior pode já ter criado sua conta. Tente entrar ou recuperar a senha; se não conseguir, solicite suporte.' });
       }
       const recovered = await this.prisma.registrationIntent.updateMany({
-        where: { id: existing.id, canonicalEmail: input.email, payloadHash: existing.payloadHash, updatedAt: existing.updatedAt, state: UserProvisioningState.FAILED_RETRYABLE, claimToken: null, tenantId: null, branchId: null, completedAt: null, OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: new Date() } }] },
+        where: { id: existing.id, canonicalEmail: input.email, payloadHash: existing.payloadHash, updatedAt: existing.updatedAt, authUserId: existing.authUserId, referralPartnerId: existing.referralPartnerId, lastErrorCode: existing.lastErrorCode, state: UserProvisioningState.FAILED_RETRYABLE, claimToken: null, tenantId: null, branchId: null, completedAt: null, OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: new Date() } }] },
         data: { payloadHash: input.payloadHash, requestedName: input.name, companyName: input.companyName, systemType: input.systemType, referralPartnerId: null, authUserId: null, state: UserProvisioningState.CLAIMED, claimToken: randomUUID(), leaseExpiresAt, attempts: { increment: 1 }, lastErrorCode: null },
       });
       if (recovered.count !== 1) throw new ConflictException({ code: 'REGISTRATION_IN_PROGRESS', message: 'O cadastro foi atualizado por outra tentativa. Aguarde e tente novamente.' });
