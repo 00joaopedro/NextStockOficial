@@ -237,6 +237,7 @@ export class AuthService {
 
     let authUser;
     let authIdentityOwned = false;
+    let authCreationStarted = false;
     try {
       const existingAuth = await this.authProvider.findByEmail(email);
       if (existingAuth) {
@@ -248,6 +249,7 @@ export class AuthService {
         authUser = existingAuth;
         authIdentityOwned = true;
       } else {
+        authCreationStarted = true;
         authUser = await this.authProvider.createUser({
           email,
           password,
@@ -324,7 +326,7 @@ export class AuthService {
       } else {
         await this.markRegistrationIntentRetryable(
           intent.id,
-          error instanceof AuthProviderError
+          !authCreationStarted ? 'AUTH_LOOKUP_FAILED_BEFORE_CREATE' : error instanceof AuthProviderError
             ? error.code
             : 'AUTH_CREATE_FAILED',
           intent.claimToken,
@@ -540,9 +542,7 @@ export class AuthService {
       if (compensationClaimed && rollbackCompleted) {
         await this.markRegistrationIntentRetryable(
           intent.id,
-          error instanceof Error
-            ? error.message.slice(0, 120)
-            : 'REGISTER_TRANSACTION_FAILED',
+          'REGISTER_TRANSACTION_ROLLED_BACK',
           intent.claimToken,
         );
       } else if (compensationClaimed && !rollbackCompleted) {
@@ -676,29 +676,61 @@ export class AuthService {
 
     if (!existing) {
       throw new ServiceUnavailableException(
-        'Registration intent could not be claimed.',
+        { code: 'REGISTRATION_TEMPORARILY_UNAVAILABLE', message: 'Não foi possível iniciar o cadastro. Aguarde e tente novamente.' },
       );
     }
-    if (
-      existing.canonicalEmail !== input.email ||
-      existing.payloadHash !== input.payloadHash
-    ) {
+    if (existing.canonicalEmail !== input.email) {
       throw new ConflictException(
-        'Idempotency key was reused with a different payload.',
+        { code: 'REGISTRATION_KEY_CONFLICT', message: 'Esta tentativa pertence a outro cadastro. Reabra o formulário para iniciar uma nova tentativa.' },
       );
+    }
+    if (existing.payloadHash !== input.payloadHash) {
+      if (existing.state === UserProvisioningState.COMPLETED) {
+        throw new ConflictException({ code: 'REGISTRATION_ALREADY_COMPLETED', message: 'O cadastro já foi concluído. Entre com seu e-mail e senha; se necessário, use a recuperação de senha.' });
+      }
+      // Never replace data while remote creation or compensation may be pending.
+      // Only a failed, released attempt with no persisted account can be edited.
+      const knownSafeFailure = ['AUTH_LOOKUP_FAILED_BEFORE_CREATE', 'REGISTER_TRANSACTION_ROLLED_BACK', 'password_policy', 'rate_limited'].includes(existing.lastErrorCode || '');
+      if (!knownSafeFailure || existing.state !== UserProvisioningState.FAILED_RETRYABLE || existing.claimToken || existing.tenantId || existing.branchId || existing.completedAt || (existing.leaseExpiresAt && existing.leaseExpiresAt.getTime() > Date.now())) {
+        throw new ConflictException({ code: 'REGISTRATION_DATA_CONFLICT', message: 'Há uma tentativa anterior com dados diferentes. Não foi possível substituí-la com segurança. Aguarde ou solicite suporte.' });
+      }
+      let persistedAccount: unknown;
+      let identity: unknown;
+      let previousIdentity: unknown;
+      try {
+        [persistedAccount, identity, previousIdentity] = await Promise.all([
+          this.prisma.userProfile.findFirst({ where: { OR: [
+            { email: input.email },
+            ...(existing.authUserId ? [{ id: existing.authUserId }, { supabaseUserId: existing.authUserId }] : []),
+          ] }, select: { id: true } }),
+          this.authProvider.findByEmail(input.email),
+          existing.authUserId ? this.authProvider.findById(existing.authUserId) : Promise.resolve(null),
+        ]);
+      } catch {
+        throw new ServiceUnavailableException({ code: 'REGISTRATION_RECOVERY_UNAVAILABLE', message: 'Não foi possível verificar a tentativa anterior. Aguarde e tente novamente com os mesmos dados.' });
+      }
+      if (persistedAccount || identity || previousIdentity) {
+        throw new ConflictException({ code: 'REGISTRATION_ACCOUNT_REQUIRES_RECONCILIATION', message: 'A tentativa anterior pode já ter criado sua conta. Tente entrar ou recuperar a senha; se não conseguir, solicite suporte.' });
+      }
+      const recovered = await this.prisma.registrationIntent.updateMany({
+        where: { id: existing.id, canonicalEmail: input.email, payloadHash: existing.payloadHash, updatedAt: existing.updatedAt, authUserId: existing.authUserId, referralPartnerId: existing.referralPartnerId, lastErrorCode: existing.lastErrorCode, state: UserProvisioningState.FAILED_RETRYABLE, claimToken: null, tenantId: null, branchId: null, completedAt: null, OR: [{ leaseExpiresAt: null }, { leaseExpiresAt: { lte: new Date() } }] },
+        data: { payloadHash: input.payloadHash, requestedName: input.name, companyName: input.companyName, systemType: input.systemType, referralPartnerId: null, authUserId: null, state: UserProvisioningState.CLAIMED, claimToken: randomUUID(), leaseExpiresAt, attempts: { increment: 1 }, lastErrorCode: null },
+      });
+      if (recovered.count !== 1) throw new ConflictException({ code: 'REGISTRATION_IN_PROGRESS', message: 'O cadastro foi atualizado por outra tentativa. Aguarde e tente novamente.' });
+      return this.prisma.registrationIntent.findUniqueOrThrow({ where: { id: existing.id } });
     }
     if (existing.state === UserProvisioningState.COMPLETED) {
       return existing;
     }
     if (existing.state === UserProvisioningState.FAILED_FINAL) {
-      throw new ConflictException('Registration cannot be retried safely.');
+      throw new ConflictException({ code: 'REGISTRATION_REQUIRES_SUPPORT', message: 'Não foi possível retomar esse cadastro com segurança. Solicite suporte.' });
     }
 
     const leaseActive =
       existing.leaseExpiresAt && existing.leaseExpiresAt.getTime() > Date.now();
     if (leaseActive) {
       throw new ConflictException(
-        'Registration is already in progress; retry shortly.',
+        { code: 'REGISTRATION_IN_PROGRESS', message: 'Seu cadastro já está em andamento. Aguarde antes de tentar novamente.' },
       );
     }
 
@@ -730,7 +762,7 @@ export class AuthService {
 
     if (claim.count !== 1) {
       throw new ConflictException(
-        'Registration is already in progress; retry shortly.',
+        { code: 'REGISTRATION_IN_PROGRESS', message: 'Seu cadastro já está em andamento. Aguarde antes de tentar novamente.' },
       );
     }
 

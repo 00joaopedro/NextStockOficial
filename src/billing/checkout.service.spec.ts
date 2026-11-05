@@ -225,6 +225,24 @@ describe('CheckoutService', () => {
     jest.useRealTimers();
   });
 
+  it('honors remaining trial and starts promotional duration at the first charge', () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-11-04T12:00:00Z'));
+    try {
+      const service = new CheckoutService({} as any, {} as any, {} as any, {} as any);
+      const recurrence = (service as any).recurrence.bind(service);
+      const trial = new Date('2026-11-05T12:00:00Z');
+      expect(recurrence(PlanInterval.MONTHLY, 1, 3, trial)).toEqual({
+        frequency: 1, frequencyType: 'months', startDate: trial.toISOString(),
+        endDate: '2027-02-05T12:00:00.000Z',
+      });
+      expect(recurrence(PlanInterval.MONTHLY, 1, undefined, trial)).toEqual({
+        frequency: 1, frequencyType: 'months', startDate: trial.toISOString(),
+      });
+      expect(recurrence(PlanInterval.MONTHLY, 1, undefined, new Date('2026-11-03')))
+        .toEqual({ frequency: 1, frequencyType: 'months' });
+    } finally { jest.useRealTimers(); }
+  });
+
   it('indisponibiliza um novo teste de produção depois de um pagamento aprovado', async () => {
     process.env.BILLING_PRODUCTION_TEST_ENABLED = 'true';
     process.env.BILLING_PRODUCTION_TEST_ADMIN_EMAIL = 'admin@example.com';

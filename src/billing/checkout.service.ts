@@ -92,20 +92,14 @@ export class CheckoutService {
             id: promotionReservationId,
             tenantId: context.tenantId,
             status: 'RESERVED',
-            expiresAt: { gt: new Date() },
           },
         })
       : null;
     let promotionOffer: ReturnType<typeof getPromotionOffer> = null;
     if (promotionReservationId) {
-      if (!promotionReservation) {
+      if (!promotionReservation || (!promotionReservation.checkoutSessionId && promotionReservation.expiresAt <= new Date())) {
         throw new ConflictException(
           'A reserva promocional não está válida ou expirou.',
-        );
-      }
-      if (promotionReservation.checkoutSessionId) {
-        throw new ConflictException(
-          'A reserva promocional já está vinculada a outro checkout.',
         );
       }
       const metadata =
@@ -155,11 +149,6 @@ export class CheckoutService {
       throw new ConflictException(
         'Plano sem checkout Mercado Pago configurado.',
       );
-    const recurrence = this.recurrence(
-      plan.interval,
-      plan.intervalCount,
-      promotionOffer?.periodMonths,
-    );
 
     const subscription = await this.prisma.subscription.findFirst({
       where: { tenantId: context.tenantId },
@@ -170,6 +159,14 @@ export class CheckoutService {
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
       );
     }
+    const recurrence = this.recurrence(
+      plan.interval,
+      plan.intervalCount,
+      promotionOffer?.periodMonths,
+      !isProductionTestCheckout && subscription.status === 'trialing'
+        ? subscription.trialEndsAt
+        : undefined,
+    );
     if (
       subscription.status === 'canceled' &&
       subscription.cancelAtPeriodEnd &&
@@ -199,7 +196,7 @@ export class CheckoutService {
             idempotencyKey,
           },
         },
-        select: { payloadHash: true },
+        select: { payloadHash: true, state: true, checkoutSessionId: true },
       });
     if (
       existingIntentForKey &&
@@ -237,12 +234,20 @@ export class CheckoutService {
           'Já existe um checkout ativo com uma solicitação diferente para esta assinatura.',
         );
       }
-      if (promotionReservationId && !promotionReservation?.checkoutSessionId) {
+      if (promotionReservationId && (
+        promotionReservation?.checkoutSessionId !== activeCheckout.id ||
+        existingIntentForKey?.checkoutSessionId !== activeCheckout.id ||
+        existingIntentForKey?.state !== 'SUCCEEDED' ||
+        activeCheckout.provider !== provider
+      )) {
         throw new ConflictException(
           'Já existe um checkout ativo para esta assinatura.',
         );
       }
       return this.result(activeCheckout, true);
+    }
+    if (promotionReservation?.checkoutSessionId) {
+      throw new ConflictException('A reserva já possui checkout. Consulte o status do pagamento antes de tentar novamente.');
     }
     const profile = await this.prisma.userProfile.findUnique({
       where: { id: context.userId },
@@ -556,6 +561,7 @@ export class CheckoutService {
     interval: PlanInterval,
     intervalCount: number,
     promotionPeriodMonths?: number,
+    trialEndsAt?: Date | null,
   ) {
     if (!Number.isInteger(intervalCount) || intervalCount < 1) {
       throw new ConflictException('Plano com recorrência inválida.');
@@ -571,13 +577,16 @@ export class CheckoutService {
     ) {
       throw new ConflictException('Oferta promocional com duração inválida.');
     }
+    const now = new Date();
+    const start = trialEndsAt && trialEndsAt > now ? trialEndsAt : now;
     const endDate = promotionPeriodMonths
-      ? this.addUtcMonths(new Date(), promotionPeriodMonths).toISOString()
+      ? this.addUtcMonths(start, promotionPeriodMonths).toISOString()
       : undefined;
     return {
       frequency:
         interval === PlanInterval.YEARLY ? intervalCount * 12 : intervalCount,
       frequencyType: 'months' as const,
+      ...(start > now ? { startDate: start.toISOString() } : {}),
       ...(endDate ? { endDate } : {}),
     };
   }

@@ -16,8 +16,8 @@ type OfferDefinition = Omit<PromotionOffer, 'campaignSlug' | 'trialDays' | 'gate
 
 const offers: readonly OfferDefinition[] = [
   { planSlug: 'ouro', periodMonths: 1, monthlyPriceCents: 10_000, totalPriceCents: 10_000, paymentLinkUrl: 'https://mpago.la/2M8u6Mo' },
-  { planSlug: 'ouro', periodMonths: 3, monthlyPriceCents: 6_667, totalPriceCents: 20_000, paymentLinkUrl: 'https://mpago.la/26JiY6w' },
-  { planSlug: 'ouro', periodMonths: 6, monthlyPriceCents: 6_667, totalPriceCents: 40_000, paymentLinkUrl: 'https://mpago.la/1517nND' },
+  { planSlug: 'ouro', periodMonths: 3, monthlyPriceCents: 6_666, totalPriceCents: 19_998, paymentLinkUrl: 'https://mpago.la/26JiY6w' },
+  { planSlug: 'ouro', periodMonths: 6, monthlyPriceCents: 6_666, totalPriceCents: 39_996, paymentLinkUrl: 'https://mpago.la/1517nND' },
   { planSlug: 'esmeralda', periodMonths: 1, monthlyPriceCents: 20_000, totalPriceCents: 20_000, paymentLinkUrl: 'https://mpago.la/2NKAhiw' },
   { planSlug: 'esmeralda', periodMonths: 3, monthlyPriceCents: 20_000, totalPriceCents: 60_000, paymentLinkUrl: 'https://mpago.la/33JYezV' },
   { planSlug: 'esmeralda', periodMonths: 6, monthlyPriceCents: 20_000, totalPriceCents: 120_000, paymentLinkUrl: 'https://mpago.la/13xA3wN' },

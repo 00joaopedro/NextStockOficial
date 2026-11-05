@@ -42,14 +42,17 @@
 
     function savePromotionSelectionFromUrl() {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('promo') === 'none') {
+      if (params.get('promo') !== 'lancamento-2026') {
         clearPromotionSession();
         return;
       }
-      if (params.get('promo') !== 'lancamento-2026') return;
+
       const planSlug = params.get('plan') || '';
       const periodMonths = Number(params.get('period'));
-      if (!/^[a-z0-9-]+$/.test(planSlug) || ![1, 3, 6].includes(periodMonths)) return;
+      if (!['ouro', 'esmeralda'].includes(planSlug) || ![1, 3, 6].includes(periodMonths)) {
+        clearPromotionSession();
+        return;
+      }
       sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify({
         campaignSlug: 'lancamento-2026',
         planSlug,
@@ -233,7 +236,11 @@
       const data = await safeJson(res);
 
       if (!res.ok) {
-        throw new Error(extractApiErrorMessage(res.status, data));
+        const error = new Error(extractApiErrorMessage(res.status, data));
+        error.status = res.status;
+        error.code = data && typeof data.code === 'string' ? data.code : null;
+        error.requestId = data && typeof data.requestId === 'string' && /^[A-Za-z0-9_-]{8,80}$/.test(data.requestId) ? data.requestId : null;
+        throw error;
       }
 
       return { res, data };
@@ -288,13 +295,25 @@
       persistPreviewContext('petshop');
     });
 
-    async function reservePromotionSelection(selection) {
-      const idempotencyKey =
-        sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY) ||
-        crypto.randomUUID();
-      sessionStorage.setItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY, idempotencyKey);
-
+    async function reservePromotionSelection(selection, authContext, previousAttempt) {
       try {
+        const userId = authContext.user?.id;
+        const tenantId = authContext.selectedBranch?.tenantId;
+        if (!userId || !tenantId) {
+          throw new Error('Não foi possível identificar a conta da reserva. Entre novamente.');
+        }
+        const scope = JSON.stringify([
+          userId, tenantId, selection.campaignSlug, selection.planSlug, selection.periodMonths,
+        ]);
+        let attempt;
+        try { attempt = JSON.parse(previousAttempt || 'null'); } catch { attempt = null; }
+        const idempotencyKey = attempt?.scope === scope &&
+          typeof attempt.key === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(attempt.key)
+          ? attempt.key : crypto.randomUUID();
+        sessionStorage.setItem(
+          PROMOTION_RESERVATION_IDEMPOTENCY_KEY,
+          JSON.stringify({ scope, key: idempotencyKey }),
+        );
         const { data } = await apiRequest(
           '/promotions/' + encodeURIComponent(selection.campaignSlug) + '/reservation',
           {
@@ -318,8 +337,10 @@
       }
     }
 
+    let registrationInFlight = false;
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (registrationInFlight) return;
 
       if (!referralReady) {
         setStatus('Link de indicação inválido ou indisponível.', true);
@@ -341,6 +362,9 @@
         return;
       }
 
+      registrationInFlight = true;
+      const registerButton = document.querySelector('#registerForm button[type="submit"]');
+      if (registerButton) registerButton.disabled = true;
       try {
         setStatus('Realizando cadastro...');
         const { data } = await apiRequest('/auth/register', {
@@ -356,13 +380,14 @@
         });
 
         const promotionSelection = readPromotionSelection();
+        const promotionAttempt = sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
         persistAuthContext(data);
         if (promotionSelection) {
           sessionStorage.setItem(
             PROMOTION_SELECTION_KEY,
             JSON.stringify(promotionSelection),
           );
-          const reserved = await reservePromotionSelection(promotionSelection);
+          const reserved = await reservePromotionSelection(promotionSelection, data, promotionAttempt);
           if (!reserved) {
             setStatus(
               'Cadastro concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter encerrado; verifique o perfil.',
@@ -378,7 +403,12 @@
         setStatus('Cadastro realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
-        setStatus('Erro no cadastro:\n\n' + error.message, true);
+        const diagnostic = error.requestId ? '\nReferência para suporte: ' + error.requestId : '';
+        const recoveryHint = error.status >= 500 ? '\nSe sua conta já tiver sido criada, tente entrar com o mesmo e-mail antes de repetir o cadastro.' : '';
+        setStatus('Erro no cadastro:\n\n' + error.message + recoveryHint + diagnostic, true);
+      } finally {
+        registrationInFlight = false;
+        if (registerButton) registerButton.disabled = false;
       }
     });
 
@@ -395,7 +425,16 @@
           body: JSON.stringify({ email, password })
         });
 
+        const promotionSelection = readPromotionSelection();
+        const promotionAttempt = sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
         persistAuthContext(data);
+        if (promotionSelection) {
+          sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify(promotionSelection));
+          const reserved = await reservePromotionSelection(promotionSelection, data, promotionAttempt);
+          setStatus(reserved ? 'Login realizado e reserva recuperada.' : 'Login realizado. A reserva ainda não pôde ser concluída; consulte o perfil.', !reserved);
+          window.location.href = reserved ? 'perfil.html?promotionCheckout=1' : 'perfil.html?promotion=reservation-failed';
+          return;
+        }
         setStatus('Login realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {
