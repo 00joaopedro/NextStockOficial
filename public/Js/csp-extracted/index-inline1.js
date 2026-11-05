@@ -425,7 +425,16 @@
           body: JSON.stringify({ email, password })
         });
 
+        const promotionSelection = readPromotionSelection();
+        const promotionAttempt = sessionStorage.getItem(PROMOTION_RESERVATION_IDEMPOTENCY_KEY);
         persistAuthContext(data);
+        if (promotionSelection) {
+          sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify(promotionSelection));
+          const reserved = await reservePromotionSelection(promotionSelection, data, promotionAttempt);
+          setStatus(reserved ? 'Login realizado e reserva recuperada.' : 'Login realizado. A reserva ainda não pôde ser concluída; consulte o perfil.', !reserved);
+          window.location.href = reserved ? 'perfil.html?promotionCheckout=1' : 'perfil.html?promotion=reservation-failed';
+          return;
+        }
         setStatus('Login realizado com sucesso.');
         window.location.href = data.redirectTo || 'produtos.html';
       } catch (error) {

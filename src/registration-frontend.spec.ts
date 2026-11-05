@@ -15,6 +15,7 @@ describe('public registration retry UI', () => {
       ) => void;
     };
     const elements = new Map<string, Element>();
+    let login!: (event: { preventDefault(): void }) => Promise<void>;
     let submit!: (event: { preventDefault(): void }) => Promise<void>;
     const get = (id: string) => {
       if (!elements.has(id))
@@ -25,6 +26,7 @@ describe('public registration retry UI', () => {
           style: {},
           addEventListener: (name, handler) => {
             if (id === 'registerForm' && name === 'submit') submit = handler;
+            if (id === 'loginForm' && name === 'submit') login = handler;
           },
         });
       return elements.get(id)!;
@@ -66,6 +68,7 @@ describe('public registration retry UI', () => {
     );
     return {
       get,
+      login: () => login({ preventDefault: () => undefined }),
       fetch,
       stored,
       submit: () => submit({ preventDefault: () => undefined }),
@@ -224,13 +227,17 @@ describe('public registration retry UI', () => {
     expect(f.stored.has(attemptKey)).toBe(false);
   });
   it.each(['', '?promo=none', '?promo=lancamento-2026&plan=invalid&period=6'])(
-    'normal signup clears previous promotional state: %s', async (search) => {
+    'normal signup clears previous promotional state: %s',
+    async (search) => {
       const f = fixture(search, {
         nextstockPromotionSelection: JSON.stringify({
-          campaignSlug: 'lancamento-2026', planSlug: 'ouro', periodMonths: 6,
+          campaignSlug: 'lancamento-2026',
+          planSlug: 'ouro',
+          periodMonths: 6,
         }),
         nextstockPromotionReservation: JSON.stringify({
-          reservationId: 'old-reservation', status: 'RESERVED',
+          reservationId: 'old-reservation',
+          status: 'RESERVED',
         }),
         nextstockPromotionReservationIdempotency: 'old-attempt',
       });
@@ -243,4 +250,35 @@ describe('public registration retry UI', () => {
     },
   );
 
+  it('recovers reservation through login after registration succeeded but reservation failed', async () => {
+    const f = fixture(promo);
+    await failReservation(f);
+    const firstKey = reservationKey(f, 1);
+    f.fetch
+      .mockResolvedValueOnce(response(account()))
+      .mockResolvedValueOnce(
+        response({ reservationId: 'recovered', status: 'RESERVED' }),
+      );
+    await f.login();
+    expect((f.fetch.mock.calls[2] as [string, unknown])[0]).toBe(
+      '/api/auth/login',
+    );
+    expect(reservationKey(f, 3)).toBe(firstKey);
+    expect(
+      (
+        JSON.parse(f.stored.get('nextstockPromotionReservation')!) as {
+          reservationId: string;
+        }
+      ).reservationId,
+    ).toBe('recovered');
+    expect(f.stored.has(attemptKey)).toBe(false);
+  });
+
+  it('never reserves a promotion during ordinary login', async () => {
+    const f = fixture();
+    f.fetch.mockResolvedValueOnce(response(account()));
+    await f.login();
+    expect(f.fetch).toHaveBeenCalledTimes(1);
+    expect(f.stored.has(selectionKey)).toBe(false);
+  });
 });

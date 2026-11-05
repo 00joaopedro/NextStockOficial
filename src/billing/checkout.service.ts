@@ -92,20 +92,14 @@ export class CheckoutService {
             id: promotionReservationId,
             tenantId: context.tenantId,
             status: 'RESERVED',
-            expiresAt: { gt: new Date() },
           },
         })
       : null;
     let promotionOffer: ReturnType<typeof getPromotionOffer> = null;
     if (promotionReservationId) {
-      if (!promotionReservation) {
+      if (!promotionReservation || (!promotionReservation.checkoutSessionId && promotionReservation.expiresAt <= new Date())) {
         throw new ConflictException(
           'A reserva promocional não está válida ou expirou.',
-        );
-      }
-      if (promotionReservation.checkoutSessionId) {
-        throw new ConflictException(
-          'A reserva promocional já está vinculada a outro checkout.',
         );
       }
       const metadata =
@@ -202,7 +196,7 @@ export class CheckoutService {
             idempotencyKey,
           },
         },
-        select: { payloadHash: true },
+        select: { payloadHash: true, state: true, checkoutSessionId: true },
       });
     if (
       existingIntentForKey &&
@@ -240,12 +234,20 @@ export class CheckoutService {
           'Já existe um checkout ativo com uma solicitação diferente para esta assinatura.',
         );
       }
-      if (promotionReservationId && !promotionReservation?.checkoutSessionId) {
+      if (promotionReservationId && (
+        promotionReservation?.checkoutSessionId !== activeCheckout.id ||
+        existingIntentForKey?.checkoutSessionId !== activeCheckout.id ||
+        existingIntentForKey?.state !== 'SUCCEEDED' ||
+        activeCheckout.provider !== provider
+      )) {
         throw new ConflictException(
           'Já existe um checkout ativo para esta assinatura.',
         );
       }
       return this.result(activeCheckout, true);
+    }
+    if (promotionReservation?.checkoutSessionId) {
+      throw new ConflictException('A reserva já possui checkout. Consulte o status do pagamento antes de tentar novamente.');
     }
     const profile = await this.prisma.userProfile.findUnique({
       where: { id: context.userId },
