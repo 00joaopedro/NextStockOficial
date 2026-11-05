@@ -454,7 +454,7 @@
 
   async function startCheckout(planSlug) {
     const selected = promotionSelection();
-    const reservation = promotionReservation();
+    const reservation = selected ? promotionReservation() : null;
     if (selected && (selected.planSlug !== planSlug || !reservation?.reservationId)) {
       message("A oferta promocional selecionada ainda não está pronta para o checkout.", "error");
       return;

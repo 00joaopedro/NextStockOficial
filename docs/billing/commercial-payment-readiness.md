@@ -26,11 +26,15 @@ não reinicia o trial. O teste técnico production-test-r1 continua sem adiament
 O término promocional conta a partir desse início. Aprovação, valor, data e webhook
 precisam ser conferidos no Mercado Pago no teste real; CI não prova entrega externa.
 
-Pendência comercial: Ouro 3m e 6m usam R$ 66,67 mensais, mas anunciam totais de
-R$ 200 e R$ 400. Não executar o teste real dessas duas ofertas até decidir como
-tratar os centavos. Não alteramos automaticamente preço, total ou cobranças futuras.
-Para validar primeiro o mecanismo de promoção, a oferta Ouro 1m ou Esmeralda tem
-valor mensal compatível com o total anunciado. Isso não certifica as demais ofertas.
+Ouro 3m e 6m: novos checkouts usam R$ 66,66 mensais, com totais de R$ 199,98
+e R$ 399,96. O catálogo e a landing anunciam os mesmos valores. Assinaturas e
+checkouts já criados não são reajustados automaticamente; suas condições devem
+ser verificadas separadamente. Links fixos externos não são atualizados por este
+PR e não devem substituir o checkout rastreável do NextStock.
+
+Cadastro por URL sem oferta promocional ou com promo=none limpa a oferta e
+reserva antigas no navegador. O checkout normal não envia reserva órfã. A reserva
+e o preço continuam sujeitos à validação no servidor, nunca ao preço do navegador.
 
 Depois de implantar o PR e conferir os mapeamentos: conta nova sem promoção e
 conta nova pela oferta selecionada, conferir identidade, trial, valor e recorrência

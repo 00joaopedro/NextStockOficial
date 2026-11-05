@@ -42,14 +42,17 @@
 
     function savePromotionSelectionFromUrl() {
       const params = new URLSearchParams(window.location.search);
-      if (params.get('promo') === 'none') {
+      if (params.get('promo') !== 'lancamento-2026') {
         clearPromotionSession();
         return;
       }
-      if (params.get('promo') !== 'lancamento-2026') return;
+
       const planSlug = params.get('plan') || '';
       const periodMonths = Number(params.get('period'));
-      if (!/^[a-z0-9-]+$/.test(planSlug) || ![1, 3, 6].includes(periodMonths)) return;
+      if (!['ouro', 'esmeralda'].includes(planSlug) || ![1, 3, 6].includes(periodMonths)) {
+        clearPromotionSession();
+        return;
+      }
       sessionStorage.setItem(PROMOTION_SELECTION_KEY, JSON.stringify({
         campaignSlug: 'lancamento-2026',
         planSlug,

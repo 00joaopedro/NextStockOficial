@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 
 describe('public registration retry UI', () => {
-  function fixture(search = '') {
+  function fixture(search = '', initialStorage: Record<string, string> = {}) {
     type Element = {
       value: string;
       textContent: string;
@@ -34,7 +34,7 @@ describe('public registration retry UI', () => {
     get('registerCompanyName').value = 'First company';
     get('registerPassword').value = 'Secret123';
     get('registerSystemType').value = 'padrao';
-    const stored = new Map<string, string>();
+    const stored = new Map<string, string>(Object.entries(initialStorage));
     const fetch = jest.fn();
     let sequence = 0;
     runInNewContext(
@@ -223,4 +223,24 @@ describe('public registration retry UI', () => {
     expect(f.fetch).toHaveBeenCalledTimes(1);
     expect(f.stored.has(attemptKey)).toBe(false);
   });
+  it.each(['', '?promo=none', '?promo=lancamento-2026&plan=invalid&period=6'])(
+    'normal signup clears previous promotional state: %s', async (search) => {
+      const f = fixture(search, {
+        nextstockPromotionSelection: JSON.stringify({
+          campaignSlug: 'lancamento-2026', planSlug: 'ouro', periodMonths: 6,
+        }),
+        nextstockPromotionReservation: JSON.stringify({
+          reservationId: 'old-reservation', status: 'RESERVED',
+        }),
+        nextstockPromotionReservationIdempotency: 'old-attempt',
+      });
+      expect(f.stored.has(selectionKey)).toBe(false);
+      expect(f.stored.has(attemptKey)).toBe(false);
+      f.fetch.mockResolvedValueOnce(response(account()));
+      await f.submit();
+      expect(f.fetch).toHaveBeenCalledTimes(1);
+      expect(f.stored.has('nextstockPromotionReservation')).toBe(false);
+    },
+  );
+
 });
