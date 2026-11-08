@@ -331,7 +331,7 @@
       } catch (error) {
         sessionStorage.setItem(
           PROMOTION_RESERVATION_KEY,
-          JSON.stringify({ status: 'FAILED', message: error.message }),
+          JSON.stringify({ status: 'FAILED', message: error.message, requestId: error.requestId || null }),
         );
         return false;
       }
@@ -390,7 +390,7 @@
           const reserved = await reservePromotionSelection(promotionSelection, data, promotionAttempt);
           if (!reserved) {
             setStatus(
-              'Cadastro concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter encerrado; verifique o perfil.',
+              'Cadastro concluído, mas a reserva promocional não foi concluída. Veja como retomar no perfil.',
               true,
             );
             window.location.href = 'perfil.html?promotion=reservation-failed';
