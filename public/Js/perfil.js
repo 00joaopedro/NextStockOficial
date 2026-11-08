@@ -119,7 +119,18 @@
     const failed = new URLSearchParams(location.search).get("promotion") === "reservation-failed";
     if (failed) {
       el.promotion.hidden = false;
-      el.promotion.textContent = "O cadastro foi concluído, mas a vaga promocional não pôde ser reservada. A campanha pode ter atingido o limite ou sido encerrada.";
+      let failure;
+      try { failure = JSON.parse(sessionStorage.getItem("nextstockPromotionReservation") || "null"); } catch {}
+      const detail = failure?.status === "FAILED" && typeof failure.message === "string" ? failure.message.slice(0, 220) : "";
+      const reference = /^[A-Za-z0-9_-]{8,80}$/.test(failure?.requestId || "") ? ` Referência: ${failure.requestId}.` : "";
+      el.promotion.textContent = `A reserva promocional não foi concluída. ${detail}${reference}`;
+      if (selection) {
+        const retry = document.createElement("a");
+        const params = new URLSearchParams({ promo: selection.campaignSlug, plan: selection.planSlug, period: String(selection.periodMonths) });
+        retry.href = `/index.html?${params.toString()}`;
+        retry.textContent = " Entrar com a conta existente para retomar a oferta";
+        el.promotion.appendChild(retry);
+      }
       return;
     }
     if (!selection) {
@@ -318,13 +329,21 @@
       const image = document.createElement("img"); image.src = planImages[plan.slug] || planImages.ouro; image.alt = plan.name;
       const title = document.createElement("strong"); title.textContent = plan.name;
       const description = document.createElement("span"); description.textContent = plan.description || "";
-      const price = document.createElement("span"); price.className = "price"; price.textContent = money(plan.priceCents, plan.currency);
+      const price = document.createElement("span"); price.className = "price";
       const action = document.createElement("button");
       const selected = promotionSelection();
       const reservation = promotionReservation();
       const isPromotionPlan = selected?.planSlug === plan.slug;
+      const offer = reservation?.offer;
+      const confirmedOffer = isPromotionPlan && offer?.planSlug === plan.slug &&
+        offer?.periodMonths === Number(selected.periodMonths);
+      price.textContent = isPromotionPlan
+        ? confirmedOffer
+          ? `${money(offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
+          : "Preço promocional disponível após confirmar a reserva"
+        : money(plan.priceCents, plan.currency);
       const promotionReady = !selected ||
-        (isPromotionPlan && Boolean(reservation?.reservationId));
+        (confirmedOffer && Boolean(reservation?.reservationId));
       const scheduledChangeAvailable = Boolean(isCurrentSubscriptionActive() && !state.promotionalPlanChangeUnavailable && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
       action.textContent = scheduledChangeAvailable
         ? `Mudar para ${plan.name} na próxima renovação`

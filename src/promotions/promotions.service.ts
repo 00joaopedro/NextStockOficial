@@ -165,7 +165,7 @@ export class PromotionsService {
           existing.expiresAt > new Date()))
     ) {
       this.assertReservationOffer(existing, offer);
-      return this.formatReservation(existing, campaign);
+      return this.formatReservation(existing, campaign, offer);
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -261,7 +261,7 @@ export class PromotionsService {
           Prisma.sql`UPDATE "promotion_campaigns"
             SET "reserved_count" = "reserved_count" + 1,
                 "updated_at" = NOW()
-            WHERE "id" = ${campaign.id}
+            WHERE "id" = ${campaign.id}::uuid
               AND "status" = CAST(${PromotionCampaignStatus.ACTIVE} AS "PromotionCampaignStatus")
               AND ("starts_at" IS NULL OR "starts_at" <= NOW())
               AND ("ends_at" IS NULL OR "ends_at" > NOW())
@@ -282,11 +282,19 @@ export class PromotionsService {
           });
         }
 
+        // Use the existing registration attribution, never the browser's link.
+        const referrals = input.partnerId ? [] : await tx.partnerReferral.findMany({
+          where: { referredTenantId: input.tenantId },
+          distinct: ['partnerId'],
+          select: { partnerId: true },
+          take: 2,
+        });
+        const partnerId = input.partnerId ?? (referrals.length === 1 ? referrals[0].partnerId : null);
         const created = await tx.promotionReservation.create({
           data: {
             campaignId: campaign.id,
             tenantId: input.tenantId,
-            partnerId: input.partnerId ?? null,
+            partnerId,
             idempotencyKey,
             expiresAt,
             metadata: {
@@ -303,7 +311,7 @@ export class PromotionsService {
         return created;
       });
 
-      return this.formatReservation(reservation, campaign);
+      return this.formatReservation(reservation, campaign, offer);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -324,7 +332,7 @@ export class PromotionsService {
             (duplicate.status === PromotionReservationStatus.RESERVED &&
               duplicate.expiresAt > new Date())
           ) {
-            return this.formatReservation(duplicate, campaign);
+            return this.formatReservation(duplicate, campaign, offer);
           }
         }
       }
@@ -406,7 +414,7 @@ export class PromotionsService {
                 ELSE "close_reason"
               END,
               "updated_at" = NOW()
-          WHERE "id" = ${reservation.campaignId}`,
+          WHERE "id" = ${reservation.campaignId}::uuid`,
       );
 
       return tx.promotionReservation.findUniqueOrThrow({
@@ -855,7 +863,7 @@ export class PromotionsService {
         const locked = await tx.$queryRaw<CampaignSnapshot[]>(
           Prisma.sql`SELECT "id", "slug", "name", "status", "max_conversions" AS "maxConversions", "reserved_count" AS "reservedCount", "converted_count" AS "convertedCount", "trial_days" AS "trialDays", "starts_at" AS "startsAt", "ends_at" AS "endsAt", "closed_at" AS "closedAt", "close_reason" AS "closeReason"
             FROM "promotion_campaigns"
-            WHERE "id" = ${campaign.id}
+            WHERE "id" = ${campaign.id}::uuid
             FOR UPDATE`,
         );
         const current = locked[0];
@@ -1033,8 +1041,15 @@ export class PromotionsService {
       convertedAt: Date | null;
     },
     campaign: CampaignSnapshot,
+    offer: NonNullable<ReturnType<typeof getPromotionOffer>>,
   ) {
     return {
+      offer: {
+        planSlug: offer.planSlug,
+        periodMonths: offer.periodMonths,
+        monthlyPriceCents: offer.monthlyPriceCents,
+        totalPriceCents: offer.totalPriceCents,
+      },
       reservationId: reservation.id,
       campaignSlug: campaign.slug,
       status: reservation.status,
