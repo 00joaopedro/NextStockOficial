@@ -333,9 +333,18 @@
         const health = await requestJson('/dev/health');
         const config = health.usageConfiguration;
         if (config && els.usageConfiguration) {
-          const railway = config.railwayMissing.length ? config.railwayMissing.join(', ') : 'nenhuma variável ausente';
-          const render = config.renderMissing.length ? config.renderMissing.join(', ') : 'nenhuma variável ausente';
-          els.usageConfiguration.textContent = `Configuração neste servidor — Railway: ${railway}; Render: ${render}. A presença não confirma valores ou permissões.`;
+          const describe = (label, names) => names?.length ? `${label}: ${names.join(', ')}.` : '';
+          const mode = { manual: 'base mensal informada', provider: 'métricas dos provedores', invalid: 'modo inválido' }[config.costMode] || 'não informado';
+          els.usageConfiguration.textContent = [
+            `Fonte de custo do painel: ${mode}.`,
+            describe('Bases mensais ausentes', config.manualMissing),
+            describe('Formato ou valor inválido', config.invalid),
+            describe('Ausentes para status Railway', config.railwayStatusMissing),
+            describe('Ausentes para custo via Railway', config.railwayMissing),
+            describe('Ausentes para coleta via Render', config.renderMissing),
+            config.renderCollection?.lastFailureCode ? `Última falha da coleta Render: ${config.renderCollection.lastFailureCode}.` : '',
+            'Formato válido não confirma permissões nem cobertura.',
+          ].filter(Boolean).join(' ');
         }
         document.body.classList.remove('dev-access-pending', 'dev-access-denied');
         recordDevPageView();

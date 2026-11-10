@@ -1,3 +1,23 @@
+export const DEV_COST_BASES = {
+  railway: 'DEV_RAILWAY_MONTHLY_COST_CENTS',
+  render: 'DEV_RENDER_MONTHLY_COST_CENTS',
+  supabase: 'DEV_SUPABASE_MONTHLY_COST_CENTS',
+} as const;
+
+export function readDevCostBase(provider: keyof typeof DEV_COST_BASES) {
+  const raw = process.env[DEV_COST_BASES[provider]]?.trim();
+  if (!raw) return { status: 'missing' as const, cents: null };
+  const cents = Number(raw);
+  return /^\d+$/.test(raw) && Number.isSafeInteger(cents)
+    ? { status: 'valid' as const, cents }
+    : { status: 'invalid' as const, cents: null };
+}
+
+export function devCostMode() {
+  const mode = process.env.DEV_SERVER_COST_MODE?.trim();
+  return !mode || mode === 'provider' ? 'provider' : mode === 'manual' ? 'manual' : 'invalid';
+}
+
 import { Injectable } from '@nestjs/common';
 
 type EstimateInput = {
@@ -49,16 +69,9 @@ export class DevUsageCalculatorService {
     return this.sumNumeric([databaseSizeMb, storageMb, supabase?.activeConnections]);
   }
 
-  getEstimatedPeriodCostCents(provider: 'railway' | 'supabase', start: Date, end: Date) {
-    const envName =
-      provider === 'railway'
-        ? 'DEV_RAILWAY_MONTHLY_COST_CENTS'
-        : 'DEV_SUPABASE_MONTHLY_COST_CENTS';
-    const monthlyCost = Number(process.env[envName]);
-
-    if (!Number.isFinite(monthlyCost) || monthlyCost <= 0) {
-      return null;
-    }
+  getEstimatedPeriodCostCents(provider: keyof typeof DEV_COST_BASES, start: Date, end: Date) {
+    const { cents: monthlyCost } = readDevCostBase(provider);
+    if (monthlyCost == null) return null;
 
     const days = Math.max(0, end.getTime() - start.getTime()) / 86_400_000;
 

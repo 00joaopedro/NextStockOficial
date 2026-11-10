@@ -1,3 +1,4 @@
+import { DevUsageCalculatorService } from './dev-usage-calculator.service';
 import { DevService } from './dev.service';
 
 describe('DevService', () => {
@@ -223,6 +224,47 @@ describe('DevService', () => {
     supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
     const result = await service.getUsersUsage('today');
     expect(result.users[0].renderUsage.costCents).toBeNull();
+  });
+
+  it('rateia as bases manuais por origem e diagnostica valores inválidos sem consultar custos externos', async () => {
+    const env = process.env;
+    process.env = {
+      ...env,
+      DEV_SERVER_COST_MODE: 'manual',
+      DEV_RAILWAY_MONTHLY_COST_CENTS: '6000',
+      DEV_RENDER_MONTHLY_COST_CENTS: '3000',
+      RAILWAY_USAGE_BRL_PER_USD: '6,20',
+    };
+    try {
+      const render = { hasUsageConfigurationIntent: jest.fn().mockReturnValue(true), getServiceUsage: jest.fn(), collectionStatus: jest.fn() };
+      service = new DevService(prisma, railwayMetrics, supabaseMetrics, new DevUsageCalculatorService(), undefined, render as any);
+      jest.spyOn(service, 'calculatePeriod').mockReturnValue({
+        start: new Date('2026-01-01T00:00:00Z'), end: new Date('2026-01-31T00:00:00Z'), period: 'month',
+      });
+      prisma.userUsageEvent.groupBy.mockResolvedValue([
+        { userId: 'u1', provider: 'railway', _sum: { weight: 1 } },
+        { userId: 'u2', provider: 'railway', _sum: { weight: 3 } },
+        { userId: 'u1', provider: 'render', _sum: { weight: 7 } },
+      ]);
+      prisma.userProfile.findMany.mockResolvedValue([{ id: 'u1', memberships: [] }]);
+      prisma.userProfile.count.mockResolvedValue(1);
+      railwayMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+      supabaseMetrics.getOverview.mockResolvedValue({ status: 'ok' });
+      const result = await service.getUsersUsage('monthly');
+      expect(result.users[0].serverUsage.costCents).toBe(1500);
+      expect(result.users[1].renderUsage.costCents).toBe(3000);
+      expect(railwayMetrics.getServiceUsage).not.toHaveBeenCalled();
+      expect(render.getServiceUsage).not.toHaveBeenCalled();
+      delete process.env.DEV_RENDER_MONTHLY_COST_CENTS;
+      const health = await service.getHealth();
+      expect(health.usageConfiguration.manualMissing).toContain('DEV_RENDER_MONTHLY_COST_CENTS');
+      expect(health.usageConfiguration.invalid).toContain('RAILWAY_USAGE_BRL_PER_USD');
+      expect((await service.getUsersUsage('monthly')).users[1].renderUsage.costCents).toBeNull();
+      prisma.usageCaptureGap.findFirst.mockResolvedValue({ id: 'gap' });
+      expect((await service.getUsersUsage('monthly')).users[0].serverUsage.costCents).toBeNull();
+    } finally {
+      process.env = env;
+    }
   });
 
   it('aceita aliases de periodo day/week/month e today/weekly/monthly', () => {

@@ -113,3 +113,23 @@ Dev o diagnóstico de cada servidor e confira uma atividade autenticada em cada
 origem. Nunca imprima tokens, URLs de banco ou payloads nas verificações. A coleta
 histórica funciona enquanto ao menos uma instância configurada executa o serviço;
 interrupções acima da retenção não são automaticamente recuperáveis.
+
+## Base mensal para o painel Dev
+
+Para ratear um orçamento fixo sem depender da disponibilidade das APIs de custo,
+configure as mesmas variáveis nos dois backends:
+
+- `DEV_SERVER_COST_MODE=manual` (o padrão continua sendo `provider`);
+- `DEV_RAILWAY_MONTHLY_COST_CENTS` e `DEV_RENDER_MONTHLY_COST_CENTS`:
+  inteiros não negativos em centavos de real por mês. Exemplo: uma base de
+  R$ 60,00 equivale a `6000`. Use `0` apenas para declarar custo mensal zero.
+
+A base é proporcional à duração do período, usando um mês de 30 dias.
+Cada origem é rateada pelo peso de seus próprios eventos. Sem cobertura,
+origem conhecida ou base válida, o custo correspondente fica indisponível.
+O total que inclui banco ainda depende de uma base separada do Supabase.
+
+`RAILWAY_USAGE_BRL_PER_USD=6.20` significa R$ 6,20 por US$ 1; não é custo
+mensal e não é aplicado às bases já informadas em reais. O modo manual
+vale apenas para o painel Dev; não altera a fonte dos ciclos de cobrança,
+os limites dos planos nem a regra de downgrade.
