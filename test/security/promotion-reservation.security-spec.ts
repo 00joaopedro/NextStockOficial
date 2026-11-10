@@ -110,7 +110,15 @@ suite('promotion reservation on PostgreSQL', () => {
             periodMonths: 1,
             idempotencyKey: key,
           };
+          expect(await promotions.getPublicContext(slug)).toMatchObject({
+            remainingSlots: 30,
+          });
           const reserved = await promotions.reserveForTenant(input);
+          expect(await promotions.getPublicContext(slug)).toMatchObject({
+            remainingSlots: 29,
+            reservedConversions: 1,
+            convertedConversions: 0,
+          });
           expect(reserved).toMatchObject({
             status: 'RESERVED',
             offer: { monthlyPriceCents: 10000, totalPriceCents: 10000 },
@@ -135,6 +143,10 @@ suite('promotion reservation on PostgreSQL', () => {
               where: { id: campaign.id },
             }),
           ).toMatchObject({ reservedCount: 1, convertedCount: 0 });
+          expect(await promotions.getPublicContext(slug)).toMatchObject({
+            remainingSlots: 29,
+            reservedConversions: 1,
+          });
           await promotions.updateCapacity(slug, 31, `capacity-${key}`);
           await tx.promotionCampaign.update({
             where: { id: campaign.id },

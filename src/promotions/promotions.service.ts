@@ -472,8 +472,6 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    // Expirações são concluídas antes das leituras para que o snapshot
-    // não conte reservas vencidas, sem concorrer com as consultas do painel.
     const campaign = await this.findCampaign(slug);
 
     // As leituras são sequenciais para não concorrerem entre si nem com a

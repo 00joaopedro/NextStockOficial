@@ -32,6 +32,7 @@ export class PromotionsController {
   ) {}
 
   @Get(':slug/context')
+  @Header('Cache-Control', 'no-store')
   @UseGuards(PublicRateLimitGuard)
   @RateLimit({ max: 30, windowMs: 60_000 })
   context(@Param('slug') slug: string) {

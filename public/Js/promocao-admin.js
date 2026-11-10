@@ -28,6 +28,7 @@
         `/api/promotions/admin/${encodeURIComponent(slug)}/${path}`,
         {
           credentials: 'same-origin',
+          cache: 'no-store',
           ...options,
           headers: {
             Accept: 'application/json',
@@ -68,10 +69,11 @@
     $('metrics').innerHTML = [
       ['Status', campaign.status || '-'],
       [
-        'Vagas',
-        `${campaign.convertedConversions || 0}/${campaign.maxConversions || 0}`,
+        'Vagas ocupadas',
+        `${Number(campaign.reservedConversions || 0) + Number(campaign.convertedConversions || 0)}/${campaign.maxConversions || 0}`,
       ],
-      ['Reservas ativas', campaign.reservedConversions || 0],
+      ['Reservas aguardando pagamento', campaign.reservedConversions || 0],
+      ['Vagas convertidas', campaign.convertedConversions || 0],
       ['Vagas restantes', campaign.remainingSlots || 0],
       ['Trial promocional', `${campaign.trialDays || 0} dia`],
     ]
