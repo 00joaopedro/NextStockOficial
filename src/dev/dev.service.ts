@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { DevUsageCalculatorService } from './dev-usage-calculator.service';
+import { DEV_COST_BASES, devCostMode, readDevCostBase, DevUsageCalculatorService } from './dev-usage-calculator.service';
 import { RailwayMetricsService } from './railway-metrics.service';
 import { RenderMetricsService } from './render-metrics.service';
 import { ResourceSnapshotsService } from './resource-snapshots.service';
@@ -157,8 +157,12 @@ export class DevService {
     ]);
     const profiles = rawProfiles as any[];
     const globalUsage = await this.getGlobalUsage(range.start, range.end, railway, supabase);
-    let railwayCostCents = this.getPeriodCostCents('railway', range.start, range.end);
-    if (this.railwayMetrics.isUsageConfigured()) {
+    const costMode = devCostMode();
+    let railwayCostCents = costMode !== 'invalid'
+      ? this.getPeriodCostCents('railway', range.start, range.end) : null;
+    const manualRenderCost = costMode === 'manual'
+      ? this.getPeriodCostCents('render', range.start, range.end) : null;
+    if (costMode === 'provider' && this.railwayMetrics.isUsageConfigured()) {
       // The live provider estimate replaces the optional manual monthly base.
       // A failed configured provider must not silently fall back to a price.
       railwayCostCents = null;
@@ -173,7 +177,7 @@ export class DevService {
       }
     }
     const supabaseCostCents = this.getPeriodCostCents('supabase', range.start, range.end);
-    const render = this.renderMetrics?.hasUsageConfigurationIntent()
+    const render = costMode === 'provider' && this.renderMetrics?.hasUsageConfigurationIntent()
       ? await this.renderMetrics.getServiceUsage(range.start.toISOString(), range.end.toISOString())
       : null;
     const renderWeights = new Map<string, number>();
@@ -224,7 +228,8 @@ export class DevService {
         totalWeight,
         providerWeights,
         collectionGap,
-        renderAvailable: Boolean(render?.available),
+        renderAvailable: manualRenderCost != null || Boolean(render?.available),
+        costMode,
         railwayGlobalUsage: globalUsage.railway,
         supabaseGlobalUsage: globalUsage.supabase,
       },
@@ -241,13 +246,13 @@ export class DevService {
           supabaseCostCents,
         });
         const origin = event?.provider === 'railway' || event?.provider === 'render' ? event.provider : 'unknown';
-        const denominator = origin === 'render' ? renderWeightTotal : origin === 'railway' ? providerWeights.railway : 0;
-        const allocationWeight = origin === 'render'
+        const denominator = origin === 'render' ? (costMode === 'manual' ? providerWeights.render : renderWeightTotal) : origin === 'railway' ? providerWeights.railway : 0;
+        const allocationWeight = origin === 'render' && costMode !== 'manual'
           ? renderWeights.get(JSON.stringify([event?.userId, event?.tenantId, event?.branchId, event?.systemType])) ?? 0
           : eventWeight;
-        const providerCost = origin === 'railway' ? railwayCostCents : origin === 'render' ? render?.costCents : null;
+        const providerCost = origin === 'railway' ? railwayCostCents : origin === 'render' ? (costMode === 'manual' ? manualRenderCost : render?.costCents) : null;
         const providerEstimate = canAllocate && denominator > 0 && providerCost != null &&
-          (origin !== 'render' || (render?.available && renderWindowAvailable))
+          (origin !== 'render' || costMode === 'manual' || (render?.available && renderWindowAvailable))
           ? Math.round(providerCost * allocationWeight / denominator) : null;
         const membership = profile.memberships[0];
         const branchName =
@@ -290,12 +295,41 @@ export class DevService {
   async getHealth() {
     const present = (name: string) => Boolean(process.env[name]?.trim());
     const missing = (names: string[]) => names.filter((name) => !present(name));
+    const invalid: string[] = [];
+    const uuid = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
+    for (const name of ['RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT_ID', 'RAILWAY_WORKSPACE_ID', 'RAILWAY_SERVICE_ID', 'RAILWAY_USAGE_SERVICE_IDS']) {
+      if (present(name) && !process.env[name]!.split(',').every((id) => uuid.test(id.trim()))) invalid.push(name);
+    }
+    const fx = Number(process.env.RAILWAY_USAGE_BRL_PER_USD);
+    if (present('RAILWAY_USAGE_BRL_PER_USD') && (!Number.isFinite(fx) || fx <= 0)) invalid.push('RAILWAY_USAGE_BRL_PER_USD');
+    const renderIds = process.env.RENDER_USAGE_SERVICE_IDS?.trim().split(',').map((id) => id.trim()) ?? [];
+    if (present('RENDER_USAGE_SERVICE_IDS') && renderIds.some((id) => !/^srv-[a-z0-9]+$/i.test(id))) invalid.push('RENDER_USAGE_SERVICE_IDS');
+    if (present('RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE')) {
+      try {
+        const rates = JSON.parse(process.env.RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE!) as Record<string, unknown>;
+        if (!rates || typeof rates !== 'object' || Array.isArray(rates) || !Object.keys(rates).length ||
+            [...Object.values(rates), ...renderIds.map((id) => rates[id])].some((rate) =>
+              typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0)) throw new Error('invalid rates');
+      } catch { invalid.push('RENDER_USAGE_CENTS_PER_HOUR_BY_SERVICE'); }
+    }
+    const costMode = devCostMode();
+    if (costMode === 'invalid') invalid.push('DEV_SERVER_COST_MODE');
+    const manualMissing: string[] = [];
+    for (const provider of ['railway', 'render', 'supabase'] as const) {
+      const base = readDevCostBase(provider);
+      if (base.status === 'invalid') invalid.push(DEV_COST_BASES[provider]);
+      if (base.status === 'missing' && costMode === 'manual' && provider !== 'supabase') manualMissing.push(DEV_COST_BASES[provider]);
+    }
     return {
       ok: true,
       railwayConfigured: this.railwayMetrics.isConfigured(),
       supabaseConfigured: this.supabaseMetrics.isConfigured(),
       databaseConnected: await this.supabaseMetrics.isDatabaseConnected(),
       usageConfiguration: {
+        costMode,
+        invalid,
+        manualMissing,
+        railwayStatusMissing: missing(['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT_ID', 'RAILWAY_SERVICE_ID']),
         renderCollection: this.renderMetrics?.collectionStatus() ?? null,
         railwayMissing: missing(['RAILWAY_API_TOKEN', 'RAILWAY_PROJECT_ID', 'RAILWAY_WORKSPACE_ID', 'RAILWAY_USAGE_BRL_PER_USD']).concat(
           present('RAILWAY_USAGE_SERVICE_IDS') || present('RAILWAY_SERVICE_ID') ? [] : ['RAILWAY_USAGE_SERVICE_IDS ou RAILWAY_SERVICE_ID'],
@@ -513,7 +547,7 @@ export class DevService {
     };
   }
 
-  private getPeriodCostCents(provider: 'railway' | 'supabase', start: Date, end: Date) {
+  private getPeriodCostCents(provider: keyof typeof DEV_COST_BASES, start: Date, end: Date) {
     return this.usageCalculator?.getEstimatedPeriodCostCents(provider, start, end) ?? null;
   }
 
