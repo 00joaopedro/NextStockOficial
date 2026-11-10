@@ -33,6 +33,7 @@ describe('promotional checkout recovery', () => {
     const db = {
       promotionReservation: {
         findFirst: jest.fn().mockResolvedValue(reservation),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
       plan: {
         findFirst: jest.fn().mockResolvedValue({
@@ -47,7 +48,10 @@ describe('promotional checkout recovery', () => {
           .fn()
           .mockResolvedValue({ id: 'sub', status: 'trialing' }),
       },
+      userProfile: { findUnique: jest.fn().mockResolvedValue({ email: 'test@example.com' }) },
       billingCheckoutIntent: {
+        create: jest.fn().mockResolvedValue({ id: 'intent', externalReference: 'reference' }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         findUnique: jest.fn().mockResolvedValue(intent),
         findFirst: jest.fn().mockResolvedValue(intent),
       },
@@ -111,9 +115,30 @@ describe('promotional checkout recovery', () => {
       expect(f.db.$transaction).not.toHaveBeenCalled();
     },
   );
-  it('does not use expiry bypass for an unlinked reservation', async () => {
+  it('starts checkout at the reserved price after the free trial and legacy expiration', async () => {
     const f = fixture();
     f.reservation.checkoutSessionId = null;
-    await expect(f.run()).rejects.toThrow('expirou');
+    f.reservation.metadata = {
+      ...f.reservation.metadata, monthlyPriceCents: 6000, totalPriceCents: 18000,
+    } as typeof f.reservation.metadata;
+    f.db.checkoutSession.findFirst.mockResolvedValue(null);
+    f.db.billingCheckoutIntent.findUnique.mockResolvedValue(null);
+    f.db.subscription.findFirst.mockResolvedValue({
+      id: 'sub', status: 'trialing', trialEndsAt: new Date(0),
+    });
+    const prev = process.env.PUBLIC_APP_URL;
+    process.env.PUBLIC_APP_URL = 'https://nextstock.example';
+    const stoppedAtGateway = new Error('mock gateway stopped');
+    f.gateway.createCheckout.mockRejectedValueOnce(stoppedAtGateway);
+    try {
+      await expect(f.run()).rejects.toBe(stoppedAtGateway);
+      expect(f.gateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+        amountCents: 6000,
+        recurrence: expect.not.objectContaining({ startDate: expect.any(String) }),
+      }));
+    } finally {
+      if (prev === undefined) delete process.env.PUBLIC_APP_URL;
+      else process.env.PUBLIC_APP_URL = prev;
+    }
   });
 });

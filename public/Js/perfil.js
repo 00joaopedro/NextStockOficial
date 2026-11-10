@@ -101,22 +101,45 @@
     } catch {}
     return null;
   }
-  function promotionReservation() {
+  async function loadPromotionReservation() {
+    state.promotionLoaded = false;
+    state.promotion = null;
     try {
-      const value = JSON.parse(
-        sessionStorage.getItem("nextstockPromotionReservation") || "null",
-      );
-      if (
-        value?.reservationId &&
-        ["RESERVED", "CONVERTED"].includes(value.status)
-      ) return value;
-    } catch {}
-    return null;
+      const data = await api("/api/promotions/lancamento-2026/reservation");
+      if (!Object.hasOwn(data, "reservation")) throw new Error("Resposta da reserva promocional indisponível.");
+      state.promotion = data.reservation;
+      state.promotionLoaded = true;
+    } finally {
+      renderPromotionHandoff();
+    }
+  }
+  function promotionReservation() {
+    return state.promotion?.status === "RESERVED" ? state.promotion : null;
   }
   function renderPromotionHandoff() {
     const selection = promotionSelection();
     if (!el.promotion) return;
     const failed = new URLSearchParams(location.search).get("promotion") === "reservation-failed";
+    if (!state.promotionLoaded) {
+      el.promotion.hidden = false;
+      el.promotion.textContent = "Não foi possível verificar a reserva promocional. Atualize a página para continuar.";
+      return;
+    }
+    const saved = state.promotion;
+    if (saved) {
+      el.promotion.hidden = false;
+      const offer = saved.offer;
+      const planName = offer.planSlug.charAt(0).toUpperCase() + offer.planSlug.slice(1);
+      const period = offer.periodMonths === 1 ? "1 mês" : `${offer.periodMonths} meses`;
+      const status = saved.checkoutRequiresReview
+        ? "A vaga segue reservada. O checkout anterior precisa ser conferido antes de uma nova tentativa."
+        : saved.status === "CONVERTED"
+        ? "Pagamento confirmado."
+        : "Vaga reservada até o pagamento, mesmo após o fim da campanha ou do período grátis.";
+      const attribution = saved.hasAffiliate ? " A atribuição do afiliado foi preservada." : "";
+      el.promotion.textContent = `Oferta promocional selecionada: Plano ${planName}, período de ${period}. ${status}${attribution}`;
+      return;
+    }
     if (failed) {
       el.promotion.hidden = false;
       let failure;
@@ -133,19 +156,7 @@
       }
       return;
     }
-    if (!selection) {
-      el.promotion.hidden = true;
-      return;
-    }
-    el.promotion.hidden = false;
-    const planName = selection.planSlug.charAt(0).toUpperCase() + selection.planSlug.slice(1);
-    const reservation = promotionReservation();
-    const attribution = selection.referralCode ? " A atribuição do afiliado foi preservada." : "";
-    const reservationMessage = reservation
-      ? " A vaga está reservada com segurança."
-      : " A reserva da vaga ainda não está disponível; o checkout ficará bloqueado.";
-    el.promotion.textContent =
-      `Oferta promocional selecionada: Plano ${planName}, período de ${selection.periodMonths} meses.${attribution}${reservationMessage}`;
+    el.promotion.hidden = true;
   }
   function busy(value) { state.busy = value; permissions(); }
   function permissions() {
@@ -331,8 +342,8 @@
       const description = document.createElement("span"); description.textContent = plan.description || "";
       const price = document.createElement("span"); price.className = "price";
       const action = document.createElement("button");
-      const selected = promotionSelection();
       const reservation = promotionReservation();
+      const selected = reservation?.offer;
       const isPromotionPlan = selected?.planSlug === plan.slug;
       const offer = reservation?.offer;
       const confirmedOffer = isPromotionPlan && offer?.planSlug === plan.slug &&
@@ -342,13 +353,13 @@
           ? `${money(offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
           : "Preço promocional disponível após confirmar a reserva"
         : money(plan.priceCents, plan.currency);
-      const promotionReady = !selected ||
-        (confirmedOffer && Boolean(reservation?.reservationId));
+      const promotionReady = state.promotionLoaded && (!selected ||
+        (confirmedOffer && Boolean(reservation?.reservationId) && !reservation.checkoutRequiresReview));
       const scheduledChangeAvailable = Boolean(isCurrentSubscriptionActive() && !state.promotionalPlanChangeUnavailable && state.subscription?.currentPeriodEndsAt && new Date(state.subscription.currentPeriodEndsAt) > new Date() && state.subscription?.plan?.slug !== plan.slug);
       action.textContent = scheduledChangeAvailable
         ? `Mudar para ${plan.name} na próxima renovação`
         : isPromotionPlan
-        ? `Continuar com ${plan.name} — ${selected.periodMonths} meses`
+        ? `Continuar com ${plan.name} — ${selected.periodMonths === 1 ? "1 mês" : `${selected.periodMonths} meses`}`
         : "Escolher plano";
       action.dataset.billingPlanAction = "true";
       action.disabled = state.preview || !state.canManage || !plan.checkoutAvailable || !promotionReady || cancellationPeriodActive() || Boolean(state.pendingPlanChange) || Boolean(state.promotionalPlanChangeUnavailable && isCurrentSubscriptionActive());
@@ -356,7 +367,7 @@
       if (state.preview) action.title = "Modo visualização: ação bloqueada.";
       if (!plan.checkoutAvailable) action.title = "Checkout ainda não configurado para este plano.";
       if (selected && !promotionReady) action.title = "A oferta promocional ainda não possui uma reserva válida.";
-      action.addEventListener("click", () => scheduledChangeAvailable ? requestPlanChange(plan.slug, plan.name) : startCheckout(plan.slug));
+      action.addEventListener("click", run(() => scheduledChangeAvailable ? requestPlanChange(plan.slug, plan.name) : startCheckout(plan.slug)));
       card.append(image, title, description, price, action); el.plans.appendChild(card);
     }
     updatePlanActionsForCancellation();
@@ -375,6 +386,7 @@
       message(result.pending ? "Mudança solicitada. O plano será atualizado após a confirmação do Mercado Pago." : "Mudança de plano processada.", "success");
       sessionStorage.removeItem(`nextstockPlanChange:${planSlug}`);
       await loadBilling();
+      await loadPromotionReservation();
       await loadPlans();
     } finally { busy(false); }
   }
@@ -472,10 +484,14 @@
   }
 
   async function startCheckout(planSlug) {
-    const selected = promotionSelection();
-    const reservation = selected ? promotionReservation() : null;
-    if (selected && (selected.planSlug !== planSlug || !reservation?.reservationId)) {
+    const reservation = promotionReservation();
+    if (!state.promotionLoaded || (reservation && (reservation.offer.planSlug !== planSlug || reservation.checkoutRequiresReview))) {
       message("A oferta promocional selecionada ainda não está pronta para o checkout.", "error");
+      return;
+    }
+    if (reservation?.checkout?.checkoutUrl) {
+      sessionStorage.setItem("nextstockBillingCheckoutId", reservation.checkout.checkoutId);
+      location.assign(reservation.checkout.checkoutUrl);
       return;
     }
     busy(true); message("Criando checkout...");
@@ -518,6 +534,8 @@
       sessionStorage.removeItem("nextstockBillingCheckoutId");
       message("Pagamento confirmado. Seu acesso foi liberado.", "success");
       await loadBilling();
+      await loadPromotionReservation();
+      await loadPlans();
     } else {
       message("Pagamento aguardando confirmação segura do gateway. O retorno do checkout não libera acesso.");
     }
@@ -624,12 +642,11 @@
     }
     try {
       await bootstrap();
-      renderPromotionHandoff();
       const loaders = [
         loadProfile(),
         loadCompany(),
         loadBilling(),
-        loadPlans(),
+        loadPromotionReservation().then(loadPlans),
         loadMachines(),
         loadPaymentConfiguration(),
         loadProductionTestCapability(),

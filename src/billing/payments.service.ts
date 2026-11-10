@@ -1574,22 +1574,22 @@ export class PaymentsService {
         SET "reserved_count" = GREATEST("reserved_count" - 1, 0),
             "converted_count" = "converted_count" + 1,
             "status" = CASE
-              WHEN "converted_count" + 1 >= "max_conversions"
+              WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions"
               THEN CAST('EXHAUSTED' AS "PromotionCampaignStatus")
               ELSE "status"
             END,
             "closed_at" = CASE
-              WHEN "converted_count" + 1 >= "max_conversions"
+              WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions"
               THEN COALESCE("closed_at", NOW())
               ELSE "closed_at"
             END,
             "close_reason" = CASE
-              WHEN "converted_count" + 1 >= "max_conversions"
+              WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions"
               THEN COALESCE("close_reason", 'LIMIT_REACHED')
               ELSE "close_reason"
             END,
             "updated_at" = NOW()
-        WHERE "id" = ${reservation.campaignId}`,
+        WHERE "id" = ${reservation.campaignId}::uuid`,
     );
   }
 

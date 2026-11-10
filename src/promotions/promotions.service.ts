@@ -19,11 +19,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AdminOperationService } from '../admin-operations/admin-operation.service';
 import {
   getPromotionOffer,
+  getReservedPromotionOffer,
   NORMAL_PAYMENT_LINKS,
   PROMOTION_OFFERS,
 } from './promotion-offers';
 
-const DEFAULT_RESERVATION_TTL_MS = 30 * 60 * 1000;
 
 type ReserveInput = {
   slug: string;
@@ -58,7 +58,6 @@ export class PromotionsService {
 
   async getPublicContext(slug: string, now = new Date()) {
     const campaign = await this.findCampaign(slug);
-    await this.expireReservations(campaign.id, now);
 
     let current = await this.prisma.promotionCampaign.findUniqueOrThrow({
       where: { id: campaign.id },
@@ -148,7 +147,6 @@ export class PromotionsService {
         'Oferta promocional inválida para esta campanha.',
       );
     }
-    await this.expireReservations(campaign.id);
 
     const existing = await this.prisma.promotionReservation.findUnique({
       where: {
@@ -161,11 +159,10 @@ export class PromotionsService {
     if (
       existing &&
       (existing.status === PromotionReservationStatus.CONVERTED ||
-        (existing.status === PromotionReservationStatus.RESERVED &&
-          existing.expiresAt > new Date()))
+        existing.status === PromotionReservationStatus.RESERVED)
     ) {
       this.assertReservationOffer(existing, offer);
-      return this.formatReservation(existing, campaign, offer);
+      return this.formatReservation(existing, campaign);
     }
 
     const tenant = await this.prisma.tenant.findUnique({
@@ -199,8 +196,6 @@ export class PromotionsService {
       );
     }
 
-    const expiresAt = new Date(Date.now() + DEFAULT_RESERVATION_TTL_MS);
-
     try {
       const reservation = await this.prisma.$transaction(async (tx) => {
         const reservedAt = new Date();
@@ -212,10 +207,6 @@ export class PromotionsService {
               OR: [
                 { status: PromotionReservationStatus.RELEASED },
                 { status: PromotionReservationStatus.EXPIRED },
-                {
-                  status: PromotionReservationStatus.RESERVED,
-                  expiresAt: { lte: reservedAt },
-                },
               ],
             },
             data: {
@@ -223,7 +214,7 @@ export class PromotionsService {
               idempotencyKey,
               status: PromotionReservationStatus.RESERVED,
               reservedAt,
-              expiresAt,
+              expiresAt: null,
               convertedAt: null,
               releasedAt: null,
               releaseReason: null,
@@ -245,8 +236,7 @@ export class PromotionsService {
             if (
               current &&
               (current.status === PromotionReservationStatus.CONVERTED ||
-                (current.status === PromotionReservationStatus.RESERVED &&
-                  current.expiresAt > reservedAt))
+                current.status === PromotionReservationStatus.RESERVED)
             ) {
               this.assertReservationOffer(current, offer);
               return current;
@@ -296,7 +286,7 @@ export class PromotionsService {
             tenantId: input.tenantId,
             partnerId,
             idempotencyKey,
-            expiresAt,
+            expiresAt: null,
             metadata: {
               source: 'promotion',
               trialDays: offer.trialDays,
@@ -311,7 +301,7 @@ export class PromotionsService {
         return created;
       });
 
-      return this.formatReservation(reservation, campaign, offer);
+      return this.formatReservation(reservation, campaign);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -329,15 +319,41 @@ export class PromotionsService {
           this.assertReservationOffer(duplicate, offer);
           if (
             duplicate.status === PromotionReservationStatus.CONVERTED ||
-            (duplicate.status === PromotionReservationStatus.RESERVED &&
-              duplicate.expiresAt > new Date())
+            duplicate.status === PromotionReservationStatus.RESERVED
           ) {
-            return this.formatReservation(duplicate, campaign, offer);
+            return this.formatReservation(duplicate, campaign);
           }
         }
       }
       throw error;
     }
+  }
+
+  async getReservationForTenant(slug: string, tenantId: string, includeCheckout = false) {
+    const campaign = await this.prisma.promotionCampaign.findUnique({ where: { slug } });
+    if (!campaign) return { reservation: null };
+    const reservation = await this.prisma.promotionReservation.findUnique({
+      where: { campaignId_tenantId: { campaignId: campaign.id, tenantId } },
+      include: { checkoutSession: { select: { id: true, tenantId: true, provider: true, status: true, expiresAt: true, checkoutUrl: true } } },
+    });
+    if (!reservation ||
+      (reservation.status !== PromotionReservationStatus.RESERVED &&
+       reservation.status !== PromotionReservationStatus.CONVERTED)) {
+      return { reservation: null };
+    }
+    const checkout = reservation.checkoutSession;
+    const resumable = checkout?.tenantId === tenantId &&
+      checkout.provider === 'MERCADO_PAGO' &&
+      ['OPEN', 'PENDING'].includes(checkout.status) &&
+      (!checkout.expiresAt || checkout.expiresAt > new Date());
+    return { reservation: {
+      ...this.formatReservation(reservation, campaign),
+      hasAffiliate: Boolean(reservation.partnerId),
+      checkoutRequiresReview: reservation.status === PromotionReservationStatus.RESERVED && Boolean(reservation.checkoutSessionId) && !resumable,
+      checkout: reservation.status === PromotionReservationStatus.RESERVED && includeCheckout && resumable
+        ? { checkoutId: checkout.id, checkoutUrl: checkout.checkoutUrl }
+        : null,
+    } };
   }
 
   private assertReservationOffer(
@@ -373,8 +389,7 @@ export class PromotionsService {
         return reservation;
       }
       if (
-        reservation.status !== PromotionReservationStatus.RESERVED ||
-        reservation.expiresAt <= now
+        reservation.status !== PromotionReservationStatus.RESERVED
       ) {
         throw new ConflictException(
           'A reserva promocional não está mais válida.',
@@ -385,7 +400,7 @@ export class PromotionsService {
         where: {
           id: reservation.id,
           status: PromotionReservationStatus.RESERVED,
-          expiresAt: { gt: now },
+
         },
         data: {
           status: PromotionReservationStatus.CONVERTED,
@@ -401,16 +416,16 @@ export class PromotionsService {
           SET "reserved_count" = GREATEST("reserved_count" - 1, 0),
               "converted_count" = "converted_count" + 1,
               "status" = CASE
-                WHEN "converted_count" + 1 >= "max_conversions"
+                WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions"
                 THEN CAST(${PromotionCampaignStatus.EXHAUSTED} AS "PromotionCampaignStatus")
                 ELSE "status"
               END,
               "closed_at" = CASE
-                WHEN "converted_count" + 1 >= "max_conversions" THEN COALESCE("closed_at", NOW())
+                WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions" THEN COALESCE("closed_at", NOW())
                 ELSE "closed_at"
               END,
               "close_reason" = CASE
-                WHEN "converted_count" + 1 >= "max_conversions" THEN COALESCE("close_reason", 'LIMIT_REACHED')
+                WHEN "status" = 'ACTIVE' AND "converted_count" + 1 >= "max_conversions" THEN COALESCE("close_reason", 'LIMIT_REACHED')
                 ELSE "close_reason"
               END,
               "updated_at" = NOW()
@@ -457,10 +472,7 @@ export class PromotionsService {
   }
 
   async getAdminDashboard(slug: string) {
-    // Expirações são concluídas antes das leituras para que o snapshot
-    // não conte reservas vencidas, sem concorrer com as consultas do painel.
     const campaign = await this.findCampaign(slug);
-    await this.expireReservations(campaign.id).catch(() => undefined);
 
     // As leituras são sequenciais para não concorrerem entre si nem com a
     // inicialização do sidebar/sessão no primeiro carregamento da página.
@@ -556,7 +568,7 @@ export class PromotionsService {
           partnerId: row.partnerId,
           status: row.status,
           reservedAt: row.reservedAt,
-          expiresAt: row.expiresAt,
+          expiresAt: row.status === PromotionReservationStatus.RESERVED ? null : row.expiresAt,
           convertedAt: row.convertedAt,
           metadata: row.metadata,
         }));
@@ -978,38 +990,6 @@ export class PromotionsService {
     });
   }
 
-  private async expireReservations(campaignId: string, now = new Date()) {
-    const expired = await this.prisma.$transaction(
-      async (tx) => {
-        await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-        const updated = await tx.promotionReservation.updateMany({
-          where: {
-            campaignId,
-            status: PromotionReservationStatus.RESERVED,
-            expiresAt: { lte: now },
-          },
-          data: {
-            status: PromotionReservationStatus.EXPIRED,
-            releasedAt: now,
-            releaseReason: 'RESERVATION_EXPIRED',
-          },
-        });
-        if (updated.count > 0) {
-          await tx.promotionCampaign.updateMany({
-            where: {
-              id: campaignId,
-              reservedCount: { gte: updated.count },
-            },
-            data: { reservedCount: { decrement: updated.count } },
-          });
-        }
-        return updated.count;
-      },
-      { timeout: 7000 },
-    );
-    return expired;
-  }
-
   private async findCampaign(slug: string): Promise<CampaignSnapshot> {
     const normalized = slug.trim().toLowerCase();
     if (!/^[a-z0-9][a-z0-9-]{2,79}$/.test(normalized)) {
@@ -1037,12 +1017,15 @@ export class PromotionsService {
       id: string;
       campaignId: string;
       status: PromotionReservationStatus;
-      expiresAt: Date;
+      metadata: Prisma.JsonValue;
       convertedAt: Date | null;
     },
     campaign: CampaignSnapshot,
-    offer: NonNullable<ReturnType<typeof getPromotionOffer>>,
   ) {
+    const offer = getReservedPromotionOffer(reservation.metadata);
+    if (!offer || offer.campaignSlug !== campaign.slug) {
+      throw new ConflictException('Oferta da reserva promocional indisponível.');
+    }
     return {
       offer: {
         planSlug: offer.planSlug,
@@ -1054,7 +1037,7 @@ export class PromotionsService {
       campaignSlug: campaign.slug,
       status: reservation.status,
       trialDays: campaign.trialDays,
-      expiresAt: reservation.expiresAt,
+      expiresAt: null,
       convertedAt: reservation.convertedAt,
     };
   }

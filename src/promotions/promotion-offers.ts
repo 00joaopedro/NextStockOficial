@@ -65,3 +65,21 @@ export const NORMAL_PLAN_ID_ENVS = {
   esmeralda: 'MERCADO_PAGO_PLAN_ID_ESMERALDA',
   diamante: 'MERCADO_PAGO_PLAN_ID_DIAMANTE',
 } as const;
+
+/** Recover the price quoted at reservation time, including after catalog edits. */
+export function getReservedPromotionOffer(metadata: unknown): PromotionOffer | null {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
+  const { planSlug, periodMonths, monthlyPriceCents, totalPriceCents } = metadata as Record<string, unknown>;
+  const offer = getPromotionOffer(
+    typeof planSlug === 'string' ? planSlug : undefined,
+    typeof periodMonths === 'number' ? periodMonths : undefined,
+  );
+  if (!offer) return null;
+  if (monthlyPriceCents === undefined && totalPriceCents === undefined) return offer;
+  if (
+    typeof monthlyPriceCents !== 'number' || !Number.isSafeInteger(monthlyPriceCents) || monthlyPriceCents <= 0 ||
+    typeof totalPriceCents !== 'number' || !Number.isSafeInteger(totalPriceCents) ||
+    totalPriceCents !== monthlyPriceCents * offer.periodMonths
+  ) return null;
+  return { ...offer, monthlyPriceCents, totalPriceCents };
+}

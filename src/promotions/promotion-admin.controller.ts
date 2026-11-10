@@ -4,6 +4,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   Param,
   Post,
@@ -29,6 +30,7 @@ export class PromotionAdminController {
   ) {}
 
   @Get(':slug/dashboard')
+  @Header('Cache-Control', 'private, no-store')
   dashboard(@Param('slug') slug: string) {
     return this.promotions.getAdminDashboard(slug);
   }

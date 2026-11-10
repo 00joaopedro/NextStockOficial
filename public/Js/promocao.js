@@ -93,27 +93,45 @@
     return `/index.html?${params.toString()}#cadastro`;
   }
 
+  let loading = false;
+
   async function loadCampaign() {
-    disableChoices(true);
+    if (loading || document.hidden) return;
+    loading = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10_000);
     try {
       const response = await fetch(
         `/api/promotions/${encodeURIComponent(CAMPAIGN_SLUG)}/context`,
-        { credentials: 'same-origin', headers: { Accept: 'application/json' } },
+        {
+          credentials: 'same-origin',
+          cache: 'no-store',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        },
       );
       const context = await response.json().catch(() => ({}));
-      if (!response.ok || !context || context.isOpen !== true) {
+      if (!response.ok || !Number.isInteger(context?.remainingSlots)) {
+        throw new Error('Disponibilidade indisponível');
+      }
+      if (context.isOpen !== true) {
+        disableChoices(true);
         const reason =
           context?.status === 'DRAFT'
             ? 'A promoção ainda não foi aberta.'
             : context?.status === 'EXHAUSTED'
               ? `As ${Number(context?.maxConversions || 0)} vagas promocionais já foram preenchidas.`
-              : 'A promoção está encerrada no momento.';
+              : context.status === 'ACTIVE' && context.remainingSlots === 0 &&
+                  (!context.startsAt || new Date(context.startsAt) <= new Date())
+                ? 'A promoção está sem vagas disponíveis no momento.'
+                : 'A promoção não está aberta no momento.';
         setStatus(`${reason} Os botões foram bloqueados.`, 'error');
         return;
       }
 
-      const slots = Number(context.remainingSlots || 0);
+      const slots = context.remainingSlots;
       if (slots <= 0) {
+        disableChoices(true);
         setStatus('A promoção está sem vagas disponíveis no momento. Os botões foram bloqueados.', 'error');
         return;
       }
@@ -123,10 +141,14 @@
       );
       disableChoices(false);
     } catch {
+      disableChoices(true);
       setStatus(
         'Não foi possível confirmar a disponibilidade da promoção. Os botões foram bloqueados por segurança.',
         'error',
       );
+    } finally {
+      window.clearTimeout(timeout);
+      loading = false;
     }
   }
 
@@ -139,5 +161,11 @@
     });
   }
 
-  loadCampaign();
+  disableChoices(true);
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) void loadCampaign();
+  });
+  document.addEventListener('visibilitychange', () => void loadCampaign());
+  window.setInterval(() => void loadCampaign(), 30_000);
+  void loadCampaign();
 })();

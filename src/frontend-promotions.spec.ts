@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { runInNewContext } from 'node:vm';
 
 describe('promotion campaign frontend', () => {
   const html = readFileSync(
@@ -33,6 +34,75 @@ describe('promotion campaign frontend', () => {
     expect(promotionScript).toContain('context.isOpen !== true');
     expect(promotionScript).toContain('button.disabled = disabled');
     expect(promotionScript).toContain('nextstockPromotionAttribution');
+  });
+
+  it('atualiza as vagas ao voltar para a página e enquanto ela está visível', async () => {
+    const status = { textContent: '' };
+    const choice = {
+      disabled: false,
+      setAttribute: jest.fn(),
+      addEventListener: jest.fn(),
+    };
+    const document = {
+      hidden: false,
+      getElementById: () => status,
+      querySelectorAll: () => [choice],
+      addEventListener: jest.fn(),
+    };
+    const window = {
+      location: { search: '' },
+      addEventListener: jest.fn(),
+      setInterval: jest.fn(),
+      setTimeout: jest.fn(),
+      clearTimeout: jest.fn(),
+    };
+    const response = (remainingSlots: number) => ({
+      ok: true,
+      json: async () => ({
+        status: 'ACTIVE',
+        isOpen: remainingSlots > 0,
+        remainingSlots,
+      }),
+    });
+    const fetch = jest
+      .fn()
+      .mockResolvedValueOnce(response(30))
+      .mockResolvedValueOnce(response(29))
+      .mockResolvedValueOnce(response(0));
+    const flush = () => new Promise<void>((resolve) => setImmediate(resolve));
+    runInNewContext(promotionScript, {
+      document,
+      window,
+      fetch,
+      AbortController,
+      URLSearchParams,
+      localStorage: { getItem: () => null },
+    });
+
+    await flush();
+    expect(status.textContent).toContain('30 vaga(s)');
+    expect(choice.disabled).toBe(false);
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/promotions/lancamento-2026/context',
+      expect.objectContaining({ cache: 'no-store' }),
+    );
+
+    const onPageShow = window.addEventListener.mock.calls.find(
+      ([name]) => name === 'pageshow',
+    )![1] as (event: { persisted: boolean }) => void;
+    onPageShow({ persisted: true });
+    await flush();
+    expect(status.textContent).toContain('29 vaga(s)');
+
+    const tick = window.setInterval.mock.calls[0][0] as () => void;
+    document.hidden = true;
+    tick();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    document.hidden = false;
+    tick();
+    await flush();
+    expect(status.textContent).toContain('sem vagas disponíveis');
+    expect(choice.disabled).toBe(true);
   });
 
   it('preserva afiliado e oferta até o cadastro e reserva autenticada', () => {
