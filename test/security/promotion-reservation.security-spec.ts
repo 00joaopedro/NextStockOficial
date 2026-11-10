@@ -138,7 +138,10 @@ suite('promotion reservation on PostgreSQL', () => {
           await promotions.updateCapacity(slug, 31, `capacity-${key}`);
           await tx.promotionCampaign.update({
             where: { id: campaign.id },
-            data: { status: 'CLOSED', endsAt: new Date(Date.now() - 86_400_000) },
+            data: {
+              status: 'CLOSED',
+              endsAt: new Date(Date.now() - 86_400_000),
+            },
           });
           await tx.promotionReservation.update({
             where: { id: reserved.reservationId },
@@ -148,12 +151,19 @@ suite('promotion reservation on PostgreSQL', () => {
             where: { id: trial.id },
             data: { trialEndsAt: new Date(Date.now() - 86_400_000) },
           });
-          expect((await promotions.getReservationForTenant(slug, tenant.id)).reservation)
-            .toMatchObject({ status: 'RESERVED', expiresAt: null });
-          expect((await promotions.reserveForTenant(input)).reservationId)
-            .toBe(reserved.reservationId);
+          expect(
+            (await promotions.getReservationForTenant(slug, tenant.id))
+              .reservation,
+          ).toMatchObject({ status: 'RESERVED', expiresAt: null });
+          expect((await promotions.reserveForTenant(input)).reservationId).toBe(
+            reserved.reservationId,
+          );
           const plan = await tx.plan.create({
-            data: { name: 'Promo fixture', slug: `promo-plan-${key}`, priceCents: 20000 },
+            data: {
+              name: 'Promo fixture',
+              slug: `promo-plan-${key}`,
+              priceCents: 20000,
+            },
           });
           const checkout = await tx.checkoutSession.create({
             data: {
@@ -170,15 +180,26 @@ suite('promotion reservation on PostgreSQL', () => {
             where: { id: reserved.reservationId },
             data: { checkoutSessionId: checkout.id },
           });
-          const payments = new PaymentsService(prisma, new BillingEventsService(prisma));
+          const payments = new PaymentsService(
+            prisma,
+            new BillingEventsService(prisma),
+          );
           // Exercise the same persistence path used after verified payment approval.
-          const persistConversion = (payments as unknown as {
-            convertPromotionReservation(client: Prisma.TransactionClient, tenantId: string, checkoutId: string): Promise<void>;
-          }).convertPromotionReservation.bind(payments);
+          const persistConversion = (
+            payments as unknown as {
+              convertPromotionReservation(
+                client: Prisma.TransactionClient,
+                tenantId: string,
+                checkoutId: string,
+              ): Promise<void>;
+            }
+          ).convertPromotionReservation.bind(payments);
           await persistConversion(tx, tenant.id, checkout.id);
           await persistConversion(tx, tenant.id, checkout.id);
-          expect((await promotions.getReservationForTenant(slug, tenant.id)).reservation)
-            .toMatchObject({ status: 'CONVERTED', checkout: null });
+          expect(
+            (await promotions.getReservationForTenant(slug, tenant.id))
+              .reservation,
+          ).toMatchObject({ status: 'CONVERTED', checkout: null });
           expect(
             await tx.promotionCampaign.findUniqueOrThrow({
               where: { id: campaign.id },
