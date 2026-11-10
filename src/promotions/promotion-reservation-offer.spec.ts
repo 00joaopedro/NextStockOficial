@@ -16,7 +16,7 @@ describe('promotional reservation offer isolation', () => {
     campaignId: 'campaign-1',
     tenantId: 'tenant-1',
     status: 'RESERVED',
-    expiresAt: new Date(Date.now() + 60_000),
+    expiresAt: new Date(Date.now() - 86_400_000),
     convertedAt: null,
     metadata: { planSlug: 'ouro', periodMonths: 6 },
   };
@@ -55,12 +55,6 @@ describe('promotional reservation offer isolation', () => {
       ),
     };
     const service = new PromotionsService(prisma as unknown as PrismaService);
-    jest
-      .spyOn(
-        service as unknown as { expireReservations(id: string): Promise<void> },
-        'expireReservations',
-      )
-      .mockResolvedValue(undefined);
     return { service, prisma, tx };
   }
 
@@ -75,6 +69,7 @@ describe('promotional reservation offer isolation', () => {
       await expect(f.service.reserveForTenant(input)).resolves.toMatchObject({
         reservationId: active.id,
         status,
+        expiresAt: null,
       });
       expect(f.prisma.$transaction).not.toHaveBeenCalled();
     },
@@ -101,6 +96,33 @@ describe('promotional reservation offer isolation', () => {
       code: 'PROMOTION_RESERVATION_OFFER_MISMATCH',
     });
     expect(f.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns the saved quote and an open checkout only for the current tenant', async () => {
+    const f = fixture();
+    const reservation = {
+      ...active,
+      metadata: { planSlug: 'ouro', periodMonths: 6, monthlyPriceCents: 7000, totalPriceCents: 42000 },
+      checkoutSessionId: 'checkout-1',
+      checkoutSession: { id: 'checkout-1', tenantId: input.tenantId, provider: 'MERCADO_PAGO', status: 'OPEN', expiresAt: null, checkoutUrl: 'https://example.com/checkout' },
+    };
+    f.prisma.promotionReservation.findUnique.mockResolvedValue(reservation);
+    await expect(f.service.getReservationForTenant(input.slug, input.tenantId, true)).resolves.toMatchObject({
+      reservation: {
+        offer: { monthlyPriceCents: 7000, totalPriceCents: 42000 },
+        checkout: { checkoutId: 'checkout-1' },
+        expiresAt: null,
+      },
+    });
+    expect(f.prisma.promotionReservation.findUnique).toHaveBeenCalledWith(expect.objectContaining({
+      where: { campaignId_tenantId: { campaignId: active.campaignId, tenantId: input.tenantId } },
+    }));
+    f.prisma.promotionReservation.findUnique.mockResolvedValue({
+      ...reservation, checkoutSession: { ...reservation.checkoutSession, tenantId: 'another-tenant' },
+    } as typeof active);
+    await expect(f.service.getReservationForTenant(input.slug, input.tenantId, true)).resolves.toMatchObject({
+      reservation: { checkout: null, checkoutRequiresReview: true },
+    });
   });
 
   it('rejects changing an already converted offer', async () => {

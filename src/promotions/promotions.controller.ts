@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   Param,
   Post,
@@ -10,7 +11,9 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { Role } from '@prisma/client';
 import type { Request } from '../common/http-types';
+import { BillingExempt } from '../billing/billing-exempt.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CsrfOriginGuard } from '../security/csrf-origin.guard';
 import {
@@ -33,6 +36,23 @@ export class PromotionsController {
   @RateLimit({ max: 30, windowMs: 60_000 })
   context(@Param('slug') slug: string) {
     return this.promotions.getPublicContext(slug);
+  }
+
+  @Get(':slug/reservation')
+  @Header('Cache-Control', 'private, no-store')
+  @BillingExempt()
+  @UseGuards(JwtAuthGuard)
+  async reservation(
+    @Req() req: Request,
+    @Param('slug') slug: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+    @Headers('x-nextstock-dev-context') devContext?: string,
+  ) {
+    const context = await this.tenantContext.resolve(req.user, {
+      selectedBranchId: branchId,
+      allowDevSupport: devContext?.toLowerCase() === 'support',
+    });
+    return this.promotions.getReservationForTenant(slug, context.tenantId, context.role === Role.Admin);
   }
 
   @Post(':slug/reservation')

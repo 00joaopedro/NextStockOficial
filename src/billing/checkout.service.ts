@@ -25,9 +25,8 @@ import {
   PRODUCTION_TEST_PLAN_SLUG,
 } from './production-test-access';
 import {
-  getPromotionOffer,
+  getReservedPromotionOffer,
   NORMAL_PAYMENT_LINKS,
-  promotionOfferMatches,
 } from '../promotions/promotion-offers';
 
 @Injectable()
@@ -95,35 +94,15 @@ export class CheckoutService {
           },
         })
       : null;
-    let promotionOffer: ReturnType<typeof getPromotionOffer> = null;
+    let promotionOffer: ReturnType<typeof getReservedPromotionOffer> = null;
     if (promotionReservationId) {
-      if (!promotionReservation || (!promotionReservation.checkoutSessionId && promotionReservation.expiresAt <= new Date())) {
+      if (!promotionReservation) {
         throw new ConflictException(
-          'A reserva promocional não está válida ou expirou.',
+          'A reserva promocional não está válida.',
         );
       }
-      const metadata =
-        promotionReservation.metadata &&
-        typeof promotionReservation.metadata === 'object'
-          ? (promotionReservation.metadata as Record<string, unknown>)
-          : {};
-      promotionOffer = getPromotionOffer(
-        typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
-        typeof metadata.periodMonths === 'number'
-          ? metadata.periodMonths
-          : undefined,
-      );
-      if (
-        !promotionOffer ||
-        !promotionOfferMatches(
-          promotionOffer,
-          typeof metadata.planSlug === 'string' ? metadata.planSlug : undefined,
-          typeof metadata.periodMonths === 'number'
-            ? metadata.periodMonths
-            : undefined,
-        ) ||
-        promotionOffer.planSlug !== planSlug
-      ) {
+      promotionOffer = getReservedPromotionOffer(promotionReservation.metadata);
+      if (!promotionOffer || promotionOffer.planSlug !== planSlug) {
         throw new ConflictException(
           'Oferta promocional divergente da reserva.',
         );
