@@ -1,4 +1,4 @@
-# Navegação mobile vertical — etapa 1
+# Navegação mobile vertical
 
 O módulo compartilhado da sidebar instala uma barra superior e um menu lateral
 recolhido em telas de até 768px na orientação vertical. As opções continuam vindo
@@ -10,9 +10,18 @@ retorna ao botão Menu ao fechar. Conteúdo e menu têm rolagens separadas.
 Não há migration nem variáveis novas. `npm run build:frontend` gera o novo módulo
 em public/dist; publique o resultado junto com a sidebar compilada.
 
-Verificação local: testes de estado da navegação, compilação frontend e checagem
-estática. O Chromium local não pôde iniciar por restrição de socket no ambiente;
-a revisão visual ainda precisa ser feita. Na revisão, conferir Perfil, Caixa,
-Produtos e Agenda Pet em 360/390/768px, com teclado virtual e em horizontal.
-Esta etapa corrige a estrutura compartilhada; tabelas, formulários e o arranjo
-interno do Caixa serão tratados na etapa 2.
+## Layout das páginas
+
+As 24 páginas HTML usam a mesma folha `/Css/mobile-portrait.css`, carregada
+depois dos estilos existentes. Ela só se aplica na orientação vertical até
+768px. Em telas estreitas, os grupos de campos e filtros ficam em uma coluna,
+os controles ganham área de toque, e tabelas largas rolam dentro da área da
+tabela. No Caixa, a lista não reserva mais uma altura mínima quando está vazia.
+Os estilos do menu e as regras de permissão da etapa anterior são mantidos.
+
+A verificação local confirmou a inclusão da folha e da viewport nas 24 páginas,
+a compilação do frontend e os testes de comportamento. A revisão visual ficou
+pendente: o Chromium local não conseguiu criar o socket de execução e o Chrome
+remoto não conseguiu acessar a prévia local. Na revisão visual, conferir
+Perfil, Caixa, Produtos e Agenda Pet em 360/390/768px e no horizontal, além de
+abrir modais, campos com teclado virtual e tabelas com conteúdo real.

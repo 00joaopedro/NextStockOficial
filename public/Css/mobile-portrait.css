@@ -1,0 +1,155 @@
+/* Loaded after the page styles; portrait only. Keep content readable without
+   changing the desktop/landscape layout or any application behavior. */
+@media (max-width: 768px) and (orientation: portrait) {
+  html[data-mobile-page] {
+    --portrait-gutter: clamp(12px, 4vw, 20px);
+    --portrait-gap: 12px;
+    --portrait-columns: minmax(0, 1fr);
+  }
+
+  [data-mobile-page] :is(main, .main, .main-content, .page-content, .content, .page-shell, .layout, .app) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+  }
+
+  [data-mobile-page] :is(main, .main, .main-content, .page-content, .content) {
+    padding-inline: var(--portrait-gutter);
+  }
+
+  [data-mobile-page] :is(.panel, .card, .modal, .modal-box, .filters-panel, .table-wrap, form, fieldset) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+  }
+
+  [data-mobile-page] :is(h1, h2, h3, p, dd, .menu-item a) {
+    overflow-wrap: anywhere;
+  }
+
+  [data-mobile-page] :is(input:not([type="checkbox"], [type="radio"], [type="hidden"]), select, textarea) {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    box-sizing: border-box;
+    font-size: max(16px, 1em);
+  }
+
+  [data-mobile-page] :is(button, .btn, input[type="submit"]) {
+    max-inline-size: 100%;
+    min-block-size: 44px;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  [data-mobile-page] :is(.toolbar, .toolbar-actions, .modal-actions, .filters, .buttons) {
+    flex-wrap: wrap;
+    gap: var(--portrait-gap);
+  }
+
+  [data-mobile-page] :is(.filters-grid, .form-grid, .agenda-form, .grid-2, .grid-3, .grid-4, .two-columns, .three-columns, .search-row, .top-tools, .tools, .topbar, .order-info, .expense-info, .sale-info, .detail-summary, .payment-row) {
+    grid-template-columns: var(--portrait-columns);
+    gap: var(--portrait-gap);
+  }
+
+  [data-mobile-page] :is(.form-grid, .agenda-form, .fields) > * {
+    grid-column: 1 / -1;
+    min-inline-size: 0;
+  }
+
+  [data-mobile-page] .table-wrap {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+
+  [data-mobile-page] :is(.modal, .modal-box, .payment-modal, .discount-modal, .popup-content, dialog) {
+    max-inline-size: calc(100vw - 2 * var(--portrait-gutter));
+    max-block-size: calc(100dvh - 2 * var(--portrait-gutter));
+    box-sizing: border-box;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-mobile-page] :is(.modal-body, .modal-content) {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  [data-mobile-page="caixa"] .page {
+    gap: var(--portrait-gap);
+    padding: var(--portrait-gutter);
+  }
+
+  [data-mobile-page="caixa"] :is(.lista, .direita) {
+    min-block-size: 0;
+    block-size: auto;
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  [data-mobile-page="caixa"] :is(.lista-header, .lista-header ul) {
+    min-block-size: 0;
+    block-size: auto;
+    max-block-size: 36dvh;
+  }
+
+  [data-mobile-page="caixa"] .misc-product-entry {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-mobile-page="produtos"] :is(.products, .client-form-grid, .product-detail-grid, .order-summary-box, .order-product-row) {
+    grid-template-columns: var(--portrait-columns);
+  }
+
+  [data-mobile-page="produtos"] #orderOverlay .modal {
+    inline-size: 100%;
+    max-inline-size: calc(100vw - 2 * var(--portrait-gutter));
+  }
+
+  [data-mobile-page="produtos"] .client-orders-list {
+    max-inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  [data-mobile-page="agendaPet"] :is(.agenda-grid, .filters-grid),
+  [data-mobile-page="clientePet"] .pets-grid,
+  [data-mobile-page="dashboard"] :is(.cards-row, #custom-period-fields),
+  [data-mobile-page="despesas"] :is(.top-area, .expenses-grid, .product-add-grid),
+  [data-mobile-page="fechamento"] :is(.closing-grid, .summary-grid, .closing-info),
+  [data-mobile-page="historico"] :is(.sales-grid, .product-row),
+  [data-mobile-page="ntfe"] :is(.fields, .fiscal-overview, .totals-box),
+  [data-mobile-page="pedido"] :is(.orders-grid, .product-row),
+  [data-mobile-page="perfil"] :is(.grid, .plans),
+  [data-mobile-page="dev"] :is(.layout, .cards, .grid),
+  [data-mobile-page="parceiros"] :is(.page, .metrics, .grid),
+  [data-mobile-page="promocao-admin"] :is(.page-shell, .grid),
+  [data-mobile-page="promocao"] .offer-row,
+  [data-mobile-page="venda"] .modes {
+    grid-template-columns: var(--portrait-columns);
+  }
+
+  [data-mobile-page="dev"] .filters input,
+  [data-mobile-page="promocao-admin"] .capacity-form input {
+    inline-size: 100%;
+  }
+
+  [data-mobile-page="loja"] .filters > label {
+    flex: 1 1 100%;
+  }
+
+  [data-mobile-page="loja"] .cart-row {
+    flex-wrap: wrap;
+  }
+
+  [data-mobile-page="dev"] .page-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 8px;
+  }
+
+  [data-mobile-page="ntfe"] .print-agent-status {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
