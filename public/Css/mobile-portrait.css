@@ -1,5 +1,51 @@
-/* Loaded after the page styles; portrait only. Keep content readable without
-   changing the desktop/landscape layout or any application behavior. */
+/* Loaded after the page styles. Each override is scoped to the affected view. */
+
+/* Paint one viewport-sized gradient behind the content. The body in these
+   screens can be only one viewport tall even when its content scrolls. */
+@media screen {
+  html:is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) {
+    background-color: #0d1b2a;
+  }
+
+  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) body {
+    background: transparent;
+    isolation: isolate;
+  }
+
+  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background: linear-gradient(135deg, #0d1b2a, #00cfcf) no-repeat;
+  }
+}
+
+/* Let short landscape viewports scroll the whole checkout instead of trapping
+   its controls below the fixed-height panels. Keep the existing column rules. */
+@media screen and (orientation: landscape) and (max-height: 600px) {
+  [data-mobile-page="caixa"] body {
+    overflow-y: auto;
+  }
+
+  [data-mobile-page="caixa"] .page {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  [data-mobile-page="caixa"] :is(.lista, .direita) {
+    height: auto;
+    min-height: 0;
+  }
+
+  [data-mobile-page="caixa"] .product-list {
+    flex: 0 1 auto;
+    overflow: visible;
+  }
+}
+
 @media (max-width: 768px) and (orientation: portrait) {
   html[data-mobile-page] {
     --portrait-gutter: clamp(12px, 4vw, 20px);
