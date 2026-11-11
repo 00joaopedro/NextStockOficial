@@ -1,3 +1,4 @@
+import { installMobileNavigation } from './mobile-navigation.js';
 type SystemMode = 'PRODUCTION' | 'PREVIEW';
 type TenantType = 'STANDARD' | 'PETSHOP';
 type ModuleKey = 'core' | 'petshop' | 'dev';
@@ -848,6 +849,7 @@ async function loadSidebar(): Promise<void> {
     return;
   }
 
+  installMobileNavigation();
   markSidebarPerformance('nextstock-sidebar-script-start');
   const snapshot = readSidebarSnapshot();
   if (snapshot) {
