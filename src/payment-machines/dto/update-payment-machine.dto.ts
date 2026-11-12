@@ -24,7 +24,6 @@ export class UpdatePaymentMachineDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(1)
   @MaxLength(120)
   model?: string;
 

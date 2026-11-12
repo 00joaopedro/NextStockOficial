@@ -17,19 +17,22 @@ export class CreatePaymentMachineDto {
   @MaxLength(120)
   name!: string;
 
+  @IsOptional()
   @IsEnum(PaymentProvider)
-  provider!: PaymentProvider;
+  provider?: PaymentProvider;
 
+  @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(120)
-  model!: string;
+  model?: string;
 
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
   @Min(0)
   @Max(100)
-  feePercent!: number;
+  feePercent?: number;
 
   @IsOptional()
   @IsEnum(MachineStatus)

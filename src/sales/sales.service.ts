@@ -1220,9 +1220,9 @@ export class SalesService {
         'Pagamento com cartao exige uma maquininha ativa da filial.',
       );
     }
-    if (!isCard && paymentMachineId) {
+    if (!isCard && paymentMethod !== OrderPaymentMethod.pix && paymentMachineId) {
       throw new BadRequestException(
-        'Maquininha so pode ser informada para pagamento com cartao.',
+        'Maquininha so pode ser informada para pagamento com Pix ou cartao.',
       );
     }
     if (!paymentMachineId) {

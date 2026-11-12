@@ -618,11 +618,11 @@
     );
     const placeholder = document.createElement("option");
     placeholder.value = "";
-    placeholder.textContent = "Selecione a maquininha";
+    placeholder.textContent = machinePlaceholder();
     const options = state.machines.map((machine) => {
       const option = document.createElement("option");
       option.value = machine.id;
-      option.textContent = `${machine.name} - ${machine.provider} - ${machine.model}`;
+      option.textContent = machine.name;
       return option;
     });
     els.machine.replaceChildren(placeholder, ...options);
@@ -647,9 +647,16 @@
     els.modalMissing.textContent = money(values.missing);
   }
 
+  function machinePlaceholder() {
+    return els.paymentMethod.value === "pix" ? "Sem máquina" : "Selecione a maquininha";
+  }
+
   function updatePaymentMethod() {
-    const isCard = ["debito", "credito"].includes(els.paymentMethod.value);
-    els.machineField.style.display = isCard ? "flex" : "none";
+    const method = els.paymentMethod.value;
+    const isCard = method === "debito" || method === "credito";
+    els.machineField.style.display = isCard || method === "pix" ? "flex" : "none";
+    els.machine.options[0].textContent = machinePlaceholder();
+    els.machine.required = isCard;
     els.machine.value = "";
     const isCash = els.paymentMethod.value === "dinheiro";
     els.paymentValue.readOnly = !isCash;
@@ -668,6 +675,8 @@
     els.paymentMethod.value = "dinheiro";
     els.paymentValue.readOnly = false;
     els.paymentValue.value = (totalCents() / 100).toFixed(2);
+    els.machine.options[0].textContent = machinePlaceholder();
+    els.machine.required = false;
     els.machine.value = "";
     els.machineField.style.display = "none";
     updatePaymentSummary();
@@ -720,7 +729,9 @@
       paymentMethod: method,
       paidCents: totals.paid,
     };
-    if (isCard) body.paymentMachineId = els.machine.value;
+    if ((isCard || method === "pix") && els.machine.value) {
+      body.paymentMachineId = els.machine.value;
+    }
     if (state.discountValue > 0) {
       body.discountType = state.discountType;
       body.discountValue =
