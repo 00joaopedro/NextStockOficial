@@ -81,7 +81,7 @@ function makeGuide() {
 describe('Guia do NextStock', () => {
   it.each([
     ['Como faço para cadastrar um produto?', 'Cadastrar um produto'],
-    ['FECHAMENTO DE CAIXA', 'Conferir um fechamento de caixa'],
+    ['FECHAMENTO DE CAIXA', 'Entender a tela de Fechamento'],
     ['vacinas animal', 'Cadastrar ou editar um animal'],
     ['nota fiscal SEFAZ', 'Preparar e emitir uma NF-e'],
     ['migracao CSV', 'Consultar a tela de migração'],
