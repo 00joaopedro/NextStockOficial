@@ -5,27 +5,30 @@ export type PromotionOffer = {
   campaignSlug: 'lancamento-2026';
   planSlug: PromotionPlanSlug;
   periodMonths: PromotionPeriodMonths;
-  monthlyPriceCents: number;
+  chargeAmountCents: number;
+  chargeIntervalMonths: PromotionPeriodMonths;
+  monthlyPriceCents?: number;
   totalPriceCents: number;
   trialDays: 1;
   paymentLinkUrl: string;
   gatewayPlanEnv: string;
 };
 
-type OfferDefinition = Omit<PromotionOffer, 'campaignSlug' | 'trialDays' | 'gatewayPlanEnv'>;
+type OfferDefinition = Omit<PromotionOffer, 'campaignSlug' | 'trialDays' | 'gatewayPlanEnv' | 'chargeIntervalMonths' | 'monthlyPriceCents'>;
 
 const offers: readonly OfferDefinition[] = [
-  { planSlug: 'ouro', periodMonths: 1, monthlyPriceCents: 10_000, totalPriceCents: 10_000, paymentLinkUrl: 'https://mpago.la/2M8u6Mo' },
-  { planSlug: 'ouro', periodMonths: 3, monthlyPriceCents: 6_666, totalPriceCents: 19_998, paymentLinkUrl: 'https://mpago.la/26JiY6w' },
-  { planSlug: 'ouro', periodMonths: 6, monthlyPriceCents: 6_666, totalPriceCents: 39_996, paymentLinkUrl: 'https://mpago.la/1517nND' },
-  { planSlug: 'esmeralda', periodMonths: 1, monthlyPriceCents: 20_000, totalPriceCents: 20_000, paymentLinkUrl: 'https://mpago.la/2NKAhiw' },
-  { planSlug: 'esmeralda', periodMonths: 3, monthlyPriceCents: 20_000, totalPriceCents: 60_000, paymentLinkUrl: 'https://mpago.la/33JYezV' },
-  { planSlug: 'esmeralda', periodMonths: 6, monthlyPriceCents: 20_000, totalPriceCents: 120_000, paymentLinkUrl: 'https://mpago.la/13xA3wN' },
+  { planSlug: 'ouro', periodMonths: 1, chargeAmountCents: 10_000, totalPriceCents: 10_000, paymentLinkUrl: 'https://mpago.la/2M8u6Mo' },
+  { planSlug: 'ouro', periodMonths: 3, chargeAmountCents: 20_000, totalPriceCents: 20_000, paymentLinkUrl: 'https://mpago.la/26JiY6w' },
+  { planSlug: 'ouro', periodMonths: 6, chargeAmountCents: 40_000, totalPriceCents: 40_000, paymentLinkUrl: 'https://mpago.la/1517nND' },
+  { planSlug: 'esmeralda', periodMonths: 1, chargeAmountCents: 20_000, totalPriceCents: 20_000, paymentLinkUrl: 'https://mpago.la/2NKAhiw' },
+  { planSlug: 'esmeralda', periodMonths: 3, chargeAmountCents: 60_000, totalPriceCents: 60_000, paymentLinkUrl: 'https://mpago.la/33JYezV' },
+  { planSlug: 'esmeralda', periodMonths: 6, chargeAmountCents: 120_000, totalPriceCents: 120_000, paymentLinkUrl: 'https://mpago.la/13xA3wN' },
 ];
 
 export const PROMOTION_OFFERS = offers.map((offer) => ({
   campaignSlug: 'lancamento-2026' as const,
   ...offer,
+  chargeIntervalMonths: offer.periodMonths,
   trialDays: 1 as const,
   gatewayPlanEnv: `MERCADO_PAGO_PROMO_PLAN_ID_${offer.planSlug.toUpperCase()}_${offer.periodMonths}`,
 }));
@@ -66,20 +69,44 @@ export const NORMAL_PLAN_ID_ENVS = {
   diamante: 'MERCADO_PAGO_PLAN_ID_DIAMANTE',
 } as const;
 
-/** Recover the price quoted at reservation time, including after catalog edits. */
+/** Keep the exact terms of reservations created before per-period billing. */
 export function getReservedPromotionOffer(metadata: unknown): PromotionOffer | null {
   if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return null;
-  const { planSlug, periodMonths, monthlyPriceCents, totalPriceCents } = metadata as Record<string, unknown>;
+  const {
+    planSlug, periodMonths, chargeAmountCents, chargeIntervalMonths,
+    monthlyPriceCents, totalPriceCents,
+  } = metadata as Record<string, unknown>;
   const offer = getPromotionOffer(
     typeof planSlug === 'string' ? planSlug : undefined,
     typeof periodMonths === 'number' ? periodMonths : undefined,
   );
   if (!offer) return null;
-  if (monthlyPriceCents === undefined && totalPriceCents === undefined) return offer;
+
+  if (chargeAmountCents !== undefined || chargeIntervalMonths !== undefined) {
+    if (
+      chargeIntervalMonths !== offer.periodMonths ||
+      typeof chargeAmountCents !== 'number' || !Number.isSafeInteger(chargeAmountCents) ||
+      chargeAmountCents <= 0 || totalPriceCents !== chargeAmountCents ||
+      monthlyPriceCents !== undefined
+    ) return null;
+    return { ...offer, chargeAmountCents, totalPriceCents: chargeAmountCents };
+  }
+
+  // Early reservations only stored the plan and period. Reconstruct the old
+  // monthly terms instead of silently applying the new catalog to them.
+  const legacyMonthly = monthlyPriceCents === undefined && totalPriceCents === undefined
+    ? (offer.planSlug === 'esmeralda' ? 20_000 : offer.periodMonths === 1 ? 10_000 : 6_666)
+    : monthlyPriceCents;
   if (
-    typeof monthlyPriceCents !== 'number' || !Number.isSafeInteger(monthlyPriceCents) || monthlyPriceCents <= 0 ||
-    typeof totalPriceCents !== 'number' || !Number.isSafeInteger(totalPriceCents) ||
-    totalPriceCents !== monthlyPriceCents * offer.periodMonths
+    typeof legacyMonthly !== 'number' || !Number.isSafeInteger(legacyMonthly) ||
+    legacyMonthly <= 0
   ) return null;
-  return { ...offer, monthlyPriceCents, totalPriceCents };
+  const legacyTotal = legacyMonthly * offer.periodMonths;
+  if (!Number.isSafeInteger(legacyTotal) ||
+      (totalPriceCents !== legacyTotal &&
+       !(totalPriceCents === undefined && monthlyPriceCents === undefined))) return null;
+  return {
+    ...offer, chargeAmountCents: legacyMonthly, chargeIntervalMonths: 1,
+    monthlyPriceCents: legacyMonthly, totalPriceCents: legacyTotal,
+  };
 }

@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
+import { getPromotionOffer } from '../promotions/promotion-offers';
 import { CheckoutService } from './checkout.service';
 
 describe('promotional checkout recovery', () => {
-  function fixture() {
+  function fixture(slug = 'ouro') {
     const payloadHash = createHash('sha256')
       .update(
         JSON.stringify({
           operation: 'CREATE_CHECKOUT',
-          planSlug: 'ouro',
+          planSlug: slug,
           promotionReservationId: 'reservation',
         }),
       )
@@ -16,7 +17,7 @@ describe('promotional checkout recovery', () => {
       id: 'reservation',
       checkoutSessionId: 'checkout' as string | null,
       expiresAt: new Date(0),
-      metadata: { planSlug: 'ouro', periodMonths: 3 },
+      metadata: { planSlug: slug, periodMonths: 3 },
     };
     const checkout = {
       id: 'checkout',
@@ -78,7 +79,7 @@ describe('promotional checkout recovery', () => {
       run: () =>
         service.create(
           {} as any,
-          'ouro',
+          slug,
           'recovery-key-123',
           undefined,
           undefined,
@@ -115,6 +116,43 @@ describe('promotional checkout recovery', () => {
       expect(f.db.$transaction).not.toHaveBeenCalled();
     },
   );
+  it.each([
+    ['ouro', 1, 10_000],
+    ['ouro', 3, 20_000],
+    ['ouro', 6, 40_000],
+    ['esmeralda', 1, 20_000],
+    ['esmeralda', 3, 60_000],
+    ['esmeralda', 6, 120_000],
+  ])('sends the full %s charge every %i month(s)', async (slug, months, amount) => {
+    const f = fixture(slug);
+    const offer = getPromotionOffer(slug, months)!;
+    f.reservation.checkoutSessionId = null;
+    f.reservation.metadata = offer;
+    f.db.checkoutSession.findFirst.mockResolvedValue(null);
+    f.db.billingCheckoutIntent.findUnique.mockResolvedValue(null);
+    const trialEndsAt = new Date('2099-01-15T12:00:00Z');
+    f.db.subscription.findFirst.mockResolvedValue({ id: 'sub', status: 'trialing', trialEndsAt });
+    const previous = process.env.PUBLIC_APP_URL;
+    process.env.PUBLIC_APP_URL = 'https://nextstock.example';
+    const stoppedAtGateway = new Error('mock gateway stopped');
+    f.gateway.createCheckout.mockRejectedValueOnce(stoppedAtGateway);
+    try {
+      await expect(f.run()).rejects.toBe(stoppedAtGateway);
+      expect(f.gateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
+        amountCents: amount,
+        recurrence: {
+          frequency: months,
+          frequencyType: 'months',
+          startDate: trialEndsAt.toISOString(),
+          endDate: new Date(Date.UTC(2099, months, 15, 12)).toISOString(),
+        },
+      }));
+    } finally {
+      if (previous === undefined) delete process.env.PUBLIC_APP_URL;
+      else process.env.PUBLIC_APP_URL = previous;
+    }
+  });
+
   it('starts checkout at the reserved price after the free trial and legacy expiration', async () => {
     const f = fixture();
     f.reservation.checkoutSessionId = null;
@@ -134,8 +172,9 @@ describe('promotional checkout recovery', () => {
       await expect(f.run()).rejects.toBe(stoppedAtGateway);
       expect(f.gateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
         amountCents: 6000,
-        recurrence: expect.not.objectContaining({ startDate: expect.any(String) }),
+        recurrence: expect.objectContaining({ frequency: 1, frequencyType: 'months' }),
       }));
+      expect(f.gateway.createCheckout.mock.calls[0][0].recurrence.startDate).toBeUndefined();
     } finally {
       if (prev === undefined) delete process.env.PUBLIC_APP_URL;
       else process.env.PUBLIC_APP_URL = prev;

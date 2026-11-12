@@ -26,11 +26,13 @@ não reinicia o trial. O teste técnico production-test-r1 continua sem adiament
 O término promocional conta a partir desse início. Aprovação, valor, data e webhook
 precisam ser conferidos no Mercado Pago no teste real; CI não prova entrega externa.
 
-Ouro 3m e 6m: novos checkouts usam R$ 66,66 mensais, com totais de R$ 199,98
-e R$ 399,96. O catálogo e a landing anunciam os mesmos valores. Assinaturas e
-checkouts já criados não são reajustados automaticamente; suas condições devem
-ser verificadas separadamente. Links fixos externos não são atualizados por este
-PR e não devem substituir o checkout rastreável do NextStock.
+As novas reservas registram uma cobrança pelo período da oferta: mensal,
+trimestral ou semestral. Ouro custa R$ 100, R$ 200 ou R$ 400; Esmeralda custa
+R$ 200, R$ 600 ou R$ 1.200, respectivamente. O checkout do NextStock usa esses
+valores e frequências sem alterar os planos nem os links externos do Mercado
+Pago. Reservas e checkouts antigos conservam as condições mensais registradas.
+Para validar o fluxo integrado, abra o checkout a partir do NextStock e confira
+o valor e a frequência antes de autorizar.
 
 Cadastro por URL sem oferta promocional ou com promo=none limpa a oferta e
 reserva antigas no navegador. O checkout normal não envia reserva órfã. A reserva

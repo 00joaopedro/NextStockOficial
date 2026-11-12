@@ -348,9 +348,12 @@
       const offer = reservation?.offer;
       const confirmedOffer = isPromotionPlan && offer?.planSlug === plan.slug &&
         offer?.periodMonths === Number(selected.periodMonths);
+      const chargeLabel = { 1: "mês", 3: "trimestre", 6: "semestre" }[offer?.chargeIntervalMonths];
       price.textContent = isPromotionPlan
         ? confirmedOffer
-          ? `${money(offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
+          ? offer.chargeIntervalMonths === offer.periodMonths && chargeLabel
+            ? `${money(offer.chargeAmountCents, plan.currency)} por ${chargeLabel}`
+            : `${money(offer.chargeAmountCents ?? offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
           : "Preço promocional disponível após confirmar a reserva"
         : money(plan.priceCents, plan.currency);
       const promotionReady = state.promotionLoaded && (!selected ||
