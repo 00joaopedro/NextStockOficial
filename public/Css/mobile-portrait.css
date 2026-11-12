@@ -3,22 +3,26 @@
 /* Paint one viewport-sized gradient behind the content. The body in these
    screens can be only one viewport tall even when its content scrolls. */
 @media screen {
-  html:is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) {
+  html:is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"], [data-mobile-page="perfil"]) {
     background-color: #0d1b2a;
   }
 
-  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) body {
+  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"], [data-mobile-page="perfil"]) body {
     background: transparent;
     isolation: isolate;
   }
 
-  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"]) body::before {
+  :is([data-mobile-page="despesas"], [data-mobile-page="historico"], [data-mobile-page="fechamento"], [data-mobile-page="ntfe"], [data-mobile-page="perfil"]) body::before {
     content: "";
     position: fixed;
     inset: 0;
     z-index: -1;
     pointer-events: none;
     background: linear-gradient(135deg, #0d1b2a, #00cfcf) no-repeat;
+  }
+  [data-mobile-page="perfil"] main > .header,
+  [data-mobile-page="perfil"] main > .header p {
+    color: #fff;
   }
 }
 
