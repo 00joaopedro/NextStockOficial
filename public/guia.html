@@ -3,19 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FAQ - Estoque Nuvem</title>
+  <title>Guia do NextStock</title>
   <style>
-    /* ===== RESET ===== */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-        html, body {
-      width: 100%;
-      height: 100%;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
     /* ===== SIDEBAR ===== */
     .sidebar {
       max-width: 16vw;
@@ -71,237 +61,398 @@
       display: block;
     }
 
-    /* ===== CONTEÚDO PRINCIPAL ===== */
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      margin: 0;
-      background: linear-gradient(90deg, #0d1b2a, #00cfcf);
-      color: #222;
-      padding-left: 20%;
+      min-height: 100vh;
+      padding-left: 16vw;
+      color: #12263b;
+      background: linear-gradient(135deg, #0d1b2a, #00cfcf) no-repeat;
+      font: 16px/1.55 system-ui, sans-serif;
     }
-
-/* centraliza o título (e não atrapalha a grid de FAQs) */
-main {
-  padding: 40px 5%;
-  max-width: 1200px;
-  margin: 0 auto;
-  text-align: center; /* <-- garante centralização do h1 e de elementos inline */
-}
-
-h1 {
-  display: block; /* <-- bloco padrão, fica centralizado pelo text-align do pai */
-  text-align: center;
-  font-size: clamp(1.8rem, 2.5vw, 2.4rem);
-  color: #0d1b2a;
-  background: #fff;
-  margin: 20px auto;
-  padding: 10px 25px;
-  border-radius: 8px;
-  max-width: 100%; /* evita overflow em telas pequenas */
-}
-
-    p.subtitle {
-      text-align: center;
-      color: #ffffff;
-      margin-top: 8px;
-      margin-bottom: 40px;
-      font-size: clamp(16px, 1.2vw, 22px);
-    }
-
-    .faq-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 30px;
-    }
-
-    .faq-item {
+    [hidden] { display: none !important; }
+    main { width: 100%; max-width: 1100px; margin-inline: auto; padding: clamp(16px, 4vw, 48px); }
+    .guide-intro, .guide-section, .guide-empty {
       background: #fff;
-      border-left: 3px solid #00cfcf;
-      padding: 25px 20px;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-      transition: transform 0.3s ease, box-shadow 0.3s ease;
-      position: relative;
+      border: 1px solid #dce7ef;
+      border-radius: 16px;
+      padding: clamp(16px, 3vw, 28px);
+      margin-bottom: 16px;
     }
-
-    .faq-item:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 6px 14px rgba(0, 0, 0, 0.12);
+    h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); line-height: 1.2; }
+    h2 { font-size: clamp(1.1rem, 3vw, 1.4rem); }
+    .guide-intro p { margin-top: 8px; color: #40566b; }
+    .guide-search { margin-top: 20px; }
+    .guide-search label { display: block; margin-bottom: 6px; font-weight: 700; }
+    .guide-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    .guide-controls input {
+      flex: 1 1 240px; min-width: 0; min-height: 44px; padding: 9px 12px;
+      border: 1px solid #60788a; border-radius: 8px; color: inherit; font: inherit;
     }
-
-    .faq-item::before {
-      content: "🎯";
-      font-size: 28px;
-      color: #00cfcf;
-      position: absolute;
-      left: -40px;
-      top: 20px;
+    .guide-controls button {
+      min-height: 44px; padding: 8px 16px; border: 0; border-radius: 8px;
+      background: #07354a; color: white; font: inherit; cursor: pointer;
     }
-
-    .faq-item h3 {
-      font-size: 1.2rem;
-      color: #0d1b2a;
-      margin-bottom: 10px;
+    .guide-topics { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+    .guide-topics a {
+      display: inline-flex; align-items: center; min-height: 44px; padding: 6px 12px;
+      border-radius: 10px; background: #e2f4f4; color: #07354a;
     }
-
-    .faq-item p {
-      color: #444;
-      font-size: clamp(15px, 1.1vw, 20px);
-      line-height: 1.6;
-    }
-
-    .faq-item a {
-      color: #00cfcf;
-      text-decoration: none;
-      font-weight: bold;
-      display: inline-block;
-      margin-top: 10px;
-      transition: color 0.3s;
-    }
-
-    .faq-item a:hover {
-      color: #0d1b2a;
-    }
-
-    /* ===== MOBILE RESPONSIVE ===== */
+    .guide-section { scroll-margin-top: 76px; }
+    .guide-article { margin-top: 8px; border: 1px solid #d6e5ea; border-radius: 9px; background: #f7fbfc; }
+    .guide-article summary { min-height: 44px; padding: 10px 12px; font-weight: 650; cursor: pointer; }
+    .guide-article[open] summary { color: #075e64; }
+    .guide-article ol { margin: 0 16px 14px 34px; }
+    .guide-article li + li { margin-top: 7px; }
+    main :focus-visible { outline: 3px solid #0a6870; outline-offset: 2px; }
     @media (max-width: 900px) {
-      body {
-        padding-left: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-      }
-
-      .sidebar {
-        width: auto;
-        height: auto;
-        position: relative;
-        flex-direction: column; /* Empilha o nome e o menu */
-        justify-content: center;
-        align-items: center;
-        padding: 15px 0;
-      }
-
-      .sidebar h2 {
-        order: -1; /* Coloca o nome acima do menu */
-        margin-bottom: 10px;
-        text-align: center;
-        font-size: 1.5rem;
-      }
-
-      .menu {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 8px;
-        padding: 0 10px;
-      }
-
-      .menu li {
-        padding: 10px 12px;
-        font-size: 1rem;
-      }
-
-      main {
-        padding: 30px 15px;
-        margin-top: 10px;
-        width: 100%;
-      }
-
-      .faq-grid {
-        grid-template-columns: 1fr;
-        gap: 20px;
-      }
-
-      .faq-item::before {
-        display: none;
-      }
-
-      .faq-item {
-        padding: 20px;
-      }
-
-      h1 {
-        font-size: 1.8rem;
-        padding: 8px 15px;
-      }
-
-      p.subtitle {
-        font-size: 1rem;
-        margin-bottom: 25px;
-      }
+      body { padding-left: 0; }
+      .sidebar { width: 100%; max-width: none; height: auto; position: relative; }
+      .menu { display: flex; flex-wrap: wrap; justify-content: center; }
     }
-
-    /* ===== TABLET AJUSTES ===== */
-    @media (min-width: 901px) and (max-width: 1200px) {
-      .sidebar {
-        width: 25%;
-      }
-      body {
-        padding-left: 25%;
-      }
-      .faq-grid {
-        gap: 40px;
-      }
+    @media (max-width: 480px) {
+      .guide-controls button { width: 100%; }
     }
   </style>
   <link rel="modulepreload" href="./dist/sidebar.js">
   <link rel="stylesheet" href="/Css/mobile-portrait.css">
 </head>
 <body>
-  <!-- Sidebar -->
   <div id="sidebar-container"></div>
-
-  <!-- Conteúdo principal -->
   <main>
-    <h1>FAQ</h1>
-    <p class="subtitle">Aqui estão algumas das perguntas frequentes sobre o sistema Estoque Nuvem</p>
-
-    <div class="faq-grid">
-      <div class="faq-item">
-        <h3>Como adicionar uma fonte de cadastro?</h3>
-        <p>Permite rastrear de onde veio cada cadastro de produto ou cliente, ajudando a identificar as origens mais eficientes.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Como fazer reservas para grupos existentes?</h3>
-        <p>Depois de encontrar o grupo desejado, é possível associar novos pedidos ou reservas diretamente ao mesmo cadastro.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Configuração de planos de preço</h3>
-        <p>Os planos de preço ajudam a automatizar margens de lucro e precificação. Assim, a equipe não precisa calcular manualmente cada item.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Como adicionar outra unidade ao sistema?</h3>
-        <p>Se sua empresa possui mais de uma filial, é possível adicionar propriedades adicionais pelo painel de controle.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Como mover produtos entre seções?</h3>
-        <p>Permite transferir produtos entre estoques ou prateleiras, mantendo a rastreabilidade de todas as movimentações.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Como criar um agrupamento de pedidos?</h3>
-        <p>Ideal para empresas que recebem pedidos em lote, permitindo gerenciar vários produtos sob uma única referência.</p>
-        <a href="#">Leia mais</a>
-      </div>
-
-      <div class="faq-item">
-        <h3>Como configurar seu site ou painel de vendas?</h3>
-        <p>No menu <b>Configurações &gt; Empresa</b>, adicione todas as informações necessárias para exibir seus produtos e relatórios.</p>
-        <a href="#">Leia mais</a>
-      </div>
-    </div>
+    <header class="guide-intro">
+      <h1>Guia do NextStock</h1>
+      <p>Encontre o passo a passo para usar o sistema Padrão e o Pet Shop.</p>
+      <p>As ações disponíveis dependem do seu perfil de acesso. O modo visualização é apenas para consulta e demonstração.</p>
+      <form class="guide-search" id="guide-search" role="search" aria-label="Pesquisar no guia" hidden>
+        <label for="guide-query">O que você quer fazer?</label>
+        <div class="guide-controls">
+          <input id="guide-query" type="search" maxlength="120" placeholder="Ex.: cadastrar produto ou fechar caixa" autocomplete="off">
+          <button type="button" id="guide-clear" disabled>Limpar pesquisa</button>
+        </div>
+        <p id="guide-results" role="status" aria-live="polite" aria-atomic="true"></p>
+      </form>
+      <nav class="guide-topics" id="guide-topics" aria-label="Assuntos do guia"><a href="#primeiros-passos">Primeiros passos</a><a href="#estoque">Produtos, estoque e fornecedores</a><a href="#vendas">Caixa, pedidos e loja</a><a href="#financeiro">Despesas, vendas e relatórios</a><a href="#pet-shop">Pet Shop: Clientes, animais e Agenda</a><a href="#administracao">Equipe, perfil e assinatura</a><a href="#fiscal">Notas fiscais e impressão</a></nav>
+    </header>
+    <p class="guide-empty" id="guide-empty" hidden>Nenhuma orientação encontrada. Tente buscar por uma ação ou pelo nome da tela, como “Caixa” ou “Agenda”.</p>
+    <section class="guide-section" id="primeiros-passos" aria-labelledby="primeiros-passos-title">
+      <h2 id="primeiros-passos-title">Primeiros passos</h2>
+      <details class="guide-article" data-keywords="login acesso email cadastro registro">
+        <summary>Entrar ou criar uma conta</summary>
+        <ol>
+          <li>Na página inicial, escolha Login e preencha e-mail e senha. Use Continuar com Google quando disponível.</li>
+          <li>Para criar uma conta, escolha Cadastro, informe os dados solicitados e selecione Padrão ou Pet Shop conforme sua atividade.</li>
+          <li>Após entrar, confira a empresa e a filial antes de registrar operações.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="demo demonstração visualização testar exemplo">
+        <summary>Explorar o sistema sem alterar dados</summary>
+        <ol>
+          <li>Na página inicial, toque em Visualizar sistema e escolha Visualizar padrão ou Visualizar Pet shop.</li>
+          <li>Use o menu para explorar as telas. O Pet Shop inclui Clientes e Agenda.</li>
+          <li>As telas podem mostrar exemplos. Para cadastrar, vender ou editar dados reais, entre com uma conta autorizada.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="esqueci senha reset redefinir email">
+        <summary>Recuperar ou trocar a senha</summary>
+        <ol>
+          <li>Na página inicial, abra Login e escolha Esqueci minha senha, ou use Trocar senha.</li>
+          <li>Informe seu e-mail e siga as instruções recebidas. Na página Redefinir senha, digite e confirme a nova senha.</li>
+          <li>Volte ao login. Confira o endereço informado e a pasta de spam se a mensagem não chegar.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="venda oferta desconto plano reserva">
+        <summary>Escolher sistema e verificar uma promoção</summary>
+        <ol>
+          <li>Se recebeu um link de indicação, escolha Padrão ou Pet Shop entre as opções oferecidas. Siga para o cadastro normal ou para a promoção, quando oferecida.</li>
+          <li>Na página Promoção, compare os prazos e valores de Ouro e Esmeralda e escolha o plano desejado.</li>
+          <li>Siga as instruções de cadastro ou login. Confira a oferta no Perfil antes de pagar; escolher na vitrine não confirma o pagamento.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="menu permissão acesso bloqueado filial">
+        <summary>Encontrar um módulo ou ação</summary>
+        <ol>
+          <li>Abra o Menu no celular ou use a barra lateral. Os módulos disponíveis dependem do sistema, da filial e das permissões da conta.</li>
+          <li>Se uma opção não aparecer, confirme o contexto e se está no modo visualização. Se necessário, peça ao administrador para verificar seu acesso.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="logout sair trocar conta sessão login">
+        <summary>Conferir a sessão e sair</summary>
+        <ol>
+          <li>Na tela inicial, use Ver sessão atual para conferir a conta em uso.</li>
+          <li>Ao terminar em um dispositivo compartilhado, use Logout. Para entrar com outra conta, faça login novamente.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="estoque" aria-labelledby="estoque-title">
+      <h2 id="estoque-title">Produtos, estoque e fornecedores</h2>
+      <details class="guide-article" data-keywords="cadastro estoque SKU código barras preço fotos">
+        <summary>Cadastrar um produto</summary>
+        <ol>
+          <li>Abra Cadastro e preencha nome, preço, quantidade e unidade de venda. Complete marca, categoria, fornecedor e códigos quando aplicável.</li>
+          <li>Para venda a peso ou fração, selecione a unidade adequada e indique quantidade decimal quando necessário.</li>
+          <li>Revise o preço de venda, adicione as imagens desejadas e toque em Cadastrar.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="editar deletar cadastro produto estoque">
+        <summary>Consultar, atualizar ou excluir um produto</summary>
+        <ol>
+          <li>Em Cadastro, escolha Consultar e encontre o produto. Confira o nome ou código antes de editar.</li>
+          <li>Altere os campos e use Atualizar. Para remover, use Deletar apenas após conferir o item e confirmar a operação.</li>
+          <li>Use Novo para limpar o formulário e iniciar outro cadastro.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="catálogo filtrar preço produto fotos">
+        <summary>Buscar e abrir detalhes de produtos</summary>
+        <ol>
+          <li>Em Produtos, pesquise pelo nome ou informe um preço mínimo. Abra um item para ver descrição, preço e fotos.</li>
+          <li>Se não encontrar o item, limpe os filtros e confira se está na filial correta.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="fornecedores contato CNPJ fornecedor estoque">
+        <summary>Cadastrar ou editar fornecedor</summary>
+        <ol>
+          <li>Abra Fornecedores, toque em Novo e informe nome, tipo e dados de contato. Complete os campos comerciais que se aplicam e use Salvar.</li>
+          <li>Para editar, escolha o cadastro existente, revise o status e salve. Apagar deve ser usado somente depois de conferir o registro selecionado.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="migração importar exportar planilha xlsx csv">
+        <summary>Consultar a tela de migração</summary>
+        <ol>
+          <li>Abra Migração para consultar os formatos exibidos, XLSX e CSV.</li>
+          <li>A tela atual apresenta os controles de planilha, mas o aviso de andamento não confirma importação ou exportação. Para cadastrar produtos agora, use Cadastro.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="vendas" aria-labelledby="vendas-title">
+      <h2 id="vendas-title">Caixa, pedidos e loja</h2>
+      <details class="guide-article" data-keywords="pdv venda código barras granel leitor">
+        <summary>Adicionar produtos no Caixa</summary>
+        <ol>
+          <li>Em Caixa, leia o código 1D/2D ou use Pesquisar produto no estoque e selecione o item.</li>
+          <li>Revise quantidade e valor. Para itens vendidos por peso ou fração, informe a quantidade na unidade exibida.</li>
+          <li>Confira os produtos da venda antes de abrir o pagamento.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="pdv produto sem cadastro quantidade valor">
+        <summary>Adicionar um item avulso</summary>
+        <ol>
+          <li>No Caixa, use Adicionar item avulso, descreva o item e informe quantidade e valor conforme os campos.</li>
+          <li>Toque em OK e confira o lançamento no total da venda.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="pdv abatimento porcentagem valor fixo">
+        <summary>Aplicar ou remover um desconto</summary>
+        <ol>
+          <li>No Caixa, toque em Desconto. Escolha porcentagem ou valor fixo, informe o valor e use Aplicar.</li>
+          <li>Confira o total atualizado. Para retirar, volte ao mesmo painel e escolha Remover desconto.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="caixa pdv pagar dinheiro pix débito crédito troco">
+        <summary>Receber e finalizar uma venda</summary>
+        <ol>
+          <li>Com os itens conferidos, toque em Pagar e selecione a forma de pagamento.</li>
+          <li>Informe o valor pago e selecione a maquininha quando aplicável. Confira total e troco antes de confirmar em PAGO.</li>
+          <li>Confira o resultado na tela antes de tentar de novo. Registrar a forma de pagamento não substitui a confirmação do recebimento.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="PDV cancelar fechamento encerrar caixa turno">
+        <summary>Cancelar a venda atual ou fechar o caixa</summary>
+        <ol>
+          <li>Para abandonar a venda atual, use Cancelar e confira a confirmação exibida.</li>
+          <li>Para encerrar o turno, use Fechar no Caixa após conferir os valores. Depois, consulte o registro em Fechamento.</li>
+          <li>Para consultar uma venda já registrada, use Histórico.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="recibo interno impressão prévia fiscal nota comprovante">
+        <summary>Imprimir comprovante de venda</summary>
+        <ol>
+          <li>Depois de registrar a venda, escolha a opção de impressão disponível no Caixa ou abra a venda em Histórico.</li>
+          <li>Selecione o modo de impressão disponível. Recibo interno e prévia fiscal não substituem uma nota fiscal autorizada.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="carrinho cliente compra pedido">
+        <summary>Montar um pedido pela tela Produtos</summary>
+        <ol>
+          <li>Em Produtos, use o botão do carrinho e siga a confirmação de início do pedido. Preencha os dados do cliente quando solicitados.</li>
+          <li>Abra os produtos desejados, adicione ao carrinho, revise os itens e confirme o pedido pela opção disponível.</li>
+          <li>Acompanhe o registro em Pedidos.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="status entregue pendente recibo editar pedido">
+        <summary>Acompanhar, editar ou cancelar um pedido</summary>
+        <ol>
+          <li>Abra Pedidos, pesquise pelo cliente e filtre por valor ou situação. Abra Produtos do pedido para conferir os itens.</li>
+          <li>Use Editar quando a situação permitir. Marque como entregue após a entrega, ou use Cancelar pedido quando for necessário.</li>
+          <li>Confira a atualização na lista. Use Imprimir recibo quando precisar do comprovante.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="vitrine loja online carrinho retirada entrega telefone">
+        <summary>Comprar na loja pública</summary>
+        <ol>
+          <li>Na loja da empresa, pesquise o produto e adicione os itens ao carrinho.</li>
+          <li>Informe seus dados, escolha retirada ou entrega conforme disponível e use Confirmar pedido após revisar o resumo.</li>
+          <li>Para acompanhar, consulte Pedidos deste telefone na própria loja.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="financeiro" aria-labelledby="financeiro-title">
+      <h2 id="financeiro-title">Despesas, vendas e relatórios</h2>
+      <details class="guide-article" data-keywords="gasto fornecedor despesa anexo pdf nota escrita">
+        <summary>Criar uma nota de despesa</summary>
+        <ol>
+          <li>Em Despesas, escolha Criar nota e selecione Nota escrita ou Nota com imagens / arquivos.</li>
+          <li>Preencha valor, data, emissor e empresa. Inclua os itens ou os anexos solicitados para o tipo escolhido.</li>
+          <li>Use Salvar e confira a nota na lista.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="filtrar despesa alterar apagar nota">
+        <summary>Consultar ou corrigir uma despesa</summary>
+        <ol>
+          <li>Pesquise por loja ou emissor e use os filtros de data e valor para localizar a nota.</li>
+          <li>Abra os detalhes para revisar. Use Alterar ou Apagar quando disponível e confirme o registro correto antes de prosseguir.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="histórico vendedor status recibo nfce nfe reimprimir">
+        <summary>Consultar uma venda antiga</summary>
+        <ol>
+          <li>Em Histórico, filtre por vendedor, data, valor, documento ou status.</li>
+          <li>Abra a venda para conferir produtos, pagamento e documentos. Escolha a opção de reimpressão disponível para aquele registro.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="turno fechamento funcionario dinheiro cartão pix imprimir">
+        <summary>Conferir um fechamento de caixa</summary>
+        <ol>
+          <li>Em Fechamento, selecione o dia ou pesquise pelo funcionário. Compare os totais com o turno que deseja conferir.</li>
+          <li>Abra o fechamento para ver os detalhes. Para emitir uma cópia, use Imprimir fechamento.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="relatório período fluxo caixa faturamento produtos previsões gráfico">
+        <summary>Usar o Dashboard Financeiro</summary>
+        <ol>
+          <li>Em Dashboard, selecione loja, período, status e produto quando fizer sentido. Para datas específicas, escolha Personalizado e preencha o intervalo.</li>
+          <li>Toque em Aplicar filtros e compare fluxo de caixa, produtos e alertas. Confira se a visão inclui apenas confirmados ou também previsões.</li>
+          <li>Se o resultado estiver vazio, revise a filial e o período.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="pet-shop" aria-labelledby="pet-shop-title">
+      <h2 id="pet-shop-title">Pet Shop: Clientes, animais e Agenda</h2>
+      <details class="guide-article" data-keywords="petshop tutor contato telefone cliente">
+        <summary>Cadastrar ou atualizar um cliente</summary>
+        <ol>
+          <li>No modo Pet Shop, abra Clientes e escolha Criar Perfil. Preencha os dados do tutor e use Salvar.</li>
+          <li>Para consultar ou editar, encontre o cliente pelo nome. Abra o perfil e use Atualizar para salvar as mudanças.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="petshop pet vacina raça foto cadastro animal">
+        <summary>Cadastrar ou editar um animal</summary>
+        <ol>
+          <li>Abra o perfil do cliente em Clientes e escolha Adicionar Animal.</li>
+          <li>Preencha o nome e as informações relevantes, como raça, medidas e vacinas. Se necessário, adicione fotos dentro do limite informado.</li>
+          <li>Salve e confira o vínculo com o tutor. Para alterações, selecione o animal e use Atualizar Animal.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="petshop agenda horário atendimento serviço cliente animal">
+        <summary>Criar um agendamento</summary>
+        <ol>
+          <li>Na Agenda, toque em Novo agendamento. Selecione o cliente e o animal e preencha serviço, atendente, início, fim e valor conforme a tela.</li>
+          <li>Confira o horário e use Salvar. Também há opção de agendamento a partir do perfil do cliente.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="petshop filtro horário confirmar cancelar atendimento status">
+        <summary>Consultar e atualizar a agenda</summary>
+        <ol>
+          <li>Na Agenda, filtre por atendente, data, status, cliente ou animal. Use Aplicar filtros.</li>
+          <li>Abra o agendamento desejado, altere os dados ou o status e salve. Informe o motivo se a tela solicitar ao cancelar.</li>
+          <li>Use Limpar para retornar à lista sem filtros.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="excluir apagar animal cliente agendamento petshop">
+        <summary>Remover um registro do Pet Shop</summary>
+        <ol>
+          <li>Em Clientes, abra o perfil correto e confira o nome do tutor. Para remover um animal, selecione o animal antes de usar Apagar Animal.</li>
+          <li>Para remover um agendamento, confira cliente e horário e use a ação de exclusão quando disponível. Se só precisa indicar que o atendimento não vai ocorrer, prefira alterar o status para Cancelado.</li>
+          <li>Leia a confirmação antes de apagar um perfil ou registro.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="administracao" aria-labelledby="administracao-title">
+      <h2 id="administracao-title">Equipe, perfil e assinatura</h2>
+      <details class="guide-article" data-keywords="equipe funcionário colaborador senha cargo permissão usuário">
+        <summary>Cadastrar e gerenciar funcionários</summary>
+        <ol>
+          <li>Abra Funcionários, preencha os dados e escolha o cargo de acesso conforme as funções da pessoa. Use Cadastrar.</li>
+          <li>Para manter um cadastro existente, selecione o funcionário e use Atualizar. Para revogar o acesso, use Desativar quando disponível.</li>
+          <li>Use Resetar Senha somente para o funcionário selecionado e siga as instruções da tela.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="conta email cnpj contato perfil empresa">
+        <summary>Atualizar perfil ou dados da empresa</summary>
+        <ol>
+          <li>Em Perfil, abra Conta e empresa. Edite seu nome e use Salvar perfil.</li>
+          <li>Para dados comerciais, revise empresa, CNPJ, e-mail e contato e use Salvar empresa. Esse botão depende da permissão da conta.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="assinatura cobrança mensalidade upgrade downgrade planos pagamento trial">
+        <summary>Consultar o plano, contratar ou cancelar renovação</summary>
+        <ol>
+          <li>Em Perfil, abra Assinatura NextStock e confira o plano, o status e as datas mostradas.</li>
+          <li>Para contratar ou mudar, compare as opções habilitadas e confirme os detalhes antes de seguir para o pagamento.</li>
+          <li>Para cancelar, confira a condição exibida e use Cancelar renovação ou Cancelar assinatura quando disponível.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="cartão máquina terminal taxa modelo pdv">
+        <summary>Cadastrar uma maquininha</summary>
+        <ol>
+          <li>Em Perfil, vá a Maquininhas de pagamento e toque em Nova maquininha.</li>
+          <li>Preencha nome, operadora, modelo, taxa e status e salve. A lista pode aparecer no Caixa quando a forma de pagamento exigir uma maquininha.</li>
+          <li>O cadastro para identificação não garante que o pagamento seja processado automaticamente.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="perfil meio de pagamento terminal pix boleto vitrine">
+        <summary>Conferir opções de pagamento e loja</summary>
+        <ol>
+          <li>Em Perfil, consulte as opções disponíveis em Processamento de pagamentos. Verifique o contexto, como Caixa ou Loja pública, e confirme as opções habilitadas antes de vender.</li>
+          <li>Peça ao administrador para verificar as configurações se uma opção necessária não estiver disponível. Nunca compartilhe senhas ou dados de pagamento no suporte.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="parceiros link indicação afiliado promoção reservas">
+        <summary>Acompanhar indicações e vagas de campanha</summary>
+        <ol>
+          <li>Se tiver acesso à área Parceiros, abra o cadastro do parceiro e use Copiar para compartilhar o link correto. Consulte Indicações para acompanhar a situação.</li>
+          <li>Na área Promoção, quem tiver permissão pode consultar vagas, reservas e pagamentos. Para participar como cliente, use a página pública da promoção.</li>
+          <li>Os menus administrativos aparecem somente para perfis autorizados.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="painel dev uso usuários período acesso administrador">
+        <summary>Consultar indicadores administrativos</summary>
+        <ol>
+          <li>Quando o menu Dev estiver disponível para sua conta, selecione o período desejado e use Atualizar dados para consultar os indicadores exibidos.</li>
+          <li>Para operar no sistema, selecione Padrão ou Pet Shop e use Abrir sistema. Essa área é restrita a perfis autorizados.</li>
+        </ol>
+      </details>
+    </section>
+    <section class="guide-section" id="fiscal" aria-labelledby="fiscal-title">
+      <h2 id="fiscal-title">Notas fiscais e impressão</h2>
+      <details class="guide-article" data-keywords="NTF-e NF-e nota fiscal SEFAZ emissão modelo 55 destinatário">
+        <summary>Preparar e emitir uma NF-e</summary>
+        <ol>
+          <li>Abra NTF-e e confira a situação fiscal da filial. Inicie em Novo, revise identificação, emitente, destinatário, itens e totais.</li>
+          <li>Use Enviar para SEFAZ somente após revisar os dados. Aguarde o resultado e consulte o status antes de reenviar.</li>
+          <li>Quando os documentos estiverem disponíveis, use Baixar XML ou Baixar DANFE.</li>
+        </ol>
+      </details>
+      <details class="guide-article" data-keywords="certificado rejeição autorização DANFE NFC-e impressora">
+        <summary>Resolver pendências fiscais ou de impressão</summary>
+        <ol>
+          <li>Se uma nota não for autorizada, confira o status e a mensagem na tela. Peça ao responsável fiscal para revisar o cadastro antes de tentar novamente.</li>
+          <li>Para impressão, selecione o modo disponível na tela. Se o modo direto falhar, confira a impressora e use o modo Navegador quando oferecido.</li>
+          <li>Uma prévia fiscal é apenas para conferência. Use o documento autorizado quando for necessário comprovar a emissão.</li>
+        </ol>
+      </details>
+    </section>
   </main>
   <script src="./dist/session-state.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
+  <script src="./Js/guide-search.js" defer></script>
 </body>
 </html>
