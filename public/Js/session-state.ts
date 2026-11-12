@@ -109,9 +109,13 @@ function getNextStockPublicPreviewContext(): {
 } | null {
   if (!isNextStockDemoMode()) return null;
 
-  const selected =
-    sessionStorage.getItem('nextstockSelectedSystemType') ||
-    sessionStorage.getItem('nextstockSystemType');
+  const params = new URLSearchParams(window.location.search);
+  const requestedType = params.get('systemType');
+  const explicitPreview = ['preview', 'visualizacao'].includes(params.get('mode') || '');
+  const selected = explicitPreview && (requestedType === 'padrao' || requestedType === 'petshop')
+    ? requestedType
+    : sessionStorage.getItem('nextstockSelectedSystemType') ||
+      sessionStorage.getItem('nextstockSystemType');
   const systemType = selected === 'petshop' ? 'petshop' : 'padrao';
 
   return {
@@ -216,7 +220,7 @@ async function refreshNextStockSession(): Promise<Response | null> {
         headers: { Accept: 'application/json' },
         signal: controller.signal,
       });
-      if (response.status === 401) {
+      if (response.status === 401 && !isNextStockDemoMode()) {
         clearNextStockSessionState();
         if (!window.location.pathname.toLowerCase().endsWith('/index.html')) {
           window.location.href = '/index.html?auth_error=session_expired';
@@ -280,11 +284,13 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
     await refreshNextStockSession();
   }
 
+  const publicPreview = isNextStockDemoMode();
   const response = await originalNextStockFetch(...args);
 
   // A local JWT can expire while the revocable session remains active. Refresh
   // only safe idempotent reads, then retry the original request once.
   if (
+    !publicPreview && !isNextStockDemoMode() &&
     response.status === 401 &&
     ['GET', 'HEAD'].includes(method) &&
     pathname.startsWith('/api/') &&
@@ -310,6 +316,7 @@ window.fetch = async (...args: Parameters<typeof fetch>) => {
   }
 
   if (
+    !publicPreview && !isNextStockDemoMode() &&
     response.status === 402 &&
     !window.location.pathname.toLowerCase().endsWith('/perfil.html')
   ) {

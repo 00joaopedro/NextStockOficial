@@ -99,8 +99,9 @@ describe('Frontend session and demo isolation', () => {
     expect(sidebar).toContain(
       '(window as any).getNextStockPublicPreviewContext?.()',
     );
-    expect(sidebar.indexOf('if (publicPreview)')).toBeLessThan(
-      sidebar.indexOf('const selectedBranchId = getSelectedBranchId()'),
+    const bootstrap = sidebar.slice(sidebar.indexOf('async function loadSidebar()'));
+    expect(bootstrap.indexOf('if (publicPreview)')).toBeLessThan(
+      bootstrap.indexOf('const snapshot = readSidebarSnapshot()'),
     );
   });
 
