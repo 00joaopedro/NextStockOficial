@@ -1,3 +1,4 @@
+import { installMobileNavigation } from './mobile-navigation.js';
 type SystemMode = 'PRODUCTION' | 'PREVIEW';
 type TenantType = 'STANDARD' | 'PETSHOP';
 type ModuleKey = 'core' | 'petshop' | 'dev';
@@ -663,11 +664,6 @@ function buildSidebarHtml(
 }
 
 async function fetchSystemContext(): Promise<SystemContextResponse> {
-  const publicPreview = (window as any).getNextStockPublicPreviewContext?.();
-  if (publicPreview) {
-    return normalizeContext(publicPreview);
-  }
-
   const selectedBranchId = getSelectedBranchId();
   markSidebarPerformance('nextstock-sidebar-context-start');
   const response = await fetch(SYSTEM_CONTEXT_ENDPOINT, {
@@ -848,7 +844,16 @@ async function loadSidebar(): Promise<void> {
     return;
   }
 
+  installMobileNavigation();
   markSidebarPerformance('nextstock-sidebar-script-start');
+  const publicPreview = (window as any).getNextStockPublicPreviewContext?.();
+  if (publicPreview) {
+    renderSidebar(container, normalizeContext(publicPreview));
+    markSidebarPerformance('nextstock-sidebar-first-menu');
+    markSidebarPerformance('nextstock-sidebar-ready');
+    return;
+  }
+
   const snapshot = readSidebarSnapshot();
   if (snapshot) {
     renderSidebar(container, snapshot.context, snapshot.menu);
