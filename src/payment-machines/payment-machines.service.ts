@@ -242,9 +242,9 @@ export class PaymentMachinesService {
   private normalizeCreateDto(dto: CreatePaymentMachineDto) {
     return {
       name: this.cleanRequired(dto.name, 'Nome'),
-      provider: dto.provider,
-      model: this.cleanRequired(dto.model, 'Modelo'),
-      feePercent: new Prisma.Decimal(dto.feePercent),
+      provider: dto.provider ?? PaymentProvider.outro,
+      model: dto.model == null ? '' : this.cleanRequired(dto.model, 'Modelo'),
+      feePercent: new Prisma.Decimal(dto.feePercent ?? 0),
       status: dto.status ?? MachineStatus.ativa,
       externalProvider: this.cleanNullable(dto.externalProvider),
       externalReference: this.cleanNullable(dto.externalReference),
@@ -260,8 +260,8 @@ export class PaymentMachinesService {
     if (dto.provider !== undefined) {
       data.provider = dto.provider;
     }
-    if (dto.model !== undefined) {
-      data.model = this.cleanRequired(dto.model, 'Modelo');
+    if (dto.model != null) {
+      data.model = dto.model.trim();
     }
     if (dto.feePercent !== undefined) {
       data.feePercent = new Prisma.Decimal(dto.feePercent);

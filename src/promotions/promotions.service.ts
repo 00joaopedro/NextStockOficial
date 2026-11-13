@@ -224,7 +224,8 @@ export class PromotionsService {
                 planSlug: offer.planSlug,
                 periodMonths: offer.periodMonths,
                 totalPriceCents: offer.totalPriceCents,
-                monthlyPriceCents: offer.monthlyPriceCents,
+                chargeAmountCents: offer.chargeAmountCents,
+                chargeIntervalMonths: offer.chargeIntervalMonths,
               },
             },
           });
@@ -293,7 +294,8 @@ export class PromotionsService {
               planSlug: offer.planSlug,
               periodMonths: offer.periodMonths,
               totalPriceCents: offer.totalPriceCents,
-              monthlyPriceCents: offer.monthlyPriceCents,
+              chargeAmountCents: offer.chargeAmountCents,
+              chargeIntervalMonths: offer.chargeIntervalMonths,
             },
           },
         });
@@ -1030,6 +1032,8 @@ export class PromotionsService {
       offer: {
         planSlug: offer.planSlug,
         periodMonths: offer.periodMonths,
+        chargeAmountCents: offer.chargeAmountCents,
+        chargeIntervalMonths: offer.chargeIntervalMonths,
         monthlyPriceCents: offer.monthlyPriceCents,
         totalPriceCents: offer.totalPriceCents,
       },

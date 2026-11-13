@@ -348,9 +348,12 @@
       const offer = reservation?.offer;
       const confirmedOffer = isPromotionPlan && offer?.planSlug === plan.slug &&
         offer?.periodMonths === Number(selected.periodMonths);
+      const chargeLabel = { 1: "mês", 3: "trimestre", 6: "semestre" }[offer?.chargeIntervalMonths];
       price.textContent = isPromotionPlan
         ? confirmedOffer
-          ? `${money(offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
+          ? offer.chargeIntervalMonths === offer.periodMonths && chargeLabel
+            ? `${money(offer.chargeAmountCents, plan.currency)} por ${chargeLabel}`
+            : `${money(offer.chargeAmountCents ?? offer.monthlyPriceCents, plan.currency)}/mês · total ${money(offer.totalPriceCents, plan.currency)}`
           : "Preço promocional disponível após confirmar a reserva"
         : money(plan.priceCents, plan.currency);
       const promotionReady = state.promotionLoaded && (!selected ||
@@ -569,7 +572,7 @@
     if (!state.machines.length) { el.machineList.textContent = "Nenhuma maquininha cadastrada."; return; }
     for (const machine of state.machines) {
       const card = document.createElement("article"); card.className = `machine${machine.id === state.selectedMachineId ? " selected" : ""}`;
-      card.textContent = `${machine.name} · ${machine.model} · ${machine.status}`;
+      card.textContent = [machine.name, machine.model, machine.status].filter(Boolean).join(" · ");
       card.addEventListener("click", () => selectMachine(machine)); el.machineList.appendChild(card);
     }
   }
@@ -585,8 +588,23 @@
     renderMachines(); permissions();
   }
   async function saveMachine() {
-    const body = { name: clean(el.machineName.value), provider: el.machineProvider.value,
-      model: clean(el.machineModel.value), feePercent: Number(el.machineFee.value), status: el.machineStatus.value };
+    const name = clean(el.machineName.value);
+    if (name.length < 2 || name.length > 120) {
+      message("Informe um nome de 2 a 120 caracteres para a maquininha.", "error");
+      return;
+    }
+    if (!el.machineFee.reportValidity()) return;
+    const model = clean(el.machineModel.value);
+    const body = { name, status: el.machineStatus.value };
+    if (state.selectedMachineId) {
+      body.provider = el.machineProvider.value || "outro";
+      body.model = model;
+      body.feePercent = el.machineFee.value === "" ? 0 : el.machineFee.valueAsNumber;
+    } else {
+      if (el.machineProvider.value) body.provider = el.machineProvider.value;
+      if (model) body.model = model;
+      if (el.machineFee.value !== "") body.feePercent = el.machineFee.valueAsNumber;
+    }
     busy(true);
     try {
       await api(state.selectedMachineId ? `/api/payment-machines/${state.selectedMachineId}` : "/api/payment-machines",

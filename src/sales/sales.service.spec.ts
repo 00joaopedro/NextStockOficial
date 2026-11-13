@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import {
+  MachineStatus,
   OrderPaymentMethod,
   OrderStatus,
   Role,
@@ -276,6 +277,8 @@ describe('SalesService', () => {
       sale: { id: sale.id, totalCents: 3000 },
     });
 
+    expect(tx.paymentMachine.findFirst).not.toHaveBeenCalled();
+    expect(tx.sale.create.mock.calls[0][0].data.paymentMachineId).toBeUndefined();
     expect(tx.product.updateMany).toHaveBeenCalledTimes(1);
     expect(tx.product.updateMany).toHaveBeenCalledWith({
       where: {
@@ -524,6 +527,53 @@ describe('SalesService', () => {
     expect(createdDocument.protocol).toBeUndefined();
     expect(createdDocument.number).toBeUndefined();
     expect(createdDocument.series).toBeUndefined();
+  });
+
+  it.each([OrderPaymentMethod.pix, OrderPaymentMethod.debit_card, OrderPaymentMethod.credit_card])(
+    'guarda a identificação da maquininha ativa em uma venda por %s',
+    async (paymentMethod) => {
+      const { service, tx } = makeService();
+      const machine = { id: 'machine-a', name: 'Maquininha do balcão' };
+      tx.paymentMachine.findFirst.mockResolvedValue(machine);
+
+      await service.create(user, {
+        idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        paymentMethod,
+        paymentMachineId: machine.id,
+        paidCents: 3000,
+        items: [{ productId: '66666666-6666-6666-6666-666666666666', quantity: 2 }],
+      });
+
+      expect(tx.paymentMachine.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: machine.id,
+            tenantId: context.tenantId,
+            branchId: context.branchId,
+            status: MachineStatus.ativa,
+            deletedAt: null,
+          },
+        }),
+      );
+      const data = tx.sale.create.mock.calls[0][0].data;
+      const snapshot = { paymentMachineId: machine.id, paymentMachineNameSnapshot: machine.name };
+      expect(data).toMatchObject(snapshot);
+      expect(data.payments.create).toMatchObject(snapshot);
+    },
+  );
+
+  it('rejeita Pix com uma maquininha fora da filial ou indisponível', async () => {
+    const { service, tx } = makeService();
+    tx.paymentMachine.findFirst.mockResolvedValue(null);
+
+    await expect(service.create(user, {
+      idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      paymentMethod: OrderPaymentMethod.pix,
+      paymentMachineId: 'unavailable-machine',
+      items: [{ productId: '66666666-6666-6666-6666-666666666666', quantity: 2 }],
+    })).rejects.toBeInstanceOf(BadRequestException);
+    expect(tx.sale.create).not.toHaveBeenCalled();
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 
   it('exige maquininha ativa para cartao', async () => {

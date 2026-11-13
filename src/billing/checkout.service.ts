@@ -138,9 +138,10 @@ export class CheckoutService {
         'Tenant sem subscription. Execute o backfill de billing antes do checkout.',
       );
     }
+    const periodBilledOffer = promotionOffer?.monthlyPriceCents === undefined ? promotionOffer : null;
     const recurrence = this.recurrence(
-      plan.interval,
-      plan.intervalCount,
+      periodBilledOffer ? PlanInterval.MONTHLY : plan.interval,
+      periodBilledOffer?.chargeIntervalMonths ?? plan.intervalCount,
       promotionOffer?.periodMonths,
       !isProductionTestCheckout && subscription.status === 'trialing'
         ? subscription.trialEndsAt
@@ -388,7 +389,7 @@ export class CheckoutService {
       gatewayCheckout = await gateway.createCheckout({
         idempotencyKey: gatewayIdempotencyKey,
         externalReference: intent.externalReference,
-        amountCents: promotionOffer?.monthlyPriceCents ?? plan.priceCents,
+        amountCents: promotionOffer?.chargeAmountCents ?? plan.priceCents,
         currency: plan.currency,
         title: promotionOffer
           ? `${plan.name} — promoção ${promotionOffer.periodMonths} meses`
@@ -433,7 +434,7 @@ export class CheckoutService {
             externalReference: intent.externalReference,
             status: CheckoutSessionStatus.OPEN,
             expectedAmountCents:
-              promotionOffer?.monthlyPriceCents ?? plan.priceCents,
+              promotionOffer?.chargeAmountCents ?? plan.priceCents,
             currency: plan.currency,
             createdById: context.userId,
           },
@@ -480,6 +481,7 @@ export class CheckoutService {
                 gatewayCheckout.supportsExternalReference,
               promotional: Boolean(promotionOffer),
               promotionPeriodMonths: promotionOffer?.periodMonths ?? null,
+              promotionChargeIntervalMonths: promotionOffer?.chargeIntervalMonths ?? null,
               promotionTotalPriceCents: promotionOffer?.totalPriceCents ?? null,
             },
           },

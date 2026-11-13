@@ -1,20 +1,41 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { PROMOTION_OFFERS, getPromotionOffer } from './promotion-offers';
+import { PROMOTION_OFFERS } from './promotion-offers';
+
+const periodLabels = {
+  1: 'mês',
+  3: 'trimestre',
+  6: 'semestre',
+} as const;
 
 describe('promotional commercial prices', () => {
-  it.each(PROMOTION_OFFERS)('keeps the exact scheduled total for $planSlug/$periodMonths', (offer) => {
-    expect(Number.isSafeInteger(offer.monthlyPriceCents)).toBe(true);
-    expect(offer.monthlyPriceCents * offer.periodMonths).toBe(offer.totalPriceCents);
-  });
+  const html = readFileSync(join(process.cwd(), 'public/promocao.html'), 'utf8');
+  const cards = Array.from(
+    html.matchAll(/<article\b[^>]*>([\s\S]*?)<\/article>/g),
+    ([, card]) => card,
+  );
 
-  it('matches the approved Ouro prices and the public landing', () => {
-    const html = readFileSync(join(process.cwd(), 'public/promocao.html'), 'utf8');
-    expect(getPromotionOffer('ouro', 3)).toMatchObject({ monthlyPriceCents: 6666, totalPriceCents: 19998 });
-    expect(getPromotionOffer('ouro', 6)).toMatchObject({ monthlyPriceCents: 6666, totalPriceCents: 39996 });
-    expect(html).toContain('R$ 199,98');
-    expect(html).toContain('R$ 399,96');
-    expect(html).toContain('3 cobranças mensais de R$ 66,66');
-    expect(html).toContain('6 cobranças mensais de R$ 66,66');
-  });
+  it.each(PROMOTION_OFFERS)(
+    'matches the checkout charge on the public card for $planSlug/$periodMonths',
+    (offer) => {
+      expect(Number.isSafeInteger(offer.chargeAmountCents)).toBe(true);
+      expect(offer.chargeAmountCents).toBeGreaterThan(0);
+      expect(offer.chargeAmountCents).toBe(offer.totalPriceCents);
+      expect(offer.chargeIntervalMonths).toBe(offer.periodMonths);
+
+      const matchingCards = cards.filter(
+        (card) =>
+          card.includes(`data-plan="${offer.planSlug}"`) &&
+          card.includes(`data-period="${offer.periodMonths}"`),
+      );
+      expect(matchingCards).toHaveLength(1);
+      const price = matchingCards[0].match(
+        /<div class="price">R\$\s+([^<]+)<small>por ([^<]+)<\/small>/,
+      );
+      expect(price?.[1].trim()).toBe(
+        (offer.chargeAmountCents / 100).toLocaleString('pt-BR'),
+      );
+      expect(price?.[2]).toBe(periodLabels[offer.chargeIntervalMonths]);
+    },
+  );
 });

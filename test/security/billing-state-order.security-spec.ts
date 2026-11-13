@@ -7,6 +7,7 @@ import {
 import { randomUUID } from 'crypto';
 import { BillingEventsService } from '../../src/billing/billing-events.service';
 import { createBillingExternalReference } from '../../src/billing/external-reference.util';
+import { getPromotionOffer } from '../../src/promotions/promotion-offers';
 import { PaymentsService } from '../../src/billing/payments.service';
 import {
   assertSafeTestDatabaseUrl,
@@ -40,6 +41,7 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
   let serviceB: PaymentsService;
   const tenants: string[] = [];
   const plans: string[] = [];
+  const campaigns: string[] = [];
   const databaseUrl = hasSecurityTestDatabase()
     ? assertSafeTestDatabaseUrl(process.env.SECURITY_TEST_DATABASE_URL)
     : undefined;
@@ -68,11 +70,15 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
       await prismaA.billingEvent.deleteMany({ where: { tenantId } });
       await prismaA.billingPayment.deleteMany({ where: { tenantId } });
       await prismaA.billingInvoice.deleteMany({ where: { tenantId } });
+      await prismaA.promotionReservation.deleteMany({ where: { tenantId } });
       await prismaA.checkoutSession.deleteMany({ where: { tenantId } });
       await prismaA.subscription.deleteMany({ where: { tenantId } });
       await prismaA.branch.deleteMany({ where: { tenantId } });
       await prismaA.tenant.deleteMany({ where: { id: tenantId } });
     }
+    await prismaA.promotionCampaign.deleteMany({
+      where: { id: { in: campaigns } },
+    });
     await prismaA.plan.deleteMany({ where: { id: { in: plans } } });
     await Promise.all([prismaA?.$disconnect(), prismaB?.$disconnect()]);
   });
@@ -177,6 +183,78 @@ runDatabaseSuite('RC-004 billing state ordering on PostgreSQL 16', () => {
     }
     return { p, i, c, s };
   }
+
+  it.each([
+    [3, 20_000, '2026-10-29T12:00:00.000Z'],
+    [6, 40_000, '2027-01-29T12:00:00.000Z'],
+  ] as const)(
+    'validates the charge and grants the full %i-month period',
+    async (months, amount, periodEnd) => {
+      const f = await fixture();
+      const campaign = await prismaA.promotionCampaign.create({
+        data: {
+          slug: `rc004-${randomUUID()}`,
+          name: 'RC-004',
+          reservedCount: 1,
+        },
+      });
+      campaigns.push(campaign.id);
+      const offer = getPromotionOffer('ouro', months)!;
+      const reservation = await prismaA.promotionReservation.create({
+        data: {
+          campaignId: campaign.id,
+          tenantId: f.tenant.id,
+          checkoutSessionId: f.checkout.id,
+          idempotencyKey: randomUUID(),
+          metadata: { ...offer },
+        },
+      });
+      await prismaA.checkoutSession.update({
+        where: { id: f.checkout.id },
+        data: { expectedAmountCents: amount },
+      });
+      const approved = payment(f, 'APPROVED');
+      await expect(
+        serviceA.processVerifiedPayment(
+          provider,
+          {
+            ...approved,
+            amountCents: 6666,
+          },
+          'webhook',
+        ),
+      ).rejects.toThrow('Pagamento diverge');
+      await expect(
+        prismaA.billingPayment.count({
+          where: { checkoutSessionId: f.checkout.id },
+        }),
+      ).resolves.toBe(0);
+      await serviceA.processVerifiedPayment(
+        provider,
+        { ...approved, amountCents: amount },
+        'webhook',
+      );
+      await assertAggregate(f, 'APPROVED');
+      await expect(
+        prismaA.subscription.findUniqueOrThrow({
+          where: { id: f.subscription.id },
+        }),
+      ).resolves.toMatchObject({ currentPeriodEndsAt: new Date(periodEnd) });
+      await expect(
+        prismaA.billingInvoice.findFirstOrThrow({
+          where: { tenantId: f.tenant.id },
+        }),
+      ).resolves.toMatchObject({
+        periodEndsAt: new Date(periodEnd),
+        amountCents: amount,
+      });
+      await expect(
+        prismaA.promotionReservation.findUniqueOrThrow({
+          where: { id: reservation.id },
+        }),
+      ).resolves.toMatchObject({ status: 'CONVERTED' });
+    },
+  );
 
   it.each([2, 20, 100])(
     '%i mixed webhook/polling/reconciliation processors converge',

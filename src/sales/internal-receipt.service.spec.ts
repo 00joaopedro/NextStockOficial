@@ -7,7 +7,7 @@ describe('InternalReceiptService RC-012', () => {
     orderId: null,
     sellerNameSnapshot: '<Operador>',
     paymentMethod: 'pix',
-    paymentMachineNameSnapshot: null,
+    paymentMachineNameSnapshot: 'Maquininha do balcão',
     subtotalCents: 3000,
     discountCents: 0,
     totalCents: 3000,
@@ -109,6 +109,8 @@ describe('InternalReceiptService RC-012', () => {
       expect(result.html).toContain(`Via de impressão: ${number}`);
       expect(result.html).toContain('RECIBO INTERNO — SEM VALIDADE FISCAL');
       expect(result.html).toContain('&lt;Produto &amp; teste&gt;');
+      expect(result.html).not.toContain('Maquininha:');
+      expect(result.html).not.toContain(sale.paymentMachineNameSnapshot);
     },
   );
 

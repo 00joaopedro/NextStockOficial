@@ -20,6 +20,7 @@ import {
   PromotionReservationStatus,
   SubscriptionStatus,
 } from '@prisma/client';
+import { getReservedPromotionOffer } from '../promotions/promotion-offers';
 import { PrismaService } from '../prisma/prisma.service';
 import { BillingEventsService } from './billing-events.service';
 import { decideBillingState } from './billing-state-order';
@@ -1137,7 +1138,7 @@ export class PaymentsService {
     const apply = async (tx: Prisma.TransactionClient) => {
       let checkout = await tx.checkoutSession.findUnique({
         where: { externalReference: result.externalReference! },
-        include: { plan: true, subscription: true },
+        include: { plan: true, subscription: true, promotionReservation: { select: { metadata: true } } },
       });
       if (!checkout || checkout.provider !== provider)
         return { processed: false, reason: 'CHECKOUT_NOT_FOUND' } as const;
@@ -1271,7 +1272,10 @@ export class PaymentsService {
 
       const periodStart =
         result.paidAt ?? result.providerOccurredAt ?? new Date();
-      const periodEnd = this.periodEnd(periodStart, checkout.plan.interval, checkout.plan.intervalCount);
+      const promotionOffer = getReservedPromotionOffer(checkout.promotionReservation?.metadata);
+      const periodEnd = promotionOffer && promotionOffer.monthlyPriceCents === undefined
+        ? this.periodEnd(periodStart, PlanInterval.MONTHLY, promotionOffer.chargeIntervalMonths)
+        : this.periodEnd(periodStart, checkout.plan.interval, checkout.plan.intervalCount);
       if (
         status === BillingPaymentStatus.APPROVED &&
         !preserveCanceledSubscription &&

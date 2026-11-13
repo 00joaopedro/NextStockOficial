@@ -1,4 +1,5 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ValidationPipe } from '@nestjs/common';
+import { CreatePaymentMachineDto } from './dto/create-payment-machine.dto';
 import { MachineStatus, PaymentProvider, Prisma, Role, SystemMode, SystemType } from '@prisma/client';
 import { PaymentMachinesService } from './payment-machines.service';
 
@@ -79,6 +80,30 @@ describe('PaymentMachinesService branch isolation', () => {
         }),
       }),
     );
+  });
+
+  it('aceita cadastro somente com nome, sem integração com provedor', async () => {
+    const { service, prisma } = setup();
+    const dto = await new ValidationPipe({ whitelist: true, transform: true }).transform(
+      { name: 'Caixa A' },
+      { type: 'body', metatype: CreatePaymentMachineDto },
+    );
+
+    await service.create({ id: 'user-a' } as any, dto, 'branch-a');
+
+    expect(prisma.paymentMachine.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tenantId: 'tenant-a',
+        branchId: 'branch-a',
+        name: 'Caixa A',
+        provider: PaymentProvider.outro,
+        model: '',
+        feePercent: new Prisma.Decimal(0),
+        status: MachineStatus.ativa,
+        externalProvider: null,
+        externalReference: null,
+      }),
+    });
   });
 
   it('branch A nao altera maquina da branch B', async () => {

@@ -93,14 +93,14 @@
 
         <section class="card">
           <h2>Maquininhas de pagamento</h2>
-          <p class="helper">Configuração operacional do PDV; independente da assinatura do NextStock.</p>
+          <p class="helper">Para registrar no Caixa qual maquininha foi usada, basta cadastrar o nome. A integração com um provedor é opcional.</p>
           <div class="actions"><button id="addMachineBtn" class="secondary">+ Nova maquininha</button></div>
           <div id="machineList" class="machines"></div>
           <div class="form-grid">
-            <label class="full">Nome<input id="machineName"></label>
-            <label>Operadora<select id="machineProvider"><option value="">Selecione</option><option value="stone">Stone</option><option value="pagseguro">PagSeguro</option><option value="mercado_pago">Mercado Pago</option><option value="outro">Outro</option></select></label>
-            <label>Modelo<input id="machineModel"></label>
-            <label>Taxa (%)<input id="machineFee" type="number" min="0" max="100" step="0.01"></label>
+            <label class="full">Nome<input id="machineName" required minlength="2" maxlength="120"></label>
+            <label>Operadora (opcional)<select id="machineProvider"><option value="">Não informada</option><option value="stone">Stone</option><option value="pagseguro">PagSeguro</option><option value="mercado_pago">Mercado Pago</option><option value="outro">Outro</option></select></label>
+            <label>Modelo (opcional)<input id="machineModel" maxlength="120"></label>
+            <label>Taxa (%) (opcional)<input id="machineFee" type="number" min="0" max="100" step="0.01"></label>
             <label>Status<select id="machineStatus"><option value="ativa">Ativa</option><option value="inativa">Inativa</option><option value="manutencao">Manutenção</option></select></label>
           </div>
           <div class="actions"><button id="saveMachineBtn">Salvar</button><button id="deleteMachineBtn" class="danger">Apagar</button></div>
