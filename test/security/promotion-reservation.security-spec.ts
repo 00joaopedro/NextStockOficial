@@ -119,15 +119,22 @@ suite('promotion reservation on PostgreSQL', () => {
             reservedConversions: 1,
             convertedConversions: 0,
           });
+          const billingTerms = {
+            planSlug: 'ouro',
+            periodMonths: 1,
+            chargeAmountCents: 10_000,
+            chargeIntervalMonths: 1,
+            totalPriceCents: 10_000,
+          };
           expect(reserved).toMatchObject({
             status: 'RESERVED',
-            offer: { monthlyPriceCents: 10000, totalPriceCents: 10000 },
+            offer: billingTerms,
           });
           expect(
             await tx.promotionReservation.findUniqueOrThrow({
               where: { id: reserved.reservationId },
             }),
-          ).toMatchObject({ partnerId: partner.id });
+          ).toMatchObject({ partnerId: partner.id, metadata: billingTerms });
           const subscription = await tx.subscription.findUniqueOrThrow({
             where: { id: trial.id },
           });
