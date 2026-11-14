@@ -168,6 +168,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Verify Firebird product export with a real database
+        run: bash tools/firebird-import/smoke.sh
       - name: Verify Dockerfile packaging order
         run: node scripts/ci/verify-dockerfile.mjs
       - name: Verify production deployment workflow contract
