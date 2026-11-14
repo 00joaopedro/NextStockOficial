@@ -15,6 +15,17 @@
     li.textContent = text;
     target.append(li);
   };
+  function readMappedCell(row, rowIndex, columnIndex, field, source, start) {
+    const display = row[columnIndex];
+    if (!source || field === 'name' || field === 'barcode') return display;
+    const address = window.XLSX.utils.encode_cell({ r: start.r + rowIndex, c: start.c + columnIndex });
+    const cell = source[address];
+    if (cell?.t !== 'n' || typeof cell.v !== 'number') return display;
+    // Excel stores percentage-formatted numbers as fractions; the importer expects percentage points.
+    const format = cell.z?.replace(/"[^"]*"|\\.|_.|\*.|\[[^\]]*\]/g, '');
+    if (field === 'percent' && format?.includes('%') && cell.w?.includes('%')) return cell.v * 100;
+    return cell.v;
+  }
   function review() {
     attempt = null;
     const preview = byId('importPreview'), issues = byId('importIssues');
@@ -29,10 +40,14 @@
     }
     let invalid = 0;
     const seen = new Set();
+    const source = workbook?.Sheets[sheet.value];
+    const start = source ? window.XLSX.utils.decode_range(source['!ref']).s : null;
     rows.slice(1).forEach((row, index) => {
       if (!row.some((cell) => String(cell ?? '').trim())) return;
       try {
-        const raw = Object.fromEntries(Object.entries(selects).map(([key, input]) => [key, input.value ? row[Number(input.value) - 1] : undefined]));
+        const raw = Object.fromEntries(Object.entries(selects).map(([key, input]) => [
+          key, input.value ? readMappedCell(row, index + 1, Number(input.value) - 1, key, source, start) : undefined,
+        ]));
         const item = window.NextStockProductImport.convert(raw);
         if (item.barcode && seen.has(item.barcode)) throw new Error('Código de barras repetido no arquivo.');
         if (item.barcode) seen.add(item.barcode);
@@ -120,7 +135,7 @@
       } else {
         if (!/\.(csv|xls|xlsx)$/i.test(selected.name)) throw new Error('Selecione um CSV, Excel ou SQLite.');
         if (!window.XLSX) throw new Error('O leitor de planilhas não carregou. Atualize a página e tente novamente.');
-        workbook = window.XLSX.read(await selected.arrayBuffer(), { raw: true, sheetRows: 10002 });
+        workbook = window.XLSX.read(await selected.arrayBuffer(), { raw: true, cellNF: true, sheetRows: 10002 });
         sheet.replaceChildren(...workbook.SheetNames.map((name) => new Option(name, name)));
         byId('importSheetLabel').textContent = 'Planilha';
         byId('importSheetField').hidden = workbook.SheetNames.length < 2;
