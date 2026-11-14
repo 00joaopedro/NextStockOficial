@@ -49,6 +49,7 @@ trap 'docker rm -f "$container" >/dev/null 2>&1 || true; rm -f "$fixture"' EXIT
 docker exec -i "$container" python - <<'PY'
 import json
 import time
+from http.client import HTTPConnection
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -75,10 +76,22 @@ except HTTPError as error:
     assert error.code == 422
 else:
     raise AssertionError("Invalid file was accepted")
-try:
-    urlopen(Request(origin, data=data), timeout=10)
-except HTTPError as error:
-    assert error.code == 401
-else:
-    raise AssertionError("Unauthenticated request was accepted")
+# Send headers only for pre-body rejections. The server can close the connection
+# as soon as it rejects a request, so a bulk client upload can race with the 401.
+def expect_rejection_before_body(status, error, length, authorized=False):
+    connection = HTTPConnection("127.0.0.1", 8080, timeout=10)
+    try:
+        connection.putrequest("POST", "/inspect")
+        connection.putheader("Content-Length", str(length))
+        if authorized:
+            connection.putheader("Authorization", headers["Authorization"])
+        connection.endheaders()
+        with connection.getresponse() as result:
+            assert result.status == status, result.status
+            assert json.load(result) == {"error": error}
+    finally:
+        connection.close()
+
+expect_rejection_before_body(401, "unauthorized", len(data))
+expect_rejection_before_body(413, "size", 5 * 1024 * 1024 + 1, authorized=True)
 PY
