@@ -1,3 +1,4 @@
+import { inspectProductSqlite, SQLITE_IMPORT_MAX_BYTES } from './import/sqlite-import';
 import {
   Body,
   Controller,
@@ -111,6 +112,21 @@ export class ProductsController {
       devContextMode,
     );
     return reply.header('location', url).code(302).send();
+  }
+
+  @Post('import/sqlite')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard, PublicRateLimitGuard)
+  @RequireTenantContext({ requireBranch: true, writable: true, allowedRoles: [Role.Admin] })
+  @RateLimit({ max: 20, windowMs: 60_000 })
+  @UseInterceptors(FastifyFileInterceptor('file', {
+    limits: { fileSize: SQLITE_IMPORT_MAX_BYTES, files: 1 },
+  }))
+  inspectSqlite(
+    @UploadedFile() file: { buffer: Buffer },
+    @Query('table') table?: string,
+  ) {
+    return inspectProductSqlite(file?.buffer, table);
   }
 
   @Post('import')

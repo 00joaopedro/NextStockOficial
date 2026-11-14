@@ -8,7 +8,7 @@
     quantity: 'Quantidade inteira (padrão: zero)',
   };
   const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-  let workbook, rows = [], selects = {}, items = [], branch, busy = false, attempt = null;
+  let sqliteFile, workbook, rows = [], selects = {}, items = [], branch, busy = false, attempt = null;
   const say = (msg) => { status.textContent = msg; };
   const addLine = (target, text) => {
     const li = document.createElement('li');
@@ -46,15 +46,33 @@
     say(`${items.length} produtos prontos; ${invalid} linhas serão ignoradas. Códigos já cadastrados também serão ignorados.`);
     button.disabled = !items.length;
   }
-  function loadSheet() {
+  async function readSqlite(table) {
+    const body = new FormData();
+    body.append('file', sqliteFile);
+    const query = table === undefined ? '' : '?' + new URLSearchParams({ table });
+    const response = await fetch('/api/products/import/sqlite' + query, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'x-nextstock-branch-id': branch.id }, body,
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.message || 'Não foi possível ler o SQLite.');
+    return result;
+  }
+  async function loadSheet() {
     attempt = null;
     button.disabled = true;
     mapping.hidden = true;
     byId('importReview').hidden = true;
-    const source = workbook.Sheets[sheet.value];
-    const range = window.XLSX.utils.decode_range(source['!ref'] || 'A1');
-    if (range.e.r >= 10001 || range.e.c >= 100) throw new Error('A planilha excede 10.000 linhas de produtos ou 100 colunas.');
-    rows = window.XLSX.utils.sheet_to_json(source, { header: 1, raw: false, defval: '', blankrows: true });
+    if (sqliteFile) {
+      say('Lendo a tabela SQLite…');
+      const result = await readSqlite(sheet.value);
+      rows = [result.headers, ...result.rows];
+    } else {
+      const source = workbook.Sheets[sheet.value];
+      const range = window.XLSX.utils.decode_range(source['!fullref'] || source['!ref'] || 'A1');
+      if (range.e.r >= 10001 || range.e.c >= 100) throw new Error('A planilha excede 10.000 linhas de produtos ou 100 colunas.');
+      rows = window.XLSX.utils.sheet_to_json(source, { header: 1, raw: false, defval: '', blankrows: true });
+    }
     if (rows.length < 2) throw new Error('O arquivo precisa de títulos e pelo menos um produto.');
     selects = {};
     mapping.replaceChildren();
@@ -80,19 +98,43 @@
     attempt = null;
     const selected = file.files[0];
     if (!selected) return;
-    file.disabled = true;
+    file.disabled = sheet.disabled = true;
     try {
-      if (!/\.(csv|xls|xlsx)$/i.test(selected.name) || selected.size > 5 * 1024 * 1024) throw new Error('Selecione um CSV, XLS ou XLSX de até 5 MB.');
-      if (!window.XLSX) throw new Error('O leitor de planilhas não carregou. Atualize a página e tente novamente.');
-      workbook = window.XLSX.read(await selected.arrayBuffer(), { raw: true, sheetRows: 10002 });
-      sheet.replaceChildren(...workbook.SheetNames.map((name) => new Option(name, name)));
-      loadSheet();
-      byId('importSheetField').hidden = workbook.SheetNames.length < 2;
+      sqliteFile = null;
+      workbook = null;
+      if (selected.size > 5 * 1024 * 1024) throw new Error('Selecione um arquivo de até 5 MB.');
+      if (/\.(sqlite|sqlite3|db)$/i.test(selected.name)) {
+        sqliteFile = selected;
+        say('Identificando tabelas SQLite…');
+        const { tables } = await readSqlite();
+        if (!tables.length) throw new Error('Nenhuma tabela de dados foi encontrada.');
+        sheet.replaceChildren(new Option('Escolha a tabela de produtos', ''), ...tables.map((name) => new Option(name, name)));
+        byId('importSheetLabel').textContent = 'Tabela SQLite';
+        byId('importSheetField').hidden = false;
+        say('Escolha a tabela que contém seus produtos.');
+      } else {
+        if (!/\.(csv|xls|xlsx)$/i.test(selected.name)) throw new Error('Selecione um CSV, Excel ou SQLite.');
+        if (!window.XLSX) throw new Error('O leitor de planilhas não carregou. Atualize a página e tente novamente.');
+        workbook = window.XLSX.read(await selected.arrayBuffer(), { raw: true, sheetRows: 10002 });
+        sheet.replaceChildren(...workbook.SheetNames.map((name) => new Option(name, name)));
+        byId('importSheetLabel').textContent = 'Planilha';
+        byId('importSheetField').hidden = workbook.SheetNames.length < 2;
+        await loadSheet();
+      }
     } catch (err) { say(err.message); }
-    finally { file.disabled = false; }
+    finally { file.disabled = sheet.disabled = false; }
   });
-  sheet.addEventListener('change', () => {
-    try { loadSheet(); } catch (err) { say(err.message); }
+  sheet.addEventListener('change', async () => {
+    if (!sheet.value) {
+      button.disabled = true;
+      mapping.hidden = byId('importReview').hidden = true;
+      say('Escolha a tabela que contém seus produtos.');
+      return;
+    }
+    file.disabled = sheet.disabled = true;
+    try { await loadSheet(); }
+    catch (err) { say(err.message); }
+    finally { file.disabled = sheet.disabled = false; }
   });
   const unload = (event) => { event.preventDefault(); event.returnValue = ''; };
   button.addEventListener('click', async () => {

@@ -244,11 +244,11 @@
     <div class="card">
       <h1>Importar produtos</h1>
 
-      <p>Selecione um CSV ou uma planilha Excel com seus produtos. A leitura ocorre no navegador.</p>
+      <p>Selecione uma planilha ou uma cópia SQLite com seus produtos. Planilhas são lidas no navegador; a cópia SQLite é enviada para leitura temporária.</p>
       <p id="importDestination">Consultando filial de destino…</p>
-      <label>Arquivo de produtos <input id="importFile" type="file" accept=".csv,.xlsx,.xls" disabled></label>
-      <p>Até 5 MB e 10.000 linhas. Use a primeira linha para os títulos das colunas.</p>
-      <label id="importSheetField" hidden>Planilha <select id="importSheet"></select></label>
+      <label>Arquivo de produtos <input id="importFile" type="file" accept=".csv,.xlsx,.xls,.sqlite,.sqlite3,.db" disabled></label>
+      <p>Até 5 MB e 10.000 linhas de produtos. Em planilhas, use a primeira linha para os títulos das colunas. Para SQLite, use uma cópia independente, sem modo WAL.</p>
+      <label id="importSheetField" hidden><span id="importSheetLabel">Planilha</span> <select id="importSheet"></select></label>
       <section id="importMapping" aria-label="Mapeamento de colunas" hidden></section>
       <section id="importReview" aria-label="Prévia da importação" hidden>
         <ul id="importPreview"></ul>
