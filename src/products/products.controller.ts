@@ -26,6 +26,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { BranchContextGuard } from '../tenancy/branch-context.guard';
 import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
+import { ImportProductsDto } from './dto/import-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
@@ -110,6 +111,19 @@ export class ProductsController {
       devContextMode,
     );
     return reply.header('location', url).code(302).send();
+  }
+
+  @Post('import')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+  @RequireTenantContext({ requireBranch: true })
+  importBatch(
+    @Req() req: Request,
+    @Body() body: ImportProductsDto,
+    @Headers('idempotency-key') idempotencyKey: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+  ) {
+    return this.productsService.importBatch(req.user, body, idempotencyKey, branchId);
   }
 
   @Post()

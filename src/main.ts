@@ -55,7 +55,7 @@ async function bootstrap() {
       reportOnly: isCspReportOnly(),
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
+        scriptSrc: ["'self'", 'https://cdn.jsdelivr.net', 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         imgSrc: ["'self'", 'data:', 'blob:', ...assetOrigins()],
         fontSrc: ["'self'", 'https://fonts.gstatic.com', 'data:'],

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contact To Excel - Web</title>
+<title>Importar produtos - Web</title>
 <style>
   :root {
     --teal: #0f9d8a;
@@ -242,20 +242,26 @@
   <!-- Main Section -->
   <main class="main">
     <div class="card">
-      <h1>Contact To Excel</h1>
+      <h1>Importar produtos</h1>
 
-      <div class="formats">
-        <label><input type="radio" name="format" checked> XLSX</label>
-        <label><input type="radio" name="format"> CSV</label>
-      </div>
-
-      <p class="msg">Só aceitamos importação de arquivos de 50MB de cada vez.</p>
-
-      <button class="btn" id="exportBtn">Exportar planilha</button>
-      <button class="btn" id="importBtn">Importar planilha</button>
+      <p>Selecione um CSV ou uma planilha Excel com seus produtos. A leitura ocorre no navegador.</p>
+      <p id="importDestination">Consultando filial de destino…</p>
+      <label>Arquivo de produtos <input id="importFile" type="file" accept=".csv,.xlsx,.xls" disabled></label>
+      <p>Até 5 MB e 10.000 linhas. Use a primeira linha para os títulos das colunas.</p>
+      <label id="importSheetField" hidden>Planilha <select id="importSheet"></select></label>
+      <section id="importMapping" aria-label="Mapeamento de colunas" hidden></section>
+      <section id="importReview" aria-label="Prévia da importação" hidden>
+        <ul id="importPreview"></ul>
+        <ul id="importIssues"></ul>
+      </section>
+      <progress id="importProgress" value="0" max="1" hidden></progress>
+      <p id="importStatus" role="status" aria-live="polite"></p>
+      <button class="btn" id="importBtn" type="button" disabled>Confirmar importação</button>
     </div>
   </main>
-<script src="./Js/csp-extracted/migracao-inline1.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" defer></script>
+<script src="./Js/product-import-data.js" defer></script>
+<script src="./Js/csp-extracted/migracao-inline1.js" defer></script>
 
   <script src="./dist/session-state.js"></script>
   <script type="module" src="./dist/sidebar.js"></script>
