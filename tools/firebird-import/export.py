@@ -36,7 +36,7 @@ def identifier(name):
     return '"' + name.replace('"', '""') + '"'
 
 
-def collect(cursor, table, columns):
+def collect(cursor, table, columns, include_rows=False):
     cursor.execute(TABLES)
     tables = [row[0] for row in cursor.fetchall()]
     if len(tables) > 200:
@@ -49,9 +49,11 @@ def collect(cursor, table, columns):
     names = [row[0] for row in cursor.fetchall()]
     if not names or len(names) > 100:
         raise ValueError("A tabela precisa ter entre 1 e 100 colunas compatíveis.")
+    if include_rows:
+        columns = names
     if not columns:
         return json.dumps({"columns": names}, ensure_ascii=False)
-    if len(columns) > 30 or len(set(columns)) != len(columns) or not set(columns) <= set(names):
+    if len(columns) > (100 if include_rows else 30) or len(set(columns)) != len(columns) or not set(columns) <= set(names):
         raise ValueError("Escolha até 30 colunas distintas listadas pelo conversor.")
 
     projection = ", ".join(identifier(name) for name in columns)
@@ -85,11 +87,12 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--table")
+    parser.add_argument("--web", action="store_true")
     parser.add_argument("--column", action="append", default=[])
     args = parser.parse_args()
     if args.column and args.table is None:
         parser.error("--column exige --table")
-    source = Path("/input/source.fdb")
+    source = Path("source.fdb").resolve() if args.web else Path("/input/source.fdb")
     if not source.is_file() or not 0 < source.stat().st_size <= MAX_BYTES:
         raise ValueError("Disponibilize uma cópia Firebird .fdb de até 64 MB.")
     with tempfile.TemporaryDirectory(prefix="nextstock-firebird-") as directory:
@@ -99,7 +102,7 @@ def main():
         with closing(connect(target, user="SYSDBA", charset="UTF8", no_gc=True, no_db_triggers=True)) as db:
             db.begin(tpb(Isolation.SNAPSHOT, access_mode=TraAccessMode.READ))
             with closing(db.cursor()) as cursor:
-                result = collect(cursor, args.table, args.column)
+                result = collect(cursor, args.table, args.column, include_rows=args.web and args.table is not None)
             db.rollback()
     sys.stdout.write(result)
 

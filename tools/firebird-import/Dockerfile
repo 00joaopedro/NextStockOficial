@@ -4,7 +4,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir firebird-driver==2.0.3
 WORKDIR /tool
-COPY tools/firebird-import/export.py ./
+COPY tools/firebird-import/export.py tools/firebird-import/server.py ./
 COPY tools/firebird-import/firebird.conf /tool/firebird.conf
 RUN set -eu; \
     engine="$(find /usr/lib -path '*/firebird/3.0/plugins/libEngine12.so' -print -quit)"; \

@@ -8,7 +8,7 @@
     quantity: 'Quantidade inteira (padrão: zero)',
   };
   const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-  let sqliteFile, workbook, rows = [], selects = {}, items = [], branch, busy = false, attempt = null;
+  let databaseFile, databaseType, firebirdEnabled = false, workbook, rows = [], selects = {}, items = [], branch, busy = false, attempt = null;
   const say = (msg) => { status.textContent = msg; };
   const addLine = (target, text) => {
     const li = document.createElement('li');
@@ -46,16 +46,16 @@
     say(`${items.length} produtos prontos; ${invalid} linhas serão ignoradas. Códigos já cadastrados também serão ignorados.`);
     button.disabled = !items.length;
   }
-  async function readSqlite(table) {
+  async function readDatabase(table) {
     const body = new FormData();
-    body.append('file', sqliteFile);
+    body.append('file', databaseFile);
     const query = table === undefined ? '' : '?' + new URLSearchParams({ table });
-    const response = await fetch('/api/products/import/sqlite' + query, {
+    const response = await fetch('/api/products/import/' + databaseType + query, {
       method: 'POST', credentials: 'same-origin',
       headers: { 'x-nextstock-branch-id': branch.id }, body,
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.message || 'Não foi possível ler o SQLite.');
+    if (!response.ok) throw new Error(result.message || 'Não foi possível ler o banco.');
     return result;
   }
   async function loadSheet() {
@@ -63,9 +63,9 @@
     button.disabled = true;
     mapping.hidden = true;
     byId('importReview').hidden = true;
-    if (sqliteFile) {
-      say('Lendo a tabela SQLite…');
-      const result = await readSqlite(sheet.value);
+    if (databaseFile) {
+      say('Lendo a tabela…');
+      const result = await readDatabase(sheet.value);
       rows = [result.headers, ...result.rows];
     } else {
       const source = workbook.Sheets[sheet.value];
@@ -100,16 +100,21 @@
     if (!selected) return;
     file.disabled = sheet.disabled = true;
     try {
-      sqliteFile = null;
+      databaseFile = null;
+      databaseType = null;
       workbook = null;
       if (selected.size > 5 * 1024 * 1024) throw new Error('Selecione um arquivo de até 5 MB.');
-      if (/\.(sqlite|sqlite3|db)$/i.test(selected.name)) {
-        sqliteFile = selected;
-        say('Identificando tabelas SQLite…');
-        const { tables } = await readSqlite();
+      if (/\.(sqlite|sqlite3|db|fdb)$/i.test(selected.name)) {
+        databaseType = /\.fdb$/i.test(selected.name) ? 'firebird' : 'sqlite';
+        if (databaseType === 'firebird' && !firebirdEnabled) {
+          throw new Error('Leitura direta indisponível. Exporte os produtos do Firebird para CSV.');
+        }
+        databaseFile = selected;
+        say('Identificando tabelas…');
+        const { tables } = await readDatabase();
         if (!tables.length) throw new Error('Nenhuma tabela de dados foi encontrada.');
         sheet.replaceChildren(new Option('Escolha a tabela de produtos', ''), ...tables.map((name) => new Option(name, name)));
-        byId('importSheetLabel').textContent = 'Tabela SQLite';
+        byId('importSheetLabel').textContent = databaseType === 'firebird' ? 'Tabela Firebird' : 'Tabela SQLite';
         byId('importSheetField').hidden = false;
         say('Escolha a tabela que contém seus produtos.');
       } else {
@@ -192,6 +197,14 @@
     branch = context.selectedBranch;
     if (!branch?.id || context.role !== 'Admin' || context.systemMode === 'PREVIEW') throw new Error('A importação exige uma filial ativa e acesso de administrador.');
     byId('importDestination').textContent = `Destino: ${branch.name || 'filial ativa'}`;
+    const capability = await fetch('/api/products/import/capabilities', {
+      headers: { 'x-nextstock-branch-id': branch.id },
+    }).then((res) => res.ok ? res.json() : null).catch(() => null);
+    if (capability?.firebird === true) {
+      firebirdEnabled = true;
+      file.accept += ',.fdb';
+      byId('firebirdImportHint').textContent = 'Selecione uma cópia .fdb compatível com Firebird 3 de até 5 MB. Se a versão for mais antiga, exporte CSV no sistema de origem ou peça ao suporte para converter uma cópia.';
+    }
     file.disabled = false;
   }
   start().catch((err) => say(err.message));
