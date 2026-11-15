@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -13,6 +14,8 @@ import {
   Role,
   SystemMode,
 } from '@prisma/client';
+import { AdminOperationService } from '../admin-operations/admin-operation.service';
+import { ImportProductsDto } from './dto/import-products.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { SupabaseStorageService } from '../storage/supabase-storage.service';
 import { DevWorkspaceService } from '../tenancy/dev-workspace.service';
@@ -529,6 +532,58 @@ export class ProductsService {
     } catch (error) {
       this.handlePrismaError(error);
     }
+  }
+
+  async importBatch(
+    user: AuthenticatedUser | undefined,
+    dto: ImportProductsDto,
+    idempotencyKey: string,
+    branchId: string | undefined,
+  ) {
+    if (!branchId) {
+      throw new BadRequestException('Confirme a filial de destino antes de importar.');
+    }
+    const context = await this.contextResolver().resolve(user, {
+      selectedBranchId: branchId,
+      requireBranch: true,
+      writable: true,
+      allowedRoles: [Role.Admin],
+    });
+    if (context.branchId !== branchId) {
+      throw new ForbiddenException('A filial de destino não está disponível.');
+    }
+    const items = dto.items.map((row, index) => {
+      const name = row.name.trim();
+      if (!name) throw new BadRequestException(`Nome vazio no item ${index + 1}.`);
+      const barcode = normalizeScanCode(row.barcode?.trim()) || null;
+      const profitPercent = row.costPriceCents
+        ? new Prisma.Decimal(row.salePriceCents - row.costPriceCents)
+            .mul(100).div(row.costPriceCents).toDecimalPlaces(2)
+        : new Prisma.Decimal(0);
+      if (profitPercent.gt(99999.99)) {
+        throw new BadRequestException(`Acréscimo fora do limite no item ${index + 1}.`);
+      }
+      return {
+        tenantId: context.tenantId,
+        branchId,
+        name,
+        barcode,
+        costPriceCents: row.costPriceCents,
+        salePriceCents: row.salePriceCents,
+        profitPercent,
+        quantity: row.quantity,
+      };
+    });
+    const hash = createHash('sha256').update(JSON.stringify(items)).digest('hex');
+    return new AdminOperationService(this.prisma).execute({
+      tenantScope: `${context.tenantId}:${branchId}`,
+      operation: 'products.import',
+      targetId: hash,
+      idempotencyKey,
+    }, async (tx) => {
+      const { count } = await tx.product.createMany({ data: items, skipDuplicates: true });
+      return { received: items.length, imported: count, duplicates: items.length - count };
+    });
   }
 
   async update(

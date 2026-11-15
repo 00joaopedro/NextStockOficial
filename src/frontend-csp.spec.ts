@@ -38,7 +38,7 @@ describe('frontend CSP compatibility', () => {
 
     expect(main).toContain('reportOnly: isCspReportOnly()');
     expect(main).toContain(
-      "scriptSrc: [\"'self'\", 'https://cdn.jsdelivr.net']",
+      'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js',
     );
     expect(main).not.toMatch(/scriptSrc:\s*\[[^\]]*unsafe-inline/);
     expect(main).not.toMatch(/scriptSrc:\s*\[[^\]]*unsafe-eval/);

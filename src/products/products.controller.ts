@@ -1,3 +1,5 @@
+import { hasFirebirdReader, inspectFirebird, FIREBIRD_IMPORT_MAX_BYTES } from './import/firebird-import';
+import { inspectProductSqlite, SQLITE_IMPORT_MAX_BYTES } from './import/sqlite-import';
 import {
   Body,
   Controller,
@@ -26,6 +28,7 @@ import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { BranchContextGuard } from '../tenancy/branch-context.guard';
 import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
+import { ImportProductsDto } from './dto/import-products.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { CreateProductImagesDto } from './dto/product-image.dto';
 import { ProductLookupQueryDto } from './dto/product-lookup-query.dto';
@@ -76,6 +79,14 @@ export class ProductsController {
     );
   }
 
+  @Get('import/capabilities')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+  @RequireTenantContext({ requireBranch: true, writable: true, allowedRoles: [Role.Admin] })
+  importCapabilities() {
+    return { firebird: hasFirebirdReader() };
+  }
+
   @Get(':id')
   @UseGuards(OptionalJwtAuthGuard)
   findOne(
@@ -110,6 +121,49 @@ export class ProductsController {
       devContextMode,
     );
     return reply.header('location', url).code(302).send();
+  }
+
+  @Post('import/firebird')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard, PublicRateLimitGuard)
+  @RequireTenantContext({ requireBranch: true, writable: true, allowedRoles: [Role.Admin] })
+  @RateLimit({ max: 12, windowMs: 60_000 })
+  @UseInterceptors(FastifyFileInterceptor('file', {
+    limits: { fileSize: FIREBIRD_IMPORT_MAX_BYTES, files: 1 },
+  }))
+  inspectFirebirdFile(
+    @UploadedFile() file: { buffer: Buffer },
+    @Query('table') table?: string,
+  ) {
+    return inspectFirebird(file?.buffer, table);
+  }
+
+  @Post('import/sqlite')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard, PublicRateLimitGuard)
+  @RequireTenantContext({ requireBranch: true, writable: true, allowedRoles: [Role.Admin] })
+  @RateLimit({ max: 20, windowMs: 60_000 })
+  @UseInterceptors(FastifyFileInterceptor('file', {
+    limits: { fileSize: SQLITE_IMPORT_MAX_BYTES, files: 1 },
+  }))
+  inspectSqlite(
+    @UploadedFile() file: { buffer: Buffer },
+    @Query('table') table?: string,
+  ) {
+    return inspectProductSqlite(file?.buffer, table);
+  }
+
+  @Post('import')
+  @Roles(Role.Admin)
+  @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
+  @RequireTenantContext({ requireBranch: true })
+  importBatch(
+    @Req() req: Request,
+    @Body() body: ImportProductsDto,
+    @Headers('idempotency-key') idempotencyKey: string,
+    @Headers('x-nextstock-branch-id') branchId?: string,
+  ) {
+    return this.productsService.importBatch(req.user, body, idempotencyKey, branchId);
   }
 
   @Post()
