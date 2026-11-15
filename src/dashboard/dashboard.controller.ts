@@ -19,6 +19,7 @@ import { RequireTenantContext } from '../tenancy/tenant-context.decorator';
 import { DashboardService } from './dashboard.service';
 import { DashboardFilterDto } from './dto/dashboard-filter.dto';
 import { DashboardProductFilterDto } from './dto/dashboard-product-filter.dto';
+import { DashboardProductSearchDto } from './dto/dashboard-product-search.dto';
 
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard, BranchContextGuard)
@@ -69,6 +70,22 @@ export class DashboardController {
     @Headers('x-nextstock-dev-context') devContextMode?: string,
   ) {
     return this.dashboardService.getTopProducts(req.user, query, selectedBranchId, devContextMode);
+  }
+
+  @Get('products')
+  @Roles(Role.Admin, Role.Vendedor, Role.Comprador)
+  searchProducts(
+    @Req() req: Request,
+    @Query() query: DashboardProductSearchDto,
+    @Headers('x-nextstock-branch-id') selectedBranchId?: string,
+    @Headers('x-nextstock-dev-context') devContextMode?: string,
+  ) {
+    return this.dashboardService.searchProducts(
+      req.user,
+      query.search,
+      selectedBranchId,
+      devContextMode,
+    );
   }
 
   @Get('product/:productId')

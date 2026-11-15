@@ -135,6 +135,30 @@ export class DashboardService {
     return this.getTopProductsForContext(context, query);
   }
 
+  async searchProducts(
+    user: AuthenticatedUser | undefined,
+    search: string,
+    selectedBranchId?: string,
+    devContextMode?: string,
+  ) {
+    const context = await this.resolveContext(user, selectedBranchId, devContextMode);
+    this.assertCanSeeProducts(context);
+
+    const match = { contains: search, mode: 'insensitive' } as const;
+    const products = await this.prisma.product.findMany({
+      where: {
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        OR: [{ name: match }, { barcode: match }, { sku: match }],
+      },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: 10,
+    });
+
+    return { products };
+  }
+
   async getProductMetrics(
     user: AuthenticatedUser | undefined,
     productId: string,
@@ -514,8 +538,8 @@ export function resolveDashboardPeriod(
     if (!query.from || !query.to) {
       throw new BadRequestException('Periodo personalizado exige from e to.');
     }
-    from = startOfLocalDay(new Date(query.from));
-    to = startOfNextLocalDay(new Date(query.to));
+    from = startOfLocalDay(parseDashboardDate(query.from));
+    to = startOfNextLocalDay(parseDashboardDate(query.to));
   } else if (preset === 'today') {
     from = startOfLocalDay(now);
     to = startOfNextLocalDay(now);
@@ -541,6 +565,11 @@ export function resolveDashboardPeriod(
   }
 
   return { from, to, preset, timezone: DEFAULT_TIMEZONE };
+}
+
+function parseDashboardDate(value: string) {
+  // A date input supplies a calendar day. Date-only ISO parsing defaults to UTC.
+  return new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
 }
 
 function startOfLocalDay(date: Date) {

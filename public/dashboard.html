@@ -7,8 +7,8 @@
   <style>
     :root {
       --blue-900: #0d1b2a;
-      --cyan: #00aeb3;
-      --bg: #f4f7fa;
+      --cyan: #00cfcf;
+      --sidebar-width: clamp(12rem, 16vw, 17rem);
       --card: #ffffff;
       --text: #0b2545;
       --muted: #647486;
@@ -17,22 +17,21 @@
       --radius: 8px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
-    .app { display: flex; min-height: 100vh; width: 100%; }
-    .sidebar { width: 16vw; background: #071b31; height: 100vh; position: fixed; top: 0; left: 0; color: #fff; display: flex; flex-direction: column; padding-top: 18px; overflow-y: auto; }
+    body { font-family: "Segoe UI", sans-serif; background: linear-gradient(135deg, #0d1b2a, #00cfcf); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+    .app { min-height: 100vh; }
+    .sidebar { width: var(--sidebar-width); background: #071b31; height: 100vh; position: fixed; inset: 0 auto 0 0; z-index: 10; color: #fff; display: flex; flex-direction: column; padding-top: 18px; overflow-y: auto; }
     .sidebar h2 { text-align: center; margin-bottom: 20px; color: #00cfcf; font-size: 1.5rem; }
     .menu { list-style: none; padding: 0 8px 18px; }
     .menu li { padding: 13px 18px; cursor: pointer; transition: background 0.3s; font-size: 18px; border-radius: 6px; line-height: 1.2; }
     .menu li:hover, .menu li.active { background: #00cfcf; color: var(--blue-900); font-weight: 800; }
-    .menu a { text-decoration: none; color: white; display: block; }
-    .main { margin-left: 18vw; width: calc(100% - 18vw); min-height: 100vh; min-width: 0; }
+    .main { margin-left: var(--sidebar-width); min-height: 100vh; min-width: 0; }
     .topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 16px 22px; background: #fff; border-bottom: 1px solid #e7edf2; flex-wrap: wrap; }
     .topbar h1 { font-size: 1.25rem; color: var(--blue-900); font-weight: 800; }
     .topbar p { font-size: 0.92rem; color: var(--muted); margin-top: 4px; font-weight: 700; }
     .brand-field { width: min(320px, 100%); border: 1px solid rgba(0, 174, 179, 0.35); background: #eefbfb; color: var(--blue-900); border-radius: 8px; padding: 12px 14px; font-size: 0.95rem; outline: none; font-weight: 800; }
     .content { padding: 20px; display: flex; flex-direction: column; gap: 20px; min-width: 0; }
     .filters-panel, .chart-panel, .table-panel, .info-card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; min-width: 0; }
-    .filters-grid { display: grid; grid-template-columns: 0.8fr 1fr 1.2fr 1.4fr auto; gap: 14px; align-items: end; }
+    .filters-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); gap: 14px; align-items: end; }
     .field label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; font-weight: 800; }
     .field input, .field select { width: 100%; border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; outline: none; font-size: 14px; font-weight: 800; color: var(--text); background: #fff; }
     #custom-period-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
@@ -46,27 +45,29 @@
     .info-card .title { font-size: 13px; color: var(--muted); font-weight: 800; }
     .info-card .value { font-size: 24px; font-weight: 900; color: var(--blue-900); margin-top: 10px; overflow-wrap: anywhere; }
     .info-card .sub { margin-top: 8px; font-size: 12px; color: var(--muted); font-weight: 700; }
-    .dashboard-state { font-weight: 800; color: var(--muted); }
+    .dashboard-state { padding: 10px 14px; border-radius: var(--radius); background: var(--card); color: var(--text); font-weight: 700; }
     .dashboard-state[data-kind="error"] { color: #a13737; }
     .panel-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
     .panel-header h3 { font-size: 1rem; color: var(--blue-900); font-weight: 800; }
     .panel-header p { font-size: 0.9rem; color: var(--muted); font-weight: 700; }
     #chart { width: 100%; min-height: 360px; }
+    #chart-fallback summary { cursor: pointer; font-weight: 700; }
     .table-wrap { overflow-x: auto; max-width: 100%; }
     table { width: 100%; border-collapse: collapse; }
     th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid #edf1f5; font-size: 14px; font-weight: 800; }
     th { color: var(--muted); }
     td { color: var(--text); }
-    ul { padding-left: 18px; display: grid; gap: 8px; font-weight: 700; color: var(--text); }
+    .table-panel ul { padding-left: 18px; display: grid; gap: 8px; font-weight: 700; color: var(--text); }
     h4 { margin: 10px 0; color: var(--blue-900); }
+    .product-detail-field { margin-bottom: 12px; }
     #product-metrics p { margin: 7px 0; font-weight: 800; }
     @media (max-width: 1200px) {
       .cards-row { grid-template-columns: repeat(2, 1fr); }
       .filters-grid { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 900px) {
-      .sidebar { width: 100%; height: auto; position: relative; align-items: center; text-align: center; padding: 15px; }
-      .menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0; }
+      .sidebar { width: 100%; height: auto; min-height: 0; position: relative; align-items: center; text-align: center; padding: 15px; }
+      .sidebar .menu { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 0; }
       .menu li { padding: 10px 12px; font-size: 1rem; }
       .main { margin-left: 0; width: 100%; }
       .filters-grid, .cards-row { grid-template-columns: 1fr; }
@@ -82,31 +83,25 @@
       <header class="topbar">
         <div>
           <h1>Dashboard Financeiro</h1>
-          <p>Dados reais por tenant e filial, com filtros server-side</p>
+          <p id="dashboard-branch" hidden></p>
         </div>
         <input id="store-brand" class="brand-field" value="NextStock" readonly aria-label="Marca da loja" />
-        <span id="tenant-badge-name" hidden></span>
       </header>
 
       <section class="content">
         <section class="filters-panel">
           <div class="filters-grid">
             <div class="field">
-              <label for="tenant-select">Tenant / Loja</label>
-              <select id="tenant-select"></select>
-            </div>
-            <div class="field">
-              <label for="time-range">Periodo</label>
+              <label for="time-range">Período</label>
               <select id="time-range">
                 <option value="today">Hoje</option>
-                <option value="last7days">Ultimos 7 dias</option>
-                <option value="currentMonth" selected>Este mes</option>
-                <option value="previousMonth">Mes passado</option>
+                <option value="last7days">Últimos 7 dias</option>
+                <option value="currentMonth" selected>Este mês</option>
+                <option value="previousMonth">Mês passado</option>
                 <option value="custom">Personalizado</option>
               </select>
             </div>
             <div class="field" id="custom-period-fields" hidden>
-              <label>Datas</label>
               <input type="date" id="custom-from" aria-label="Data inicial" />
               <input type="date" id="custom-to" aria-label="Data final" />
             </div>
@@ -114,15 +109,8 @@
               <label for="status-mode">Status</label>
               <select id="status-mode">
                 <option value="confirmed" selected>Apenas confirmados</option>
-                <option value="forecast">Previsoes</option>
+                <option value="forecast">Previsões</option>
               </select>
-            </div>
-            <div class="field">
-              <label for="product-search">Produto</label>
-              <input type="text" id="product-search" placeholder="Buscar produto..." autocomplete="off" />
-              <div id="product-autocomplete" class="autocomplete-list"></div>
-              <small id="selected-product-label"></small>
-              <button id="clear-product" class="link-button" type="button">Limpar produto</button>
             </div>
             <button class="btn-refresh" id="apply-filters" type="button">Aplicar filtros</button>
           </div>
@@ -131,32 +119,32 @@
         <section class="cards-row">
           <article class="info-card">
             <div class="title">Faturamento Bruto</div>
-            <div class="value" id="total-revenue">R$ 0,00</div>
-            <div class="sub">Vendas pagas/concluidas no periodo</div>
+            <div class="value" id="total-revenue">—</div>
+            <div class="sub">Vendas pagas no período</div>
           </article>
           <article class="info-card">
             <div class="title">Total de Despesas</div>
-            <div class="value" id="total-expenses">R$ 0,00</div>
+            <div class="value" id="total-expenses">—</div>
             <div class="sub">Confirmadas ou previstas conforme filtro</div>
           </article>
           <article class="info-card">
-            <div class="title">Lucro Liquido</div>
-            <div class="value" id="net-profit">R$ 0,00</div>
+            <div class="title">Lucro Líquido</div>
+            <div class="value" id="net-profit">—</div>
             <div class="sub">Lucro bruto - despesas</div>
           </article>
           <article class="info-card">
-            <div class="title">Ticket Medio</div>
-            <div class="value" id="average-ticket">R$ 0,00</div>
-            <div class="sub">Faturamento / numero de vendas</div>
+            <div class="title">Ticket Médio</div>
+            <div class="value" id="average-ticket">—</div>
+            <div class="sub">Faturamento / número de vendas</div>
           </article>
           <article class="info-card">
             <div class="title">Lucro Bruto</div>
-            <div class="value" id="gross-profit">R$ 0,00</div>
+            <div class="value" id="gross-profit">—</div>
             <div class="sub">Usa snapshot de custo quando existe</div>
           </article>
         </section>
 
-        <p id="dashboard-state" class="dashboard-state">Carregando...</p>
+        <p id="dashboard-state" class="dashboard-state" role="status">Carregando…</p>
 
         <section class="chart-panel">
           <div class="panel-header">
@@ -165,14 +153,23 @@
               <p id="chart-subtitle">Receitas, despesas e saldo por dia</p>
             </div>
           </div>
-          <div id="chart"></div>
+          <div id="chart" hidden></div>
+          <details id="chart-fallback" hidden>
+            <summary>Ver valores por dia</summary>
+            <div class="table-wrap">
+              <table>
+                <thead><tr id="cashflow-head"></tr></thead>
+                <tbody id="cashflow-body"></tbody>
+              </table>
+            </div>
+          </details>
         </section>
 
         <section class="table-panel">
           <div class="panel-header">
             <div>
               <h3>Top 5 produtos</h3>
-              <p>Produtos mais vendidos no periodo</p>
+              <p>Produtos mais vendidos no período</p>
             </div>
           </div>
           <div class="table-wrap">
@@ -183,7 +180,7 @@
                   <th>Quantidade</th>
                   <th>Receita</th>
                   <th>Lucro Bruto</th>
-                  <th>Acao</th>
+                  <th>Ação</th>
                 </tr>
               </thead>
               <tbody id="products-table-body"></tbody>
@@ -194,23 +191,31 @@
         <section class="table-panel">
           <div class="panel-header">
             <div>
-              <h3>Produto especifico</h3>
-              <p>Participacao no faturamento do periodo</p>
+              <h3>Produto específico</h3>
+              <p>Participação no faturamento do periodo</p>
             </div>
           </div>
-          <div id="product-metrics">Selecione um produto para ver participacao no faturamento.</div>
+          <div class="field product-detail-field">
+            <label for="product-search">Produto</label>
+            <input type="text" id="product-search" maxlength="120" placeholder="Buscar produto..." autocomplete="off" />
+            <div id="product-autocomplete" class="autocomplete-list" hidden></div>
+            <small id="product-search-status" role="status"></small>
+            <small id="selected-product-label"></small>
+            <button id="clear-product" class="link-button" type="button">Limpar produto</button>
+          </div>
+          <div id="product-metrics" aria-live="polite">Selecione um produto para ver sua participação no faturamento.</div>
         </section>
 
         <section class="table-panel">
           <div class="panel-header">
             <div>
               <h3>Alertas</h3>
-              <p>Contas a vencer e agenda Pet Shop quando aplicavel</p>
+              <p>Contas a vencer e agenda Pet Shop quando aplicável</p>
             </div>
           </div>
           <h4>Contas a vencer</h4>
           <ul id="upcoming-expenses"></ul>
-          <div id="appointments-panel">
+          <div id="appointments-panel" hidden>
             <h4>Agenda Pet Shop</h4>
             <ul id="upcoming-appointments"></ul>
           </div>
@@ -219,11 +224,10 @@
     </main>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script src="./Js/csp-extracted/dashboard-inline1.js"></script>
   <script src="./dist/session-state.js"></script>
   <script src="./Js/csp-extracted/dashboard-inline2.js"></script>
-  <script type="module" src="./dist/dashboard.js"></script>
+  <script type="module" src="./dist/dashboard.js?v=b3706cb391"></script>
   <script type="module" src="./dist/sidebar.js"></script>
+  <script id="dashboard-chart-library" src="https://cdn.jsdelivr.net/npm/apexcharts" async></script>
 </body>
 </html>

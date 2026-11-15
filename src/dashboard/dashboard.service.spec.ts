@@ -35,6 +35,17 @@ describe('resolveDashboardPeriod', () => {
     );
   });
 
+  it('mantém o dia informado e inclui a data final no período personalizado', () => {
+    const period = resolveDashboardPeriod({
+      preset: 'custom',
+      from: '2026-06-23',
+      to: '2026-06-23',
+    });
+
+    expect(period.from).toEqual(new Date(2026, 5, 23));
+    expect(period.to).toEqual(new Date(2026, 5, 24));
+  });
+
   it('limita intervalo maximo', () => {
     expect(() =>
       resolveDashboardPeriod({
@@ -68,6 +79,7 @@ describe('DashboardService', () => {
     const prisma: any = {
       $queryRaw: jest.fn(),
       product: {
+        findMany: jest.fn(),
         findFirst: jest.fn(),
       },
       expense: {
@@ -171,6 +183,35 @@ describe('DashboardService', () => {
       ExpenseStatus.approved,
       ExpenseStatus.paid,
     ]);
+  });
+
+  it('pesquisa o catálogo da filial para Comprador, inclusive produtos sem estoque', async () => {
+    const { service, prisma, tenantContext } = makeService({
+      role: Role.Comprador,
+    });
+    const products = [{ id: 'product-id', name: 'Produto sem estoque' }];
+    prisma.product.findMany.mockResolvedValueOnce(products);
+
+    await expect(
+      service.searchProducts(user, 'produto', context.branchId),
+    ).resolves.toEqual({ products });
+    expect(tenantContext.resolve).toHaveBeenCalledWith(user, {
+      selectedBranchId: context.branchId,
+      requireBranch: true,
+      allowedRoles: [Role.Admin, Role.Vendedor, Role.Comprador],
+      allowDevSupport: false,
+    });
+    const match = { contains: 'produto', mode: 'insensitive' };
+    expect(prisma.product.findMany).toHaveBeenCalledWith({
+      where: {
+        tenantId: context.tenantId,
+        branchId: context.branchId,
+        OR: [{ name: match }, { barcode: match }, { sku: match }],
+      },
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: 10,
+    });
   });
 
   it('calcula produto especifico e sharePercentage', async () => {
