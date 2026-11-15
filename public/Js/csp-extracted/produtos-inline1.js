@@ -170,13 +170,15 @@
 
     const itemsPerPage = 12;
     const maxClientOrders = 3;
+    const maxOrderItemQuantity = 9999;
 
     let currentPage = 1;
     let cartActive = false;
     let clientName = "";
     let clientEmail = "";
     let clientData = null;
-    let cart = {};
+    const cart = new Map();
+    let quantityProduct = null;
     let selectedProduct = null;
     let carouselIndex = 0;
     let clientOrders = [];
@@ -195,6 +197,13 @@
     const cartList = document.getElementById("cart-list");
     const clientOrdersList = document.getElementById("client-orders-list");
     const cartCount = document.getElementById("cart-count");
+    const quantityDialog = document.getElementById("quantity-dialog");
+    const quantityForm = document.getElementById("quantity-form");
+    const quantityInput = document.getElementById("product-quantity");
+    const quantityHint = document.getElementById("quantity-hint");
+    const quantityError = document.getElementById("quantity-error");
+    const quantityMinus = document.getElementById("quantity-minus");
+    const quantityPlus = document.getElementById("quantity-plus");
     const productContainer = document.getElementById("product-container");
     const pagination = document.getElementById("pagination");
     const searchInput = document.getElementById("searchInput");
@@ -614,7 +623,7 @@
 
         addButton.addEventListener("click", (event) => {
           event.stopPropagation();
-          addToCart(product.id);
+          openQuantityDialog(product);
         });
 
         productContainer.appendChild(card);
@@ -706,7 +715,7 @@
         return;
       }
 
-      const items = Object.values(cart);
+      const items = Array.from(cart.values());
 
       const header = document.createElement("div");
       header.className = "cart-header";
@@ -736,13 +745,13 @@
           div.innerHTML = `
             <div class="cart-item-info">
               <strong>${escapeHtml(item.name)}</strong>
-              <span>Quantidade: ${item.qty}</span>
-              <span>Preço total: ${formatMoney(item.price * item.qty)}</span>
+              <span data-cart-quantity>Quantidade: ${item.qty}</span>
+              <span data-cart-subtotal>Preço total: ${formatMoney(item.price * item.qty)}</span>
             </div>
 
             <div class="cart-item-actions">
-              <button class="cart-action-btn" data-action="cart-add" data-id="${escapeHtml(item.id)}">+</button>
-              <button class="cart-action-btn remove" data-action="cart-remove" data-id="${escapeHtml(item.id)}">-</button>
+              <button class="cart-action-btn remove" type="button" data-action="cart-remove" data-id="${escapeHtml(item.id)}" aria-label="Diminuir quantidade de ${escapeHtml(item.name)}">−</button>
+              <button class="cart-action-btn" type="button" data-action="cart-add" data-id="${escapeHtml(item.id)}" aria-label="Aumentar quantidade de ${escapeHtml(item.name)}"${item.qty >= item.limit ? " disabled" : ""}>+</button>
             </div>
           `;
 
@@ -752,29 +761,18 @@
 
       cartList.appendChild(body);
 
-      const total = items.reduce((acc, item) => acc + item.price * item.qty, 0);
-      const totalCount = items.reduce((acc, item) => acc + item.qty, 0);
-
       const footer = document.createElement("div");
       footer.className = "cart-footer";
       footer.innerHTML = `
         <span>Total do pedido</span>
-        <span>${formatMoney(total)}</span>
+        <span data-cart-total></span>
       `;
 
       cartList.appendChild(footer);
-      cartCount.textContent = totalCount;
+      updateCartTotals();
 
       document.getElementById("finishOrderBtn").addEventListener("click", finishOrder);
       document.getElementById("cancelOrderBtn").addEventListener("click", cancelOrder);
-
-      cartList.querySelectorAll("[data-action='cart-add']").forEach(button => {
-        button.addEventListener("click", () => addToCart(Number(button.dataset.id)));
-      });
-
-      cartList.querySelectorAll("[data-action='cart-remove']").forEach(button => {
-        button.addEventListener("click", () => removeFromCart(Number(button.dataset.id)));
-      });
 
       syncOrderControls();
     }
@@ -786,6 +784,7 @@
       header.className = "orders-list-header";
       header.innerHTML = `
         <div class="orders-list-title">Pedidos de ${escapeHtml(clientName) || "cliente"}</div>
+        <button class="orders-list-close" type="button" data-close-orders aria-label="Fechar pedidos feitos">×</button>
         <div class="cart-client-email">Máximo de pedidos ativos: ${clientOrders.length}/${maxClientOrders}</div>
       `;
 
@@ -802,7 +801,7 @@
           card.className = "client-order-card";
 
           card.innerHTML = `
-            <button class="delete-order-btn" data-delete-order="${escapeHtml(order.id)}">X</button>
+            <button class="delete-order-btn" type="button" data-delete-order="${escapeHtml(order.id)}">Cancelar</button>
             <strong>${formatMoney(order.total)}</strong>
             <span>${formatDateTime(order.createdAt)}</span>
           `;
@@ -822,48 +821,123 @@
       syncOrderControls();
     }
 
-    function addToCart(productId) {
+    function setOrdersOpen(open) {
+      clientOrdersList.classList.toggle("active", open);
+      ordersBtn.setAttribute("aria-expanded", String(open));
+    }
+
+    function updateCartTotals() {
+      let total = 0;
+      let count = 0;
+      for (const item of cart.values()) {
+        count += item.qty;
+        total += item.price * item.qty;
+      }
+      cartCount.textContent = String(count);
+      const totalElement = cartList.querySelector("[data-cart-total]");
+      if (totalElement) totalElement.textContent = formatMoney(total);
+    }
+
+    function cartCanAdd() {
       if (!cartActive) {
         alert("O carrinho não está ativo. Para ativar, inicie um pedido.");
-        return;
+        return false;
       }
-
       if (clientOrders.length >= maxClientOrders) {
         alert("Você atingiu o máximo de 3 pedidos. Exclua ou entregue um pedido para liberar o carrinho.");
         syncOrderControls();
+        return false;
+      }
+      return true;
+    }
+
+    function stockLimit(product) {
+      return Math.min(maxOrderItemQuantity, Math.max(0, Math.floor(product.stock) || 0));
+    }
+
+    function remainingQuantity(product) {
+      return Math.max(0, stockLimit(product) - (cart.get(String(product.id))?.qty ?? 0));
+    }
+
+    function updateQuantityControls() {
+      const value = quantityInput.valueAsNumber;
+      quantityMinus.disabled = !Number.isFinite(value) || value <= 1;
+      quantityPlus.disabled = !Number.isFinite(value) || value >= Number(quantityInput.max);
+      quantityError.textContent = "";
+    }
+
+    function openQuantityDialog(product) {
+      setOrdersOpen(false);
+      if (!cartCanAdd()) return;
+      const available = remainingQuantity(product);
+      if (available < 1) {
+        alert("Não há unidades disponíveis para adicionar deste produto.");
+        return;
+      }
+      quantityProduct = product;
+      document.getElementById("quantity-product").textContent = product.name;
+      quantityInput.max = String(available);
+      quantityInput.value = "1";
+      quantityHint.textContent = `Você pode adicionar até ${available} ${available === 1 ? "unidade" : "unidades"}.`;
+      updateQuantityControls();
+      quantityDialog.showModal();
+    }
+
+    function confirmQuantity(event) {
+      event.preventDefault();
+      if (!quantityProduct || !cartCanAdd()) {
+        quantityDialog.close();
+        return;
+      }
+      const quantity = quantityInput.valueAsNumber;
+      const available = remainingQuantity(quantityProduct);
+      if (!Number.isInteger(quantity) || quantity < 1 || quantity > available) {
+        quantityError.textContent = available > 0
+          ? `Informe uma quantidade inteira entre 1 e ${available}.`
+          : "Não há unidades disponíveis para adicionar.";
+        quantityInput.focus();
+        return;
+      }
+      const { id, name, price } = quantityProduct;
+      const key = String(id);
+      const previous = cart.get(key);
+      cart.set(key, { id, name, price, qty: (previous?.qty ?? 0) + quantity, limit: stockLimit(quantityProduct) });
+      quantityDialog.close();
+      updateCartView();
+    }
+
+    function adjustCartQuantity(event) {
+      const button = event.target.closest("button[data-action='cart-add'], button[data-action='cart-remove']");
+      const item = cart.get(button?.dataset.id);
+      if (!item || !cartActive || clientOrders.length >= maxClientOrders) return;
+
+      const delta = button.dataset.action === "cart-add" ? 1 : -1;
+      const next = item.qty + delta;
+      if (next > item.limit) return;
+      const row = button.closest(".cart-item");
+      if (next === 0) {
+        cart.delete(button.dataset.id);
+        if (cart.size === 0) {
+          updateCartView();
+          document.getElementById("finishOrderBtn")?.focus();
+        } else {
+          const nextRow = row.nextElementSibling || row.previousElementSibling;
+          row.remove();
+          updateCartTotals();
+          nextRow?.querySelector("[data-action='cart-remove']")?.focus();
+        }
         return;
       }
 
-      const product = products.find(item => item.id === productId);
-      if (!product) return;
-
-      if (!cart[productId]) {
-        cart[productId] = {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          qty: 0
-        };
-      }
-
-      cart[productId].qty++;
-      updateCartView();
-    }
-
-    function removeFromCart(productId) {
-      if (!cart[productId]) return;
-
-      cart[productId].qty--;
-
-      if (cart[productId].qty <= 0) {
-        delete cart[productId];
-      }
-
-      updateCartView();
+      item.qty = next;
+      row.querySelector("[data-cart-quantity]").textContent = `Quantidade: ${next}`;
+      row.querySelector("[data-cart-subtotal]").textContent = `Preço total: ${formatMoney(item.price * next)}`;
+      row.querySelector("[data-action='cart-add']").disabled = next >= item.limit;
+      updateCartTotals();
     }
 
     function buildOrderPayload() {
-      const items = Object.values(cart);
+      const items = Array.from(cart.values());
       const total = items.reduce((acc, item) => acc + item.price * item.qty, 0);
 
       return {
@@ -886,7 +960,7 @@
     }
 
     async function finishOrder() {
-      const items = Object.values(cart);
+      const items = Array.from(cart.values());
 
       if (!items.length) {
         alert("Não há itens no pedido.");
@@ -925,7 +999,7 @@
           return;
         }
 
-        cart = {};
+        cart.clear();
         cartList.classList.remove("active");
         updateCartView();
         renderClientOrdersList();
@@ -949,7 +1023,7 @@
 
       alert(`Pedido de ${clientName} vinculado ao email ${clientEmail} e concluído no frontend.`);
 
-      cart = {};
+      cart.clear();
       cartList.classList.remove("active");
       updateCartView();
       renderClientOrdersList();
@@ -959,7 +1033,7 @@
       const confirmCancel = confirm("Deseja cancelar este pedido?");
       if (!confirmCancel) return;
 
-      cart = {};
+      cart.clear();
       cartList.classList.remove("active");
       updateCartView();
     }
@@ -1143,7 +1217,7 @@
       clientName = "";
       clientEmail = "";
       clientData = null;
-      cart = {};
+      cart.clear();
       clientOrders = [];
 
       orderOverlay.classList.remove("active");
@@ -1151,7 +1225,7 @@
       clientNameBox.classList.remove("active");
       document.querySelector(".initial-order-buttons").style.display = "";
       cartList.classList.remove("active");
-      clientOrdersList.classList.remove("active");
+      setOrdersOpen(false);
 
       resetClientForm();
       updateCartView();
@@ -1165,14 +1239,53 @@
     cartBtn.addEventListener("click", () => {
       if (!cartActive || clientOrders.length >= maxClientOrders) return;
       cartList.classList.toggle("active");
-      clientOrdersList.classList.remove("active");
+      setOrdersOpen(false);
     });
 
     ordersBtn.addEventListener("click", () => {
       if (!clientEmail) return;
       renderClientOrdersList();
-      clientOrdersList.classList.toggle("active");
+      setOrdersOpen(!clientOrdersList.classList.contains("active"));
       cartList.classList.remove("active");
+    });
+
+    clientOrdersList.addEventListener("click", (event) => {
+      if (!event.target.closest("[data-close-orders]")) return;
+      setOrdersOpen(false);
+      ordersBtn.focus();
+    });
+
+    document.addEventListener("click", ({ target }) => {
+      if (!clientOrdersList.classList.contains("active")) return;
+      if (ordersBtn.contains(target) || clientOrdersList.contains(target) || clientOrderDetailOverlay.contains(target)) return;
+      setOrdersOpen(false);
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || quantityDialog.open || clientOrderDetailOverlay.classList.contains("active")) return;
+      if (clientOrdersList.classList.contains("active")) {
+        setOrdersOpen(false);
+        ordersBtn.focus();
+      }
+    });
+
+    cartList.addEventListener("click", adjustCartQuantity);
+    quantityForm.addEventListener("submit", confirmQuantity);
+    quantityInput.addEventListener("input", updateQuantityControls);
+    quantityMinus.addEventListener("click", () => {
+      quantityInput.stepDown();
+      updateQuantityControls();
+    });
+    quantityPlus.addEventListener("click", () => {
+      quantityInput.stepUp();
+      updateQuantityControls();
+    });
+    document.getElementById("close-quantity").addEventListener("click", () => quantityDialog.close());
+    quantityDialog.addEventListener("close", () => {
+      if (!quantityDialog.open) quantityProduct = null;
+    });
+    quantityDialog.addEventListener("click", (event) => {
+      if (event.target === quantityDialog) quantityDialog.close();
     });
 
     startOrderYes.addEventListener("click", () => {
@@ -1272,7 +1385,7 @@
 
     detailAddToCart.addEventListener("click", () => {
       if (!selectedProduct) return;
-      addToCart(selectedProduct.id);
+      openQuantityDialog(selectedProduct);
     });
 
     searchInput.addEventListener("input", () => {
