@@ -332,6 +332,25 @@
       margin-bottom: 6px;
     }
 
+    .orders-list-title {
+      flex: 1 1 0;
+      width: auto;
+      align-self: center;
+      overflow-wrap: anywhere;
+      margin-bottom: 0;
+    }
+
+    .orders-list-close {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      min-width: 44px;
+      min-height: 44px;
+      color: var(--text);
+      background: #fff;
+      font-size: 1.3rem;
+      cursor: pointer;
+    }
+
     .cart-client-email {
       width: 100%;
       color: var(--muted);
@@ -376,14 +395,21 @@
     }
 
     .cart-action-btn {
-      width: 30px;
-      height: 30px;
+      min-width: 44px;
+      min-height: 44px;
+      font-size: 1.15rem;
+      touch-action: manipulation;
       border: none;
       border-radius: 8px;
       background: var(--info);
       color: #fff;
       font-weight: bold;
       cursor: pointer;
+    }
+
+    .cart-action-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
     }
 
     .cart-action-btn.remove {
@@ -409,7 +435,7 @@
 
     .client-order-card {
       position: relative;
-      padding: 14px 44px 14px 14px;
+      padding: 14px 100px 14px 14px;
       border-bottom: 1px solid #eef3f7;
       cursor: pointer;
       transition: 0.2s;
@@ -437,10 +463,10 @@
       position: absolute;
       top: 12px;
       right: 12px;
-      width: 28px;
-      height: 28px;
+      min-height: 44px;
+      padding: 0 10px;
       border: none;
-      border-radius: 50%;
+      border-radius: 8px;
       background: var(--danger);
       color: #fff;
       font-weight: 900;
@@ -513,6 +539,34 @@
       display: flex;
       flex-direction: column;
     }
+
+    #quantity-dialog {
+      position: fixed;
+      inset: 0;
+      margin: auto;
+      padding: 0;
+      width: min(380px, calc(100% - 28px));
+      max-height: calc(100dvh - 28px);
+      border: 0;
+      border-radius: 16px;
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+
+    #quantity-dialog::backdrop { background: rgba(7, 27, 49, 0.65); }
+
+    .quantity-form { display: grid; gap: 12px; padding: 16px; }
+    .quantity-form label { font-weight: 700; }
+    .quantity-controls { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px; }
+    .quantity-controls input {
+      width: 100%;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    #quantity-hint { color: var(--muted); }
+    #quantity-error { color: #a13737; min-height: 1em; }
 
     .modal-header {
       padding: 16px 18px;
@@ -997,8 +1051,8 @@
       </div>
 
       <div class="cart-area">
-        <button class="cart-btn" id="cart-btn" disabled>🛒<span id="cart-count">0</span></button>
-        <button class="orders-btn" id="orders-btn" disabled>📦<span id="orders-count">0</span></button>
+        <button class="cart-btn" id="cart-btn" type="button" aria-label="Carrinho" aria-controls="cart-list" disabled>🛒<span id="cart-count" aria-live="polite">0</span></button>
+        <button class="orders-btn" id="orders-btn" type="button" aria-label="Pedidos feitos" aria-controls="client-orders-list" aria-expanded="false" disabled>📦<span id="orders-count">0</span></button>
       </div>
     </div>
 
@@ -1006,7 +1060,7 @@
       <div class="cart-empty">O carrinho não está ativo</div>
     </div>
 
-    <div class="client-orders-list" id="client-orders-list">
+    <div class="client-orders-list" id="client-orders-list" role="region" aria-label="Pedidos feitos">
       <div class="orders-empty">Nenhum pedido encontrado.</div>
     </div>
 
@@ -1127,6 +1181,26 @@
     </div>
   </div>
 
+  <dialog id="quantity-dialog" aria-labelledby="quantity-title">
+    <div class="modal-header">
+      <h2 id="quantity-title">Adicionar ao carrinho</h2>
+      <button class="modal-close" id="close-quantity" type="button" aria-label="Fechar seleção de quantidade">×</button>
+    </div>
+    <form class="quantity-form" id="quantity-form" novalidate>
+      <p id="quantity-product"></p>
+      <label for="product-quantity">Quantidade</label>
+      <div class="quantity-controls">
+        <button class="cart-action-btn remove" id="quantity-minus" type="button" aria-label="Diminuir quantidade">−</button>
+        <input id="product-quantity" type="number" min="1" step="1" value="1" inputmode="numeric"
+          aria-describedby="quantity-hint quantity-error" required autofocus>
+        <button class="cart-action-btn" id="quantity-plus" type="button" aria-label="Aumentar quantidade">+</button>
+      </div>
+      <p id="quantity-hint"></p>
+      <p id="quantity-error" role="status"></p>
+      <button class="btn add" type="submit" data-action="add-cart">Adicionar ao carrinho</button>
+    </form>
+  </dialog>
+
   <div class="overlay" id="clientOrderDetailOverlay">
     <div class="modal">
       <div class="modal-header">
@@ -1161,7 +1235,7 @@
   </div>
 
   <script src="./dist/session-state.js"></script>
-  <script src="./Js/csp-extracted/produtos-inline1.js"></script>
+  <script src="./Js/csp-extracted/produtos-inline1.js?v=84bb639b0f"></script>
   <script type="module" src="./dist/sidebar.js"></script>
 </body>
 </html>
